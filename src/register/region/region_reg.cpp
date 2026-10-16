@@ -120,7 +120,7 @@ void cc2bw_reg(Span<const Value> args, size_t /*nargout*/,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("cc2bw: expected NV-pair name string",
-                        0, 0, "cc2bw", "", "nk:cc2bw:badNv");
+                        0, 0, "cc2bw", "", "numkit:cc2bw:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -131,7 +131,7 @@ void cc2bw_reg(Span<const Value> args, size_t /*nargout*/,
         } else {
             throw Error("cc2bw: unknown option '" + name + "'",
                         0, 0, "cc2bw", "",
-                        "nk:cc2bw:unknownNv");
+                        "numkit:cc2bw:unknownNv");
         }
         i += 2;
     }
@@ -201,7 +201,7 @@ void regionprops_reg(Span<const Value> args, size_t /*nargout*/,
     for (size_t i = propStart; i < args.size(); ++i) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("regionprops: property names must be strings",
-                        0, 0, "regionprops", "", "nk:regionprops:type");
+                        0, 0, "regionprops", "", "numkit:regionprops:type");
         props.push_back(args[i].toString());
     }
     outs[0] = regionprops(args[0], props, intensity, ctx.engine->resource());
@@ -272,7 +272,7 @@ void bwdist_reg(Span<const Value> args, size_t nargout,
     } else {
         throw Error("bwdist: method must be 'euclidean', 'cityblock', "
                     "'chessboard', or 'quasi-euclidean'",
-                    0, 0, "bwdist", "", "nk:bwdist:badMethod");
+                    0, 0, "bwdist", "", "numkit:bwdist:badMethod");
     }
 
     // 2nd output IDX (nearest-foreground-pixel linear index) on request.
@@ -333,7 +333,7 @@ void bwareafilt_reg(Span<const Value> args, size_t /*nargout*/,
             if      (lo_s == "largest")  keep_largest = true;
             else if (lo_s == "smallest") keep_largest = false;
             else throw Error("bwareafilt: keep must be 'largest' or 'smallest'",
-                             0, 0, "bwareafilt", "", "nk:bwareafilt:keep");
+                             0, 0, "bwareafilt", "", "numkit:bwareafilt:keep");
         } else if (a.numel() == 1) {
             conn = argcheck::expectedOneOf(
                 argcheck::expectedReal(a, 3, "conn", "bwareafilt"),

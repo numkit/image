@@ -135,13 +135,13 @@ void adapthisteq_reg(Span<const Value> args, size_t /*nargout*/,
     for (size_t i = 1; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar())
             throw Error("adapthisteq: NV-pair name must be a string",
-                         0, 0, "adapthisteq", "", "nk:adapthisteq:badNVName");
+                         0, 0, "adapthisteq", "", "numkit:adapthisteq:badNVName");
         const std::string key = args[i].toString();
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumTiles")) {
             if (v.numel() < 2)
                 throw Error("adapthisteq: NumTiles must be 2-element",
-                             0, 0, "adapthisteq", "", "nk:adapthisteq:badNumTiles");
+                             0, 0, "adapthisteq", "", "numkit:adapthisteq:badNumTiles");
             opts.numTilesR = (int)v.elemAsDouble(0);
             opts.numTilesC = (int)v.elemAsDouble(1);
         } else if (eqIgnoreCase(key, "ClipLimit"))    opts.clipLimit    = v.toScalar();
@@ -151,7 +151,7 @@ void adapthisteq_reg(Span<const Value> args, size_t /*nargout*/,
         else if (eqIgnoreCase(key, "Range"))          opts.range        = v.toString();
         else {
             throw Error("adapthisteq: unknown NV-pair key '" + key + "'",
-                         0, 0, "adapthisteq", "", "nk:adapthisteq:badNVKey");
+                         0, 0, "adapthisteq", "", "numkit:adapthisteq:badNVKey");
         }
     }
     outs[0] = adapthisteq(args[0], opts, ctx.engine->resource());
@@ -208,7 +208,7 @@ void imbinarize_reg(Span<const Value> args, size_t /*nargout*/,
             for (std::size_t i = 2; i + 1 < args.size(); i += 2) {
                 if (!args[i].isChar() && !args[i].isString())
                     throw Error("imbinarize: expected a Name-Value pair",
-                                0, 0, "imbinarize", "", "nk:imbinarize:nv");
+                                0, 0, "imbinarize", "", "numkit:imbinarize:nv");
                 std::string nm = args[i].toString();
                 for (char &c : nm) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
                 if (nm == "sensitivity")
@@ -219,17 +219,17 @@ void imbinarize_reg(Span<const Value> args, size_t /*nargout*/,
                         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
                 } else
                     throw Error("imbinarize: unknown option '" + args[i].toString() + "'",
-                                0, 0, "imbinarize", "", "nk:imbinarize:opt");
+                                0, 0, "imbinarize", "", "numkit:imbinarize:opt");
             }
             if (polarity != "bright")
                 throw Error("imbinarize: ForegroundPolarity 'dark' is not yet supported",
-                            0, 0, "imbinarize", "", "nk:imbinarize:polarity");
+                            0, 0, "imbinarize", "", "numkit:imbinarize:polarity");
             Value T = adaptthresh(args[0], sens, 0, "mean", mr);
             outs[0] = imbinarize(args[0], T, mr);
             return;
         }
         throw Error("imbinarize: method must be 'global' or 'adaptive'",
-                    0, 0, "imbinarize", "", "nk:imbinarize:method");
+                    0, 0, "imbinarize", "", "numkit:imbinarize:method");
     }
 
     if (args.size() >= 2 && !args[1].isEmpty()) {
@@ -260,7 +260,7 @@ void imquantize_reg(Span<const Value> args, size_t nargout,
         const std::size_t Lcount = args[1].numel();
         if (args[2].numel() != Lcount + 1)
             throw Error("imquantize: values must have numel(levels)+1 elements",
-                        0, 0, "imquantize", "", "nk:imquantize:values");
+                        0, 0, "imquantize", "", "numkit:imquantize:values");
         Value quant = idx;                 // same shape, DOUBLE
         double *qd = quant.doubleDataMut();
         const double *id = idx.doubleData();
@@ -288,7 +288,7 @@ void adaptthresh_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() >= 4 && !args[3].isEmpty()) {
         if (!args[3].isChar() && !args[3].isString())
             throw Error("adaptthresh: statistic must be a string",
-                        0, 0, "adaptthresh", "", "nk:adaptthresh:type");
+                        0, 0, "adaptthresh", "", "numkit:adaptthresh:type");
         stat = args[3].toString();
     }
     outs[0] = adaptthresh(args[0], sens, nbh, stat, ctx.engine->resource());
@@ -314,7 +314,7 @@ void wcodemat_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (!args[2].isChar() && !args[2].isString())
             throw Error("wcodemat: opt must be a string",
-                        0, 0, "wcodemat", "", "nk:wcodemat:opt");
+                        0, 0, "wcodemat", "", "numkit:wcodemat:opt");
         opt = args[2].toString();
     }
     int absol = 1;
@@ -361,7 +361,7 @@ void grayslice_reg(Span<const Value> args, size_t /*nargout*/,
             outs[0] = grayslice(args[0], Span<const double>(levels, 1), mr);
         } else {
             throw Error("grayslice: N must be a positive number",
-                        0, 0, "grayslice", "", "nk:grayslice:n");
+                        0, 0, "grayslice", "", "numkit:grayslice:n");
         }
     } else if (n.numel() > 1) {
         ScratchArena scratch(mr);
@@ -371,7 +371,7 @@ void grayslice_reg(Span<const Value> args, size_t /*nargout*/,
                             mr);
     } else {
         throw Error("grayslice: N must be scalar >= 1 or a vector",
-                    0, 0, "grayslice", "", "nk:grayslice:nargin");
+                    0, 0, "grayslice", "", "numkit:grayslice:nargin");
     }
 }
 

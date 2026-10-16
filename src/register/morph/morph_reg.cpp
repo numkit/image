@@ -106,12 +106,12 @@ void imfill_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() < 2 ||
         !(args[1].isChar() || args[1].isString()))
         throw Error("imfill: only the 'holes' mode is implemented",
-                    0, 0, "imfill", "", "nk:imfill:mode");
+                    0, 0, "imfill", "", "numkit:imfill:mode");
     const std::string mode = args[1].toString();
     if (mode != "holes" && mode != "Holes" && mode != "HOLES")
         throw Error("imfill: only 'holes' mode is implemented "
                     "(seed-list mode not yet supported)",
-                    0, 0, "imfill", "", "nk:imfill:mode");
+                    0, 0, "imfill", "", "numkit:imfill:mode");
     // Default connectivity is 4 — MATLAB's imfill uses conndef(2,'minimal').
     // With 8-connectivity the background flood leaks through 1-px diagonal
     // gaps in the foreground, so enclosed regions wrongly read as
@@ -314,7 +314,7 @@ void bwmorph3_reg(Span<const Value> args, size_t /*nargout*/,
     // no max: strel-object + option tail
     if (!(args[1].isChar() || args[1].isString()))
         throw Error("bwmorph3: requires (V, operation)",
-                    0, 0, "bwmorph3", "", "nk:bwmorph3:nargin");
+                    0, 0, "bwmorph3", "", "numkit:bwmorph3:nargin");
     outs[0] = bwmorph3(args[0], args[1].toString(), ctx.engine->resource());
 }
 
@@ -356,7 +356,7 @@ void bwmorph_reg(Span<const Value> args, std::size_t /*nargout*/,
     argcheck::checkNargin(args.size(), 2, 3, "bwmorph");
     if (!args[1].isChar())
         throw Error("bwmorph: op must be a string",
-                    0, 0, "bwmorph", "", "nk:bwmorph:badOp");
+                    0, 0, "bwmorph", "", "numkit:bwmorph:badOp");
     std::string op = args[1].toString();
     // Normalise to lowercase.
     for (auto &ch : op) ch = static_cast<char>(std::tolower(ch));
@@ -380,7 +380,7 @@ void bwtraceboundary_reg(Span<const Value> args, std::size_t /*nargout*/,
     if (!args[2].isChar() && !args[2].isString())
         throw Error("bwtraceboundary: FSTEP must be a string",
                     0, 0, "bwtraceboundary", "",
-                    "nk:bwtraceboundary:fstep");
+                    "numkit:bwtraceboundary:fstep");
     std::string fstep = args[2].toString();
     // Upper-case fstep.
     for (auto &ch : fstep)
@@ -400,7 +400,7 @@ void bwtraceboundary_reg(Span<const Value> args, std::size_t /*nargout*/,
             if (!(v > 0))
                 throw Error("bwtraceboundary: N must be positive or Inf",
                             0, 0, "bwtraceboundary", "",
-                            "nk:bwtraceboundary:n");
+                            "numkit:bwtraceboundary:n");
             m_max = static_cast<std::size_t>(v);
         }
     }
@@ -408,7 +408,7 @@ void bwtraceboundary_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (!args[5].isChar() && !args[5].isString())
             throw Error("bwtraceboundary: DIR must be a string",
                         0, 0, "bwtraceboundary", "",
-                        "nk:bwtraceboundary:dirArg");
+                        "numkit:bwtraceboundary:dirArg");
         dir = args[5].toString();
         std::string dlo;
         for (char ch : dir)

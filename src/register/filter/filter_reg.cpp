@@ -61,12 +61,12 @@ Value nlfilter(const Value &A,
 {
     if (m < 1 || n < 1)
         throw Error("nlfilter: neighbourhood size must be positive",
-                    0, 0, "nlfilter", "", "nk:nlfilter:nhood");
+                    0, 0, "nlfilter", "", "numkit:nlfilter:nhood");
 
     const auto &dA = A.dims();
     if (dA.is3D())
         throw Error("nlfilter: A must be a 2-D image",
-                    0, 0, "nlfilter", "", "nk:nlfilter:rank");
+                    0, 0, "nlfilter", "", "numkit:nlfilter:rank");
     const std::size_t H = dA.rows();
     const std::size_t W = dA.cols();
     const ValueType inT = A.type();
@@ -120,7 +120,7 @@ Value nlfilter(const Value &A,
     Value first = callFun(window);
     if (first.numel() != 1)
         throw Error("nlfilter: fun must return a scalar",
-                    0, 0, "nlfilter", "", "nk:nlfilter:funScalar");
+                    0, 0, "nlfilter", "", "numkit:nlfilter:funScalar");
     const ValueType outT = first.type();
     Value B = Value::matrix(H, W, outT, mr);
 
@@ -141,7 +141,7 @@ Value nlfilter(const Value &A,
             case ValueType::LOGICAL: B.logicalDataMut()[idx] = d != 0.0 ? 1 : 0; break;
             default:
                 throw Error("nlfilter: unsupported fun output class",
-                            0, 0, "nlfilter", "", "nk:nlfilter:outCls");
+                            0, 0, "nlfilter", "", "numkit:nlfilter:outCls");
         }
     };
 
@@ -154,7 +154,7 @@ Value nlfilter(const Value &A,
             Value r = callFun(window);
             if (r.numel() != 1)
                 throw Error("nlfilter: fun must return a scalar at all (i,j)",
-                            0, 0, "nlfilter", "", "nk:nlfilter:funScalar");
+                            0, 0, "nlfilter", "", "numkit:nlfilter:funScalar");
             store(i, j, r);
         }
     }
@@ -196,12 +196,12 @@ Value colfilt(const Value &A,
 {
     if (m < 1 || n < 1)
         throw Error("colfilt: block size must be positive",
-                    0, 0, "colfilt", "", "nk:colfilt:nhood");
+                    0, 0, "colfilt", "", "numkit:colfilt:nhood");
 
     const auto &dA = A.dims();
     if (dA.is3D())
         throw Error("colfilt: A must be a 2-D image",
-                    0, 0, "colfilt", "", "nk:colfilt:rank");
+                    0, 0, "colfilt", "", "numkit:colfilt:rank");
     const std::size_t H = dA.rows();
     const std::size_t W = dA.cols();
     const ValueType inT = A.type();
@@ -219,11 +219,11 @@ Value colfilt(const Value &A,
         std::tolower(static_cast<unsigned char>(c)));
     if (kind.empty())
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
-                    0, 0, "colfilt", "", "nk:colfilt:blockType");
+                    0, 0, "colfilt", "", "numkit:colfilt:blockType");
     const char first = kind[0];
     if (first != 's' && first != 'd')
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
-                    0, 0, "colfilt", "", "nk:colfilt:blockType");
+                    0, 0, "colfilt", "", "numkit:colfilt:blockType");
 
     // Common padval rule.
     double padval = 0.0;
@@ -268,7 +268,7 @@ Value colfilt(const Value &A,
         if (result.numel() != Ncol)
             throw Error("colfilt: sliding fun must return a 1 × N row "
                         "vector (one value per column)",
-                        0, 0, "colfilt", "", "nk:colfilt:funShape");
+                        0, 0, "colfilt", "", "numkit:colfilt:funShape");
 
         // Reshape result (regardless of [1, Ncol] or [Ncol, 1]) into H × W.
         Value B = Value::matrix(H, W, result.type(), mr);
@@ -286,7 +286,7 @@ Value colfilt(const Value &A,
                 case ValueType::LOGICAL: B.logicalDataMut()[idx] = v != 0 ? 1 : 0; break;
                 default:
                     throw Error("colfilt: unsupported fun output class",
-                                0, 0, "colfilt", "", "nk:colfilt:outCls");
+                                0, 0, "colfilt", "", "numkit:colfilt:outCls");
             }
         }
         return B;
@@ -325,7 +325,7 @@ Value colfilt(const Value &A,
     if (result.numel() != m * n * Ncol)
         throw Error("colfilt: distinct fun must return a matrix of the "
                     "same shape as its input (m*n × N)",
-                    0, 0, "colfilt", "", "nk:colfilt:funShape");
+                    0, 0, "colfilt", "", "numkit:colfilt:funShape");
 
     // Reassemble padded image, then crop.
     const auto outT = result.type();
@@ -357,7 +357,7 @@ Value colfilt(const Value &A,
                 case ValueType::LOGICAL: B.logicalDataMut()[idx] = v != 0 ? 1 : 0; break;
                 default:
                     throw Error("colfilt: unsupported fun output class",
-                                0, 0, "colfilt", "", "nk:colfilt:outCls");
+                                0, 0, "colfilt", "", "numkit:colfilt:outCls");
             }
         }
     }
@@ -549,7 +549,7 @@ void modefilt_reg(Span<const Value> args, size_t /*nargout*/,
             padopt = args[2].toString();
         else
             throw Error("modefilt: padopt must be a string",
-                        0, 0, "modefilt", "", "nk:modefilt:badPad");
+                        0, 0, "modefilt", "", "numkit:modefilt:badPad");
     }
     if (input3D)
         outs[0] = modefilt3D(args[0], fH, fW, fD, padopt, ctx.engine->resource());
@@ -575,7 +575,7 @@ void integralBoxFilter_reg(Span<const Value> args, size_t /*nargout*/,
             fW = static_cast<int>(fsArg.elemAsDouble(1));
         } else {
             throw Error("integralBoxFilter: filterSize must be a scalar or 2-element vector",
-                        0, 0, "integralBoxFilter", "", "nk:integralBoxFilter:badSize");
+                        0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badSize");
         }
         nvStart = 2;
     }
@@ -587,7 +587,7 @@ void integralBoxFilter_reg(Span<const Value> args, size_t /*nargout*/,
     for (size_t i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter: name-value name must be a string",
-                        0, 0, "integralBoxFilter", "", "nk:integralBoxFilter:badNVName");
+                        0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badNVName");
         const std::string key = args[i].toString();
         std::string lower = key;
         for (auto &ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -595,7 +595,7 @@ void integralBoxFilter_reg(Span<const Value> args, size_t /*nargout*/,
             normFactor = args[i + 1].toScalar();
         } else {
             throw Error("integralBoxFilter: unknown name-value key '" + key + "'",
-                        0, 0, "integralBoxFilter", "", "nk:integralBoxFilter:badNVKey");
+                        0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badNVKey");
         }
     }
     outs[0] = integralBoxFilter(args[0], fH, fW, normFactor, ctx.engine->resource());
@@ -620,7 +620,7 @@ void integralBoxFilter3_reg(Span<const Value> args, size_t /*nargout*/,
             fP = static_cast<int>(fsArg.elemAsDouble(2));
         } else {
             throw Error("integralBoxFilter3: filterSize must be a scalar or 3-element vector",
-                        0, 0, "integralBoxFilter3", "", "nk:integralBoxFilter3:badSize");
+                        0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badSize");
         }
         nvStart = 2;
     }
@@ -631,14 +631,14 @@ void integralBoxFilter3_reg(Span<const Value> args, size_t /*nargout*/,
     for (size_t i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter3: name-value name must be a string",
-                        0, 0, "integralBoxFilter3", "", "nk:integralBoxFilter3:badNVName");
+                        0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badNVName");
         std::string lower = args[i].toString();
         for (auto &ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         if (lower == "normalizationfactor") {
             normFactor = args[i + 1].toScalar();
         } else {
             throw Error("integralBoxFilter3: unknown name-value key",
-                        0, 0, "integralBoxFilter3", "", "nk:integralBoxFilter3:badNVKey");
+                        0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badNVKey");
         }
     }
     outs[0] = integralBoxFilter3(args[0], fH, fW, fP, normFactor, ctx.engine->resource());
@@ -697,7 +697,7 @@ void convmtx2_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[1];
         if (v.numel() != 2)
             throw Error("convmtx2: 2nd arg must be a 2-element vector or pair (m, n)",
-                        0, 0, "convmtx2", "", "nk:convmtx2:size");
+                        0, 0, "convmtx2", "", "numkit:convmtx2:size");
         m = static_cast<int>(v.elemAsDouble(0));
         n = static_cast<int>(v.elemAsDouble(1));
     }
@@ -777,7 +777,7 @@ void im2col_reg(Span<const Value> args, size_t /*nargout*/,
         n = (int)sz.elemAsDouble(1);
     } else {
         throw Error("im2col: block size must be scalar or 2-vector",
-                    0, 0, "im2col", "", "nk:im2col:size");
+                    0, 0, "im2col", "", "numkit:im2col:size");
     }
     std::string mode = "sliding";
     if (args.size() >= 3 && (args[2].isChar() || args[2].isString()))
@@ -827,7 +827,7 @@ void col2im_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &b = args[1];
         if (b.numel() < 1)
             throw Error("col2im: empty block size",
-                        0, 0, "col2im", "", "nk:col2im:size");
+                        0, 0, "col2im", "", "numkit:col2im:size");
         m = (int)b.elemAsDouble(0);
         n = (b.numel() >= 2) ? (int)b.elemAsDouble(1) : m;
     }
@@ -835,7 +835,7 @@ void col2im_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &s = args[2];
         if (s.numel() < 1)
             throw Error("col2im: empty image size",
-                        0, 0, "col2im", "", "nk:col2im:size");
+                        0, 0, "col2im", "", "numkit:col2im:size");
         mm = (int)s.elemAsDouble(0);
         nn = (s.numel() >= 2) ? (int)s.elemAsDouble(1) : mm;
     }
@@ -851,7 +851,7 @@ void imnoise_reg(Span<const Value> args, size_t /*nargout*/,
     argcheck::checkNargin(args.size(), 2, 4, "imnoise");
     if (!(args[1].isChar() || args[1].isString()))
         throw Error("imnoise: mode must be a string",
-                    0, 0, "imnoise", "", "nk:imnoise:mode");
+                    0, 0, "imnoise", "", "numkit:imnoise:mode");
     const std::string mode = args[1].toString();
     Value p1, p2;
     if (args.size() >= 3) p1 = args[2];
@@ -874,18 +874,18 @@ void imsharpen_reg(Span<const Value> args, size_t /*nargout*/,
             const std::string nm = args[i].toString();
             if (i + 1 >= args.size())
                 throw Error("imsharpen: missing value for '" + nm + "'",
-                            0, 0, "imsharpen", "", "nk:imsharpen:nv");
+                            0, 0, "imsharpen", "", "numkit:imsharpen:nv");
             const double v = args[i + 1].toScalar();
             if (nm == "Radius" || nm == "radius") radius = v;
             else if (nm == "Amount" || nm == "amount") amount = v;
             else if (nm == "Threshold" || nm == "threshold") threshold = v;
             else throw Error("imsharpen: unknown option '" + nm + "'",
-                             0, 0, "imsharpen", "", "nk:imsharpen:opt");
+                             0, 0, "imsharpen", "", "numkit:imsharpen:opt");
             i += 2;
         } else {
             if (sawNV)
                 throw Error("imsharpen: positional after name-value",
-                            0, 0, "imsharpen", "", "nk:imsharpen:syntax");
+                            0, 0, "imsharpen", "", "numkit:imsharpen:syntax");
             const double v = args[i].toScalar();
             if      (i == 1) radius    = v;
             else if (i == 2) amount    = v;
@@ -972,7 +972,7 @@ void ordfilt2_reg(Span<const Value> args, size_t /*nargout*/,
             else if (s == "symmetric") pad = PadMode::Symmetric;
             else if (s == "circular")  pad = PadMode::Circular;
             else throw Error("ordfilt2: unknown padding mode",
-                              0, 0, "ordfilt2", "", "nk:ordfilt2:pad");
+                              0, 0, "ordfilt2", "", "numkit:ordfilt2:pad");
         } else if (a.numel() == 1) {
             pad = PadMode::Constant;
             pad_value = a.toScalar();
@@ -981,7 +981,7 @@ void ordfilt2_reg(Span<const Value> args, size_t /*nargout*/,
             S = a;
         } else {
             throw Error("ordfilt2: unrecognized argument shape",
-                        0, 0, "ordfilt2", "", "nk:ordfilt2:arg");
+                        0, 0, "ordfilt2", "", "numkit:ordfilt2:arg");
         }
     }
     outs[0] = ordfilt2(args[0], nth, domain, S, pad, pad_value, mr);
@@ -1026,7 +1026,7 @@ void roifilt2_reg(Span<const Value> args, std::size_t /*nargout*/,
         const Value &BW = args[1];
         if (I.dims().ndim() > 2)
             throw Error("roifilt2: I must be a 2-D image",
-                        0, 0, "roifilt2", "", "nk:roifilt2:imageMustBe2D");
+                        0, 0, "roifilt2", "", "numkit:roifilt2:imageMustBe2D");
         Value filtRes = ctx.engine->callFunctionHandle(
             args[2], Span<const Value>(&I, 1));
         outs[0] = roifilt2_combine(I, filtRes, BW, mr);
@@ -1052,24 +1052,24 @@ void nlfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (s != "indexed")
             throw Error("nlfilter: unknown literal '" + args[1].toString()
                       + "' (expected 'indexed')",
-                        0, 0, "nlfilter", "", "nk:nlfilter:badLiteral");
+                        0, 0, "nlfilter", "", "numkit:nlfilter:badLiteral");
         indexed = true;
         k = 2;
     }
     if (k + 1 >= args.size())
         throw Error("nlfilter: requires (A, [m n], fun) "
                     "or (A, 'indexed', [m n], fun)",
-                    0, 0, "nlfilter", "", "nk:nlfilter:nargin");
+                    0, 0, "nlfilter", "", "numkit:nlfilter:nargin");
     const Value &nh = args[k];
     const Value &fn = args[k + 1];
     if (nh.numel() != 2)
         throw Error("nlfilter: neighbourhood must be a 2-element vector",
-                    0, 0, "nlfilter", "", "nk:nlfilter:nhood");
+                    0, 0, "nlfilter", "", "numkit:nlfilter:nhood");
     const std::size_t m = static_cast<std::size_t>(nh.elemAsDouble(0));
     const std::size_t n = static_cast<std::size_t>(nh.elemAsDouble(1));
     if (!fn.isFuncHandle())
         throw Error("nlfilter: 3rd argument must be a function handle",
-                    0, 0, "nlfilter", "", "nk:nlfilter:fun");
+                    0, 0, "nlfilter", "", "numkit:nlfilter:fun");
     auto cb = [&ctx, &fn](Span<const Value> a, Span<Value> o,
                           std::pmr::memory_resource * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(fn, a, o.size());
@@ -1095,17 +1095,17 @@ void colfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (s != "indexed")
             throw Error("colfilt: unknown literal '" + args[1].toString()
                       + "' (expected 'indexed')",
-                        0, 0, "colfilt", "", "nk:colfilt:badLiteral");
+                        0, 0, "colfilt", "", "numkit:colfilt:badLiteral");
         indexed = true;
         k = 2;
     }
     if (k + 2 >= args.size())
         throw Error("colfilt: requires (A, [m n], block_type, fun)",
-                    0, 0, "colfilt", "", "nk:colfilt:nargin");
+                    0, 0, "colfilt", "", "numkit:colfilt:nargin");
     const Value &nh = args[k];
     if (nh.numel() != 2)
         throw Error("colfilt: neighbourhood must be a 2-element vector",
-                    0, 0, "colfilt", "", "nk:colfilt:nhood");
+                    0, 0, "colfilt", "", "numkit:colfilt:nhood");
     const std::size_t m = static_cast<std::size_t>(nh.elemAsDouble(0));
     const std::size_t n = static_cast<std::size_t>(nh.elemAsDouble(1));
 
@@ -1123,15 +1123,15 @@ void colfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     }
     if (bi + 1 >= args.size())
         throw Error("colfilt: missing block_type and/or fun argument",
-                    0, 0, "colfilt", "", "nk:colfilt:nargin");
+                    0, 0, "colfilt", "", "numkit:colfilt:nargin");
     if (!args[bi].isChar() && !args[bi].isString())
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
-                    0, 0, "colfilt", "", "nk:colfilt:blockType");
+                    0, 0, "colfilt", "", "numkit:colfilt:blockType");
     const std::string kind = args[bi].toString();
     const Value &fn = args[bi + 1];
     if (!fn.isFuncHandle())
         throw Error("colfilt: fun must be a function handle",
-                    0, 0, "colfilt", "", "nk:colfilt:fun");
+                    0, 0, "colfilt", "", "numkit:colfilt:fun");
     auto cb = [&ctx, &fn](Span<const Value> a, Span<Value> o,
                           std::pmr::memory_resource * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(fn, a, o.size());
@@ -1155,7 +1155,7 @@ void imnlmfilt_reg(Span<const Value> args, std::size_t nargout,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("imnlmfilt: expected NV-pair name",
-                        0, 0, "imnlmfilt", "", "nk:imnlmfilt:badNv");
+                        0, 0, "imnlmfilt", "", "numkit:imnlmfilt:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -1165,7 +1165,7 @@ void imnlmfilt_reg(Span<const Value> args, std::size_t nargout,
             dos = args[i + 1].toScalar();
             if (!(dos > 0))
                 throw Error("imnlmfilt: DegreeOfSmoothing must be positive",
-                            0, 0, "imnlmfilt", "", "nk:imnlmfilt:dos");
+                            0, 0, "imnlmfilt", "", "numkit:imnlmfilt:dos");
         } else if (nlo == "searchwindowsize") {
             swsize = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "SearchWindowSize", "imnlmfilt"),
@@ -1177,7 +1177,7 @@ void imnlmfilt_reg(Span<const Value> args, std::size_t nargout,
         } else {
             throw Error("imnlmfilt: unknown option '" + name + "'",
                         0, 0, "imnlmfilt", "",
-                        "nk:imnlmfilt:unknownNv");
+                        "numkit:imnlmfilt:unknownNv");
         }
         i += 2;
     }
@@ -1206,7 +1206,7 @@ void imgaborfilt_reg(Span<const Value> args, std::size_t nargout,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("imgaborfilt: expected NV-pair name",
-                        0, 0, "imgaborfilt", "", "nk:imgaborfilt:badNv");
+                        0, 0, "imgaborfilt", "", "numkit:imgaborfilt:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -1219,7 +1219,7 @@ void imgaborfilt_reg(Span<const Value> args, std::size_t nargout,
         else
             throw Error("imgaborfilt: unknown option '" + name + "'",
                         0, 0, "imgaborfilt", "",
-                        "nk:imgaborfilt:unknownNv");
+                        "numkit:imgaborfilt:unknownNv");
         i += 2;
     }
     Value mag, phase;
@@ -1246,7 +1246,7 @@ void imdiffusefilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (!is_string(args[i]))
             throw Error("imdiffusefilt: expected NV-pair name",
                         0, 0, "imdiffusefilt", "",
-                        "nk:imdiffusefilt:badNv");
+                        "numkit:imdiffusefilt:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -1260,7 +1260,7 @@ void imdiffusefilt_reg(Span<const Value> args, std::size_t /*nargout*/,
                 throw Error("imdiffusefilt: NumberOfIterations must be a "
                             "positive integer",
                             0, 0, "imdiffusefilt", "",
-                            "nk:imdiffusefilt:n");
+                            "numkit:imdiffusefilt:n");
             N = static_cast<std::size_t>(v);
         } else if (nlo == "connectivity") {
             connectivity = args[i + 1].toString();
@@ -1279,7 +1279,7 @@ void imdiffusefilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         } else {
             throw Error("imdiffusefilt: unknown option '" + name + "'",
                         0, 0, "imdiffusefilt", "",
-                        "nk:imdiffusefilt:unknownNv");
+                        "numkit:imdiffusefilt:unknownNv");
         }
         i += 2;
     }
@@ -1307,7 +1307,7 @@ void imguidedfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (!is_string(args[i]))
             throw Error("imguidedfilter: expected NV-pair name",
                         0, 0, "imguidedfilter", "",
-                        "nk:imguidedfilter:badNv");
+                        "numkit:imguidedfilter:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -1326,13 +1326,13 @@ void imguidedfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
                     throw Error("imguidedfilter: non-square NeighborhoodSize "
                                 "not yet supported",
                                 0, 0, "imguidedfilter", "",
-                                "nk:imguidedfilter:nhoodNonsq");
+                                "numkit:imguidedfilter:nhoodNonsq");
                 nhood = n0;
             } else {
                 throw Error("imguidedfilter: NeighborhoodSize must be a "
                             "scalar or 2-element vector",
                             0, 0, "imguidedfilter", "",
-                            "nk:imguidedfilter:nhoodSize");
+                            "numkit:imguidedfilter:nhoodSize");
             }
         } else if (nlo == "degreeofsmoothing") {
             eps = args[i + 1].toScalar();
@@ -1340,11 +1340,11 @@ void imguidedfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
                 throw Error("imguidedfilter: DegreeOfSmoothing must be a "
                             "positive finite scalar",
                             0, 0, "imguidedfilter", "",
-                            "nk:imguidedfilter:dos");
+                            "numkit:imguidedfilter:dos");
         } else {
             throw Error("imguidedfilter: unknown option '" + name + "'",
                         0, 0, "imguidedfilter", "",
-                        "nk:imguidedfilter:unknownNv");
+                        "numkit:imguidedfilter:unknownNv");
         }
         i += 2;
     }

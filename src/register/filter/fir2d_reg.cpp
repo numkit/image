@@ -43,7 +43,7 @@ void fsamp2_reg(Span<const Value> args, std::size_t /*nargout*/,
         return;
     }
     throw Error("fsamp2: requires 1 or 4 arguments",
-                0, 0, "fsamp2", "", "nk:fsamp2:nargin");
+                0, 0, "fsamp2", "", "numkit:fsamp2:nargin");
 }
 
 void ftrans2_reg(Span<const Value> args, std::size_t /*nargout*/,
@@ -70,7 +70,7 @@ void fwind1_reg(Span<const Value> args, std::size_t /*nargout*/,
     } else {
         // (f1, f2, Hd, ...) — non-uniform spacing case (not supported).
         throw Error("fwind1: non-uniform-spacing form is not yet supported",
-                    0, 0, "fwind1", "", "nk:fwind1:nonuniform");
+                    0, 0, "fwind1", "", "numkit:fwind1:nonuniform");
     }
 }
 
@@ -84,7 +84,7 @@ void fwind2_reg(Span<const Value> args, std::size_t /*nargout*/,
         outs[0] = fwind2(args[0], args[1], mr);
     } else {
         throw Error("fwind2: non-uniform-spacing form is not yet supported",
-                    0, 0, "fwind2", "", "nk:fwind2:nonuniform");
+                    0, 0, "fwind2", "", "numkit:fwind2:nonuniform");
     }
 }
 

@@ -24,7 +24,7 @@ namespace {
 ValueType classFromString(const Value &v) {
     if (!v.isChar() && !v.isString())
         throw Error("imlincomb: output_class must be a string",
-                    0, 0, "imlincomb", "", "nk:imlincomb:badclass");
+                    0, 0, "imlincomb", "", "numkit:imlincomb:badclass");
     auto s = v.toString();
     if (s == "double") return ValueType::DOUBLE;
     if (s == "single") return ValueType::SINGLE;
@@ -33,7 +33,7 @@ ValueType classFromString(const Value &v) {
     if (s == "int16")  return ValueType::INT16;
     if (s == "logical")return ValueType::LOGICAL;
     throw Error("imlincomb: unrecognised output_class", 0, 0, "imlincomb", "",
-                "nk:imlincomb:badclass");
+                "numkit:imlincomb:badclass");
 }
 } // anonymous
 
@@ -77,7 +77,7 @@ void imlincomb_reg(Span<const Value> args, size_t /*nargout*/,
     }
     if ((end & 1) == 1 && end < 3) // need at least k1, A1
         throw Error("imlincomb: arguments must come in (coef, image) pairs",
-                    0, 0, "imlincomb", "", "nk:imlincomb:nargin");
+                    0, 0, "imlincomb", "", "numkit:imlincomb:nargin");
 
     std::vector<double> coefs;
     std::vector<Value>  images;

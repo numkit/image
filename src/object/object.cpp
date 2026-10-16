@@ -193,7 +193,7 @@ imgradientxyz(const Value &V, const std::string &method, std::pmr::memory_resour
 {
     if (!V.dims().is3D())
         throw Error("imgradientxyz: V must be 3-D",
-                    0, 0, "imgradientxyz", "", "nk:imgradientxyz:rank");
+                    0, 0, "imgradientxyz", "", "numkit:imgradientxyz:rank");
     const ValueType inT = V.type();
     const ValueType outT = (inT == ValueType::SINGLE)
                          ? ValueType::SINGLE : ValueType::DOUBLE;
@@ -339,7 +339,7 @@ imgradientxyz(const Value &V, const std::string &method, std::pmr::memory_resour
     } else {
         throw Error("imgradientxyz: method must be 'sobel', 'prewitt', "
                     "'central', or 'intermediate'",
-                    0, 0, "imgradientxyz", "", "nk:imgradientxyz:method");
+                    0, 0, "imgradientxyz", "", "numkit:imgradientxyz:method");
     }
 
     if (outT == ValueType::SINGLE) {
@@ -367,7 +367,7 @@ imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
         || Gx.dims().cols() != Gz.dims().cols()
         || Gx.dims().pages() != Gz.dims().pages())
         throw Error("imgradient3: Gx, Gy, Gz must have the same size",
-                    0, 0, "imgradient3", "", "nk:imgradient3:size");
+                    0, 0, "imgradient3", "", "numkit:imgradient3:size");
     const std::size_t N = Gx.numel();
     const ValueType outT = (Gx.type() == ValueType::SINGLE
                          || Gy.type() == ValueType::SINGLE
@@ -696,15 +696,15 @@ Value cornermetric(const Value &I, const std::string &method,
                                 internal::ImgClasses::FloatIntLog);
     if (I.dims().is3D())
         throw Error("cornermetric: I must be 2-D",
-                    0, 0, "cornermetric", "", "nk:cornermetric:dim");
+                    0, 0, "cornermetric", "", "numkit:cornermetric:dim");
     if (method != "Harris" && method != "MinimumEigenvalue")
         throw Error("cornermetric: METHOD must be 'Harris' or "
                     "'MinimumEigenvalue'",
-                    0, 0, "cornermetric", "", "nk:cornermetric:method");
+                    0, 0, "cornermetric", "", "numkit:cornermetric:method");
     if (method == "Harris"
         && (!(sensitivity_factor > 0.0) || !(sensitivity_factor < 0.25)))
         throw Error("cornermetric: SensitivityFactor must be in (0, 0.25)",
-                    0, 0, "cornermetric", "", "nk:cornermetric:k");
+                    0, 0, "cornermetric", "", "numkit:cornermetric:k");
 
     // Resolve filter coef vector.
     std::pmr::vector<double> fcoef(mr);
@@ -721,7 +721,7 @@ Value cornermetric(const Value &I, const std::string &method,
             throw Error("cornermetric: FilterCoefficients length must "
                         "be odd and ≥ 3",
                         0, 0, "cornermetric", "",
-                        "nk:cornermetric:filter");
+                        "numkit:cornermetric:filter");
         fcoef.reserve(filter_coef.numel());
         for (std::size_t i = 0; i < filter_coef.numel(); ++i)
             fcoef.push_back(filter_coef.elemAsDouble(i));
@@ -730,7 +730,7 @@ Value cornermetric(const Value &I, const std::string &method,
     const std::size_t halfLc = Lc / 2;       // (Lc-1)/2
     if (halfLc < 1)
         throw Error("cornermetric: filter coef too short",
-                    0, 0, "cornermetric", "", "nk:cornermetric:filter");
+                    0, 0, "cornermetric", "", "numkit:cornermetric:filter");
     const std::size_t removed = halfLc - 1;  // matches MATLAB
 
     // Promote I → DOUBLE via im2double.
@@ -739,7 +739,7 @@ Value cornermetric(const Value &I, const std::string &method,
     const std::size_t W = Id.dims().cols();
     if (H < 3 || W < 3)
         throw Error("cornermetric: image too small (need ≥ 3x3)",
-                    0, 0, "cornermetric", "", "nk:cornermetric:tooSmall");
+                    0, 0, "cornermetric", "", "numkit:cornermetric:tooSmall");
 
     // Build [-1 0 1] row + column kernels.
     Value hx = Value::matrix(1, 3, ValueType::DOUBLE, mr);
@@ -757,7 +757,7 @@ Value cornermetric(const Value &I, const std::string &method,
     const std::size_t Wt = W - 2;
     if (Ht == 0 || Wt == 0)
         throw Error("cornermetric: image too small after gradient trim",
-                    0, 0, "cornermetric", "", "nk:cornermetric:tooSmall");
+                    0, 0, "cornermetric", "", "numkit:cornermetric:tooSmall");
 
     // Build A = Dx², B = Dy², C = Dx·Dy at trimmed shape.
     Value A = Value::matrix(Ht, Wt, ValueType::DOUBLE, mr);
@@ -803,7 +803,7 @@ Value cornermetric(const Value &I, const std::string &method,
     const std::size_t Wa = A.dims().cols();
     if (Ha < H || Wa < W)
         throw Error("cornermetric: internal shape error after filter",
-                    0, 0, "cornermetric", "", "nk:cornermetric:shape");
+                    0, 0, "cornermetric", "", "numkit:cornermetric:shape");
     auto crop_value = [&](const Value &X) {
         Value Y = Value::matrix(H, W, ValueType::DOUBLE, mr);
         for (std::size_t c = 0; c < W; ++c) {
@@ -978,10 +978,10 @@ void hough(const Value &BW, double rho_res,
 {
     if (BW.dims().is3D())
         throw Error("hough: BW must be 2-D",
-                    0, 0, "hough", "", "nk:hough:dim");
+                    0, 0, "hough", "", "numkit:hough:dim");
     if (!(rho_res > 0.0) || !std::isfinite(rho_res))
         throw Error("hough: RhoResolution must be a positive scalar",
-                    0, 0, "hough", "", "nk:hough:rho");
+                    0, 0, "hough", "", "numkit:hough:rho");
 
     const std::size_t M = BW.dims().rows();
     const std::size_t N = BW.dims().cols();
@@ -998,7 +998,7 @@ void hough(const Value &BW, double rho_res,
             const double v = theta_deg.elemAsDouble(i);
             if (v < -90.0 || v >= 90.0)
                 throw Error("hough: Theta values must lie in [-90, 90)",
-                            0, 0, "hough", "", "nk:hough:theta");
+                            0, 0, "hough", "", "numkit:hough:theta");
             theta.push_back(v);
         }
     }
@@ -1080,7 +1080,7 @@ Value houghpeaks(const Value &H, std::size_t numpeaks,
                                 internal::ImgClasses::DoubleOnly);
     if (H.dims().is3D())
         throw Error("houghpeaks: H must be 2-D",
-                    0, 0, "houghpeaks", "", "nk:houghpeaks:dim");
+                    0, 0, "houghpeaks", "", "numkit:houghpeaks:dim");
     const std::size_t nrho = H.dims().rows();
     const std::size_t ntheta = H.dims().cols();
     const std::size_t N = nrho * ntheta;
@@ -1220,13 +1220,13 @@ Value houghlines(const Value &BW, const Value &theta_deg,
                                 internal::ImgClasses::AnyNumericReal);
     if (BW.dims().is3D())
         throw Error("houghlines: BW must be 2-D",
-                    0, 0, "houghlines", "", "nk:houghlines:dim");
+                    0, 0, "houghlines", "", "numkit:houghlines:dim");
     if (!(fillgap > 0.0) || !std::isfinite(fillgap))
         throw Error("houghlines: FillGap must be positive",
-                    0, 0, "houghlines", "", "nk:houghlines:fillgap");
+                    0, 0, "houghlines", "", "numkit:houghlines:fillgap");
     if (!(minlength > 0.0) || !std::isfinite(minlength))
         throw Error("houghlines: MinLength must be positive",
-                    0, 0, "houghlines", "", "nk:houghlines:minlength");
+                    0, 0, "houghlines", "", "numkit:houghlines:minlength");
 
     const std::size_t M = BW.dims().rows();
     const std::size_t N = BW.dims().cols();
@@ -1234,10 +1234,10 @@ Value houghlines(const Value &BW, const Value &theta_deg,
     const std::size_t ntheta = theta_deg.numel();
     if (nrho < 2 || ntheta == 0)
         throw Error("houghlines: rho/theta vectors too small",
-                    0, 0, "houghlines", "", "nk:houghlines:vec");
+                    0, 0, "houghlines", "", "numkit:houghlines:vec");
     if (peaks.dims().cols() != 2 || peaks.dims().is3D())
         throw Error("houghlines: PEAKS must be P × 2",
-                    0, 0, "houghlines", "", "nk:houghlines:peaks");
+                    0, 0, "houghlines", "", "numkit:houghlines:peaks");
     const std::size_t nPeaks = peaks.dims().rows();
 
     // Gather nonzero pixel (x, y) = (col-1, row-1).

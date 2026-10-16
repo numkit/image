@@ -112,7 +112,7 @@ void wavelength2rgb_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (!args[1].isChar() && !args[1].isString())
             throw Error("wavelength2rgb: class must be a string",
-                        0, 0, "wavelength2rgb", "", "nk:wavelength2rgb:cls");
+                        0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:cls");
         cls = args[1].toString();
     }
     if (args.size() >= 3 && !args[2].isEmpty()) gamma = args[2].toScalar();
@@ -143,11 +143,11 @@ void gray_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("gray: N must be a scalar integer",
-                        0, 0, "gray", "", "nk:gray:n");
+                        0, 0, "gray", "", "numkit:gray:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("gray: N must be a scalar integer",
-                        0, 0, "gray", "", "nk:gray:n");
+                        0, 0, "gray", "", "numkit:gray:n");
         n = static_cast<int>(d);
     }
     outs[0] = gray_cmap(n, ctx.engine->resource());
@@ -162,11 +162,11 @@ void hot_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("hot: N must be a scalar integer",
-                        0, 0, "hot", "", "nk:hot:n");
+                        0, 0, "hot", "", "numkit:hot:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("hot: N must be a scalar integer",
-                        0, 0, "hot", "", "nk:hot:n");
+                        0, 0, "hot", "", "numkit:hot:n");
         n = static_cast<int>(d);
     }
     outs[0] = hot_cmap(n, ctx.engine->resource());
@@ -181,11 +181,11 @@ void cool_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("cool: N must be a scalar integer",
-                        0, 0, "cool", "", "nk:cool:n");
+                        0, 0, "cool", "", "numkit:cool:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("cool: N must be a scalar integer",
-                        0, 0, "cool", "", "nk:cool:n");
+                        0, 0, "cool", "", "numkit:cool:n");
         n = static_cast<int>(d);
     }
     outs[0] = cool_cmap(n, ctx.engine->resource());
@@ -200,11 +200,11 @@ void spring_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("spring: N must be a scalar integer",
-                        0, 0, "spring", "", "nk:spring:n");
+                        0, 0, "spring", "", "numkit:spring:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("spring: N must be a scalar integer",
-                        0, 0, "spring", "", "nk:spring:n");
+                        0, 0, "spring", "", "numkit:spring:n");
         n = static_cast<int>(d);
     }
     outs[0] = spring_cmap(n, ctx.engine->resource());
@@ -219,11 +219,11 @@ void summer_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("summer: N must be a scalar integer",
-                        0, 0, "summer", "", "nk:summer:n");
+                        0, 0, "summer", "", "numkit:summer:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("summer: N must be a scalar integer",
-                        0, 0, "summer", "", "nk:summer:n");
+                        0, 0, "summer", "", "numkit:summer:n");
         n = static_cast<int>(d);
     }
     outs[0] = summer_cmap(n, ctx.engine->resource());
@@ -238,11 +238,11 @@ void autumn_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("autumn: N must be a scalar integer",
-                        0, 0, "autumn", "", "nk:autumn:n");
+                        0, 0, "autumn", "", "numkit:autumn:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("autumn: N must be a scalar integer",
-                        0, 0, "autumn", "", "nk:autumn:n");
+                        0, 0, "autumn", "", "numkit:autumn:n");
         n = static_cast<int>(d);
     }
     outs[0] = autumn_cmap(n, ctx.engine->resource());
@@ -257,11 +257,11 @@ void winter_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("winter: N must be a scalar integer",
-                        0, 0, "winter", "", "nk:winter:n");
+                        0, 0, "winter", "", "numkit:winter:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("winter: N must be a scalar integer",
-                        0, 0, "winter", "", "nk:winter:n");
+                        0, 0, "winter", "", "numkit:winter:n");
         n = static_cast<int>(d);
     }
     outs[0] = winter_cmap(n, ctx.engine->resource());
@@ -276,11 +276,11 @@ void copper_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("copper: N must be a scalar integer",
-                        0, 0, "copper", "", "nk:copper:n");
+                        0, 0, "copper", "", "numkit:copper:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("copper: N must be a scalar integer",
-                        0, 0, "copper", "", "nk:copper:n");
+                        0, 0, "copper", "", "numkit:copper:n");
         n = static_cast<int>(d);
     }
     outs[0] = copper_cmap(n, ctx.engine->resource());
@@ -295,11 +295,11 @@ void pink_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("pink: N must be a scalar integer",
-                        0, 0, "pink", "", "nk:pink:n");
+                        0, 0, "pink", "", "numkit:pink:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("pink: N must be a scalar integer",
-                        0, 0, "pink", "", "nk:pink:n");
+                        0, 0, "pink", "", "numkit:pink:n");
         n = static_cast<int>(d);
     }
     outs[0] = pink_cmap(n, ctx.engine->resource());
@@ -314,11 +314,11 @@ void hsv_cmap_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("hsv: N must be a scalar integer",
-                        0, 0, "hsv", "", "nk:hsv:n");
+                        0, 0, "hsv", "", "numkit:hsv:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("hsv: N must be a scalar integer",
-                        0, 0, "hsv", "", "nk:hsv:n");
+                        0, 0, "hsv", "", "numkit:hsv:n");
         n = static_cast<int>(d);
     }
     outs[0] = hsv_cmap(n, ctx.engine->resource());
@@ -333,11 +333,11 @@ void flag_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("flag: N must be a scalar integer",
-                        0, 0, "flag", "", "nk:flag:n");
+                        0, 0, "flag", "", "numkit:flag:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("flag: N must be a scalar integer",
-                        0, 0, "flag", "", "nk:flag:n");
+                        0, 0, "flag", "", "numkit:flag:n");
         n = static_cast<int>(d);
     }
     outs[0] = flag_cmap(n, ctx.engine->resource());
@@ -352,11 +352,11 @@ void prism_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("prism: N must be a scalar integer",
-                        0, 0, "prism", "", "nk:prism:n");
+                        0, 0, "prism", "", "numkit:prism:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("prism: N must be a scalar integer",
-                        0, 0, "prism", "", "nk:prism:n");
+                        0, 0, "prism", "", "numkit:prism:n");
         n = static_cast<int>(d);
     }
     outs[0] = prism_cmap(n, ctx.engine->resource());
@@ -371,11 +371,11 @@ void lines_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("lines: N must be a scalar integer",
-                        0, 0, "lines", "", "nk:lines:n");
+                        0, 0, "lines", "", "numkit:lines:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("lines: N must be a scalar integer",
-                        0, 0, "lines", "", "nk:lines:n");
+                        0, 0, "lines", "", "numkit:lines:n");
         n = static_cast<int>(d);
     }
     outs[0] = lines_cmap(n, ctx.engine->resource());
@@ -390,11 +390,11 @@ void bone_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("bone: N must be a scalar integer",
-                        0, 0, "bone", "", "nk:bone:n");
+                        0, 0, "bone", "", "numkit:bone:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("bone: N must be a scalar integer",
-                        0, 0, "bone", "", "nk:bone:n");
+                        0, 0, "bone", "", "numkit:bone:n");
         n = static_cast<int>(d);
     }
     outs[0] = bone_cmap(n, ctx.engine->resource());
@@ -409,11 +409,11 @@ void white_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &v = args[0];
         if (v.numel() != 1)
             throw Error("white: N must be a scalar integer",
-                        0, 0, "white", "", "nk:white:n");
+                        0, 0, "white", "", "numkit:white:n");
         const double d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("white: N must be a scalar integer",
-                        0, 0, "white", "", "nk:white:n");
+                        0, 0, "white", "", "numkit:white:n");
         n = static_cast<int>(d);
     }
     outs[0] = white_cmap(n, ctx.engine->resource());
@@ -468,7 +468,7 @@ void contrast_reg(Span<const Value> args, size_t /*nargout*/,
         const double d = args[1].toScalar();
         if (!std::isfinite(d) || d < 2.0)
             throw Error("contrast: M must be a finite scalar >= 2",
-                        0, 0, "contrast", "", "nk:contrast:m");
+                        0, 0, "contrast", "", "numkit:contrast:m");
         m = static_cast<int>(d);
     }
     outs[0] = contrast(args[0], m, ctx.engine->resource());
@@ -483,7 +483,7 @@ void deltaE_reg(Span<const Value> args, size_t /*nargout*/,
     for (size_t i = 2; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("deltaE: name-value pairs require string keys",
-                        0, 0, "deltaE", "", "nk:deltaE:nv");
+                        0, 0, "deltaE", "", "numkit:deltaE:nv");
         std::string key = args[i].toString();
         std::string lo;
         for (char c : key) lo.push_back(static_cast<char>(std::tolower(c)));
@@ -491,7 +491,7 @@ void deltaE_reg(Span<const Value> args, size_t /*nargout*/,
             isInputLab = (args[i + 1].toScalar() != 0.0);
         else
             throw Error("deltaE: unknown name '" + key + "'",
-                        0, 0, "deltaE", "", "nk:deltaE:nv");
+                        0, 0, "deltaE", "", "numkit:deltaE:nv");
     }
     outs[0] = deltaE(args[0], args[1], isInputLab, ctx.engine->resource());
 }
@@ -505,7 +505,7 @@ void whitepoint_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() >= 1 && !args[0].isEmpty()) {
         if (!args[0].isChar() && !args[0].isString())
             throw Error("whitepoint: illuminant must be a string",
-                        0, 0, "whitepoint", "", "nk:whitepoint:type");
+                        0, 0, "whitepoint", "", "numkit:whitepoint:type");
         illum = args[0].toString();
     }
     outs[0] = whitepoint(illum, ctx.engine->resource());

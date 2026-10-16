@@ -23,7 +23,7 @@ namespace detail {
 static std::string asString(const Value &v) {
     if (!v.isChar() && !v.isString())
         throw Error("demosaic: expected a string argument",
-                    0, 0, "demosaic", "", "nk:demosaic:type");
+                    0, 0, "demosaic", "", "numkit:demosaic:type");
     return v.toString();
 }
 
@@ -42,7 +42,7 @@ void demosaic_reg(Span<const Value> args, size_t /*nargout*/,
                 {8, 10, 12, 16}, int(i) + 2, "BitsPerSample", "demosaic");
         else
             throw Error("demosaic: unknown name-value parameter '" + name + "'",
-                        0, 0, "demosaic", "", "nk:demosaic:nv");
+                        0, 0, "demosaic", "", "numkit:demosaic:nv");
     }
     outs[0] = demosaic(args[0], align, bps, mr);
 }

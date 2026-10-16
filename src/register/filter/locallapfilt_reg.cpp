@@ -47,7 +47,7 @@ void locallapfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (args[i].numel() != 1)
             throw Error("locallapfilt: beta must be a scalar",
                         0, 0, "locallapfilt", "",
-                        "nk:locallapfilt:betaShape");
+                        "numkit:locallapfilt:betaShape");
         beta = args[i].toScalar();
         ++i;
     }
@@ -56,7 +56,7 @@ void locallapfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (!is_string(args[i]))
             throw Error("locallapfilt: expected NV-pair name string",
                         0, 0, "locallapfilt", "",
-                        "nk:locallapfilt:badNv");
+                        "numkit:locallapfilt:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -74,7 +74,7 @@ void locallapfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
                     throw Error("locallapfilt: NumIntensityLevels string "
                                 "must be 'auto'",
                                 0, 0, "locallapfilt", "",
-                                "nk:locallapfilt:nIntStr");
+                                "numkit:locallapfilt:nIntStr");
                 nlevels = -1;
             } else {
                 nlevels = argcheck::expectedPositiveInteger(
@@ -82,7 +82,7 @@ void locallapfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
                 if (nlevels < 1)
                     throw Error("locallapfilt: NumIntensityLevels must be >= 1",
                                 0, 0, "locallapfilt", "",
-                                "nk:locallapfilt:nIntRange");
+                                "numkit:locallapfilt:nIntRange");
             }
         } else if (nlo == "colormode") {
             std::string s = args[i + 1].toString();
@@ -95,11 +95,11 @@ void locallapfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
             else throw Error("locallapfilt: ColorMode must be 'luminance' or "
                              "'separate'",
                              0, 0, "locallapfilt", "",
-                             "nk:locallapfilt:colorMode");
+                             "numkit:locallapfilt:colorMode");
         } else {
             throw Error("locallapfilt: unknown option '" + name + "'",
                         0, 0, "locallapfilt", "",
-                        "nk:locallapfilt:unknownNv");
+                        "numkit:locallapfilt:unknownNv");
         }
         i += 2;
     }

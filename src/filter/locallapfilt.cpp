@@ -512,23 +512,23 @@ Value locallapfilt(const Value &I, double sigma, double alpha, double beta,
 {
     if (!std::isfinite(sigma) || sigma < 0.0)
         throw Error("locallapfilt: sigma must be a non-negative finite scalar",
-                    0, 0, "locallapfilt", "", "nk:locallapfilt:sigma");
+                    0, 0, "locallapfilt", "", "numkit:locallapfilt:sigma");
     if (!std::isfinite(alpha) || alpha <= 0.0)
         throw Error("locallapfilt: alpha must be a positive finite scalar",
-                    0, 0, "locallapfilt", "", "nk:locallapfilt:alpha");
+                    0, 0, "locallapfilt", "", "numkit:locallapfilt:alpha");
     if (!std::isfinite(beta) || beta < 0.0)
         throw Error("locallapfilt: beta must be a non-negative finite scalar",
-                    0, 0, "locallapfilt", "", "nk:locallapfilt:beta");
+                    0, 0, "locallapfilt", "", "numkit:locallapfilt:beta");
 
     const auto &dI = I.dims();
     if (dI.rows() == 0 || dI.cols() == 0)
         throw Error("locallapfilt: I must be non-empty",
-                    0, 0, "locallapfilt", "", "nk:locallapfilt:empty");
+                    0, 0, "locallapfilt", "", "numkit:locallapfilt:empty");
     const bool isRGB = dI.is3D() && dI.pages() == 3;
     const bool isGray = !dI.is3D() || (dI.is3D() && dI.pages() == 1);
     if (!isRGB && !isGray)
         throw Error("locallapfilt: I must be H×W (grayscale) or H×W×3 (RGB)",
-                    0, 0, "locallapfilt", "", "nk:locallapfilt:shape");
+                    0, 0, "locallapfilt", "", "numkit:locallapfilt:shape");
 
     // ── Special-case passthroughs (must short-circuit before pyramid) ──
     if ((alpha == 1.0 && beta == 1.0) || (sigma == 0.0 && beta == 1.0)) {

@@ -50,7 +50,7 @@ void imreducehaze_reg(Span<const Value> args, std::size_t nargout,
         if (!is_string(args[i]))
             throw Error("imreducehaze: expected NV-pair name string",
                         0, 0, "imreducehaze", "",
-                        "nk:imreducehaze:badNv");
+                        "numkit:imreducehaze:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -68,7 +68,7 @@ void imreducehaze_reg(Span<const Value> args, std::size_t nargout,
         } else {
             throw Error("imreducehaze: unknown option '" + name + "'",
                         0, 0, "imreducehaze", "",
-                        "nk:imreducehaze:unknownNv");
+                        "numkit:imreducehaze:unknownNv");
         }
         i += 2;
     }
@@ -82,7 +82,7 @@ void imreducehaze_reg(Span<const Value> args, std::size_t nargout,
             throw Error("imreducehaze: BoostAmount may only be specified "
                         "when ContrastEnhancement is 'boost'",
                         0, 0, "imreducehaze", "",
-                        "nk:imreducehaze:boostNotAllowed");
+                        "numkit:imreducehaze:boostNotAllowed");
     }
 
     Value T, L;

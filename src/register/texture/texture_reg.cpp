@@ -58,7 +58,7 @@ void graycomatrix_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (!args[i].isChar())
             throw Error("graycomatrix: NV-pair name must be a string",
                          0, 0, "graycomatrix", "",
-                         "nk:graycomatrix:badNVName");
+                         "numkit:graycomatrix:badNVName");
         const std::string key = args[i].toString();
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumLevels"))
@@ -69,7 +69,7 @@ void graycomatrix_reg(Span<const Value> args, std::size_t /*nargout*/,
             if (v.numel() < 2)
                 throw Error("graycomatrix: Offset must be 2-element",
                              0, 0, "graycomatrix", "",
-                             "nk:graycomatrix:badOffset");
+                             "numkit:graycomatrix:badOffset");
             offR = static_cast<int>(v.elemAsDouble(0));
             offC = static_cast<int>(v.elemAsDouble(1));
         }
@@ -83,7 +83,7 @@ void graycomatrix_reg(Span<const Value> args, std::size_t /*nargout*/,
             else if (v.numel() < 2)
                 throw Error("graycomatrix: GrayLimits must be 2-element",
                              0, 0, "graycomatrix", "",
-                             "nk:graycomatrix:badLimits");
+                             "numkit:graycomatrix:badLimits");
             else {
                 gLow  = v.elemAsDouble(0);
                 gHigh = v.elemAsDouble(1);
@@ -96,7 +96,7 @@ void graycomatrix_reg(Span<const Value> args, std::size_t /*nargout*/,
         else
             throw Error("graycomatrix: unknown NV-pair key '" + key + "'",
                          0, 0, "graycomatrix", "",
-                         "nk:graycomatrix:badNVKey");
+                         "numkit:graycomatrix:badNVKey");
     }
     if (!limitsSet) default_gray_limits(I, gLow, gHigh);
 

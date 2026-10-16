@@ -33,7 +33,7 @@ static void parse_nv_pairs(Span<const Value> args, std::size_t start_idx,
     while (start_idx + 1 < args.size()) {
         if (!args[start_idx].isChar() && !args[start_idx].isString())
             throw Error(std::string(fn) + ": expected option name string",
-                        0, 0, fn, "", "nk:image:badNvArg");
+                        0, 0, fn, "", "numkit:image:badNvArg");
         std::string name = args[start_idx].toString();
         for (auto &c : name) c = static_cast<char>(std::tolower(
             static_cast<unsigned char>(c)));
@@ -43,13 +43,13 @@ static void parse_nv_pairs(Span<const Value> args, std::size_t start_idx,
             norm_exp = args[start_idx + 1].toScalar();
         } else {
             throw Error(std::string(fn) + ": unknown option '" + name + "'",
-                        0, 0, fn, "", "nk:image:unknownNvArg");
+                        0, 0, fn, "", "numkit:image:unknownNvArg");
         }
         start_idx += 2;
     }
     if (start_idx < args.size())
         throw Error(std::string(fn) + ": trailing unpaired name-value arg",
-                    0, 0, fn, "", "nk:image:unpairedNv");
+                    0, 0, fn, "", "numkit:image:unpairedNv");
 }
 
 void illumwhite_reg(Span<const Value> args, size_t /*nargout*/,
@@ -82,7 +82,7 @@ void imcolordiff_reg(Span<const Value> args, size_t /*nargout*/,
     while (i + 1 < args.size()) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("imcolordiff: expected option name string",
-                        0, 0, "imcolordiff", "", "nk:imcolordiff:badNvArg");
+                        0, 0, "imcolordiff", "", "numkit:imcolordiff:badNvArg");
         std::string name = args[i].toString();
         std::string name_lo = name;
         for (auto &c : name_lo)
@@ -96,12 +96,12 @@ void imcolordiff_reg(Span<const Value> args, size_t /*nargout*/,
         else if (name_lo == "k2")        K2 = args[i + 1].toScalar();
         else
             throw Error("imcolordiff: unknown option '" + name + "'",
-                        0, 0, "imcolordiff", "", "nk:imcolordiff:unknownNv");
+                        0, 0, "imcolordiff", "", "numkit:imcolordiff:unknownNv");
         i += 2;
     }
     if (i < args.size())
         throw Error("imcolordiff: trailing unpaired name-value arg",
-                    0, 0, "imcolordiff", "", "nk:imcolordiff:unpaired");
+                    0, 0, "imcolordiff", "", "numkit:imcolordiff:unpaired");
     outs[0] = imcolordiff(args[0], args[1], standard, is_input_lab,
                           kL, kC, kH, K1, K2, mr);
 }
@@ -139,7 +139,7 @@ void illumgray_reg(Span<const Value> args, size_t /*nargout*/,
             P.push_back(args[1].elemAsDouble(1));
         } else if (n != 0) {
             throw Error("illumgray: percentile must be scalar or 2-vector",
-                        0, 0, "illumgray", "", "nk:illumgray:percentile");
+                        0, 0, "illumgray", "", "numkit:illumgray:percentile");
         }
         i = 2;
     }

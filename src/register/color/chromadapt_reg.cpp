@@ -33,7 +33,7 @@ void chromadapt_reg(Span<const Value> args, std::size_t /*nargout*/,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("chromadapt: expected NV-pair name string",
-                        0, 0, "chromadapt", "", "nk:chromadapt:badNv");
+                        0, 0, "chromadapt", "", "numkit:chromadapt:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -43,7 +43,7 @@ void chromadapt_reg(Span<const Value> args, std::size_t /*nargout*/,
         else if (nlo == "colorspace")  colorSpace = args[i + 1].toString();
         else throw Error("chromadapt: unknown option '" + name + "'",
                          0, 0, "chromadapt", "",
-                         "nk:chromadapt:unknownNv");
+                         "numkit:chromadapt:unknownNv");
         i += 2;
     }
     outs[0] = chromadapt(args[0], args[1], method, colorSpace, mr);

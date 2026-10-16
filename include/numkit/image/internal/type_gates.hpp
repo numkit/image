@@ -122,7 +122,7 @@ inline void requireImageClass(const Value &v, std::string_view fn,
                         + "complex images are rejected here (got a "
                         + shapeOf(v) + " complex array).",
                     0, 0, std::string(fn), "",
-                    "nk:" + std::string(fn) + ":expectedReal");
+                    "numkit:" + std::string(fn) + ":expectedReal");
     }
     if (!classAllowed(v, mask)) {
         throw Error(std::string(fn) + ": input " + std::to_string(argNum)
@@ -130,7 +130,7 @@ inline void requireImageClass(const Value &v, std::string_view fn,
                         + describeClasses(mask) + " (got a " + shapeOf(v)
                         + " " + mtypeName(t) + " array).",
                     0, 0, std::string(fn), "",
-                    "nk:" + std::string(fn) + ":inputType");
+                    "numkit:" + std::string(fn) + ":inputType");
     }
 }
 
@@ -164,7 +164,7 @@ inline void requireRealKernelImage(const Value &v, std::string_view fn,
                     + "returning a wrong real one (got a " + shapeOf(v)
                     + " complex array).",
                 0, 0, std::string(fn), "",
-                "nk:" + std::string(fn) + ":complexUnsupported");
+                "numkit:" + std::string(fn) + ":complexUnsupported");
 }
 
 /// @brief Nonempty gate (imadjust's auto stretchlim, entropyfilt):
@@ -177,7 +177,7 @@ inline void requireNonemptyImage(const Value &v, std::string_view fn,
     throw Error(std::string(fn) + ": input " + std::to_string(argNum)
                     + " (" + std::string(argName) + ") must be nonempty.",
                 0, 0, std::string(fn), "",
-                "nk:" + std::string(fn) + ":expectedNonempty");
+                "numkit:" + std::string(fn) + ":expectedNonempty");
 }
 
 /// @brief Real-valued check for DOUBLE-only auxiliary args (seeds,
@@ -189,13 +189,13 @@ inline void requireRealDoubleArg(const Value &v, std::string_view fn,
         throw Error(std::string(fn) + ": input " + std::to_string(argNum)
                         + " (" + std::string(argName) + ") must be real.",
                     0, 0, std::string(fn), "",
-                    "nk:" + std::string(fn) + ":mustBeReal");
+                    "numkit:" + std::string(fn) + ":mustBeReal");
     if (v.type() != ValueType::DOUBLE)
         throw Error(std::string(fn) + ": input " + std::to_string(argNum)
                         + " (" + std::string(argName) + ") must be double "
                         + "(got a " + mtypeName(v.type()) + " array).",
                     0, 0, std::string(fn), "",
-                    "nk:" + std::string(fn) + ":inputType");
+                    "numkit:" + std::string(fn) + ":inputType");
 }
 
 /// @brief Colormap gate (label2rgb/ind2rgb/ind2gray map, imfuse):
@@ -212,7 +212,7 @@ inline void requireColormap(const Value &v, std::string_view fn,
                     + "(got a " + shapeOf(v) + " " + mtypeName(v.type())
                     + " array).",
                 0, 0, std::string(fn), "",
-                "nk:" + std::string(fn) + ":invalidColormap");
+                "numkit:" + std::string(fn) + ":invalidColormap");
 }
 
 /// @brief Same-class pair gate for the quality family (immse/psnr/
@@ -227,7 +227,7 @@ inline void requireSameClassPair(const Value &A, const Value &B,
                     + "(got " + mtypeName(A.type()) + " and "
                     + mtypeName(B.type()) + ").",
                 0, 0, std::string(fn), "",
-                "nk:" + std::string(fn) + ":differentClass");
+                "numkit:" + std::string(fn) + ":differentClass");
 }
 
 /// @brief Packed-binary gate (bwunpack): BWP must be uint32
@@ -239,7 +239,7 @@ inline void requireUint32Packed(const Value &v, std::string_view fn)
     throw Error(std::string(fn) + ": input 1 (BWP) must be uint32 "
                     + "(got a " + mtypeName(v.type()) + " array).",
                 0, 0, std::string(fn), "",
-                "nk:" + std::string(fn) + ":inputType");
+                "numkit:" + std::string(fn) + ":inputType");
 }
 
 /// @brief Coerce a gated image (single / logical / integer / char when

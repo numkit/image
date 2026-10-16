@@ -195,21 +195,21 @@ CCInfo parse_cc(const Value &CC, const char *fn)
     if (!CC.isStruct() || CC.numel() != 1)
         throw Error(std::string(fn) + ": CC must be a 1×1 struct from "
                     "bwconncomp",
-                    0, 0, fn, "", std::string("nk:") + fn + ":notStruct");
+                    0, 0, fn, "", std::string("numkit:") + fn + ":notStruct");
     const auto &el = CC.structArrayElem(0);
     auto need = [&](const char *name) -> const Value & {
         auto it = el.find(name);
         if (it == el.end())
             throw Error(std::string(fn) + ": CC missing field '"
                         + name + "'", 0, 0, fn, "",
-                        std::string("nk:") + fn + ":noField");
+                        std::string("numkit:") + fn + ":noField");
         return it->second;
     };
     const Value &sz = need("ImageSize");
     if (sz.numel() < 2)
         throw Error(std::string(fn) + ": CC.ImageSize must have >= 2 dims",
                     0, 0, fn, "",
-                    std::string("nk:") + fn + ":sizeDim");
+                    std::string("numkit:") + fn + ":sizeDim");
     info.H = static_cast<std::size_t>(sz.elemAsDouble(0));
     info.W = static_cast<std::size_t>(sz.elemAsDouble(1));
     const Value &nob = need("NumObjects");
@@ -283,7 +283,7 @@ Value cc2bw(const Value &CC, const Value &objects_to_keep,
                 throw Error("cc2bw: ObjectsToKeep logical vector length "
                             "must equal NumObjects",
                             0, 0, "cc2bw", "",
-                            "nk:cc2bw:logicalLen");
+                            "numkit:cc2bw:logicalLen");
             for (std::size_t i = 0; i < K; ++i)
                 keep[i] = objects_to_keep.elemAsDouble(i) != 0.0 ? 1 : 0;
         } else {
@@ -294,13 +294,13 @@ Value cc2bw(const Value &CC, const Value &objects_to_keep,
                     throw Error("cc2bw: ObjectsToKeep must be positive "
                                 "integers or a logical vector",
                                 0, 0, "cc2bw", "",
-                                "nk:cc2bw:badIdx");
+                                "numkit:cc2bw:badIdx");
                 const std::size_t idx = static_cast<std::size_t>(v);
                 if (idx > K)
                     throw Error("cc2bw: ObjectsToKeep index exceeds "
                                 "NumObjects",
                                 0, 0, "cc2bw", "",
-                                "nk:cc2bw:idxRange");
+                                "numkit:cc2bw:idxRange");
                 keep[idx - 1] = 1;
             }
         }
@@ -676,7 +676,7 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
                 throw Error("regionprops: property '" + q +
                                 "' is not supported in this revision",
                             0, 0, "regionprops", "",
-                            "nk:regionprops:badProperty");
+                            "numkit:regionprops:badProperty");
         }
     }
 
@@ -1056,7 +1056,7 @@ Value fchcode(const Value &bound, std::pmr::memory_resource *mr)
                                 internal::ImgClasses::AnyNumericReal);
     if (bound.dims().cols() != 2)
         throw Error("fchcode: bound must be K-by-2",
-                    0, 0, "fchcode", "", "nk:fchcode:size");
+                    0, 0, "fchcode", "", "numkit:fchcode:size");
     size_t K = bound.dims().rows();
 
     // Direction map matching Octave (rows = dr+2, cols = dc+2):
@@ -1245,13 +1245,13 @@ Value bweuler(const Value &BW, int conn, std::pmr::memory_resource *mr)
                                      1,  2, 0, -1, 0, -1, -1, 0};
     if (conn != 4 && conn != 8)
         throw Error("bweuler: connectivity must be 4 or 8",
-                    0, 0, "bweuler", "", "nk:bweuler:conn");
+                    0, 0, "bweuler", "", "numkit:bweuler:conn");
     const int *lut = (conn == 4) ? lut4 : lut8;
 
     const auto &d = BW.dims();
     if (d.is3D())
         throw Error("bweuler: BW must have 2 dimensions",
-                    0, 0, "bweuler", "", "nk:bweuler:dims");
+                    0, 0, "bweuler", "", "numkit:bweuler:dims");
 
     const int M = static_cast<int>(d.rows());
     const int N = static_cast<int>(d.cols());

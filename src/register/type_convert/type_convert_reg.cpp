@@ -66,7 +66,7 @@ void mat2gray_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].numel() != 2)
             throw Error("mat2gray: range must be a 2-element vector",
-                        0, 0, "mat2gray", "", "nk:mat2gray:size");
+                        0, 0, "mat2gray", "", "numkit:mat2gray:size");
         lo = args[1].elemAsDouble(0);
         hi = args[1].elemAsDouble(1);
     }
@@ -87,7 +87,7 @@ void imcast_reg(Span<const Value> args, size_t /*nargout*/,
     // no max: absent from the R2025b reference build
     if (!args[1].isChar() && !args[1].isString())
         throw Error("imcast: TYPE must be a string",
-                    0, 0, "imcast", "", "nk:imcast:type");
+                    0, 0, "imcast", "", "numkit:imcast:type");
     outs[0] = imcast(args[0], args[1].toString(), ctx.engine->resource());
 }
 
@@ -140,7 +140,7 @@ void isbw_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (!args[1].isChar() && !args[1].isString())
             throw Error("isbw: MODE must be a string",
-                        0, 0, "isbw", "", "nk:isbw:mode");
+                        0, 0, "isbw", "", "numkit:isbw:mode");
         mode = args[1].toString();
     }
     outs[0] = isbw(args[0], mode, ctx.engine->resource());

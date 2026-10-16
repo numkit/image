@@ -374,11 +374,11 @@ Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
     const auto &d = I.dims();
     if (d.rows() < 2 || d.cols() < 2)
         throw Error("fibermetric: I must be 2-D or 3-D with all dims >= 2",
-                    0, 0, "fibermetric", "", "nk:fibermetric:shape");
+                    0, 0, "fibermetric", "", "numkit:fibermetric:shape");
     const bool is3d = d.is3D() && d.pages() > 1;
     if (is3d && d.pages() < 2)
         throw Error("fibermetric: 3-D input must have at least 2 slices",
-                    0, 0, "fibermetric", "", "nk:fibermetric:slices");
+                    0, 0, "fibermetric", "", "numkit:fibermetric:slices");
 
     // Default thickness.
     std::vector<double> thickness = thickness_in;
@@ -388,7 +388,7 @@ Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
             throw Error("fibermetric: thickness must be a vector of positive "
                         "integers",
                         0, 0, "fibermetric", "",
-                        "nk:fibermetric:thickness");
+                        "numkit:fibermetric:thickness");
 
     // Default c = range/100.
     double c = structure_sensitivity;
@@ -396,7 +396,7 @@ Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
     if (!std::isfinite(c) || c <= 0.0)
         throw Error("fibermetric: StructureSensitivity must be > 0",
                     0, 0, "fibermetric", "",
-                    "nk:fibermetric:sens");
+                    "numkit:fibermetric:sens");
 
     // Output class.
     const ValueType outClass = (I.type() == ValueType::DOUBLE)

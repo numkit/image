@@ -58,13 +58,13 @@ void bwpropfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     // attrib.
     if (i >= args.size() || !is_string(args[i]))
         throw Error("bwpropfilt: expected attribute string",
-                    0, 0, "bwpropfilt", "", "nk:bwpropfilt:noAttr");
+                    0, 0, "bwpropfilt", "", "numkit:bwpropfilt:noAttr");
     const std::string attrib = args[i].toString();
     ++i;
     // range or n.
     if (i >= args.size())
         throw Error("bwpropfilt: requires range or n",
-                    0, 0, "bwpropfilt", "", "nk:bwpropfilt:noRange");
+                    0, 0, "bwpropfilt", "", "numkit:bwpropfilt:noRange");
     const Value &p = args[i];
     ++i;
     double p_min = 0, p_max = 0;
@@ -79,10 +79,10 @@ void bwpropfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (p_min > p_max)
             throw Error("bwpropfilt: range must be nondecreasing",
                         0, 0, "bwpropfilt", "",
-                        "nk:bwpropfilt:rangeOrder");
+                        "numkit:bwpropfilt:rangeOrder");
     } else {
         throw Error("bwpropfilt: p must be scalar n or 2-element range",
-                    0, 0, "bwpropfilt", "", "nk:bwpropfilt:pShape");
+                    0, 0, "bwpropfilt", "", "numkit:bwpropfilt:pShape");
     }
     int conn = 8;
     // Optional 'keep' direction (only with scalar n).
@@ -97,7 +97,7 @@ void bwpropfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         else throw Error("bwpropfilt: keep direction must be "
                          "'largest' or 'smallest'",
                          0, 0, "bwpropfilt", "",
-                         "nk:bwpropfilt:dirBad");
+                         "numkit:bwpropfilt:dirBad");
         ++i;
     }
     // Optional connectivity arg (numeric scalar).
@@ -108,7 +108,7 @@ void bwpropfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (first_is_struct)
             throw Error("bwpropfilt: connectivity not allowed with CC input",
                         0, 0, "bwpropfilt", "",
-                        "nk:bwpropfilt:connWithCC");
+                        "numkit:bwpropfilt:connWithCC");
         ++i;
     }
 

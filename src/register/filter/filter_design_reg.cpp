@@ -32,7 +32,7 @@ void fspecial3_reg(Span<const Value> args, size_t /*nargout*/,
     argcheck::checkNargin(args.size(), 1, 3, "fspecial3");
     if (!args[0].isChar() && !args[0].isString())
         throw Error("fspecial3: type must be a string",
-                    0, 0, "fspecial3", "", "nk:fspecial3:BadType");
+                    0, 0, "fspecial3", "", "numkit:fspecial3:BadType");
     const std::string type = args[0].toString();
     Value empty;
     // Positional layout per MATLAB R2025b:
@@ -57,7 +57,7 @@ void gabor_reg(Span<const Value> /*args*/, size_t /*nargout*/,
     // rejects every call before arity matters; revisit when implemented.
     throw Error("gabor: not implemented in v1 — Gabor filter object "
                 "requires class infrastructure. KNOWN GAP.",
-                0, 0, "gabor", "", "nk:gabor:NotImpl");
+                0, 0, "gabor", "", "numkit:gabor:NotImpl");
 }
 
 } // namespace detail

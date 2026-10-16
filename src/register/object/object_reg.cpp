@@ -153,13 +153,13 @@ void cornermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
             throw Error("cornermetric: METHOD must be 'Harris' or "
                         "'MinimumEigenvalue' (got '" + m + "')",
                         0, 0, "cornermetric", "",
-                        "nk:cornermetric:method");
+                        "numkit:cornermetric:method");
         }
     }
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("cornermetric: expected NV-pair name",
-                        0, 0, "cornermetric", "", "nk:cornermetric:badNv");
+                        0, 0, "cornermetric", "", "numkit:cornermetric:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -172,7 +172,7 @@ void cornermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
         } else {
             throw Error("cornermetric: unknown option '" + name + "'",
                         0, 0, "cornermetric", "",
-                        "nk:cornermetric:unknownNv");
+                        "numkit:cornermetric:unknownNv");
         }
         i += 2;
     }
@@ -214,7 +214,7 @@ void corner_reg(Span<const Value> args, std::size_t /*nargout*/,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("corner: expected NV-pair name",
-                        0, 0, "corner", "", "nk:corner:badNv");
+                        0, 0, "corner", "", "numkit:corner:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -227,7 +227,7 @@ void corner_reg(Span<const Value> args, std::size_t /*nargout*/,
             filter_coef = args[i + 1];
         } else {
             throw Error("corner: unknown option '" + name + "'",
-                        0, 0, "corner", "", "nk:corner:unknownNv");
+                        0, 0, "corner", "", "numkit:corner:unknownNv");
         }
         i += 2;
     }
@@ -246,7 +246,7 @@ void hough_reg(Span<const Value> args, std::size_t nargout,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("hough: expected NV-pair name",
-                        0, 0, "hough", "", "nk:hough:badNv");
+                        0, 0, "hough", "", "numkit:hough:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -268,7 +268,7 @@ void hough_reg(Span<const Value> args, std::size_t nargout,
                 theta_deg.doubleDataMut()[kk] = tv[kk];
         } else {
             throw Error("hough: unknown option '" + name + "'",
-                        0, 0, "hough", "", "nk:hough:unknownNv");
+                        0, 0, "hough", "", "numkit:hough:unknownNv");
         }
         i += 2;
     }
@@ -291,7 +291,7 @@ void houghlines_reg(Span<const Value> args, std::size_t /*nargout*/,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("houghlines: expected NV-pair name",
-                        0, 0, "houghlines", "", "nk:houghlines:badNv");
+                        0, 0, "houghlines", "", "numkit:houghlines:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -304,7 +304,7 @@ void houghlines_reg(Span<const Value> args, std::size_t /*nargout*/,
         } else {
             throw Error("houghlines: unknown option '" + name + "'",
                         0, 0, "houghlines", "",
-                        "nk:houghlines:unknownNv");
+                        "numkit:houghlines:unknownNv");
         }
         i += 2;
     }
@@ -329,14 +329,14 @@ void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
         const double npd = args[i].toScalar();
         if (!(npd > 0) || npd != std::floor(npd))
             throw Error("houghpeaks: NUMPEAKS must be a positive integer",
-                        0, 0, "houghpeaks", "", "nk:houghpeaks:numpeaks");
+                        0, 0, "houghpeaks", "", "numkit:houghpeaks:numpeaks");
         numpeaks = static_cast<std::size_t>(npd);
         ++i;
     }
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("houghpeaks: expected NV-pair name",
-                        0, 0, "houghpeaks", "", "nk:houghpeaks:badNv");
+                        0, 0, "houghpeaks", "", "numkit:houghpeaks:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -347,13 +347,13 @@ void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
             if (!(threshold >= 0.0))
                 throw Error("houghpeaks: Threshold must be non-negative",
                             0, 0, "houghpeaks", "",
-                            "nk:houghpeaks:threshold");
+                            "numkit:houghpeaks:threshold");
         } else if (nlo == "nhoodsize") {
             const Value &v = args[i + 1];
             if (v.numel() != 2)
                 throw Error("houghpeaks: NHoodSize must be a 2-elem vector",
                             0, 0, "houghpeaks", "",
-                            "nk:houghpeaks:nhoodSize");
+                            "numkit:houghpeaks:nhoodSize");
             const double a = v.elemAsDouble(0);
             const double b = v.elemAsDouble(1);
             if (!(a > 0) || !(b > 0)
@@ -363,7 +363,7 @@ void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
                 throw Error("houghpeaks: NHoodSize elements must be "
                             "positive odd integers",
                             0, 0, "houghpeaks", "",
-                            "nk:houghpeaks:nhoodOdd");
+                            "numkit:houghpeaks:nhoodOdd");
             nhoodRho   = static_cast<std::size_t>(a);
             nhoodTheta = static_cast<std::size_t>(b);
         } else if (nlo == "theta") {
@@ -371,7 +371,7 @@ void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
         } else {
             throw Error("houghpeaks: unknown option '" + name + "'",
                         0, 0, "houghpeaks", "",
-                        "nk:houghpeaks:unknownNv");
+                        "numkit:houghpeaks:unknownNv");
         }
         i += 2;
     }

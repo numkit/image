@@ -47,7 +47,7 @@ Shape shapeOf(const Value &A) {
     else if (A.numel() == s.H * s.W * 4)     s.C = 4;
     else
         throw Error("image geom: input must be H×W or H×W×{1,3,4}",
-                    0, 0, "geom", "", "nk:image:geom:shape");
+                    0, 0, "geom", "", "numkit:image:geom:shape");
     return s;
 }
 
@@ -229,7 +229,7 @@ Value imresize(const Value &A, double scale, const std::string &method, std::pmr
     const Shape s = shapeOf(A);
     if (!(scale > 0.0))
         throw Error("imresize: scale must be > 0",
-                    0, 0, "imresize", "", "nk:imresize:scale");
+                    0, 0, "imresize", "", "numkit:imresize:scale");
     const size_t outH = static_cast<size_t>(std::round(scale * double(s.H)));
     const size_t outW = static_cast<size_t>(std::round(scale * double(s.W)));
     if (methodIsNearest(method))
@@ -283,14 +283,14 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
     if (cuboid.numel() != 6)
         throw Error("imcrop3: CUBOID must be a 6-element vector "
                     "[XMIN YMIN ZMIN WIDTH HEIGHT DEPTH]",
-                    0, 0, "imcrop3", "", "nk:imcrop3:cuboid");
+                    0, 0, "imcrop3", "", "numkit:imcrop3:cuboid");
 
     // Resolve input shape: H × W × D × T  (T defaults to 1 for 3-D inputs).
     const auto &dV = V.dims();
     const int nd = dV.ndims();
     if (nd < 3)
         throw Error("imcrop3: V must be at least 3-D",
-                    0, 0, "imcrop3", "", "nk:imcrop3:rank");
+                    0, 0, "imcrop3", "", "numkit:imcrop3:rank");
     const std::size_t H = dV.dim(0);
     const std::size_t W = dV.dim(1);
     const std::size_t D = dV.dim(2);
@@ -320,7 +320,7 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
         throw Error("imcrop3: cuboid is out of bounds of the input "
                     "volume — lower bound must be >= 1 and upper "
                     "bound must not exceed the image size",
-                    0, 0, "imcrop3", "", "nk:imcrop3:cropCuboidOutofBounds");
+                    0, 0, "imcrop3", "", "numkit:imcrop3:cropCuboidOutofBounds");
 
     const std::size_t outH = static_cast<std::size_t>(ymax - ymin + 1);
     const std::size_t outW = static_cast<std::size_t>(xmax - xmin + 1);
@@ -366,7 +366,7 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
             case ValueType::LOGICAL: B.logicalDataMut()[di] = V.logicalData()[si]; break;
             default:
                 throw Error("imcrop3: unsupported class for V",
-                            0, 0, "imcrop3", "", "nk:imcrop3:cls");
+                            0, 0, "imcrop3", "", "numkit:imcrop3:cls");
         }
     };
 
@@ -538,7 +538,7 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::
     const Value &ext = *extP;
     if (ext.numel() < 1)
         throw Error("axes2pix: EXTENT must be a non-empty vector",
-                    0, 0, "axes2pix", "", "nk:axes2pix:extent");
+                    0, 0, "axes2pix", "", "numkit:axes2pix:extent");
 
     const double e0 = ext.elemAsDouble(0);
     const double e1 = ext.elemAsDouble(ext.numel() - 1);
@@ -578,7 +578,7 @@ Value impyramid(const Value &A, const std::string &type, std::pmr::memory_resour
     if      (type == "reduce" || type == "Reduce") reduce = true;
     else if (type == "expand" || type == "Expand") reduce = false;
     else throw Error("impyramid: type must be 'reduce' or 'expand'",
-                     0, 0, "impyramid", "", "nk:impyramid:type");
+                     0, 0, "impyramid", "", "numkit:impyramid:type");
 
     size_t Hout, Wout;
     if (reduce) { Hout = (s.H + 1) / 2; Wout = (s.W + 1) / 2; }
@@ -755,7 +755,7 @@ R3Kernel parseR3Kernel(const std::string &m) {
     if (eq("lanczos2") || eq("Lanczos2")) return {k_lanczos2,   4.0, false};
     if (eq("lanczos3") || eq("Lanczos3")) return {k_lanczos3,   6.0, false};
     throw Error("imresize3: unknown method '" + m + "'",
-                0, 0, "imresize3", "", "nk:imresize3:method");
+                0, 0, "imresize3", "", "numkit:imresize3:method");
 }
 
 struct ContribRow { int firstIdx; std::vector<double> w; };  // firstIdx 0-indexed
@@ -814,13 +814,13 @@ Value imresize3_core(const Value &V,
     const auto &dims = V.dims();
     if (dims.ndims() < 2)
         throw Error("imresize3: V must be a 3-D volume",
-                    0, 0, "imresize3", "", "nk:imresize3:rank");
+                    0, 0, "imresize3", "", "numkit:imresize3:rank");
     const size_t inR = dims.dim(0);
     const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
     const size_t inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     if (V.numel() != inR * inC * inD)
         throw Error("imresize3: V must be a 3-D numeric volume",
-                    0, 0, "imresize3", "", "nk:imresize3:shape");
+                    0, 0, "imresize3", "", "numkit:imresize3:shape");
 
     const ValueType T = V.type();
     if (outR == 0 || outC == 0 || outD == 0)
@@ -935,7 +935,7 @@ Value imresize3(const Value &V, double scale,
 {
     if (!(scale > 0.0))
         throw Error("imresize3: scale must be > 0",
-                    0, 0, "imresize3", "", "nk:imresize3:scale");
+                    0, 0, "imresize3", "", "numkit:imresize3:scale");
     const auto &dims = V.dims();
     const size_t inR = dims.dim(0);
     const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;

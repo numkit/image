@@ -145,7 +145,7 @@ void fftconv2_reg(Span<const Value> args, size_t /*nargout*/,
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (!args[2].isChar() && !args[2].isString())
             throw Error("fftconv2: shape must be a string",
-                        0, 0, "fftconv2", "", "nk:fftconv2:shape");
+                        0, 0, "fftconv2", "", "numkit:fftconv2:shape");
         shape = args[2].toString();
     }
     outs[0] = fftconv2(args[0], args[1], shape, ctx.engine->resource());
@@ -169,7 +169,7 @@ void deconvreg_reg(Span<const Value> args, std::size_t nargout,
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (args[2].numel() != 1)
             throw Error("deconvreg: NP must be a scalar",
-                        0, 0, "deconvreg", "", "nk:deconvreg:np");
+                        0, 0, "deconvreg", "", "numkit:deconvreg:np");
         np = args[2].toScalar();
     }
     if (args.size() >= 4 && !args[3].isEmpty()) {
@@ -181,10 +181,10 @@ void deconvreg_reg(Span<const Value> args, std::size_t nargout,
             hi = lr.elemAsDouble(1);
             if (hi < lo)
                 throw Error("deconvreg: LRANGE must satisfy lo <= hi",
-                            0, 0, "deconvreg", "", "nk:deconvreg:lrange");
+                            0, 0, "deconvreg", "", "numkit:deconvreg:lrange");
         } else {
             throw Error("deconvreg: LRANGE must be a scalar or 2-element vector",
-                        0, 0, "deconvreg", "", "nk:deconvreg:lrange");
+                        0, 0, "deconvreg", "", "numkit:deconvreg:lrange");
         }
     }
     if (args.size() >= 5 && !args[4].isEmpty())
@@ -206,7 +206,7 @@ void deconvwnr_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (args[2].numel() != 1)
             throw Error("deconvwnr: 3-arg NSR must be a scalar; use the "
                         "4-arg (NCORR, ICORR) form for array spectra",
-                        0, 0, "deconvwnr", "", "nk:deconvwnr:nsr");
+                        0, 0, "deconvwnr", "", "numkit:deconvwnr:nsr");
         outs[0] = deconvwnr(args[0], args[1], args[2].toScalar(), mr);
     } else {
         outs[0] = deconvwnr(args[0], args[1], args[2], args[3], mr);
@@ -238,7 +238,7 @@ void checkerboard_reg(Span<const Value> args, size_t /*nargout*/,
         const double s = args[0].toScalar();
         if (s < 0.0 || s != std::floor(s))
             throw Error("checkerboard: SIDE must be a non-negative integer",
-                        0, 0, "checkerboard", "", "nk:checkerboard:side");
+                        0, 0, "checkerboard", "", "numkit:checkerboard:side");
         side = static_cast<size_t>(s);
     }
     if (args.size() >= 2 && !args[1].isEmpty()) {

@@ -68,7 +68,7 @@ inline void store_classed(Value &out, size_t i, double v, ValueType t) {
         }
         default:
             throw Error("contrast: unsupported class", 0, 0, "contrast", "",
-                        "nk:contrast:badtype");
+                        "numkit:contrast:badtype");
     }
 }
 
@@ -381,13 +381,13 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
     // ---- 1. validate options ------------------------------------
     if (opts.numTilesR < 2 || opts.numTilesC < 2)
         throw Error("adapthisteq: NumTiles must be >= 2 in each dimension",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:badTiles");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badTiles");
     if (!(opts.clipLimit >= 0.0 && opts.clipLimit <= 1.0))
         throw Error("adapthisteq: ClipLimit must be in [0, 1]",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:badClip");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badClip");
     if (opts.nBins < 2)
         throw Error("adapthisteq: NBins must be >= 2",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:badBins");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badBins");
 
     int dist;
     if      (opts.distribution == "uniform")     dist = 0;
@@ -396,30 +396,30 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
     else
         throw Error("adapthisteq: Distribution must be 'uniform', "
                     "'rayleigh' or 'exponential'",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:badDistribution");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badDistribution");
 
     bool rangeOriginal;
     if      (opts.range == "full")     rangeOriginal = false;
     else if (opts.range == "original") rangeOriginal = true;
     else
         throw Error("adapthisteq: Range must be 'full' or 'original'",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:badRange");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badRange");
 
     // ---- 2. validate input shape --------------------------------
     const Dims &d = I.dims();
     if (d.ndim() > 2 || (d.ndim() == 3 && d.pages() > 1))
         throw Error("adapthisteq: input must be a 2-D greyscale image",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:unsupportedShape");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
     if (I.isComplex() || I.isCell() || I.isStruct() ||
         I.isString() || I.isFuncHandle())
         throw Error("adapthisteq: input must be a real numeric image",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:unsupportedShape");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
 
     const size_t H = d.rows();
     const size_t W = d.cols();
     if (H == 0 || W == 0)
         throw Error("adapthisteq: input image is empty",
-                    0, 0, "adapthisteq", "", "nk:adapthisteq:unsupportedShape");
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
 
     const ValueType outType = I.type();
     const int numTilesR = opts.numTilesR;
@@ -718,7 +718,7 @@ multithresh(const Value &I, int N, std::pmr::memory_resource *mr) {
     if (N < 1) N = 1;
     if (N > 5)
         throw Error("multithresh: N > 5 not supported (exhaustive search would be too slow)",
-                    0, 0, "multithresh", "", "nk:multithresh:tooMany");
+                    0, 0, "multithresh", "", "numkit:multithresh:tooMany");
 
     // ── getpdf: 256-bin histogram over the data range, MATLAB-style ──
     // Floating-point data is scaled to [0,1] by (x-minA)/(maxA-minA) then
@@ -937,7 +937,7 @@ Value imbinarize(const Value &I, const Value &T, std::pmr::memory_resource *mr)
     if (T.numel() != I.numel())
         throw Error("imbinarize: per-pixel T must have the same number "
                     "of elements as I",
-                    0, 0, "imbinarize", "", "nk:imbinarize:Tshape");
+                    0, 0, "imbinarize", "", "numkit:imbinarize:Tshape");
     const size_t N = I.numel();
     Value out;
     const auto &d = I.dims();
@@ -1118,7 +1118,7 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const st
                                 internal::ImgClasses::FloatInt);
     if (!(sensitivity >= 0.0 && sensitivity <= 1.0))
         throw Error("adaptthresh: sensitivity must be in [0, 1]",
-                    0, 0, "adaptthresh", "", "nk:adaptthresh:sens");
+                    0, 0, "adaptthresh", "", "numkit:adaptthresh:sens");
 
     const int H = static_cast<int>(I.dims().rows());
     const int W = static_cast<int>(I.dims().cols());
@@ -1170,7 +1170,7 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const st
         localStat = imgaussfilt(Inorm, sigma, neighborhood, mr);
     } else {
         throw Error("adaptthresh: statistic must be 'mean' or 'gaussian'",
-                    0, 0, "adaptthresh", "", "nk:adaptthresh:stat");
+                    0, 0, "adaptthresh", "", "numkit:adaptthresh:stat");
     }
 
     // Apply the MATLAB sensitivity scale: T = clip(localStat·(1.6−s), 0, 1).
@@ -1240,7 +1240,7 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::mem
     const bool have_mask = (mask.numel() > 0);
     if (have_mask && (mask.dims().rows() != H || mask.dims().cols() != W))
         throw Error("imflatfield: mask must match spatial dims of I",
-                    0, 0, "imflatfield", "", "nk:imflatfield:masksize");
+                    0, 0, "imflatfield", "", "numkit:imflatfield:masksize");
     std::vector<double> meanA(pages, 0.0);
     for (size_t p = 0; p < pages; ++p) {
         const double *ap = idd + p * plane;
@@ -1278,7 +1278,7 @@ Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, std::p
 {
     if (nb < 1)
         throw Error("wcodemat: NB must be a positive integer",
-                    0, 0, "wcodemat", "", "nk:wcodemat:nb");
+                    0, 0, "wcodemat", "", "numkit:wcodemat:nb");
 
     const auto &d = X.dims();
     const size_t H = d.rows();
@@ -1352,7 +1352,7 @@ Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, std::p
         }
     } else {
         throw Error("wcodemat: opt must be 'mat', 'row', or 'col'",
-                    0, 0, "wcodemat", "", "nk:wcodemat:opt");
+                    0, 0, "wcodemat", "", "numkit:wcodemat:opt");
     }
     return out;
 }
@@ -1419,7 +1419,7 @@ Value grayslice(const Value &I, int N, std::pmr::memory_resource *mr)
 {
     if (N < 1)
         throw Error("grayslice: N must be a positive integer",
-                    0, 0, "grayslice", "", "nk:grayslice:n");
+                    0, 0, "grayslice", "", "numkit:grayslice:n");
     const ValueType ct = I.type();
     const bool isInt16 = (ct == ValueType::INT16);
     const bool isFloat = (ct == ValueType::DOUBLE || ct == ValueType::SINGLE);

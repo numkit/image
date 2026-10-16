@@ -51,7 +51,7 @@ void fibermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (!is_string(args[i]))
             throw Error("fibermetric: expected NV-pair name string",
                         0, 0, "fibermetric", "",
-                        "nk:fibermetric:badNv");
+                        "numkit:fibermetric:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -63,7 +63,7 @@ void fibermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
                 throw Error("fibermetric: StructureSensitivity must be "
                             "a positive finite scalar",
                             0, 0, "fibermetric", "",
-                            "nk:fibermetric:sens");
+                            "numkit:fibermetric:sens");
         } else if (nlo == "objectpolarity") {
             std::string s = args[i + 1].toString();
             std::string slo;
@@ -75,11 +75,11 @@ void fibermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
             else throw Error("fibermetric: ObjectPolarity must be "
                              "'bright' or 'dark'",
                              0, 0, "fibermetric", "",
-                             "nk:fibermetric:polarity");
+                             "numkit:fibermetric:polarity");
         } else {
             throw Error("fibermetric: unknown option '" + name + "'",
                         0, 0, "fibermetric", "",
-                        "nk:fibermetric:unknownNv");
+                        "numkit:fibermetric:unknownNv");
         }
         i += 2;
     }

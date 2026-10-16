@@ -114,7 +114,7 @@ Value dctmtx(double Nd, std::pmr::memory_resource *mr)
     // so D*x is the DCT-II of x.
     if (!(Nd > 0.0) || std::floor(Nd) != Nd)
         throw Error("dctmtx: N must be a positive integer",
-                    0, 0, "dctmtx", "", "nk:dctmtx:arg");
+                    0, 0, "dctmtx", "", "numkit:dctmtx:arg");
     const size_t N = static_cast<size_t>(Nd);
     Value D = Value::matrix(N, N, ValueType::DOUBLE, mr);
     if (N == 0) return D;
@@ -259,11 +259,11 @@ phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
             E = make_ellipse_matrix(kModSheppLogan, 10, mr);
         else
             throw Error("phantom: unknown MODEL", 0, 0, "phantom", "",
-                        "nk:phantom:model");
+                        "numkit:phantom:model");
     } else {
         if (model_or_E.dims().cols() != 6)
             throw Error("phantom: E must be N-by-6",
-                        0, 0, "phantom", "", "nk:phantom:E");
+                        0, 0, "phantom", "", "numkit:phantom:E");
         E = model_or_E;
     }
 
@@ -327,10 +327,10 @@ Value bestblk(const Value &IMS, double k, std::pmr::memory_resource *mr)
     const Value &IMSu = (IMS.type() == ValueType::CHAR) ? IMSC : IMS;
     if (IMSu.numel() < 2)
         throw Error("bestblk: IMS must have at least 2 elements",
-                    0, 0, "bestblk", "", "nk:bestblk:size");
+                    0, 0, "bestblk", "", "numkit:bestblk:size");
     if (!(k >= 1.0))
         throw Error("bestblk: K must be a positive scalar",
-                    0, 0, "bestblk", "", "nk:bestblk:k");
+                    0, 0, "bestblk", "", "numkit:bestblk:k");
 
     const size_t nd = IMSu.numel();
     const long long K = static_cast<long long>(std::floor(k));
@@ -342,7 +342,7 @@ Value bestblk(const Value &IMS, double k, std::pmr::memory_resource *mr)
             std::floor(IMSu.elemAsDouble(d)));
         if (dim < 1)
             throw Error("bestblk: IMS entries must be positive",
-                        0, 0, "bestblk", "", "nk:bestblk:vals");
+                        0, 0, "bestblk", "", "numkit:bestblk:vals");
         if (dim <= K) { od[d] = static_cast<double>(dim); continue; }
 
         // Scan p = K, K-1, ..., ceil(min(dim/10, K/2)). Pick largest p
@@ -453,7 +453,7 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pm
         outW = ca - cb + 1;
     } else {
         throw Error("fftconv2: shape must be 'full', 'same', or 'valid'",
-                    0, 0, "fftconv2", "", "nk:fftconv2:shape");
+                    0, 0, "fftconv2", "", "numkit:fftconv2:shape");
     }
 
     if (outH == 0 || outW == 0)
@@ -500,7 +500,7 @@ Value psf2otf(const Value &PSF, Span<const size_t> outsize, std::pmr::memory_res
     }
     if (outH < inH || outW < inW)
         throw Error("psf2otf: OUTSIZE must be larger than PSF size",
-                    0, 0, "psf2otf", "", "nk:psf2otf:outsize");
+                    0, 0, "psf2otf", "", "numkit:psf2otf:outsize");
 
     // Pad PSF with zeros (post-pad).
     Value padded;
@@ -553,7 +553,7 @@ Value otf2psf(const Value &OTF, Span<const size_t> outsize, std::pmr::memory_res
     if (outH > inH || outW > inW)
         throw Error("otf2psf: OUTSIZE must not exceed the size of the OTF "
                     "array in any dimension",
-                    0, 0, "otf2psf", "", "nk:otf2psf:outsize");
+                    0, 0, "otf2psf", "", "numkit:otf2psf:outsize");
 
     // Inverse FFT.
     Value psf = is1D ? signal::ifft(OTF, -1, 0, mr)
@@ -759,7 +759,7 @@ Value to_double_pmr(const Value &I, std::pmr::memory_resource *mr)
                 od[i] = (I.int16Data()[i] + 32768.0) / 65535.0; break;
         default:
             throw Error("deconvwnr: unsupported image class",
-                        0, 0, "deconvwnr", "", "nk:deconvwnr:cls");
+                        0, 0, "deconvwnr", "", "numkit:deconvwnr:cls");
     }
     return out;
 }
@@ -805,7 +805,7 @@ Value real_back_to_class(const Value &Jd, ValueType outT,
                 out.int16DataMut()[i] = sat_i16(src[i]); break;
         default:
             throw Error("deconvwnr: unsupported output class",
-                        0, 0, "deconvwnr", "", "nk:deconvwnr:cls");
+                        0, 0, "deconvwnr", "", "numkit:deconvwnr:cls");
     }
     return out;
 }
@@ -916,7 +916,7 @@ Value deconvwnr(const Value &I, const Value &PSF, double nsr,
                                 internal::ImgClasses::DoubleOnly);
     if (PSF.dims().is3D())
         throw Error("deconvwnr: PSF must be 2-D",
-                    0, 0, "deconvwnr", "", "nk:deconvwnr:psf");
+                    0, 0, "deconvwnr", "", "numkit:deconvwnr:psf");
     const ValueType inT = I.type();
     Value Id = to_double_pmr(I, mr);
     Value PSFd = to_double_pmr(PSF, mr);
@@ -931,7 +931,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
 {
     if (PSF.dims().is3D())
         throw Error("deconvwnr: PSF must be 2-D",
-                    0, 0, "deconvwnr", "", "nk:deconvwnr:psf");
+                    0, 0, "deconvwnr", "", "numkit:deconvwnr:psf");
     const ValueType inT = I.type();
     Value Id = to_double_pmr(I, mr);
     Value PSFd = to_double_pmr(PSF, mr);
@@ -966,7 +966,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
         throw Error(std::string("deconvwnr: ") + name
                   + " must be a scalar or same size as I "
                     "(1-D extrapolation form not supported)",
-                    0, 0, "deconvwnr", "", "nk:deconvwnr:acf");
+                    0, 0, "deconvwnr", "", "numkit:deconvwnr:acf");
     };
 
     auto [su_scalar, S_u] = build_S(ncorr, "NCORR");
@@ -1078,24 +1078,24 @@ Value edgetaper(const Value &I, const Value &PSF, std::pmr::memory_resource *mr)
     if (dI.is3D())
         throw Error("edgetaper: I must be 2-D (slice 3-D inputs and call "
                     "per page)",
-                    0, 0, "edgetaper", "", "nk:edgetaper:rank");
+                    0, 0, "edgetaper", "", "numkit:edgetaper:rank");
     if (dPSF.is3D())
         throw Error("edgetaper: PSF must be 2-D",
-                    0, 0, "edgetaper", "", "nk:edgetaper:psfRank");
+                    0, 0, "edgetaper", "", "numkit:edgetaper:psfRank");
     const std::size_t H  = dI.rows();
     const std::size_t W  = dI.cols();
     const std::size_t PH = dPSF.rows();
     const std::size_t PW = dPSF.cols();
     if (H * W < 2)
         throw Error("edgetaper: I must have at least 2 elements",
-                    0, 0, "edgetaper", "", "nk:edgetaper:tooSmall");
+                    0, 0, "edgetaper", "", "numkit:edgetaper:tooSmall");
     if (PH * PW < 2)
         throw Error("edgetaper: PSF must have at least 2 elements",
-                    0, 0, "edgetaper", "", "nk:edgetaper:psfTooSmall");
+                    0, 0, "edgetaper", "", "numkit:edgetaper:psfTooSmall");
     if (2 * PH > H || 2 * PW > W)
         throw Error("edgetaper: PSF size must be smaller than half of "
                     "the image size in any nonsingleton dimension",
-                    0, 0, "edgetaper", "", "nk:edgetaper:psfSize");
+                    0, 0, "edgetaper", "", "numkit:edgetaper:psfSize");
 
     // Promote to DOUBLE for the math (we round back to class at the end).
     const ValueType inT = I.type();
@@ -1349,17 +1349,17 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     if (PSF.dims().is3D())
         throw Error("deconvreg: PSF must be 2-D (slice 3-D inputs and "
                     "call per page)",
-                    0, 0, "deconvreg", "", "nk:deconvreg:psf");
+                    0, 0, "deconvreg", "", "numkit:deconvreg:psf");
     if (PSF.numel() < 2)
         throw Error("deconvreg: PSF must have at least 2 elements",
-                    0, 0, "deconvreg", "", "nk:deconvreg:psfTooSmall");
+                    0, 0, "deconvreg", "", "numkit:deconvreg:psfTooSmall");
     if (!std::isfinite(np) || np < 0.0)
         throw Error("deconvreg: NP must be a finite non-negative scalar",
-                    0, 0, "deconvreg", "", "nk:deconvreg:np");
+                    0, 0, "deconvreg", "", "numkit:deconvreg:np");
     if (!std::isfinite(lo) || !std::isfinite(hi) || lo < 0.0 || hi < lo)
         throw Error("deconvreg: LRANGE must be finite, non-negative, "
                     "and lo <= hi",
-                    0, 0, "deconvreg", "", "nk:deconvreg:lrange");
+                    0, 0, "deconvreg", "", "numkit:deconvreg:lrange");
 
     const ValueType inT = I.type();
     Value Id   = to_double_pmr(I, mr);
@@ -1370,7 +1370,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     const std::size_t W = dI.cols();
     if (H < 3 || W < 3)
         throw Error("deconvreg: image too small (min 3x3)",
-                    0, 0, "deconvreg", "", "nk:deconvreg:tooSmall");
+                    0, 0, "deconvreg", "", "numkit:deconvreg:tooSmall");
 
     // PSF must not be all zeros.
     {
@@ -1379,7 +1379,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
             if (PSFd.elemAsDouble(i) != 0.0) { allzero = false; break; }
         if (allzero)
             throw Error("deconvreg: PSF cannot be all zeros",
-                        0, 0, "deconvreg", "", "nk:deconvreg:psfAllZero");
+                        0, 0, "deconvreg", "", "numkit:deconvreg:psfAllZero");
     }
 
     const std::size_t plane = H * W;
@@ -1413,7 +1413,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     } else {
         if (regop.dims().is3D())
             throw Error("deconvreg: REGOP must be 2-D",
-                        0, 0, "deconvreg", "", "nk:deconvreg:regop");
+                        0, 0, "deconvreg", "", "numkit:deconvreg:regop");
         REGOP_in = to_double_pmr(regop, mr);
     }
     Value REGOPft = psf2otf(REGOP_in,

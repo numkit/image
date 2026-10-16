@@ -138,13 +138,13 @@ Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
         throw Error("fsamp2: non-uniform-spacing form "
                     "fsamp2(f1, f2, Hd, [m n]) is not yet supported — "
                     "use the uniform fsamp2(Hd) form.",
-                    0, 0, "fsamp2", "", "nk:fsamp2:nonuniform");
+                    0, 0, "fsamp2", "", "numkit:fsamp2:nonuniform");
     if (Hd.numel() == 0)
         throw Error("fsamp2: Hd must be nonempty",
-                    0, 0, "fsamp2", "", "nk:fsamp2:empty");
+                    0, 0, "fsamp2", "", "numkit:fsamp2:empty");
     if (Hd.dims().is3D() || Hd.dims().rows() < 1 || Hd.dims().cols() < 1)
         throw Error("fsamp2: Hd must be a nonempty 2-D matrix",
-                    0, 0, "fsamp2", "", "nk:fsamp2:shape");
+                    0, 0, "fsamp2", "", "numkit:fsamp2:shape");
 
     Value Hd_d = as_double(Hd, mr);
     // 1. Inverse fftshift — use numkit::signal's tested implementation
@@ -203,17 +203,17 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     const std::size_t L = b.numel();
     if (L == 0)
         throw Error("ftrans2: b must be nonempty",
-                    0, 0, "ftrans2", "", "nk:ftrans2:bEmpty");
+                    0, 0, "ftrans2", "", "numkit:ftrans2:bEmpty");
     if (L % 2 == 0)
         throw Error("ftrans2: b must be odd-length",
-                    0, 0, "ftrans2", "", "nk:ftrans2:bLen");
+                    0, 0, "ftrans2", "", "numkit:ftrans2:bLen");
     // Check zero.
     bool all_zero = true;
     for (std::size_t i = 0; i < L; ++i)
         if (b.elemAsDouble(i) != 0.0) { all_zero = false; break; }
     if (all_zero)
         throw Error("ftrans2: b must have at least one nonzero element",
-                    0, 0, "ftrans2", "", "nk:ftrans2:bZero");
+                    0, 0, "ftrans2", "", "numkit:ftrans2:bZero");
     // Check symmetry: b == rot90(b, 2) within sqrt(eps).
     const double sqrt_eps = std::sqrt(std::numeric_limits<double>::epsilon());
     for (std::size_t i = 0; i < L; ++i) {
@@ -221,7 +221,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
         const double c = b.elemAsDouble(L - 1 - i);
         if (std::fabs(a - c) > sqrt_eps)
             throw Error("ftrans2: b must be symmetric",
-                        0, 0, "ftrans2", "", "nk:ftrans2:bSym");
+                        0, 0, "ftrans2", "", "numkit:ftrans2:bSym");
     }
     // Resolve transform matrix t.
     Value t;
@@ -242,7 +242,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
             if (t.elemAsDouble(i) != 0.0) { tzero = false; break; }
         if (tzero)
             throw Error("ftrans2: t must have at least one nonzero element",
-                        0, 0, "ftrans2", "", "nk:ftrans2:tZero");
+                        0, 0, "ftrans2", "", "numkit:ftrans2:tZero");
     }
 
     // Convert b to Chebyshev coefficients a:
@@ -356,10 +356,10 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
     }
     if (Hd.numel() == 0)
         throw Error("fwind1: Hd must be nonempty",
-                    0, 0, "fwind1", "", "nk:fwind1:empty");
+                    0, 0, "fwind1", "", "numkit:fwind1:empty");
     if (win1.numel() < 2)
         throw Error("fwind1: window length must be >= 2",
-                    0, 0, "fwind1", "", "nk:fwind1:winShort");
+                    0, 0, "fwind1", "", "numkit:fwind1:winShort");
 
     const std::size_t n = win1.numel();
     std::vector<double> w1(n);
@@ -372,7 +372,7 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
             if (std::fabs(w1[i] - w1[n - 1 - i]) > sqrt_eps)
                 throw Error("fwind1: 1-D window must be symmetric",
                             0, 0, "fwind1", "",
-                            "nk:fwind1:winSym");
+                            "numkit:fwind1:winSym");
     }
 
     // Build 2-D window.
@@ -490,10 +490,10 @@ Value fwind2(const Value &Hd, const Value &W,
     internal::requireRealKernelImage(W, "fwind2", "win", 2);
     if (Hd.numel() == 0)
         throw Error("fwind2: Hd must be nonempty",
-                    0, 0, "fwind2", "", "nk:fwind2:empty");
+                    0, 0, "fwind2", "", "numkit:fwind2:empty");
     if (W.numel() == 0)
         throw Error("fwind2: W must be nonempty",
-                    0, 0, "fwind2", "", "nk:fwind2:wEmpty");
+                    0, 0, "fwind2", "", "numkit:fwind2:wEmpty");
     Value Wouter;
     const Value *Wp = &W;
     if (W.dims().rows() == 1 || W.dims().cols() == 1) {

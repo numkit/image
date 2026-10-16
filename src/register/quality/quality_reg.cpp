@@ -92,7 +92,7 @@ void multissim3_reg(Span<const Value> args, size_t nargout,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("multissim3: expected NV-pair name string",
-                        0, 0, "multissim3", "", "nk:multissim3:badNv");
+                        0, 0, "multissim3", "", "numkit:multissim3:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -115,7 +115,7 @@ void multissim3_reg(Span<const Value> args, size_t nargout,
         } else {
             throw Error("multissim3: unknown option '" + name + "'",
                         0, 0, "multissim3", "",
-                        "nk:multissim3:unknownNv");
+                        "numkit:multissim3:unknownNv");
         }
         i += 2;
     }
@@ -148,7 +148,7 @@ void multissim_reg(Span<const Value> args, size_t nargout,
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("multissim: expected NV-pair name string",
-                        0, 0, "multissim", "", "nk:multissim:badNv");
+                        0, 0, "multissim", "", "numkit:multissim:badNv");
         std::string name = args[i].toString();
         std::string nlo;
         for (char ch : name)
@@ -171,7 +171,7 @@ void multissim_reg(Span<const Value> args, size_t nargout,
         } else {
             throw Error("multissim: unknown option '" + name + "'",
                         0, 0, "multissim", "",
-                        "nk:multissim:unknownNv");
+                        "numkit:multissim:unknownNv");
         }
         i += 2;
     }
