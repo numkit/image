@@ -137,7 +137,7 @@ void cmap2gray_reg(Span<const Value> args, size_t /*nargout*/,
 void gray_reg(Span<const Value> args, size_t /*nargout*/,
               Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "gray");
+    argcheck::checkNargin(args.size(), 0, 1, "gray");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -156,7 +156,7 @@ void gray_reg(Span<const Value> args, size_t /*nargout*/,
 void hot_reg(Span<const Value> args, size_t /*nargout*/,
              Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "hot");
+    argcheck::checkNargin(args.size(), 0, 1, "hot");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -175,7 +175,7 @@ void hot_reg(Span<const Value> args, size_t /*nargout*/,
 void cool_reg(Span<const Value> args, size_t /*nargout*/,
               Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "cool");
+    argcheck::checkNargin(args.size(), 0, 1, "cool");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -194,7 +194,7 @@ void cool_reg(Span<const Value> args, size_t /*nargout*/,
 void spring_reg(Span<const Value> args, size_t /*nargout*/,
                 Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "spring");
+    argcheck::checkNargin(args.size(), 0, 1, "spring");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -213,7 +213,7 @@ void spring_reg(Span<const Value> args, size_t /*nargout*/,
 void summer_reg(Span<const Value> args, size_t /*nargout*/,
                 Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "summer");
+    argcheck::checkNargin(args.size(), 0, 1, "summer");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -232,7 +232,7 @@ void summer_reg(Span<const Value> args, size_t /*nargout*/,
 void autumn_reg(Span<const Value> args, size_t /*nargout*/,
                 Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "autumn");
+    argcheck::checkNargin(args.size(), 0, 1, "autumn");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -251,7 +251,7 @@ void autumn_reg(Span<const Value> args, size_t /*nargout*/,
 void winter_reg(Span<const Value> args, size_t /*nargout*/,
                 Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "winter");
+    argcheck::checkNargin(args.size(), 0, 1, "winter");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -270,7 +270,7 @@ void winter_reg(Span<const Value> args, size_t /*nargout*/,
 void copper_reg(Span<const Value> args, size_t /*nargout*/,
                 Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "copper");
+    argcheck::checkNargin(args.size(), 0, 1, "copper");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -289,7 +289,7 @@ void copper_reg(Span<const Value> args, size_t /*nargout*/,
 void pink_reg(Span<const Value> args, size_t /*nargout*/,
               Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "pink");
+    argcheck::checkNargin(args.size(), 0, 1, "pink");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -327,7 +327,7 @@ void hsv_cmap_reg(Span<const Value> args, size_t /*nargout*/,
 void flag_reg(Span<const Value> args, size_t /*nargout*/,
               Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "flag");
+    argcheck::checkNargin(args.size(), 0, 1, "flag");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -346,7 +346,7 @@ void flag_reg(Span<const Value> args, size_t /*nargout*/,
 void prism_reg(Span<const Value> args, size_t /*nargout*/,
                Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "prism");
+    argcheck::checkNargin(args.size(), 0, 1, "prism");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -365,7 +365,7 @@ void prism_reg(Span<const Value> args, size_t /*nargout*/,
 void lines_reg(Span<const Value> args, size_t /*nargout*/,
                Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "lines");
+    argcheck::checkNargin(args.size(), 0, 1, "lines");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -384,7 +384,7 @@ void lines_reg(Span<const Value> args, size_t /*nargout*/,
 void bone_reg(Span<const Value> args, size_t /*nargout*/,
               Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "bone");
+    argcheck::checkNargin(args.size(), 0, 1, "bone");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -403,7 +403,7 @@ void bone_reg(Span<const Value> args, size_t /*nargout*/,
 void white_reg(Span<const Value> args, size_t /*nargout*/,
                Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 1, "white");
+    argcheck::checkNargin(args.size(), 0, 1, "white");
     int n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
@@ -499,8 +499,7 @@ void deltaE_reg(Span<const Value> args, size_t /*nargout*/,
 void whitepoint_reg(Span<const Value> args, size_t /*nargout*/,
                     Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, "whitepoint");
-    // no max: reference also accepts 0 args
+    argcheck::checkNargin(args.size(), 0, "whitepoint");
     std::string illum = "icc";  // default
     if (args.size() >= 1 && !args[0].isEmpty()) {
         if (!args[0].isChar() && !args[0].isString())

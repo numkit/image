@@ -848,11 +848,14 @@ void col2im_reg(Span<const Value> args, size_t /*nargout*/,
 void imnoise_reg(Span<const Value> args, size_t /*nargout*/,
                  Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 2, 4, "imnoise");
-    if (!(args[1].isChar() || args[1].isString()))
-        throw Error("imnoise: mode must be a string",
-                    0, 0, "imnoise", "", "numkit:imnoise:mode");
-    const std::string mode = args[1].toString();
+    argcheck::checkNargin(args.size(), 1, 4, "imnoise");
+    std::string mode = "gaussian";
+    if (args.size() >= 2) {
+        if (!(args[1].isChar() || args[1].isString()))
+            throw Error("imnoise: mode must be a string",
+                        0, 0, "imnoise", "", "numkit:imnoise:mode");
+        mode = args[1].toString();
+    }
     Value p1, p2;
     if (args.size() >= 3) p1 = args[2];
     if (args.size() >= 4) p2 = args[3];

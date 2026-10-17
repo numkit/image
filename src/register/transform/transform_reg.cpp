@@ -71,8 +71,7 @@ void dctmtx_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
 void phantom_reg(Span<const Value> args, size_t nargout,
                  Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, "phantom");
-    // no max: 3-arg forms accepted; 0-arg form not implemented
+    argcheck::checkNargin(args.size(), 0, "phantom");
     auto *mr = ctx.engine->resource();
     Value model_or_E;
     size_t n = 0;
@@ -232,7 +231,7 @@ void otf2psf_reg(Span<const Value> args, size_t /*nargout*/,
 void checkerboard_reg(Span<const Value> args, size_t /*nargout*/,
                       Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 3, "checkerboard");
+    argcheck::checkNargin(args.size(), 0, 3, "checkerboard");
     size_t side = 10, M = 4, N = 4;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const double s = args[0].toScalar();

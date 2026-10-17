@@ -56,7 +56,11 @@ namespace detail {
 void strel_reg(Span<const Value> args, size_t /*nargout*/,
                Span<Value> outs, CallContext &ctx)
 {
-    argcheck::checkNargin(args.size(), 1, 4, "strel");
+    argcheck::checkNargin(args.size(), 0, 4, "strel");
+    if (args.empty()) {
+        outs[0] = strel("square", {3.0}, Value(), ctx.engine->resource());
+        return;
+    }
     std::string shape = "square";
     if (args[0].isChar() || args[0].isString()) shape = args[0].toString();
     std::vector<double> params;

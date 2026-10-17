@@ -134,3 +134,29 @@ TEST_F(ImageKnownBug, ImfillIntensityHoleValues)
     EXPECT_NEAR(evalScalar("J(3,3)"), 9.0, 1e-12);
 }
 
+// bugs/closed/image/arity-min-forms.md — 0-arg colormaps, checkerboard(),
+// phantom(), strel(), whitepoint(), and 1-arg imnoise(I).
+TEST_F(ImageKnownBug, ImageShortForms)
+{
+    EXPECT_DOUBLE_EQ(evalScalar("size(gray(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(hot(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(cool(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(spring(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(summer(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(autumn(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(winter(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(copper(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(pink(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(flag(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(prism(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(lines(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(bone(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(white(), 2)"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(checkerboard(), 1)"), 80.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(phantom(), 1)"), 256.0);
+    EXPECT_DOUBLE_EQ(evalScalar("numel(strel()) > 0"), 1.0);
+    EXPECT_DOUBLE_EQ(evalScalar("numel(whitepoint())"), 3.0);
+    EXPECT_DOUBLE_EQ(evalScalar("numel(imnoise(ones(4, 4)))"), 16.0);
+}
+
+
