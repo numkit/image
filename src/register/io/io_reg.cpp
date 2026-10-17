@@ -61,6 +61,21 @@ void imread_reg(Span<const Value> args, size_t nargout, Span<Value> outs,
     // real filesystem (resolvePath picks the backend, incl. the script's
     // own directory). Never fopen here.
     auto rp = ctx.engine->resolvePath(path);
+    if ((!rp.fs || !rp.fs->exists(rp.path))
+        && path.find('/') == std::string::npos
+        && path.find('\\') == std::string::npos) {
+        static const char *kDemoDirs[] = {
+            "C:/Program Files/MATLAB/R2025b/toolbox/matlab/matlab_images/png/",
+            "C:/Program Files/MATLAB/R2025b/toolbox/images/imdata/"
+        };
+        for (const char *dir : kDemoDirs) {
+            auto cand = ctx.engine->resolvePath(std::string(dir) + path);
+            if (cand.fs && cand.fs->exists(cand.path)) {
+                rp = std::move(cand);
+                break;
+            }
+        }
+    }
     if (!rp.fs || !rp.fs->exists(rp.path))
         throw Error("imread: failed to load '" + path + "' — file not found",
                     0, 0, "imread", "", "numkit:imread:load");
