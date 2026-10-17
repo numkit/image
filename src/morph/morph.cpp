@@ -744,22 +744,44 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
     internal::requireImageClass(BW, "imfill", "BW", 1,
                                 internal::ImgClasses::FloatIntLog);
-    // Value-preserving (probed R2025b): the output keeps the input
-    // class and the original pixel values; hole pixels are set to 1.
-    if (BW.type() != ValueType::LOGICAL) {
-        Value filled = imfill_holes(internal::coerceToLogicalImage(BW, mr),
-                                    conn, mr);
-        Value Id = internal::coerceToDoubleImage(BW, mr);
-        const std::size_t n = Id.numel();
-        double *d = Id.doubleDataMut();
-        const uint8_t *fm = filled.logicalData();
-        for (std::size_t i = 0; i < n; ++i)
-            d[i] = fm[i] ? (d[i] == 0.0 ? 1.0 : d[i]) : 0.0;
-        return internal::castResultToClass(Id, BW.type(), mr);
-    }
     if (conn != 4) conn = 8;
     const size_t H = BW.dims().rows();
     const size_t W = BW.dims().cols();
+    if (BW.type() != ValueType::LOGICAL) {
+        const size_t N = H * W;
+        if (N == 0) return Value::matrix(H, W, BW.type(), mr);
+        // Morphological reconstruction by erosion (via complement dilation):
+        //   T      = max(I)
+        //   mask   = T - I
+        //   marker = T - I on the image border (rim), -Inf in the interior
+        //   J      = T - imreconstruct(marker, mask, conn)
+        double maxI = -std::numeric_limits<double>::infinity();
+        for (size_t i = 0; i < N; ++i) {
+            const double v = BW.elemAsDouble(i);
+            if (std::isfinite(v) && v > maxI) maxI = v;
+        }
+        if (!std::isfinite(maxI)) maxI = 0.0;
+        const double NEG_INF = -std::numeric_limits<double>::infinity();
+        Value marker = Value::matrix(H, W, ValueType::DOUBLE, mr);
+        Value mask   = Value::matrix(H, W, ValueType::DOUBLE, mr);
+        double *md = marker.doubleDataMut();
+        double *kd = mask.doubleDataMut();
+        for (size_t c = 0; c < W; ++c) {
+            for (size_t r = 0; r < H; ++r) {
+                const size_t idx = c * H + r;
+                const double ic = maxI - BW.elemAsDouble(idx);
+                kd[idx] = ic;
+                const bool onRim = (r == 0 || c == 0 || r + 1 == H || c + 1 == W);
+                md[idx] = onRim ? ic : NEG_INF;
+            }
+        }
+        Value R = imreconstruct(marker, mask, conn, mr);
+        Value J = Value::matrix(H, W, ValueType::DOUBLE, mr);
+        double *jd = J.doubleDataMut();
+        for (size_t i = 0; i < N; ++i)
+            jd[i] = maxI - R.elemAsDouble(i);
+        return internal::castResultToClass(J, BW.type(), mr);
+    }
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
 

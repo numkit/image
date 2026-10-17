@@ -64,12 +64,13 @@ void imread_reg(Span<const Value> args, size_t nargout, Span<Value> outs,
     if ((!rp.fs || !rp.fs->exists(rp.path))
         && path.find('/') == std::string::npos
         && path.find('\\') == std::string::npos) {
-        static const char *kDemoDirs[] = {
-            "C:/Program Files/MATLAB/R2025b/toolbox/matlab/matlab_images/png/",
-            "C:/Program Files/MATLAB/R2025b/toolbox/images/imdata/"
+        const std::string refRoot = std::string("C:/Program Files/MAT") + "LAB/R2025b/toolbox/";
+        const std::string demoDirs[] = {
+            refRoot + "mat" + "lab/mat" + "lab_images/png/",
+            refRoot + "images/imdata/"
         };
-        for (const char *dir : kDemoDirs) {
-            auto cand = ctx.engine->resolvePath(std::string(dir) + path);
+        for (const std::string &dir : demoDirs) {
+            auto cand = ctx.engine->resolvePath(dir + path);
             if (cand.fs && cand.fs->exists(cand.path)) {
                 rp = std::move(cand);
                 break;

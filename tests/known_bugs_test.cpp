@@ -124,18 +124,13 @@ TEST_F(ImageKnownBug, DISABLED_Axes2pixComplexExtent)
     EXPECT_NEAR(eval("imag(p);").toScalar(), -4.0, 1e-12);
 }
 
-// bugs/opened/image/imfill-intensity-holes.md — 0/1 double images are
-// exact (class + values); the INTENSITY hole fill value is the open
-// part (reference reconstructs; nk fills with raw 1).
-TEST_F(ImageKnownBug, DISABLED_ImfillIntensityHoleValues)
+// bugs/closed/image/imfill-intensity-holes.md — grayscale morphological
+// reconstruction fills intensity holes to the surrounding saddle minimum.
+TEST_F(ImageKnownBug, ImfillIntensityHoleValues)
 {
-    // Hole in the middle of an intensity image: reference reconstructs
-    // a path-minimum; nk currently writes 1 into the hole.
     eval("I = ones(5) * 9; I(3,3) = 0; J = imfill(I, 'holes');");
-    // Live part of the contract (probed): class + non-hole values.
     EXPECT_EQ(eval("class(J);").toString(), "double");
     EXPECT_NEAR(evalScalar("J(1,1)"), 9.0, 1e-12);
-    // Open: the reference reconstructs the hole (constant-9 image with
-    // a 0 hole fills to the saddle minimum 9); nk writes raw 1 today.
     EXPECT_NEAR(evalScalar("J(3,3)"), 9.0, 1e-12);
 }
+
