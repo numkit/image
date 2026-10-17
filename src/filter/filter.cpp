@@ -484,14 +484,49 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
 {
     internal::requireImageClassAllowComplex(I, "imfilter", "I", 1,
                                 internal::ImgClasses::FloatIntLog);
-    internal::requireRealKernelImage(I, "imfilter", "I", 1);
-    // The kernel must be double: the reference rejects single /
-    // logical / integer kernels at its conv2 layer (NonDoubleFilter)
-    // and computes a complex result for complex kernels — kernel here
-    // is real, so stub complex.
-    internal::requireRealKernelImage(h, "imfilter", "h", 2);
-    internal::requireImageClass(h, "imfilter", "h", 2,
+    internal::requireImageClassAllowComplex(h, "imfilter", "h", 2,
                                 internal::ImgClasses::DoubleOnly);
+    if (I.isComplex() || h.isComplex()) {
+        auto extractPart = [&](const Value &V, bool imagPart) -> Value {
+            const auto &d = V.dims();
+            Value out = Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
+            double *od = out.doubleDataMut();
+            const size_t N = V.numel();
+            if (V.isComplex()) {
+                const auto *cd = V.complexData();
+                for (size_t i = 0; i < N; ++i)
+                    od[i] = imagPart ? cd[i].imag() : cd[i].real();
+            } else if (imagPart) {
+                for (size_t i = 0; i < N; ++i) od[i] = 0.0;
+            } else {
+                for (size_t i = 0; i < N; ++i) od[i] = V.elemAsDouble(i);
+            }
+            return out;
+        };
+        Value Ir = extractPart(I, false);
+        Value Ii = extractPart(I, true);
+        Value hr = extractPart(h, false);
+        Value hi = extractPart(h, true);
+        Value rr = imfilter(Ir, hr, boundary, pad_value, full, flip_kernel, mr);
+        const size_t outH = rr.dims().rows();
+        const size_t outW = rr.dims().cols();
+        Value ri = h.isComplex() ? imfilter(Ir, hi, boundary, pad_value, full, flip_kernel, mr)
+                                 : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
+        Value ir = I.isComplex() ? imfilter(Ii, hr, boundary, 0.0, full, flip_kernel, mr)
+                                 : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
+        Value ii = (I.isComplex() && h.isComplex())
+            ? imfilter(Ii, hi, boundary, 0.0, full, flip_kernel, mr)
+            : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
+        Value out = Value::matrix(outH, outW, ValueType::COMPLEX, mr);
+        std::complex<double> *od = out.complexDataMut();
+        const double *rrd = rr.doubleData();
+        const double *rid = ri.doubleData();
+        const double *ird = ir.doubleData();
+        const double *iid = ii.doubleData();
+        for (size_t i = 0; i < outH * outW; ++i)
+            od[i] = std::complex<double>(rrd[i] - iid[i], rid[i] + ird[i]);
+        return out;
+    }
     // Logical input → logical output: the reference filters the double
     // values and re-binarises (probed R2025b: imfilter(logical, h) is
     // logical). Compute on a double copy, cast back.
@@ -1780,11 +1815,38 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
 {
     internal::requireImageClassAllowComplex(I, "imnoise", "I", 1,
                                 internal::ImgClasses::FloatInt);
-    internal::requireRealKernelImage(I, "imnoise", "I", 1);
     const ValueType T = I.type();
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
     const size_t N = I.numel();
+
+    if (I.isComplex()) {
+        const auto *cd = I.complexData();
+        if (mode == "salt & pepper" || mode == "salt&pepper") {
+            const double d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
+            std::uniform_real_distribution<double> U(0.0, 1.0);
+            Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
+            auto *od = out.complexDataMut();
+            for (size_t i = 0; i < N; ++i) {
+                std::complex<double> z = cd[i];
+                const double u = U(rng);
+                if      (u < d * 0.5) z = std::complex<double>(0.0, 0.0);
+                else if (u < d)       z = std::complex<double>(1.0, 0.0);
+                od[i] = z;
+            }
+            return out;
+        }
+        Value Ir = Value::matrix(H, W, ValueType::DOUBLE, mr);
+        double *ird = Ir.doubleDataMut();
+        for (size_t i = 0; i < N; ++i) ird[i] = cd[i].real();
+        Value Jr = imnoise(rng, Ir, mode, p1, p2, mr);
+        Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
+        auto *od = out.complexDataMut();
+        const double *jrd = Jr.doubleData();
+        for (size_t i = 0; i < N; ++i)
+            od[i] = std::complex<double>(jrd[i], cd[i].imag());
+        return out;
+    }
 
     auto toUnit = [&](double v) -> double {
         switch (T) {
@@ -2729,9 +2791,22 @@ Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
     if (filtRes.dims().rows() != H || filtRes.dims().cols() != W)
         throw Error("roifilt2: filtered result size mismatch",
                     0, 0, "roifilt2", "", "numkit:roifilt2:imageSizeMismatch");
+    const std::size_t N = H * W;
+    if (filtRes.isComplex() || I.isComplex()) {
+        Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
+        auto *od = out.complexDataMut();
+        auto getC = [](const Value &v, std::size_t idx) -> std::complex<double> {
+            return v.isComplex() ? v.complexData()[idx]
+                                 : std::complex<double>(v.elemAsDouble(idx), 0.0);
+        };
+        for (std::size_t i = 0; i < N; ++i) {
+            const bool masked = BW.elemAsDouble(i) != 0.0;
+            od[i] = masked ? getC(filtRes, i) : getC(I, i);
+        }
+        return out;
+    }
     const ValueType cls = filtRes.type();
     Value out = Value::matrix(H, W, cls, mr);
-    const std::size_t N = H * W;
     auto store = [&](std::size_t i, double v) {
         switch (cls) {
             case ValueType::SINGLE: out.singleDataMut()[i] = static_cast<float>(v); break;
@@ -2759,8 +2834,7 @@ Value roifilt2(const Value &h, const Value &I, const Value &BW,
 {
     internal::requireImageClassAllowComplex(I, "roifilt2", "I", 2,
                                 internal::ImgClasses::FloatInt);
-    internal::requireRealKernelImage(I, "roifilt2", "I", 2);
-    internal::requireImageClass(h, "roifilt2", "h", 1,
+    internal::requireImageClassAllowComplex(h, "roifilt2", "h", 1,
                                 internal::ImgClasses::DoubleOnly);
     if (I.dims().ndim() > 2)
         throw Error("roifilt2: I must be a 2-D image",

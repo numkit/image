@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -521,33 +522,50 @@ Value imtranslate(const Value &A, double dx, double dy, std::pmr::memory_resourc
 
 Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::memory_resource *mr)
 {
-    // Probed R2025b: extent is double / single (result takes the
-    // extent's class) or char (code values coerce, double result). A
-    // complex extent computes a complex result in the reference —
-    // kernel here is real, so stub.
-    internal::requireRealKernelImage(extent, "axes2pix", "EXTENT", 2);
     Value extentCoerced;
     const Value *extP = &extent;
     if (extent.type() == ValueType::CHAR) {
         extentCoerced = internal::coerceToDoubleImage(extent, mr);
         extP = &extentCoerced;
     } else {
-        internal::requireImageClass(extent, "axes2pix", "EXTENT", 2,
-                                    internal::ImgClasses::FloatOnly);
+        internal::requireImageClassAllowComplex(extent, "axes2pix", "EXTENT", 2,
+                                                internal::ImgClasses::FloatOnly);
     }
     const Value &ext = *extP;
     if (ext.numel() < 1)
         throw Error("axes2pix: EXTENT must be a non-empty vector",
                     0, 0, "axes2pix", "", "numkit:axes2pix:extent");
 
+    const auto &d = axesCoord.dims();
+    const size_t H = d.rows();
+    const size_t W = d.cols();
+    const size_t N = axesCoord.numel();
+
+    if (ext.isComplex() || axesCoord.isComplex()) {
+        auto getC = [](const Value &v, size_t idx) -> std::complex<double> {
+            return v.isComplex() ? v.complexData()[idx] : std::complex<double>(v.elemAsDouble(idx), 0.0);
+        };
+        const std::complex<double> e0 = getC(ext, 0);
+        const std::complex<double> e1 = getC(ext, ext.numel() - 1);
+        const bool degenerate = (n == 1.0) || (e0 == e1);
+        const std::complex<double> pixelWidth = degenerate ? std::complex<double>(1.0, 0.0) : (e1 - e0) / (n - 1.0);
+        Value out = d.is3D()
+            ? Value::matrix3d(H, W, d.pages(), ValueType::COMPLEX, mr)
+            : Value::matrix(H, W, ValueType::COMPLEX, mr);
+        std::complex<double> *od = out.complexDataMut();
+        for (size_t i = 0; i < N; ++i) {
+            const std::complex<double> a = getC(axesCoord, i);
+            od[i] = degenerate ? (a - e0 + 1.0)
+                               : ((a - e0) / pixelWidth + 1.0);
+        }
+        return out;
+    }
+
     const double e0 = ext.elemAsDouble(0);
     const double e1 = ext.elemAsDouble(ext.numel() - 1);
     const bool degenerate = (n == 1.0) || (e0 == e1);
     const double pixelWidth = degenerate ? 1.0 : (e1 - e0) / (n - 1.0);
 
-    const auto &d = axesCoord.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
     Value out;
     if (d.is3D())
         out = Value::matrix3d(H, W, d.pages(), ValueType::DOUBLE, mr);
@@ -557,7 +575,6 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::
         return internal::castResultToClass(out, ext.type(), mr);
 
     double *od = out.doubleDataMut();
-    const size_t N = axesCoord.numel();
     for (size_t i = 0; i < N; ++i) {
         const double a = axesCoord.elemAsDouble(i);
         od[i] = degenerate ? (a - e0 + 1.0)

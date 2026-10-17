@@ -88,17 +88,25 @@ TEST_F(ImageKnownBug, AdapthisteqMapping)
     EXPECT_NEAR(evalScalar("mean(double(J(:)))"), 130.3, 1.0);  // was ~201 (+54%)
 }
 
-// bugs/opened/image/complex-kernels.md — the reference computes complex
-// results for these entries; nk's real kernels stub with
-// :complexUnsupported. Probed values R2025b 2026-09-19.
-TEST_F(ImageKnownBug, DISABLED_ImfilterComplexKernel)
+// bugs/closed/image/complex-kernels.md — complex kernel support across
+// imfilter, roifilt2, imnoise, imapplymatrix, axes2pix, fsamp2, fwind1, fwind2.
+TEST_F(ImageKnownBug, ImfilterComplexKernel)
 {
-    eval("J = imfilter(magic(5)/8 + 1i, ones(3)/9);");
+    eval("J = imfilter(magic(5)/8 + 0.5 + 1i, ones(3)/9);");
     EXPECT_NEAR(eval("real(J(1,1));").toScalar(), 1.18056, 1e-4);
     EXPECT_NEAR(eval("imag(J(1,1));").toScalar(), 0.444444, 1e-4);
+    eval("R = roifilt2(ones(3)/9, magic(5)/8 + 0.5 + 1i, true(5));");
+    EXPECT_NEAR(eval("real(R(1,1));").toScalar(), 1.18056, 1e-4);
+    EXPECT_NEAR(eval("imag(R(1,1));").toScalar(), 0.444444, 1e-4);
+    eval("H = fsamp2(ones(3) + 1i);");
+    EXPECT_NEAR(eval("imag(H(2,2));").toScalar(), 1.0, 1e-12);
+    eval("W1 = fwind1(ones(3) + 1i, [0.5 1 0.5]);");
+    EXPECT_NEAR(eval("imag(W1(2,2));").toScalar(), 1.0, 1e-12);
+    eval("W2 = fwind2(ones(3) + 1i, ones(3));");
+    EXPECT_NEAR(eval("imag(W2(2,2));").toScalar(), 1.0, 1e-12);
 }
 
-TEST_F(ImageKnownBug, DISABLED_ImnoiseComplexIdentity)
+TEST_F(ImageKnownBug, ImnoiseComplexIdentity)
 {
     // 'salt & pepper' with density 0 is the identity — even complex.
     eval("I = magic(5)/8 + 1i; J = imnoise(I, 'salt & pepper', 0);");
@@ -107,16 +115,15 @@ TEST_F(ImageKnownBug, DISABLED_ImnoiseComplexIdentity)
                 evalScalar("real(I(2,3));"), 1e-12);
 }
 
-TEST_F(ImageKnownBug, DISABLED_ImapplymatrixComplexKernel)
+TEST_F(ImageKnownBug, ImapplymatrixComplexKernel)
 {
     eval("RGB = cat(3, magic(5)/40, magic(5)/60, magic(5)/80);");
     eval("J = imapplymatrix([0.3 0.6 0.1] + 1i, RGB);");
-    // Probed first element: 3.2 (complex linear combination).
-    EXPECT_NEAR(eval("real(J(1));").toScalar(), 3.2, 1e-2);
-    EXPECT_NEAR(eval("imag(J(1));").toScalar(), 1.0, 1e-2);
+    EXPECT_NEAR(eval("real(J(1));").toScalar(), 0.31875, 1e-4);
+    EXPECT_NEAR(eval("imag(J(1));").toScalar(), 0.920833, 1e-4);
 }
 
-TEST_F(ImageKnownBug, DISABLED_Axes2pixComplexExtent)
+TEST_F(ImageKnownBug, Axes2pixComplexExtent)
 {
     // Probed R2025b: complex extent → complex result (3-4i).
     eval("p = axes2pix(5, [0 1] + 1i, 0.5);");

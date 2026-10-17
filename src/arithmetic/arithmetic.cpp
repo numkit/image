@@ -251,13 +251,11 @@ Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, std:
 {
     // Probed R2025b: M coerces every numeric class (logical X dies at
     // the output-class check); complex M / complex X both compute
-    // complex results in the reference — kernel here is real, so stub.
+    // complex results in the reference.
     internal::requireImageClassAllowComplex(M, "imapplymatrix", "M", 1,
                                 internal::ImgClasses::AnyNumericReal);
     internal::requireImageClassAllowComplex(x, "imapplymatrix", "X", 2,
                                 internal::ImgClasses::FloatInt);
-    internal::requireRealKernelImage(M, "imapplymatrix", "M", 1);
-    internal::requireRealKernelImage(x, "imapplymatrix", "X", 2);
     const auto &dx = x.dims();
     const size_t pages = dx.is3D() ? dx.pages() : 1;
     const size_t Mrows = M.dims().rows();
@@ -269,6 +267,37 @@ Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, std:
     const size_t H = dx.rows();
     const size_t W = dx.cols();
     const size_t plane = H * W;
+
+    if (M.isComplex() || x.isComplex()) {
+        if (output_class != ValueType::DOUBLE && output_class != ValueType::SINGLE &&
+            output_class != ValueType::UINT8 && output_class != ValueType::UINT16 &&
+            output_class != ValueType::INT16 && output_class != ValueType::COMPLEX)
+            throw Error("imapplymatrix: unsupported output class",
+                        0, 0, "imapplymatrix", "", "numkit:imapplymatrix:badtype");
+        Value out = (Mrows == 1)
+            ? Value::matrix(H, W, ValueType::COMPLEX, mr)
+            : Value::matrix3d(H, W, Mrows, ValueType::COMPLEX, mr);
+        auto Mc = [&](size_t r, size_t c) -> std::complex<double> {
+            const size_t idx = c * Mrows + r;
+            return M.isComplex() ? M.complexData()[idx]
+                                 : std::complex<double>(M.elemAsDouble(idx), 0.0);
+        };
+        auto Xc = [&](size_t i, size_t p) -> std::complex<double> {
+            const size_t idx = p * plane + i;
+            return x.isComplex() ? x.complexData()[idx]
+                                 : std::complex<double>(x.elemAsDouble(idx), 0.0);
+        };
+        std::complex<double> *od = out.complexDataMut();
+        for (size_t r = 0; r < Mrows; ++r) {
+            for (size_t i = 0; i < plane; ++i) {
+                std::complex<double> acc(0.0, 0.0);
+                for (size_t c = 0; c < pages; ++c) acc += Mc(r, c) * Xc(i, c);
+                od[r * plane + i] = acc;
+            }
+        }
+        return out;
+    }
+
     Value out;
     if (Mrows == 1) out = Value::matrix(H, W, output_class, mr);
     else            out = Value::matrix3d(H, W, Mrows, output_class, mr);

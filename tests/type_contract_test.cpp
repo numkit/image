@@ -246,7 +246,7 @@ TEST_F(ImageTypeContractTest, Fir2dContracts)
     EXPECT_EQ(evalClass("fsamp2(single(Hd))"), "single");
     EXPECT_EQ(evalClass("fsamp2(logical(Hd))"), "double");
     EXPECT_EQ(evalClass("fsamp2(uint8(Hd))"), "double");
-    expectError("fsamp2(Hd+1i);", "numkit:fsamp2:complexUnsupported");
+    EXPECT_EQ(evalClass("fsamp2(Hd+1i)"), "double");
     // fwind2: 1-D window is promoted to the separable outer product
     // (probed — the classic fwind2(Hd, hamming(n)) form).
     EXPECT_EQ(evalClass("fwind2(Hd, hamming(21))"), "double");
@@ -279,8 +279,7 @@ TEST_F(ImageTypeContractTest, ImapplymatrixTwoArgForm)
     EXPECT_EQ(evalClass("imapplymatrix([0.3 0.6 0.1], uint8(RGB*200))"), "uint8");
     expectError("imapplymatrix([0.3 0.6 0.1], logical(RGB>5));",
                 "numkit:imapplymatrix:inputType");
-    expectError("imapplymatrix([0.3 0.6 0.1]+1i, RGB);",
-                "numkit:imapplymatrix:complexUnsupported");
+    EXPECT_EQ(evalClass("imapplymatrix([0.3 0.6 0.1]+1i, RGB)"), "double");
 }
 
 TEST_F(ImageTypeContractTest, Axes2pixAndBestblkClassPreserving)
