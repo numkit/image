@@ -290,6 +290,37 @@ Value houghlines(const Value &BW, const Value &theta_deg,
                  double fillgap, double minlength,
                  std::pmr::memory_resource *mr = nullptr);
 
+/// @brief Outputs of @ref imfindcircles.
+struct ImfindcirclesResult {
+    Value centers; ///< K x 2 [x, y] circle centers (or 0 x 0 if none)
+    Value radii;   ///< K x 1 estimated radii (or 0 x 0 if none)
+    Value metric;  ///< K x 1 peak strengths (or 0 x 0 if none)
+};
+
+/// @brief Find circles using Circular Hough Transform
+/// (`[centers, radii, metric] = imfindcircles(A, radiusRange, ...)`).
+///
+/// Implements Atherton & Kerbyson's Phase-Coding method (`"PhaseCode"`,
+/// default) and the Two-Stage radial histogram method (`"TwoStage"`).
+///
+/// @param A               2-D grayscale/logical or 3-D RGB image.
+/// @param rmin            Minimum circle radius (> 0).
+/// @param rmax            Maximum circle radius (>= rmin).
+/// @param object_polarity `"bright"` (default) or `"dark"`.
+/// @param method          `"PhaseCode"` (default) or `"TwoStage"`.
+/// @param sensitivity     Sensitivity in `[0, 1]` (default 0.85).
+/// @param edge_threshold  Edge gradient threshold in `[0, 1]`, or `< 0`
+///                        for automatic Otsu threshold.
+/// @param mr              Memory resource (nullptr -> process default).
+/// @return                @ref ImfindcirclesResult sorted by descending metric.
+ImfindcirclesResult
+imfindcircles(const Value &A, double rmin, double rmax,
+              const std::string &object_polarity = "bright",
+              const std::string &method = "PhaseCode",
+              double sensitivity = 0.85,
+              double edge_threshold = -1.0,
+              std::pmr::memory_resource *mr = nullptr);
+
 
 /// @}
 } // namespace numkit::image

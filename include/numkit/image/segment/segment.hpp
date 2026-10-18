@@ -380,6 +380,25 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
 Value imoverlay(const Value &I, const Value &BW, const Value &color,
                 std::pmr::memory_resource *mr = nullptr);
 
+/// @brief Watershed transform (`L = watershed(A [, conn])`).
+///
+/// Computes a label matrix `L` identifying the watershed regions of the
+/// input matrix `A` using Fernand Meyer's priority-queue flooding
+/// algorithm seeded from the regional minima of `A`. Pixels on
+/// watershed ridge lines separating catchment basins have `L == 0`;
+/// positive integer labels `1, 2, ...` identify distinct catchment
+/// basins in column-major discovery order of their regional minima.
+///
+/// Output class is `uint8` if the number of catchment basins is at most
+/// 255, `uint16` if at most 65535, and `uint32` otherwise.
+///
+/// @param A     2-D real numeric or logical matrix (non-NaN).
+/// @param conn  Pixel connectivity: 4 or 8 (default 8).
+/// @param mr    Memory resource (nullptr -> process default).
+/// @return      Label matrix `L` of the same shape as `A`.
+Value watershed(const Value &A, int conn = 8,
+                std::pmr::memory_resource *mr = nullptr);
+
 
 /// @}
 } // namespace numkit::image

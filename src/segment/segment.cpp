@@ -1343,4 +1343,230 @@ Value reducepoly(const Value &P, double tolerance, std::pmr::memory_resource *mr
     return out;
 }
 
+namespace {
+
+void watershed_argcheck(const Value &A, int conn)
+{
+    internal::requireImageClass(A, "watershed", "A", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    if (A.dims().is3D()) {
+        throw Error("watershed: input 1 (A) must be a 2-D matrix.",
+                    0, 0, "watershed", "", "numkit:watershed:expected2D");
+    }
+    const std::size_t n = A.numel();
+    for (std::size_t i = 0; i < n; ++i) {
+        if (std::isnan(A.elemAsDouble(i))) {
+            throw Error("watershed: input 1 (A) must be non-NaN (got NaN).",
+                        0, 0, "watershed", "", "numkit:watershed:expectedNonNaN");
+        }
+    }
+    if (conn != 4 && conn != 8) {
+        throw Error("watershed: input 2 (conn) must be 4 or 8 (got "
+                        + std::to_string(conn) + ").",
+                    0, 0, "watershed", "", "numkit:watershed:badConn");
+    }
+}
+
+} // namespace
+
+Value watershed(const Value &A, int conn, std::pmr::memory_resource *mr)
+{
+    watershed_argcheck(A, conn);
+
+    const std::size_t H = A.dims().rows();
+    const std::size_t W = A.dims().cols();
+    const std::size_t N = H * W;
+    if (N == 0) {
+        return Value::matrix(H, W, ValueType::UINT8, mr);
+    }
+
+    std::vector<double> aval(N);
+    for (std::size_t i = 0; i < N; ++i) {
+        aval[i] = A.elemAsDouble(i);
+    }
+
+    // Column-major neighbor offsets:
+    static constexpr int dr8[8] = {-1,  0,  1, -1, 1, -1, 0, 1};
+    static constexpr int dc8[8] = {-1, -1, -1,  0, 0,  1, 1, 1};
+    static constexpr int dr4[4] = {-1,  1,  0,  0};
+    static constexpr int dc4[4] = { 0,  0, -1,  1};
+    const int *dr = (conn == 4) ? dr4 : dr8;
+    const int *dc = (conn == 4) ? dc4 : dc8;
+    const int K   = (conn == 4) ? 4   : 8;
+    const int Hi  = static_cast<int>(H);
+    const int Wi  = static_cast<int>(W);
+
+    // Step 1: Identify regional minima plateaus under conn-connectivity.
+    std::vector<std::uint8_t> visited(N, 0);
+    std::vector<std::uint8_t> regmin(N, 0);
+    std::vector<std::size_t> comp;
+    std::vector<std::size_t> q;
+    comp.reserve(64);
+    q.reserve(64);
+
+    for (std::size_t i = 0; i < N; ++i) {
+        if (visited[i]) continue;
+        visited[i] = 1;
+        comp.clear();
+        q.clear();
+        comp.push_back(i);
+        q.push_back(i);
+        const double v0 = aval[i];
+        bool hasLower = false;
+        std::size_t head = 0;
+        while (head < q.size()) {
+            const std::size_t curr = q[head++];
+            const int r = static_cast<int>(curr % H);
+            const int c = static_cast<int>(curr / H);
+            for (int k = 0; k < K; ++k) {
+                const int nr = r + dr[k];
+                const int nc = c + dc[k];
+                if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
+                const std::size_t nb = static_cast<std::size_t>(nc) * H
+                                     + static_cast<std::size_t>(nr);
+                if (aval[nb] < v0) {
+                    hasLower = true;
+                } else if (aval[nb] == v0 && !visited[nb]) {
+                    visited[nb] = 1;
+                    comp.push_back(nb);
+                    q.push_back(nb);
+                }
+            }
+        }
+        if (!hasLower) {
+            for (std::size_t idx : comp) {
+                regmin[idx] = 1;
+            }
+        }
+    }
+
+    // Step 2: Label connected components of regmin in column-major order.
+    std::vector<std::uint32_t> L(N, 0);
+    std::uint32_t numBasins = 0;
+    for (std::size_t i = 0; i < N; ++i) {
+        if (regmin[i] && L[i] == 0) {
+            ++numBasins;
+            L[i] = numBasins;
+            q.clear();
+            q.push_back(i);
+            std::size_t head = 0;
+            while (head < q.size()) {
+                const std::size_t curr = q[head++];
+                const int r = static_cast<int>(curr % H);
+                const int c = static_cast<int>(curr / H);
+                for (int k = 0; k < K; ++k) {
+                    const int nr = r + dr[k];
+                    const int nc = c + dc[k];
+                    if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
+                    const std::size_t nb = static_cast<std::size_t>(nc) * H
+                                         + static_cast<std::size_t>(nr);
+                    if (regmin[nb] && L[nb] == 0) {
+                        L[nb] = numBasins;
+                        q.push_back(nb);
+                    }
+                }
+            }
+        }
+    }
+
+    // Step 3: Seed Meyer's priority queue from neighbors of labeled minima.
+    struct PQEntry {
+        double val;
+        std::size_t ord;
+        std::size_t idx;
+        bool operator>(const PQEntry &other) const {
+            if (val != other.val) return val > other.val;
+            return ord > other.ord;
+        }
+    };
+    std::priority_queue<PQEntry, std::vector<PQEntry>, std::greater<PQEntry>> pq;
+    std::vector<std::uint8_t> inPQ(N, 0);
+    for (std::size_t i = 0; i < N; ++i) {
+        if (L[i] > 0) inPQ[i] = 1;
+    }
+    std::size_t ord = 0;
+    for (std::size_t i = 0; i < N; ++i) {
+        if (L[i] > 0) {
+            const int r = static_cast<int>(i % H);
+            const int c = static_cast<int>(i / H);
+            for (int k = 0; k < K; ++k) {
+                const int nr = r + dr[k];
+                const int nc = c + dc[k];
+                if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
+                const std::size_t nb = static_cast<std::size_t>(nc) * H
+                                     + static_cast<std::size_t>(nr);
+                if (!inPQ[nb]) {
+                    inPQ[nb] = 1;
+                    pq.push(PQEntry{aval[nb], ++ord, nb});
+                }
+            }
+        }
+    }
+
+    // Step 4: Flood from priority queue; pixels touching >= 2 distinct
+    // basin labels remain 0 (watershed ridge lines).
+    while (!pq.empty()) {
+        const PQEntry top = pq.top();
+        pq.pop();
+        const std::size_t curr = top.idx;
+        const int r = static_cast<int>(curr % H);
+        const int c = static_cast<int>(curr / H);
+        std::uint32_t singleLabel = 0;
+        bool multipleLabels = false;
+        for (int k = 0; k < K; ++k) {
+            const int nr = r + dr[k];
+            const int nc = c + dc[k];
+            if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
+            const std::uint32_t nl = L[static_cast<std::size_t>(nc) * H
+                                     + static_cast<std::size_t>(nr)];
+            if (nl > 0) {
+                if (singleLabel == 0) {
+                    singleLabel = nl;
+                } else if (singleLabel != nl) {
+                    multipleLabels = true;
+                    break;
+                }
+            }
+        }
+        if (singleLabel > 0 && !multipleLabels) {
+            L[curr] = singleLabel;
+            for (int k = 0; k < K; ++k) {
+                const int nr = r + dr[k];
+                const int nc = c + dc[k];
+                if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
+                const std::size_t nb = static_cast<std::size_t>(nc) * H
+                                     + static_cast<std::size_t>(nr);
+                if (!inPQ[nb]) {
+                    inPQ[nb] = 1;
+                    pq.push(PQEntry{aval[nb], ++ord, nb});
+                }
+            }
+        }
+    }
+
+    // Step 5: Materialize label matrix in smallest unsigned integer class.
+    if (numBasins <= 255u) {
+        Value out = Value::matrix(H, W, ValueType::UINT8, mr);
+        std::uint8_t *od = out.uint8DataMut();
+        for (std::size_t i = 0; i < N; ++i) {
+            od[i] = static_cast<std::uint8_t>(L[i]);
+        }
+        return out;
+    } else if (numBasins <= 65535u) {
+        Value out = Value::matrix(H, W, ValueType::UINT16, mr);
+        std::uint16_t *od = out.uint16DataMut();
+        for (std::size_t i = 0; i < N; ++i) {
+            od[i] = static_cast<std::uint16_t>(L[i]);
+        }
+        return out;
+    } else {
+        Value out = Value::matrix(H, W, ValueType::UINT32, mr);
+        std::uint32_t *od = out.uint32DataMut();
+        for (std::size_t i = 0; i < N; ++i) {
+            od[i] = L[i];
+        }
+        return out;
+    }
+}
+
 } // namespace numkit::image

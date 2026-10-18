@@ -235,6 +235,7 @@ void corner_reg      (Span<const Value>, size_t, Span<Value>, CallContext &);
 void hough_reg       (Span<const Value>, size_t, Span<Value>, CallContext &);
 void houghpeaks_reg  (Span<const Value>, size_t, Span<Value>, CallContext &);
 void houghlines_reg  (Span<const Value>, size_t, Span<Value>, CallContext &);
+void imfindcircles_reg(Span<const Value>, size_t, Span<Value>, CallContext &);
 
 // quality/quality.cpp
 void immse_reg       (Span<const Value>, size_t, Span<Value>, CallContext &);
@@ -283,6 +284,7 @@ void reducepoly_reg     (Span<const Value>, size_t, Span<Value>, CallContext &);
 void roipoly_reg        (Span<const Value>, size_t, Span<Value>, CallContext &);
 void graydist_reg       (Span<const Value>, size_t, Span<Value>, CallContext &);
 void bwdistgeodesic_reg (Span<const Value>, size_t, Span<Value>, CallContext &);
+void watershed_reg      (Span<const Value>, size_t, Span<Value>, CallContext &);
 
 // geom/geom.cpp
 void imresize_reg    (Span<const Value>, size_t, Span<Value>, CallContext &);
@@ -535,6 +537,7 @@ void ImageLibrary::install(PluginContext &engine)
     reg("object", "hough",        &image::detail::hough_reg);
     reg("object", "houghpeaks",   &image::detail::houghpeaks_reg);
     reg("object", "houghlines",   &image::detail::houghlines_reg);
+    reg("object", "imfindcircles",&image::detail::imfindcircles_reg);
 
     reg("quality", "immse", &image::detail::immse_reg);
     reg("quality", "psnr",  &image::detail::psnr_reg);
@@ -589,6 +592,7 @@ void ImageLibrary::install(PluginContext &engine)
     reg("segment", "roipoly",       &image::detail::roipoly_reg);
     reg("segment", "graydist",      &image::detail::graydist_reg);
     reg("segment", "bwdistgeodesic",&image::detail::bwdistgeodesic_reg);
+    reg("segment", "watershed",     &image::detail::watershed_reg);
 }
 
 } // namespace numkit

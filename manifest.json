@@ -38,7 +38,8 @@
     "edgetaper", "fftconv2", "bestblk", "phantom", "imread", "imwrite", "imfinfo", "imresize",
     "imresize3", "imcrop", "imcrop3", "imrotate", "imrotate3", "imtranslate", "impyramid", "axes2pix",
     "dice", "jaccard", "boundarymask", "label2idx", "grayconnected", "imoverlay", "graydiffweight",
-    "gradientweight", "regionfill", "poly2mask", "reducepoly", "roipoly", "graydist", "bwdistgeodesic"
+    "gradientweight", "regionfill", "poly2mask", "reducepoly", "roipoly", "graydist", "bwdistgeodesic",
+    "watershed", "imfindcircles"
   ],
   "functions": [
     "imadd", "imsubtract", "immultiply", "imdivide", "imabsdiff", "imcomplement", "imlincomb", "imapplymatrix",
@@ -73,6 +74,7 @@
     "edgetaper", "fftconv2", "bestblk", "phantom", "imread", "imwrite", "imfinfo", "imresize",
     "imresize3", "imcrop", "imcrop3", "imrotate", "imrotate3", "imtranslate", "impyramid", "axes2pix",
     "dice", "jaccard", "boundarymask", "label2idx", "grayconnected", "imoverlay", "graydiffweight",
-    "gradientweight", "regionfill", "poly2mask", "reducepoly", "roipoly", "graydist", "bwdistgeodesic"
+    "gradientweight", "regionfill", "poly2mask", "reducepoly", "roipoly", "graydist", "bwdistgeodesic",
+    "watershed", "imfindcircles"
   ]
 }

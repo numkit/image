@@ -588,6 +588,17 @@ void label2idx_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
     o[0] = label2idx(a[0], c.engine->resource());
 }
 
+void watershed_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
+{
+    argcheck::checkNargin(a.size(), 1, 2, "watershed");
+    const int conn = (a.size() >= 2 && !a[1].isEmpty())
+                     ? argcheck::expectedOneOf(
+                         argcheck::expectedReal(a[1], 2, "conn", "watershed"),
+                         {4, 8}, 2, "conn", "watershed")
+                     : 8;
+    o[0] = watershed(a[0], conn, c.engine->resource());
+}
+
 } // namespace detail
 
 } // namespace numkit::image

@@ -379,6 +379,87 @@ void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
                          nhoodRho, nhoodTheta, theta_deg, mr);
 }
 
+void imfindcircles_reg(Span<const Value> args, std::size_t nargout,
+                       Span<Value> outs, CallContext &ctx)
+{
+    argcheck::checkNargin(args.size(), 2, 10, "imfindcircles");
+    auto *mr = ctx.engine->resource();
+    const Value &rr = args[1];
+    if (rr.isEmpty() || !rr.isNumeric() || rr.isComplex() || rr.numel() > 2) {
+        throw Error("imfindcircles: input 2 (radiusRange) must be a 1- or "
+                    "2-element real positive numeric vector.",
+                    0, 0, "imfindcircles", "",
+                    "numkit:imfindcircles:invalidRadiusRange");
+    }
+    const double rmin = rr.elemAsDouble(0);
+    const double rmax = (rr.numel() == 2) ? rr.elemAsDouble(1) : rmin;
+
+    std::string object_polarity = "bright";
+    std::string method = "PhaseCode";
+    double sensitivity = 0.85;
+    double edge_threshold = -1.0;
+
+    auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
+    if ((args.size() - 2) % 2 != 0) {
+        throw Error("imfindcircles: Name-Value arguments must occur in pairs.",
+                    0, 0, "imfindcircles", "", "numkit:imfindcircles:unpairedNv");
+    }
+    for (std::size_t i = 2; i + 1 < args.size(); i += 2) {
+        if (!is_string(args[i])) {
+            throw Error("imfindcircles: expected option name string at argument "
+                            + std::to_string(i + 1) + ".",
+                        0, 0, "imfindcircles", "", "numkit:imfindcircles:badNvName");
+        }
+        std::string name = args[i].toString();
+        std::string nlo = name;
+        for (char &ch : nlo) {
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        }
+        if (!nlo.empty() && std::string("objectpolarity").find(nlo) == 0) {
+            if (!is_string(args[i + 1])) {
+                throw Error("imfindcircles: ObjectPolarity must be a string.",
+                            0, 0, "imfindcircles", "",
+                            "numkit:imfindcircles:badObjectPolarity");
+            }
+            object_polarity = args[i + 1].toString();
+        } else if (!nlo.empty() && std::string("method").find(nlo) == 0) {
+            if (!is_string(args[i + 1])) {
+                throw Error("imfindcircles: Method must be a string.",
+                            0, 0, "imfindcircles", "",
+                            "numkit:imfindcircles:badMethod");
+            }
+            method = args[i + 1].toString();
+        } else if (!nlo.empty() && std::string("sensitivity").find(nlo) == 0) {
+            if (args[i + 1].numel() != 1 || !args[i + 1].isNumeric() || args[i + 1].isComplex()) {
+                throw Error("imfindcircles: Sensitivity must be a real numeric scalar.",
+                            0, 0, "imfindcircles", "",
+                            "numkit:imfindcircles:badSensitivity");
+            }
+            sensitivity = args[i + 1].toScalar();
+        } else if (!nlo.empty() && std::string("edgethreshold").find(nlo) == 0) {
+            if (args[i + 1].isEmpty()) {
+                edge_threshold = -1.0;
+            } else if (args[i + 1].numel() == 1 && args[i + 1].isNumeric() && !args[i + 1].isComplex()) {
+                edge_threshold = args[i + 1].toScalar();
+            } else {
+                throw Error("imfindcircles: EdgeThreshold must be a real numeric scalar or [].",
+                            0, 0, "imfindcircles", "",
+                            "numkit:imfindcircles:badEdgeThreshold");
+            }
+        } else {
+            throw Error("imfindcircles: unrecognized parameter name '" + name + "'.",
+                        0, 0, "imfindcircles", "",
+                        "numkit:imfindcircles:unknownOption");
+        }
+    }
+
+    auto res = imfindcircles(args[0], rmin, rmax, object_polarity, method,
+                             sensitivity, edge_threshold, mr);
+    outs[0] = std::move(res.centers);
+    if (nargout >= 2) outs[1] = std::move(res.radii);
+    if (nargout >= 3) outs[2] = std::move(res.metric);
+}
+
 } // namespace detail
 
 } // namespace numkit::image

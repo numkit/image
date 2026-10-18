@@ -25,22 +25,37 @@ TEST_F(ImageKnownBug, RegionpropsPerimeter)
     EXPECT_NEAR(evalScalar("pm"), 7.476000, 1e-4);
 }
 
-// bugs/image/watershed.md — watershed transform.
-TEST_F(ImageKnownBug, DISABLED_Watershed)
+// bugs/closed/image/watershed.md — watershed transform (FIXED).
+TEST_F(ImageKnownBug, Watershed)
 {
     eval("L = watershed(magic(5));");
     EXPECT_EQ(static_cast<int>(evalScalar("size(L,1)")), 5);
     EXPECT_EQ(static_cast<int>(evalScalar("size(L,2)")), 5);
     EXPECT_EQ(static_cast<int>(evalScalar("max(L(:))")), 3);
+    EXPECT_EQ(static_cast<int>(evalScalar("L(1,1)")), 1);
+    EXPECT_EQ(static_cast<int>(evalScalar("L(1,3)")), 2);
+    EXPECT_EQ(static_cast<int>(evalScalar("L(4,3)")), 0);
+    EXPECT_EQ(static_cast<int>(evalScalar("L(4,5)")), 3);
+    eval("L4 = watershed(magic(5), 4);");
+    EXPECT_EQ(static_cast<int>(evalScalar("max(L4(:))")), 6);
 }
 
-// bugs/image/imfindcircles.md — circular Hough transform.
-// (Verify centers/radii vs MATLAB on a synthetic image when enabling.)
-TEST_F(ImageKnownBug, DISABLED_ImfindcirclesExists)
+// bugs/closed/image/imfindcircles.md — circular Hough transform (FIXED).
+TEST_F(ImageKnownBug, ImfindcirclesExists)
 {
     eval("[c, r, m] = imfindcircles(zeros(40,40), [3 8]);");
     EXPECT_EQ(static_cast<int>(evalScalar("size(c,1)")),
               static_cast<int>(evalScalar("numel(r)")));   // one center per radius
+    EXPECT_EQ(static_cast<int>(evalScalar("numel(r)")), 0);
+
+    eval("[xx, yy] = meshgrid(1:60, 1:60);"
+         "I = (xx - 30).^2 + (yy - 25).^2 <= 15^2;"
+         "[c1, r1, m1] = imfindcircles(I, [10 20]);");
+    EXPECT_EQ(static_cast<int>(evalScalar("size(c1,1)")), 1);
+    EXPECT_NEAR(evalScalar("c1(1,1)"), 30.0024, 0.25);
+    EXPECT_NEAR(evalScalar("c1(1,2)"), 25.0024, 0.25);
+    EXPECT_NEAR(evalScalar("r1(1)"), 14.8498, 0.5);
+    EXPECT_GT(evalScalar("m1(1)"), 0.4);
 }
 
 // bugs/image/imresize-interp.md — bilinear/bicubic grid + boundary + antialias (FIXED).

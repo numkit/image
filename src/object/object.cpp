@@ -7,7 +7,9 @@
 #include <numkit/image/object/object.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
+#include <numkit/image/contrast/contrast.hpp>
 #include <numkit/image/filter/filter.hpp>
+#include <numkit/image/morph/morph.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 
 #include <numkit/value/value.hpp>
@@ -1408,4 +1410,446 @@ Value houghlines(const Value &BW, const Value &theta_deg,
     }
     return out;
 }
+
+namespace {
+
+std::string toLowerAscii(const std::string &s)
+{
+    std::string out = s;
+    for (char &ch : out) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    return out;
+}
+
+void imfindcircles_argcheck(const Value &A, double rmin, double rmax,
+                            const std::string &object_polarity,
+                            const std::string &method,
+                            double sensitivity,
+                            double edge_threshold)
+{
+    internal::requireImageClass(A, "imfindcircles", "A", 1,
+                                internal::ImgClasses::FloatIntLog);
+    internal::requireNonemptyImage(A, "imfindcircles", "A", 1);
+    const Dims &d = A.dims();
+    if (d.ndim() > 3 || (d.is3D() && d.pages() != 3)
+        || d.rows() <= 1 || d.cols() <= 1) {
+        throw Error("imfindcircles: input 1 (A) must be a 2-D matrix "
+                    "(both dimensions > 1) or an M-by-N-by-3 RGB image.",
+                    0, 0, "imfindcircles", "",
+                    "numkit:imfindcircles:invalidInputImage");
+    }
+    if (!std::isfinite(rmin) || !std::isfinite(rmax)
+        || !(rmin > 0.0) || !(rmax >= rmin)) {
+        throw Error("imfindcircles: input 2 (radiusRange) must have "
+                    "positive finite bounds with rmin <= rmax.",
+                    0, 0, "imfindcircles", "",
+                    "numkit:imfindcircles:invalidRadiusRange");
+    }
+    if (rmin != rmax && (rmin != std::floor(rmin) || rmax != std::floor(rmax))) {
+        throw Error("imfindcircles: 2-element radiusRange must contain "
+                    "positive integers.",
+                    0, 0, "imfindcircles", "",
+                    "numkit:imfindcircles:expectedInteger");
+    }
+    const std::string pol = toLowerAscii(object_polarity);
+    if (pol != "bright" && pol != "dark") {
+        throw Error("imfindcircles: ObjectPolarity must be 'bright' or 'dark' "
+                    "(got '" + object_polarity + "').",
+                    0, 0, "imfindcircles", "",
+                    "numkit:imfindcircles:unrecognizedObjectPolarity");
+    }
+    const std::string mth = toLowerAscii(method);
+    if (mth != "phasecode" && mth != "twostage") {
+        throw Error("imfindcircles: Method must be 'PhaseCode' or 'TwoStage' "
+                    "(got '" + method + "').",
+                    0, 0, "imfindcircles", "",
+                    "numkit:imfindcircles:unrecognizedMethod");
+    }
+    if (!std::isfinite(sensitivity) || sensitivity < 0.0 || sensitivity > 1.0) {
+        throw Error("imfindcircles: Sensitivity must be a finite scalar in [0, 1].",
+                    0, 0, "imfindcircles", "",
+                    "numkit:imfindcircles:outOfRangeSensitivity");
+    }
+    if (edge_threshold >= 0.0 || std::isnan(edge_threshold) || std::isinf(edge_threshold)) {
+        if (!std::isfinite(edge_threshold) || edge_threshold < 0.0 || edge_threshold > 1.0) {
+            throw Error("imfindcircles: EdgeThreshold must be a finite scalar in [0, 1].",
+                        0, 0, "imfindcircles", "",
+                        "numkit:imfindcircles:outOfRangeEdgeThreshold");
+        }
+    }
+}
+
+} // namespace
+
+ImfindcirclesResult
+imfindcircles(const Value &A, double rmin, double rmax,
+              const std::string &object_polarity,
+              const std::string &method,
+              double sensitivity,
+              double edge_threshold,
+              std::pmr::memory_resource *mr)
+{
+    imfindcircles_argcheck(A, rmin, rmax, object_polarity, method,
+                           sensitivity, edge_threshold);
+
+    auto emptyResult = [&]() -> ImfindcirclesResult {
+        return {
+            Value::matrix(0, 0, ValueType::DOUBLE, mr),
+            Value::matrix(0, 0, ValueType::DOUBLE, mr),
+            Value::matrix(0, 0, ValueType::DOUBLE, mr)
+        };
+    };
+
+    const std::size_t totalElem = A.numel();
+    if (totalElem == 0) return emptyResult();
+
+    // Flat image check.
+    const double firstVal = A.elemAsDouble(0);
+    bool isFlat = true;
+    for (std::size_t i = 1; i < totalElem; ++i) {
+        if (A.elemAsDouble(i) != firstVal) {
+            isFlat = false;
+            break;
+        }
+    }
+    if (isFlat) return emptyResult();
+
+    // Convert to 2-D grayscale floating-point image matching chaccum's getGrayImage.
+    Value G;
+    if (A.dims().is3D()) {
+        G = rgb2gray(A, mr);
+        if (isIntegerType(G.type())) {
+            G = im2single(G, mr);
+        }
+    } else {
+        if (A.type() == ValueType::LOGICAL) {
+            Value As = im2single(A, mr);
+            Value gaussFilt = fspecial("gaussian", {5.0, 5.0, 1.5}, mr);
+            G = imfilter(As, gaussFilt, PadMode::Replicate, 0.0,
+                         /*full=*/false, /*flip_kernel=*/false, mr);
+        } else if (isIntegerType(A.type())) {
+            G = im2single(A, mr);
+        } else {
+            G = A;
+        }
+    }
+
+    const std::size_t M = G.dims().rows();
+    const std::size_t N = G.dims().cols();
+    const std::size_t MN = M * N;
+    const bool useSingle = (G.type() == ValueType::SINGLE);
+
+    // Sobel gradient: hy = -fspecial('sobel'), hx = hy', convolved with replicate padding.
+    Value hx = make_kernel({-1, 0, 1, -2, 0, 2, -1, 0, 1}, 3, 3, mr);
+    Value hy = make_kernel({-1, -2, -1, 0, 0, 0, 1, 2, 1}, 3, 3, mr);
+    Value GxVal = imfilter(G, hx, PadMode::Replicate, 0.0,
+                           /*full=*/false, /*flip_kernel=*/true, mr);
+    Value GyVal = imfilter(G, hy, PadMode::Replicate, 0.0,
+                           /*full=*/false, /*flip_kernel=*/true, mr);
+
+    std::vector<double> Gx(MN), Gy(MN), gradMag(MN);
+    double Gmax = 0.0;
+    for (std::size_t i = 0; i < MN; ++i) {
+        const double gx = GxVal.elemAsDouble(i);
+        const double gy = GyVal.elemAsDouble(i);
+        Gx[i] = gx;
+        Gy[i] = gy;
+        const double gm = useSingle
+            ? static_cast<double>(std::hypot(static_cast<float>(gx), static_cast<float>(gy)))
+            : std::hypot(gx, gy);
+        gradMag[i] = gm;
+        if (gm > Gmax) Gmax = gm;
+    }
+    if (!(Gmax > 0.0)) return emptyResult();
+
+    double edgeThresh = edge_threshold;
+    if (edgeThresh < 0.0) {
+        Value Gnorm = Value::matrix(M, N, useSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
+        if (useSingle) {
+            float *p = Gnorm.singleDataMut();
+            const float gmaxF = static_cast<float>(Gmax);
+            for (std::size_t i = 0; i < MN; ++i) {
+                p[i] = static_cast<float>(gradMag[i]) / gmaxF;
+            }
+        } else {
+            double *p = Gnorm.doubleDataMut();
+            for (std::size_t i = 0; i < MN; ++i) {
+                p[i] = gradMag[i] / Gmax;
+            }
+        }
+        auto [lvl, _] = graythresh(Gnorm, mr);
+        edgeThresh = lvl.toScalar();
+    }
+
+    const double t = useSingle
+        ? static_cast<double>(static_cast<float>(Gmax) * static_cast<float>(edgeThresh))
+        : (Gmax * edgeThresh);
+
+    struct EdgePix {
+        double ex;
+        double ey;
+        double ux;
+        double uy;
+    };
+    std::vector<EdgePix> edges;
+    edges.reserve(MN / 8);
+    for (std::size_t c = 0; c < N; ++c) {
+        for (std::size_t r = 0; r < M; ++r) {
+            const std::size_t idx = c * M + r;
+            if (gradMag[idx] > t) {
+                const double ux = useSingle
+                    ? static_cast<double>(static_cast<float>(Gx[idx]) / static_cast<float>(gradMag[idx]))
+                    : (Gx[idx] / gradMag[idx]);
+                const double uy = useSingle
+                    ? static_cast<double>(static_cast<float>(Gy[idx]) / static_cast<float>(gradMag[idx]))
+                    : (Gy[idx] / gradMag[idx]);
+                edges.push_back({
+                    static_cast<double>(c + 1),
+                    static_cast<double>(r + 1),
+                    ux,
+                    uy
+                });
+            }
+        }
+    }
+    if (edges.empty()) return emptyResult();
+
+    const std::string polLower = toLowerAscii(object_polarity);
+    const std::string methodLower = toLowerAscii(method);
+
+    std::vector<double> radVec;
+    if (rmin < rmax) {
+        for (double r = rmin; r <= rmax + 1e-9; r += 0.5) {
+            radVec.push_back(r);
+        }
+    } else {
+        radVec.push_back(rmin);
+    }
+    const std::size_t nR = radVec.size();
+    const double polSign = (polLower == "bright") ? 1.0 : -1.0;
+
+    std::vector<double> RR(nR), w0_re(nR), w0_im(nR, 0.0);
+    const double lnR1 = std::log(radVec.front());
+    const double lnRend = std::log(radVec.back());
+    for (std::size_t k = 0; k < nR; ++k) {
+        RR[k] = polSign * radVec[k];
+        const double invCirc = 1.0 / (2.0 * M_PI * radVec[k]);
+        if (methodLower == "phasecode" && nR > 1) {
+            const double phi = ((std::log(radVec[k]) - lnR1) / (lnRend - lnR1) * 2.0 * M_PI) - M_PI;
+            w0_re[k] = std::cos(phi) * invCirc;
+            w0_im[k] = std::sin(phi) * invCirc;
+        } else {
+            w0_re[k] = invCirc;
+            w0_im[k] = 0.0;
+        }
+    }
+
+    std::vector<double> accumRe(MN, 0.0), accumIm(MN, 0.0);
+    const long Ml = static_cast<long>(M);
+    const long Nl = static_cast<long>(N);
+    for (const auto &ep : edges) {
+        for (std::size_t k = 0; k < nR; ++k) {
+            const long xc = std::lround(ep.ex + (-RR[k]) * ep.ux);
+            const long yc = std::lround(ep.ey + (-RR[k]) * ep.uy);
+            if (xc >= 1 && xc <= Nl && yc >= 1 && yc <= Ml) {
+                const std::size_t aidx = static_cast<std::size_t>(xc - 1) * M
+                                       + static_cast<std::size_t>(yc - 1);
+                accumRe[aidx] += w0_re[k];
+                accumIm[aidx] += w0_im[k];
+            }
+        }
+    }
+
+    std::vector<double> accumAbs(MN, 0.0);
+    bool anyNonZero = false;
+    for (std::size_t i = 0; i < MN; ++i) {
+        accumAbs[i] = std::hypot(accumRe[i], accumIm[i]);
+        if (accumAbs[i] != 0.0) anyNonZero = true;
+    }
+    if (!anyNonZero) return emptyResult();
+
+    bool accumFlat = true;
+    for (std::size_t i = 1; i < MN; ++i) {
+        if (accumAbs[i] != accumAbs[0]) {
+            accumFlat = false;
+            break;
+        }
+    }
+    if (accumFlat) return emptyResult();
+
+    // 5x5 zero-padded median filter on accumAbs if min(M, N) > 5.
+    Value HdVal = Value::matrix(M, N, ValueType::DOUBLE, mr);
+    double *hdPtr = HdVal.doubleDataMut();
+    if (std::min(M, N) > 5) {
+        std::array<double, 25> win{};
+        for (std::size_t c = 0; c < N; ++c) {
+            for (std::size_t r = 0; r < M; ++r) {
+                std::size_t k = 0;
+                for (int dc = -2; dc <= 2; ++dc) {
+                    const long nc = static_cast<long>(c) + dc;
+                    for (int dr = -2; dr <= 2; ++dr) {
+                        const long nr = static_cast<long>(r) + dr;
+                        if (nr < 0 || nr >= Ml || nc < 0 || nc >= Nl) {
+                            win[k++] = 0.0;
+                        } else {
+                            win[k++] = accumAbs[static_cast<std::size_t>(nc) * M
+                                              + static_cast<std::size_t>(nr)];
+                        }
+                    }
+                }
+                std::nth_element(win.begin(), win.begin() + 12, win.end());
+                hdPtr[c * M + r] = win[12];
+            }
+        }
+    } else {
+        for (std::size_t i = 0; i < MN; ++i) {
+            hdPtr[i] = accumAbs[i];
+        }
+    }
+
+    const double accumThresh = 1.0 - sensitivity;
+    const double epsT = (accumThresh > 0.0)
+        ? (std::nextafter(accumThresh, std::numeric_limits<double>::infinity()) - accumThresh)
+        : 0.0;
+    const double suppThreshold = std::max(accumThresh - epsT, 0.0);
+    HdVal = imhmax(HdVal, suppThreshold, 8, mr);
+    const double *hd = HdVal.doubleData();
+
+    // Find 8-connected regional maxima plateaus of Hd in column-major order.
+    static constexpr int dr8[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+    static constexpr int dc8[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    std::vector<std::uint8_t> visited(MN, 0);
+    std::vector<std::size_t> comp, q;
+    comp.reserve(32);
+    q.reserve(32);
+
+    struct Candidate {
+        double xc;
+        double yc;
+        double metric;
+    };
+    std::vector<Candidate> cands;
+
+    for (std::size_t i = 0; i < MN; ++i) {
+        if (visited[i]) continue;
+        visited[i] = 1;
+        comp.clear();
+        q.clear();
+        comp.push_back(i);
+        q.push_back(i);
+        const double v0 = hd[i];
+        bool hasHigher = false;
+        std::size_t head = 0;
+        while (head < q.size()) {
+            const std::size_t curr = q[head++];
+            const long r = static_cast<long>(curr % M);
+            const long c = static_cast<long>(curr / M);
+            for (int k = 0; k < 8; ++k) {
+                const long nr = r + dr8[k];
+                const long nc = c + dc8[k];
+                if (nr < 0 || nr >= Ml || nc < 0 || nc >= Nl) continue;
+                const std::size_t nb = static_cast<std::size_t>(nc) * M
+                                     + static_cast<std::size_t>(nr);
+                if (hd[nb] > v0) {
+                    hasHigher = true;
+                } else if (hd[nb] == v0 && !visited[nb]) {
+                    visited[nb] = 1;
+                    comp.push_back(nb);
+                    q.push_back(nb);
+                }
+            }
+        }
+        if (!hasHigher) {
+            double wsum = 0.0, xsum = 0.0, ysum = 0.0;
+            for (std::size_t idx : comp) {
+                const double w = accumAbs[idx];
+                const double r1 = static_cast<double>(idx % M) + 1.0;
+                const double c1 = static_cast<double>(idx / M) + 1.0;
+                wsum += w;
+                xsum += c1 * w;
+                ysum += r1 * w;
+            }
+            if (wsum > 0.0) {
+                const double xc = xsum / wsum;
+                const double yc = ysum / wsum;
+                const long r_idx = std::clamp<long>(std::lround(yc) - 1, 0, Ml - 1);
+                const long c_idx = std::clamp<long>(std::lround(xc) - 1, 0, Nl - 1);
+                const double met = hd[static_cast<std::size_t>(c_idx) * M
+                                    + static_cast<std::size_t>(r_idx)];
+                if (met >= accumThresh) {
+                    cands.push_back({xc, yc, met});
+                }
+            }
+        }
+    }
+
+    if (cands.empty()) return emptyResult();
+
+    std::stable_sort(cands.begin(), cands.end(),
+                     [](const Candidate &a, const Candidate &b) {
+                         return a.metric > b.metric;
+                     });
+
+    const std::size_t K = cands.size();
+    Value centersOut = Value::matrix(K, 2, ValueType::DOUBLE, mr);
+    Value radiiOut   = Value::matrix(K, 1, ValueType::DOUBLE, mr);
+    Value metricOut  = Value::matrix(K, 1, ValueType::DOUBLE, mr);
+    double *cp = centersOut.doubleDataMut();
+    double *rp = radiiOut.doubleDataMut();
+    double *mp = metricOut.doubleDataMut();
+
+    for (std::size_t k = 0; k < K; ++k) {
+        cp[k]     = cands[k].xc;
+        cp[K + k] = cands[k].yc;
+        mp[k]     = cands[k].metric;
+
+        if (rmin == rmax) {
+            rp[k] = rmin;
+        } else if (methodLower == "phasecode") {
+            const long r_idx = std::clamp<long>(std::lround(cands[k].yc) - 1, 0, Ml - 1);
+            const long c_idx = std::clamp<long>(std::lround(cands[k].xc) - 1, 0, Nl - 1);
+            const std::size_t aidx = static_cast<std::size_t>(c_idx) * M
+                                   + static_cast<std::size_t>(r_idx);
+            const double cenPhase = std::atan2(accumIm[aidx], accumRe[aidx]);
+            rp[k] = std::exp(((cenPhase + M_PI) / (2.0 * M_PI) * (lnRend - lnR1)) + lnR1);
+        } else {
+            // Two-stage radial histogram around (xc, yc).
+            const long left   = std::max<long>(static_cast<long>(std::floor(cands[k].xc - rmax)), 1);
+            const long right  = std::min<long>(static_cast<long>(std::ceil(cands[k].xc + rmax)), Nl);
+            const long top    = std::max<long>(static_cast<long>(std::floor(cands[k].yc - rmax)), 1);
+            const long bottom = std::min<long>(static_cast<long>(std::ceil(cands[k].yc + rmax)), Ml);
+            const long r1_int = static_cast<long>(std::lround(rmin));
+            const long r2_int = static_cast<long>(std::lround(rmax));
+            const std::size_t nBins = static_cast<std::size_t>(r2_int - r1_int + 1);
+            std::vector<double> hbin(nBins, 0.0);
+            for (long cc = left; cc <= right; ++cc) {
+                for (long rr = top; rr <= bottom; ++rr) {
+                    const long rbin = std::lround(std::hypot(
+                        static_cast<double>(cc) - cands[k].xc,
+                        static_cast<double>(rr) - cands[k].yc));
+                    if (rbin >= r1_int && rbin <= r2_int) {
+                        hbin[static_cast<std::size_t>(rbin - r1_int)] +=
+                            gradMag[static_cast<std::size_t>(cc - 1) * M
+                                  + static_cast<std::size_t>(rr - 1)];
+                    }
+                }
+            }
+            double bestH = -1.0;
+            long bestR = r1_int;
+            for (std::size_t b = 0; b < nBins; ++b) {
+                const double rcur = static_cast<double>(r1_int + static_cast<long>(b));
+                const double hnorm = hbin[b] / (2.0 * M_PI * rcur);
+                if (hnorm > bestH) {
+                    bestH = hnorm;
+                    bestR = r1_int + static_cast<long>(b);
+                }
+            }
+            rp[k] = static_cast<double>(bestR);
+        }
+    }
+
+    return {std::move(centersOut), std::move(radiiOut), std::move(metricOut)};
+}
+
 } // namespace numkit::image
