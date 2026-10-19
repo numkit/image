@@ -475,13 +475,14 @@ void imfilter_reg(Span<const Value> args, size_t /*nargout*/,
         const Value &a = args[i];
         if (a.isChar() || a.isString()) {
             auto s = a.toString();
-            if      (s == "replicate") boundary = PadMode::Replicate;
-            else if (s == "symmetric") boundary = PadMode::Symmetric;
-            else if (s == "circular")  boundary = PadMode::Circular;
-            else if (s == "full")      full = true;
-            else if (s == "same")      full = false;
-            else if (s == "conv")      flip_kernel = true;
-            else if (s == "corr")      flip_kernel = false;
+            for (char &ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            if      (s.rfind("rep", 0) == 0)  boundary = PadMode::Replicate;
+            else if (s.rfind("sym", 0) == 0)  boundary = PadMode::Symmetric;
+            else if (s.rfind("circ", 0) == 0) boundary = PadMode::Circular;
+            else if (s.rfind("full", 0) == 0) full = true;
+            else if (s.rfind("same", 0) == 0) full = false;
+            else if (s.rfind("conv", 0) == 0) flip_kernel = true;
+            else if (s.rfind("corr", 0) == 0) flip_kernel = false;
         } else {
             pad_value = a.toScalar();
             boundary = PadMode::Constant;
