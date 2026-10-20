@@ -208,6 +208,7 @@ void bwunpack_reg     (Span<const Value>, size_t, Span<Value>, CallContext &);
 
 // region/region.cpp
 void bwlabel_reg     (Span<const Value>, size_t, Span<Value>, CallContext &);
+void bwlabeln_reg    (Span<const Value>, size_t, Span<Value>, CallContext &);
 void bwconncomp_reg  (Span<const Value>, size_t, Span<Value>, CallContext &);
 void labelmatrix_reg (Span<const Value>, size_t, Span<Value>, CallContext &);
 void cc2bw_reg       (Span<const Value>, size_t, Span<Value>, CallContext &);
@@ -511,6 +512,7 @@ void ImageLibrary::install(PluginContext &engine)
     reg("morph", "bwunpack",      &image::detail::bwunpack_reg);
 
     reg("region", "bwlabel",      &image::detail::bwlabel_reg);
+    reg("region", "bwlabeln",     &image::detail::bwlabeln_reg);
     reg("region", "bwconncomp",   &image::detail::bwconncomp_reg);
     reg("region", "labelmatrix",  &image::detail::labelmatrix_reg);
     reg("region", "cc2bw",        &image::detail::cc2bw_reg);

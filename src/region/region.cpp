@@ -120,6 +120,77 @@ bwlabel(const Value &BW, int conn, std::pmr::memory_resource *mr)
     return std::make_tuple(std::move(out), Value::scalar(double(K), mr));
 }
 
+std::tuple<Value, Value>
+bwlabeln(const Value &BW, int conn, std::pmr::memory_resource *mr)
+{
+    const int H = (int)BW.dims().dim(0);
+    const int W = (int)BW.dims().dim(1);
+    const int D = (int)(BW.numel() / std::max<size_t>(1, (size_t)H * (size_t)W));
+    if (conn == 0) conn = (D > 1) ? 26 : 8;
+    const int maxDist = (D > 1)
+        ? ((conn == 6) ? 1 : (conn == 18 ? 2 : 3))
+        : ((conn == 4) ? 1 : 2);
+    const size_t N = BW.numel();
+    std::vector<int> L(N, 0);
+    std::vector<int> parent(1, 0);
+    std::vector<int> sz(1, 0);
+    auto find = [&](int x) {
+        while (parent[x] != x) x = parent[x];
+        return x;
+    };
+    int next_label = 1;
+    for (int d = 0; d < D; ++d) {
+        for (int c = 0; c < W; ++c) {
+            for (int r = 0; r < H; ++r) {
+                const size_t idx = ((size_t)d * (size_t)W + (size_t)c) * (size_t)H + (size_t)r;
+                if (BW.elemAsDouble(idx) == 0.0) continue;
+                const int node = next_label++;
+                parent.push_back(node);
+                sz.push_back(1);
+                L[idx] = node;
+                for (int dd = -1; dd <= 0; ++dd) {
+                    if (d + dd < 0) continue;
+                    for (int dc = -1; dc <= (dd == 0 ? 0 : 1); ++dc) {
+                        if (c + dc < 0 || c + dc >= W) continue;
+                        for (int dr = -1; dr <= ((dd == 0 && dc == 0) ? -1 : 1); ++dr) {
+                            if (r + dr < 0 || r + dr >= H) continue;
+                            if (std::abs(dr) + std::abs(dc) + std::abs(dd) > maxDist) continue;
+                            const size_t nidx = ((size_t)(d + dd) * (size_t)W + (size_t)(c + dc)) * (size_t)H + (size_t)(r + dr);
+                            if (L[nidx]) {
+                                const int x = find(node);
+                                const int y = find(L[nidx]);
+                                if (x != y) {
+                                    if (sz[(size_t)x] > sz[(size_t)y]) {
+                                        parent[(size_t)y] = x;
+                                        sz[(size_t)x] += sz[(size_t)y];
+                                    } else {
+                                        parent[(size_t)x] = y;
+                                        sz[(size_t)y] += sz[(size_t)x];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    std::vector<int> remap(parent.size(), 0);
+    int K = 0;
+    for (size_t k = 1; k < parent.size(); ++k) {
+        if (parent[k] == (int)k) remap[k] = ++K;
+    }
+    Value out = (BW.dims().pages() > 1)
+        ? Value::matrix3d(BW.dims().rows(), BW.dims().cols(), BW.dims().pages(), ValueType::DOUBLE, mr)
+        : Value::matrix(BW.dims().rows(), BW.dims().cols(), ValueType::DOUBLE, mr);
+    double *od = out.doubleDataMut();
+    for (size_t i = 0; i < N; ++i) {
+        if (L[i] == 0) continue;
+        od[i] = double(remap[(size_t)find(L[i])]);
+    }
+    return std::make_tuple(std::move(out), Value::scalar(double(K), mr));
+}
+
 Value bwconncomp(const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
     internal::requireImageClass(BW, "bwconncomp", "BW", 1,

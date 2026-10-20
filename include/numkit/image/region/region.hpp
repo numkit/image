@@ -34,6 +34,10 @@ std::tuple<Value, Value>
 bwlabel(const Value &BW, int conn,
         std::pmr::memory_resource *mr = nullptr);
 
+std::tuple<Value, Value>
+bwlabeln(const Value &BW, int conn = 0,
+         std::pmr::memory_resource *mr = nullptr);
+
 /// @brief Connected-component struct
 /// (`CC = bwconncomp(BW, conn)`).
 ///

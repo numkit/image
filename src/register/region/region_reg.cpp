@@ -91,6 +91,17 @@ void bwlabel_reg(Span<const Value> args, size_t nargout,
     if (nargout > 1) outs[1] = std::move(n);
 }
 
+void bwlabeln_reg(Span<const Value> args, size_t nargout,
+                  Span<Value> outs, CallContext &ctx)
+{
+    argcheck::checkNargin(args.size(), 1, 2, "bwlabeln");
+    const int conn = (args.size() >= 2 && !args[1].isEmpty())
+                     ? (int)args[1].toScalar() : 0;
+    auto [L, n] = bwlabeln(args[0], conn, ctx.engine->resource());
+    outs[0] = std::move(L);
+    if (nargout > 1) outs[1] = std::move(n);
+}
+
 void bwconncomp_reg(Span<const Value> args, size_t /*nargout*/,
                     Span<Value> outs, CallContext &ctx)
 {
