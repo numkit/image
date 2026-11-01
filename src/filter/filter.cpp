@@ -61,10 +61,38 @@ inline int fold_index(int i, int n, PadMode m) {
     }
 }
 
+void padarray_argcheck(const Value &x)
+{
+    switch (x.type()) {
+        case ValueType::DOUBLE:
+        case ValueType::SINGLE:
+        case ValueType::UINT8:
+        case ValueType::UINT16:
+        case ValueType::INT16:
+        case ValueType::LOGICAL:
+            break;
+        default:
+            if (x.numel() > 0)
+                throw Error("padarray: unsupported class", 0, 0, "padarray", "",
+                            "numkit:padarray:badtype");
+            break;
+    }
+}
+
+void fspecial_argcheck(const std::string &type)
+{
+    if (type != "average" && type != "gaussian" && type != "laplacian" &&
+        type != "log" && type != "sobel" && type != "prewitt" &&
+        type != "disk" && type != "unsharp" && type != "motion")
+        throw Error("fspecial: unknown filter type '" + type + "'",
+                    0, 0, "fspecial", "", "numkit:fspecial:badtype");
+}
+
 } // anonymous
 
 Value padarray(const Value &x, const std::vector<int> &padsize, PadMode mode, double pad_value, const std::string &direction, std::pmr::memory_resource *mr)
 {
+    padarray_argcheck(x);
     const auto &d = x.dims();
     int H = static_cast<int>(d.rows());
     int W = static_cast<int>(d.cols());
@@ -399,6 +427,7 @@ Value fspecial_unsharp(double alpha, std::pmr::memory_resource *mr) {
 
 Value fspecial(const std::string &type, const std::vector<double> &params, std::pmr::memory_resource *mr)
 {
+    fspecial_argcheck(type);
     if (type == "average") {
         int rows = params.size() >= 1 ? int(params[0]) : 3;
         int cols = params.size() >= 2 ? int(params[1]) : rows;
@@ -478,14 +507,115 @@ inline void store_classed(Value &out, size_t i, double v, ValueType t) {
     }
 }
 
-} // anonymous
-
-Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_value, bool full, bool flip_kernel, std::pmr::memory_resource *mr)
+void imfilter_argcheck(const Value &I, const Value &h)
 {
     internal::requireImageClassAllowComplex(I, "imfilter", "I", 1,
                                 internal::ImgClasses::FloatIntLog);
     internal::requireImageClassAllowComplex(h, "imfilter", "h", 2,
                                 internal::ImgClasses::DoubleOnly);
+}
+
+void imboxfilt_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "imboxfilt", "I", 1,
+                                internal::ImgClasses::FloatInt);
+}
+
+void integralBoxFilter_argcheck(const Value &I, int fH, int fW)
+{
+    if (fH <= 0 || fW <= 0)
+        throw Error("integralBoxFilter: filterSize must be positive",
+                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badSize");
+    if ((fH & 1) == 0 || (fW & 1) == 0)
+        throw Error("integralBoxFilter: filterSize must be odd",
+                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:notOdd");
+
+    const auto &d = I.dims();
+    if (d.ndim() > 3)
+        throw Error("integralBoxFilter: input must be 2-D or 3-D integral image",
+                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:rank");
+
+    const size_t H1 = d.rows();
+    const size_t W1 = d.cols();
+    if (H1 < 1 || W1 < 1)
+        throw Error("integralBoxFilter: integral image must be at least (1+1) × (1+1)",
+                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tiny");
+    const size_t H = H1 - 1;
+    const size_t W = W1 - 1;
+    if (static_cast<size_t>(fH) > H || static_cast<size_t>(fW) > W)
+        throw Error("integralBoxFilter: filter size too large for integral image",
+                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tooLarge");
+}
+
+void integralBoxFilter3_argcheck(const Value &I, int fH, int fW, int fP)
+{
+    if (fH <= 0 || fW <= 0 || fP <= 0)
+        throw Error("integralBoxFilter3: filterSize must be positive",
+                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badSize");
+    if ((fH & 1) == 0 || (fW & 1) == 0 || (fP & 1) == 0)
+        throw Error("integralBoxFilter3: Expected filterSize to be odd.",
+                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:notOdd");
+
+    const auto &d = I.dims();
+    if (d.ndim() > 3)
+        throw Error("integralBoxFilter3: input must be a 3-D integral volume",
+                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:rank");
+    const size_t H1 = d.rows();
+    const size_t W1 = d.cols();
+    const size_t D1 = d.is3D() ? d.pages() : 1;
+    if (H1 < 2 || W1 < 2 || D1 < 2)
+        throw Error("integralBoxFilter3: integral volume must be at least (1+1)^3",
+                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tiny");
+    const size_t H = H1 - 1, W = W1 - 1, D = D1 - 1;
+    if (static_cast<size_t>(fH) > H || static_cast<size_t>(fW) > W
+        || static_cast<size_t>(fP) > D)
+        throw Error("integralBoxFilter3: Filter size is too large for integral image.",
+                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tooLarge");
+}
+
+void modefilt_argcheck(const Value &A, int fH, int fW, int fD,
+                       const std::string &padopt, int &padMode_out)
+{
+    const bool is3D = (fD > 0);
+    if (fH <= 0 || fW <= 0 || (is3D && fD <= 0))
+        throw Error("modefilt: filter size must be positive",
+                    0, 0, "modefilt", "", "numkit:modefilt:badSize");
+    if ((fH & 1) == 0 || (fW & 1) == 0 || (is3D && (fD & 1) == 0))
+        throw Error("modefilt: filter size must be odd",
+                    0, 0, "modefilt", "", "numkit:modefilt:notOdd");
+
+    if (padopt.empty() || padopt == "symmetric") padMode_out = 0;
+    else if (padopt == "replicate")              padMode_out = 1;
+    else if (padopt == "zeros" || padopt == "zero") padMode_out = 2;
+    else throw Error("modefilt: padopt must be 'symmetric', 'replicate', or 'zeros'",
+                     0, 0, "modefilt", "", "numkit:modefilt:badPad");
+
+    const auto &d = A.dims();
+    if (d.ndim() > 3 || (!is3D && d.ndim() > 2))
+        throw Error("modefilt: input rank does not match filter rank",
+                    0, 0, "modefilt", "", "numkit:modefilt:rank");
+}
+
+void medfilt2_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "medfilt2", "I", 1,
+                                internal::ImgClasses::FloatIntLog);
+}
+
+void imsharpen_argcheck(const Value &I, double threshold)
+{
+    internal::requireImageClass(I, "imsharpen", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (!(threshold >= 0.0 && threshold <= 1.0))
+        throw Error("imsharpen: threshold must be in [0, 1]",
+                    0, 0, "imsharpen", "", "numkit:imsharpen:threshold");
+}
+
+} // anonymous
+
+Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_value, bool full, bool flip_kernel, std::pmr::memory_resource *mr)
+{
+    imfilter_argcheck(I, h);
     if (I.isComplex() || h.isComplex()) {
         auto extractPart = [&](const Value &V, bool imagPart) -> Value {
             const auto &d = V.dims();
@@ -725,8 +855,7 @@ Value imgaussfilt(const Value &I, double sigma, int filter_size, std::pmr::memor
 
 Value imboxfilt(const Value &I, int filter_size, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imboxfilt", "I", 1,
-                                internal::ImgClasses::FloatInt);
+    imboxfilt_argcheck(I);
     if (filter_size <= 0) filter_size = 3;
     if (filter_size % 2 == 0) filter_size += 1;
     // Non-2-D keeps the original 2-D-kernel path.
@@ -822,29 +951,12 @@ Value imboxfilt(const Value &I, int filter_size, std::pmr::memory_resource *mr)
 Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
                          std::pmr::memory_resource *mr)
 {
-    if (fH <= 0 || fW <= 0)
-        throw Error("integralBoxFilter: filterSize must be positive",
-                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badSize");
-    if ((fH & 1) == 0 || (fW & 1) == 0)
-        throw Error("integralBoxFilter: filterSize must be odd",
-                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:notOdd");
-
+    integralBoxFilter_argcheck(I, fH, fW);
     const auto &d = I.dims();
-    if (d.ndim() > 3)
-        throw Error("integralBoxFilter: input must be 2-D or 3-D integral image",
-                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:rank");
-
     const size_t H1 = d.rows();
     const size_t W1 = d.cols();
-    if (H1 < 1 || W1 < 1)
-        throw Error("integralBoxFilter: integral image must be at least (1+1) × (1+1)",
-                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tiny");
-    // Underlying image height / width.
     const size_t H = H1 - 1;
     const size_t W = W1 - 1;
-    if (static_cast<size_t>(fH) > H || static_cast<size_t>(fW) > W)
-        throw Error("integralBoxFilter: filter size too large for integral image",
-                    0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tooLarge");
 
     const size_t C = (d.ndim() == 3) ? d.pages() : 1;
     const size_t outH = H - static_cast<size_t>(fH) + 1;
@@ -895,29 +1007,12 @@ Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
 Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
                          double normFactor, std::pmr::memory_resource *mr)
 {
-    if (fH <= 0 || fW <= 0 || fP <= 0)
-        throw Error("integralBoxFilter3: filterSize must be positive",
-                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badSize");
-    if ((fH & 1) == 0 || (fW & 1) == 0 || (fP & 1) == 0)
-        throw Error("integralBoxFilter3: Expected filterSize to be odd.",
-                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:notOdd");
-
+    integralBoxFilter3_argcheck(I, fH, fW, fP);
     const auto &d = I.dims();
-    if (d.ndim() > 3)
-        throw Error("integralBoxFilter3: input must be a 3-D integral volume",
-                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:rank");
     const size_t H1 = d.rows();
     const size_t W1 = d.cols();
     const size_t D1 = d.is3D() ? d.pages() : 1;
-    if (H1 < 2 || W1 < 2 || D1 < 2)
-        throw Error("integralBoxFilter3: integral volume must be at least (1+1)^3",
-                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tiny");
-    // Underlying volume size.
     const size_t H = H1 - 1, W = W1 - 1, D = D1 - 1;
-    if (static_cast<size_t>(fH) > H || static_cast<size_t>(fW) > W
-        || static_cast<size_t>(fP) > D)
-        throw Error("integralBoxFilter3: Filter size is too large for integral image.",
-                    0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tooLarge");
 
     const size_t outH = H - static_cast<size_t>(fH) + 1;
     const size_t outW = W - static_cast<size_t>(fW) + 1;
@@ -971,25 +1066,10 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                             const std::string &padopt,
                             std::pmr::memory_resource *mr)
 {
+    int padMode = 0;  // 0=symmetric, 1=replicate, 2=zeros
+    modefilt_argcheck(A, fH, fW, fD, padopt, padMode);
     const bool is3D = (fD > 0);
-    if (fH <= 0 || fW <= 0 || (is3D && fD <= 0))
-        throw Error("modefilt: filter size must be positive",
-                    0, 0, "modefilt", "", "numkit:modefilt:badSize");
-    if ((fH & 1) == 0 || (fW & 1) == 0 || (is3D && (fD & 1) == 0))
-        throw Error("modefilt: filter size must be odd",
-                    0, 0, "modefilt", "", "numkit:modefilt:notOdd");
-
-    int padMode;  // 0=symmetric, 1=replicate, 2=zeros
-    if (padopt.empty() || padopt == "symmetric") padMode = 0;
-    else if (padopt == "replicate")              padMode = 1;
-    else if (padopt == "zeros" || padopt == "zero") padMode = 2;
-    else throw Error("modefilt: padopt must be 'symmetric', 'replicate', or 'zeros'",
-                     0, 0, "modefilt", "", "numkit:modefilt:badPad");
-
     const auto &d = A.dims();
-    if (d.ndim() > 3 || (!is3D && d.ndim() > 2))
-        throw Error("modefilt: input rank does not match filter rank",
-                    0, 0, "modefilt", "", "numkit:modefilt:rank");
     const int H = static_cast<int>(d.rows());
     const int W = static_cast<int>(d.cols());
     const int D = is3D ? static_cast<int>(d.is3D() ? d.pages() : 1) : 1;
@@ -1196,8 +1276,7 @@ static Value medfilt2_huang_u8(const Value &I, int rows, int cols,
 
 Value medfilt2(const Value &I, int rows, int cols, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "medfilt2", "I", 1,
-                                internal::ImgClasses::FloatIntLog);
+    medfilt2_argcheck(I);
     // Logical input → logical output (probed R2025b): median on the
     // double copy, re-binarise.
     if (I.type() == ValueType::LOGICAL)
@@ -1295,12 +1374,8 @@ Value medfilt2(const Value &I, int rows, int cols, std::pmr::memory_resource *mr
 
 Value imsharpen(const Value &I, double radius, double amount, double threshold, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imsharpen", "I", 1,
-                                internal::ImgClasses::FloatInt);
+    imsharpen_argcheck(I, threshold);
     if (!(radius > 0.0)) radius = 1.0;
-    if (!(threshold >= 0.0 && threshold <= 1.0))
-        throw Error("imsharpen: threshold must be in [0, 1]",
-                    0, 0, "imsharpen", "", "numkit:imsharpen:threshold");
 
     // Gaussian filter size: 2*ceil(2*sigma)+1 — MATLAB default.
     int fs = 2 * (int)std::ceil(2.0 * radius) + 1;
@@ -1463,18 +1538,32 @@ void im2col_distinct_typed(const Value &A, Value &B, size_t H, size_t W,
     }
 }
 
-} // anonymous
-
-Value im2col(const Value &A, int m, int n, const std::string &block_type, std::pmr::memory_resource *mr)
+void im2col_argcheck(const Value &A, int m, int n, const std::string &block_type)
 {
-    // Probed R2025b: im2col is the loose reshape-family entry — numeric,
-    // logical AND complex inputs compute, class-preserving (complex
-    // values preserved).
     internal::requireImageClassAllowComplex(A, "im2col", "A", 1,
                                 internal::ImgClasses::FloatIntLog);
     if (m <= 0 || n <= 0)
         throw Error("im2col: block size must be positive",
                     0, 0, "im2col", "", "numkit:im2col:size");
+    if (block_type != "sliding" && !block_type.empty() && block_type != "distinct")
+        throw Error("im2col: block_type must be 'sliding' or 'distinct'",
+                    0, 0, "im2col", "", "numkit:im2col:type");
+}
+
+void imbilatfilt_argcheck(const Value &I, double degreeOfSmoothing)
+{
+    internal::requireImageClass(I, "imbilatfilt", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (!(degreeOfSmoothing > 0.0))
+        throw Error("imbilatfilt: degreeOfSmoothing must be > 0",
+                    0, 0, "imbilatfilt", "", "numkit:imbilatfilt:dos");
+}
+
+} // anonymous
+
+Value im2col(const Value &A, int m, int n, const std::string &block_type, std::pmr::memory_resource *mr)
+{
+    im2col_argcheck(A, m, n, block_type);
     const size_t H = A.dims().rows();
     const size_t W = A.dims().cols();
     const ValueType T = A.type();
@@ -1589,12 +1678,8 @@ Value im2col(const Value &A, int m, int n, const std::string &block_type, std::p
 
 Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imbilatfilt", "I", 1,
-                                internal::ImgClasses::FloatInt);
+    imbilatfilt_argcheck(I, degreeOfSmoothing);
     if (!(spatialSigma > 0.0)) spatialSigma = 1.0;
-    if (!(degreeOfSmoothing > 0.0))
-        throw Error("imbilatfilt: degreeOfSmoothing must be > 0",
-                    0, 0, "imbilatfilt", "", "numkit:imbilatfilt:dos");
 
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
@@ -1714,13 +1799,31 @@ void col2im_distinct_typed(const Value &B, Value &A, size_t mm, size_t nn,
     }
 }
 
-} // anonymous
-
-Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &block_type, std::pmr::memory_resource *mr)
+void col2im_argcheck(int m, int n, int mm, int nn, const std::string &block_type)
 {
     if (m <= 0 || n <= 0 || mm <= 0 || nn <= 0)
         throw Error("col2im: dimensions must be positive",
                     0, 0, "col2im", "", "numkit:col2im:size");
+    if (block_type != "sliding" && !block_type.empty() && block_type != "distinct")
+        throw Error("col2im: block_type must be 'sliding' or 'distinct'",
+                    0, 0, "col2im", "", "numkit:col2im:type");
+}
+
+void imnoise_argcheck(const Value &I, const std::string &mode)
+{
+    internal::requireImageClassAllowComplex(I, "imnoise", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (mode != "gaussian" && mode != "salt & pepper" && mode != "salt&pepper" &&
+        mode != "speckle" && mode != "poisson" && mode != "localvar")
+        throw Error("imnoise: unknown mode '" + mode + "'",
+                    0, 0, "imnoise", "", "numkit:imnoise:mode");
+}
+
+} // anonymous
+
+Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &block_type, std::pmr::memory_resource *mr)
+{
+    col2im_argcheck(m, n, mm, nn, block_type);
     const size_t MM = (size_t)mm;
     const size_t NN = (size_t)nn;
     const ValueType T = B.type();
@@ -1813,8 +1916,7 @@ Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &bl
 
 Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string &mode, const Value &p1, const Value &p2, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClassAllowComplex(I, "imnoise", "I", 1,
-                                internal::ImgClasses::FloatInt);
+    imnoise_argcheck(I, mode);
     const ValueType T = I.type();
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
@@ -1984,12 +2086,169 @@ inline double sample_sym(const Value &I, int r, int c, int H, int W) {
                           static_cast<size_t>(r));
 }
 
+void stdfilt_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "stdfilt", "I", 1,
+                                internal::ImgClasses::FloatIntLog);
+}
+
+void ordfilt2_argcheck(const Value &A, const Value &domain)
+{
+    internal::requireImageClass(A, "ordfilt2", "A", 1,
+                                internal::ImgClasses::FloatIntLog);
+    internal::requireImageClass(domain, "ordfilt2", "domain", 3,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void imsmooth_argcheck(const Value &I, const std::string &name, double sigma)
+{
+    internal::requireImageClass(I, "imsmooth", "I", 1,
+                                internal::ImgClasses::FloatIntLog);
+    std::string lo;
+    lo.reserve(name.size());
+    for (char c : name) lo.push_back(static_cast<char>(std::tolower(c)));
+    if (lo != "gaussian")
+        throw Error("imsmooth: only 'Gaussian' mode is implemented",
+                    0, 0, "imsmooth", "", "numkit:imsmooth:mode");
+    if (!(sigma > 0.0))
+        throw Error("imsmooth: sigma must be positive",
+                    0, 0, "imsmooth", "", "numkit:imsmooth:sigma");
+}
+
+void imboxfilt3_argcheck(const Value &V)
+{
+    internal::requireImageClass(V, "imboxfilt3", "A", 1,
+                                internal::ImgClasses::FloatInt);
+}
+
+void imgaussfilt3_argcheck(const Value &V)
+{
+    internal::requireImageClass(V, "imgaussfilt3", "A", 1,
+                                internal::ImgClasses::FloatInt);
+}
+
+void medfilt3_argcheck(const Value &V, int M, int N, int P)
+{
+    internal::requireImageClass(V, "medfilt3", "A", 1,
+                                internal::ImgClasses::FloatIntLog);
+    const int m = (M <= 0) ? 3 : M;
+    const int n = (N <= 0) ? 3 : N;
+    const int p = (P <= 0) ? 3 : P;
+    if (m % 2 == 0 || n % 2 == 0 || p % 2 == 0)
+        throw Error("medfilt3: filter sizes must be odd",
+                    0, 0, "medfilt3", "", "numkit:medfilt3:size");
+}
+
+void convmtx2_argcheck(const Value &h, int m, int n)
+{
+    if (h.dims().is3D())
+        throw Error("convmtx2: kernel must be 2-D",
+                    0, 0, "convmtx2", "", "numkit:convmtx2:dims");
+    if (m <= 0 || n <= 0)
+        throw Error("convmtx2: m, n must be positive integers",
+                    0, 0, "convmtx2", "", "numkit:convmtx2:size");
+}
+
+void entropyfilt_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "entropyfilt", "I", 1,
+                                internal::ImgClasses::FloatIntNoI16);
+    internal::requireNonemptyImage(I, "entropyfilt", "I", 1);
+}
+
+void rangefilt_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "rangefilt", "I", 1,
+                                internal::ImgClasses::FloatIntLog);
+}
+
+void freqz2_argcheck(const Value &h)
+{
+    if (h.dims().is3D())
+        throw Error("freqz2: kernel must be 2-D",
+                    0, 0, "freqz2", "", "numkit:freqz2:dims");
+}
+
+void roifilt2_combine_argcheck(const Value &I, const Value &filtRes, const Value &BW)
+{
+    const std::size_t H = I.dims().rows();
+    const std::size_t W = I.dims().cols();
+    if (BW.dims().rows() != H || BW.dims().cols() != W)
+        throw Error("roifilt2: I and BW must be the same size",
+                    0, 0, "roifilt2", "", "numkit:roifilt2:imageMaskSizeMismatch");
+    if (filtRes.dims().rows() != H || filtRes.dims().cols() != W)
+        throw Error("roifilt2: filtered result size mismatch",
+                    0, 0, "roifilt2", "", "numkit:roifilt2:imageSizeMismatch");
+}
+
+void roifilt2_argcheck(const Value &h, const Value &I)
+{
+    internal::requireImageClassAllowComplex(I, "roifilt2", "I", 2,
+                                internal::ImgClasses::FloatInt);
+    internal::requireImageClassAllowComplex(h, "roifilt2", "h", 1,
+                                internal::ImgClasses::DoubleOnly);
+    if (I.dims().ndim() > 2)
+        throw Error("roifilt2: I must be a 2-D image",
+                    0, 0, "roifilt2", "", "numkit:roifilt2:imageMustBe2D");
+}
+
+void imguidedfilter_argcheck(const Value &A, int nhood)
+{
+    internal::requireImageClass(A, "imguidedfilter", "A", 1,
+                                internal::ImgClasses::FloatIntLog);
+    if (A.dims().is3D())
+        throw Error("imguidedfilter: A must be 2-D",
+                    0, 0, "imguidedfilter", "",
+                    "numkit:imguidedfilter:dim");
+    if (nhood < 1 || (nhood % 2) == 0)
+        throw Error("imguidedfilter: NeighborhoodSize must be positive odd "
+                    "integer",
+                    0, 0, "imguidedfilter", "",
+                    "numkit:imguidedfilter:nhood");
+}
+
+void imdiffusefilt_argcheck(const Value &I, const std::string &connectivity,
+                            const std::string &conduction)
+{
+    internal::requireImageClass(I, "imdiffusefilt", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (I.dims().is3D())
+        throw Error("imdiffusefilt: 3-D inputs not yet supported",
+                    0, 0, "imdiffusefilt", "",
+                    "numkit:imdiffusefilt:dim");
+    if (connectivity != "maximal" && connectivity != "minimal")
+        throw Error("imdiffusefilt: Connectivity must be 'maximal' or "
+                    "'minimal'",
+                    0, 0, "imdiffusefilt", "",
+                    "numkit:imdiffusefilt:conn");
+    if (conduction != "exponential" && conduction != "quadratic")
+        throw Error("imdiffusefilt: ConductionMethod must be "
+                    "'exponential' or 'quadratic'",
+                    0, 0, "imdiffusefilt", "",
+                    "numkit:imdiffusefilt:cond");
+}
+
+void imgaborfilt_argcheck(const Value &A_in, double wavelength, double sfb, double aspect)
+{
+    if (A_in.dims().is3D())
+        throw Error("imgaborfilt: A must be 2-D",
+                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:dim");
+    if (!(wavelength >= 2.0))
+        throw Error("imgaborfilt: wavelength must be >= 2",
+                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:wavelength");
+    if (!(sfb > 0))
+        throw Error("imgaborfilt: SpatialFrequencyBandwidth must be > 0",
+                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:sfb");
+    if (!(aspect > 0))
+        throw Error("imgaborfilt: SpatialAspectRatio must be > 0",
+                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:aspect");
+}
+
 } // anonymous
 
 Value stdfilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "stdfilt", "I", 1,
-                                internal::ImgClasses::FloatIntLog);
+    stdfilt_argcheck(I);
     const int H = static_cast<int>(I.dims().rows());
     const int W = static_cast<int>(I.dims().cols());
     Value out = Value::matrix((size_t)H, (size_t)W, ValueType::DOUBLE, mr);
@@ -2083,10 +2342,7 @@ Value stdfilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr
 
 Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, PadMode boundary, double pad_value, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(A, "ordfilt2", "A", 1,
-                                internal::ImgClasses::FloatIntLog);
-    internal::requireImageClass(domain, "ordfilt2", "domain", 3,
-                                internal::ImgClasses::AnyNumericReal);
+    ordfilt2_argcheck(A, domain);
     // Logical input → logical output (probed R2025b): order-statistic on
     // the double copy, re-binarise.
     if (A.type() == ValueType::LOGICAL)
@@ -2245,19 +2501,7 @@ wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_res
 
 Value imsmooth(const Value &I, const std::string &name, double sigma, std::pmr::memory_resource *mr)
 {
-    // imsmooth is reference-absent (Octave image package API) — the
-    // nk-defined contract takes the standard image class set.
-    internal::requireImageClass(I, "imsmooth", "I", 1,
-                                internal::ImgClasses::FloatIntLog);
-    std::string lo;
-    lo.reserve(name.size());
-    for (char c : name) lo.push_back(static_cast<char>(std::tolower(c)));
-    if (lo != "gaussian")
-        throw Error("imsmooth: only 'Gaussian' mode is implemented",
-                    0, 0, "imsmooth", "", "numkit:imsmooth:mode");
-    if (!(sigma > 0.0))
-        throw Error("imsmooth: sigma must be positive",
-                    0, 0, "imsmooth", "", "numkit:imsmooth:sigma");
+    imsmooth_argcheck(I, name, sigma);
 
     const ValueType cls = I.type();
     const int H = static_cast<int>(I.dims().rows());
@@ -2316,8 +2560,7 @@ Value imsmooth(const Value &I, const std::string &name, double sigma, std::pmr::
 // ════════════════════════════════════════════════════════════════════
 Value imboxfilt3(const Value &V, int fH, int fW, int fP, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(V, "imboxfilt3", "A", 1,
-                                internal::ImgClasses::FloatInt);
+    imboxfilt3_argcheck(V);
     if (fH <= 0) fH = 3;
     if (fW <= 0) fW = 3;
     if (fP <= 0) fP = 3;
@@ -2413,8 +2656,7 @@ static std::vector<double> gauss1d_kernel(double sigma) {
 
 Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(V, "imgaussfilt3", "A", 1,
-                                internal::ImgClasses::FloatInt);
+    imgaussfilt3_argcheck(V);
     const ValueType cls = V.type();
     const int H = static_cast<int>(V.dims().rows());
     const int W = static_cast<int>(V.dims().cols());
@@ -2485,10 +2727,7 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::p
 
 Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *mr)
 {
-    // Probed R2025b: logical volumes are accepted (logical result);
-    // complex rejected. Compute logical via the double copy.
-    internal::requireImageClass(V, "medfilt3", "A", 1,
-                                internal::ImgClasses::FloatIntLog);
+    medfilt3_argcheck(V, M, N, P);
     if (V.type() == ValueType::LOGICAL)
         return internal::castResultToClass(
             medfilt3(internal::coerceToDoubleImage(V, mr), M, N, P, mr),
@@ -2496,9 +2735,6 @@ Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *m
     if (M <= 0) M = 3;
     if (N <= 0) N = 3;
     if (P <= 0) P = 3;
-    if (M % 2 == 0 || N % 2 == 0 || P % 2 == 0)
-        throw Error("medfilt3: filter sizes must be odd",
-                    0, 0, "medfilt3", "", "numkit:medfilt3:size");
 
     const ValueType cls = V.type();
     const int H = static_cast<int>(V.dims().rows());
@@ -2559,13 +2795,8 @@ Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *m
 
 Value convmtx2(const Value &h, int m, int n, std::pmr::memory_resource *mr)
 {
+    convmtx2_argcheck(h, m, n);
     const auto &dh = h.dims();
-    if (dh.is3D())
-        throw Error("convmtx2: kernel must be 2-D",
-                    0, 0, "convmtx2", "", "numkit:convmtx2:dims");
-    if (m <= 0 || n <= 0)
-        throw Error("convmtx2: m, n must be positive integers",
-                    0, 0, "convmtx2", "", "numkit:convmtx2:size");
     const int M = static_cast<int>(dh.rows());
     const int N = static_cast<int>(dh.cols());
     const size_t out_rows = static_cast<size_t>(m + M - 1);
@@ -2603,10 +2834,7 @@ Value convmtx2(const Value &h, int m, int n, std::pmr::memory_resource *mr)
 
 Value entropyfilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr)
 {
-    // Probed R2025b: logical accepted (double result), int16 rejected.
-    internal::requireImageClass(I, "entropyfilt", "I", 1,
-                                internal::ImgClasses::FloatIntNoI16);
-    internal::requireNonemptyImage(I, "entropyfilt", "I", 1);
+    entropyfilt_argcheck(I);
     const bool isLogical = (I.type() == ValueType::LOGICAL);
     const int nbins = isLogical ? 2 : 256;
     // For non-logical, non-uint8 inputs, cast through im2uint8 to match
@@ -2662,8 +2890,7 @@ Value entropyfilt(const Value &I, const Value &domain, std::pmr::memory_resource
 
 Value rangefilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "rangefilt", "I", 1,
-                                internal::ImgClasses::FloatIntLog);
+    rangefilt_argcheck(I);
     // Logical input → logical output (probed R2025b).
     if (I.type() == ValueType::LOGICAL)
         return internal::castResultToClass(
@@ -2711,9 +2938,7 @@ Value rangefilt(const Value &I, const Value &domain, std::pmr::memory_resource *
 std::tuple<Value, Value, Value>
 freqz2(const Value &h, size_t M, size_t N, std::pmr::memory_resource *mr)
 {
-    if (h.dims().is3D())
-        throw Error("freqz2: kernel must be 2-D",
-                    0, 0, "freqz2", "", "numkit:freqz2:dims");
+    freqz2_argcheck(h);
     const size_t P = h.dims().rows();
     const size_t Q = h.dims().cols();
     if (M == 0) M = 64;
@@ -2783,14 +3008,9 @@ freqz2(const Value &h, size_t M, size_t N, std::pmr::memory_resource *mr)
 Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
                        std::pmr::memory_resource *mr)
 {
+    roifilt2_combine_argcheck(I, filtRes, BW);
     const std::size_t H = I.dims().rows();
     const std::size_t W = I.dims().cols();
-    if (BW.dims().rows() != H || BW.dims().cols() != W)
-        throw Error("roifilt2: I and BW must be the same size",
-                    0, 0, "roifilt2", "", "numkit:roifilt2:imageMaskSizeMismatch");
-    if (filtRes.dims().rows() != H || filtRes.dims().cols() != W)
-        throw Error("roifilt2: filtered result size mismatch",
-                    0, 0, "roifilt2", "", "numkit:roifilt2:imageSizeMismatch");
     const std::size_t N = H * W;
     if (filtRes.isComplex() || I.isComplex()) {
         Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
@@ -2832,13 +3052,7 @@ Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
 Value roifilt2(const Value &h, const Value &I, const Value &BW,
                std::pmr::memory_resource *mr)
 {
-    internal::requireImageClassAllowComplex(I, "roifilt2", "I", 2,
-                                internal::ImgClasses::FloatInt);
-    internal::requireImageClassAllowComplex(h, "roifilt2", "h", 1,
-                                internal::ImgClasses::DoubleOnly);
-    if (I.dims().ndim() > 2)
-        throw Error("roifilt2: I must be a 2-D image",
-                    0, 0, "roifilt2", "", "numkit:roifilt2:imageMustBe2D");
+    roifilt2_argcheck(h, I);
     // imfilter defaults: correlation, zero boundary, same size.
     Value filtFull = imfilter(I, h, PadMode::Constant, 0.0, false, false, mr);
     return roifilt2_combine(I, filtFull, BW, mr);
@@ -2866,17 +3080,7 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
                      double eps_in,
                      std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(A, "imguidedfilter", "A", 1,
-                                internal::ImgClasses::FloatIntLog);
-    if (A.dims().is3D())
-        throw Error("imguidedfilter: A must be 2-D",
-                    0, 0, "imguidedfilter", "",
-                    "numkit:imguidedfilter:dim");
-    if (nhood < 1 || (nhood % 2) == 0)
-        throw Error("imguidedfilter: NeighborhoodSize must be positive odd "
-                    "integer",
-                    0, 0, "imguidedfilter", "",
-                    "numkit:imguidedfilter:nhood");
+    imguidedfilter_argcheck(A, nhood);
     const std::size_t H = A.dims().rows();
     const std::size_t W = A.dims().cols();
     if (H == 0 || W == 0) return A;
@@ -2987,22 +3191,7 @@ Value imdiffusefilt(const Value &I,
                     const std::string &conduction,
                     std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imdiffusefilt", "I", 1,
-                                internal::ImgClasses::FloatInt);
-    if (I.dims().is3D())
-        throw Error("imdiffusefilt: 3-D inputs not yet supported",
-                    0, 0, "imdiffusefilt", "",
-                    "numkit:imdiffusefilt:dim");
-    if (connectivity != "maximal" && connectivity != "minimal")
-        throw Error("imdiffusefilt: Connectivity must be 'maximal' or "
-                    "'minimal'",
-                    0, 0, "imdiffusefilt", "",
-                    "numkit:imdiffusefilt:conn");
-    if (conduction != "exponential" && conduction != "quadratic")
-        throw Error("imdiffusefilt: ConductionMethod must be "
-                    "'exponential' or 'quadratic'",
-                    0, 0, "imdiffusefilt", "",
-                    "numkit:imdiffusefilt:cond");
+    imdiffusefilt_argcheck(I, connectivity, conduction);
 
     const std::size_t M = I.dims().rows();
     const std::size_t W = I.dims().cols();
@@ -3194,18 +3383,7 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
                  Value &mag_out, Value &phase_out,
                  std::pmr::memory_resource *mr)
 {
-    if (A_in.dims().is3D())
-        throw Error("imgaborfilt: A must be 2-D",
-                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:dim");
-    if (!(wavelength >= 2.0))
-        throw Error("imgaborfilt: wavelength must be >= 2",
-                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:wavelength");
-    if (!(sfb > 0))
-        throw Error("imgaborfilt: SpatialFrequencyBandwidth must be > 0",
-                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:sfb");
-    if (!(aspect > 0))
-        throw Error("imgaborfilt: SpatialAspectRatio must be > 0",
-                    0, 0, "imgaborfilt", "", "numkit:imgaborfilt:aspect");
+    imgaborfilt_argcheck(A_in, wavelength, sfb, aspect);
 
     const std::size_t M = A_in.dims().rows();
     const std::size_t N = A_in.dims().cols();
@@ -3293,11 +3471,6 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
     auto ifftshift_2d = [&](const std::pmr::vector<double> &in,
                             std::pmr::vector<double> &out) {
         out.resize(Np_pix);
-        const std::size_t shR = (Mp + 1) / 2;  // ifftshift uses ceil(N/2)? No, ifftshift = shift by -floor(N/2)
-        // Actually ifftshift: shift_amt = -floor(N/2). Forward circular shift by N - floor(N/2) = ceil(N/2).
-        // So output(i) = input((i + floor(N/2)) mod N). For ifftshift it's input((i + ceil(N/2)) mod N).
-        // Let me just go with: output(i + (N - floor(N/2))) % N = input(i).
-        // Equivalent: out[i] = in[(i + floor(N/2)) mod N] for fftshift, out[i] = in[(i + ceil(N/2)) mod N] for ifftshift.
         const std::size_t shR_eff = Mp / 2;          // floor(Mp/2) for fftshift
         const std::size_t shC_eff = Np / 2;
         // ifftshift = inverse of fftshift. For ifftshift, the shift amount equals (N - floor(N/2)) = ceil(N/2):
@@ -3416,12 +3589,7 @@ double immerkaer_dos(const Value &I, std::pmr::memory_resource * /*mr*/) {
             : static_cast<double>(dos);
 }
 
-} // anonymous
-
-void imnlmfilt(const Value &I, double dos,
-               int swsize, int cwsize,
-               Value &J_out, double &est_out,
-               std::pmr::memory_resource *mr)
+void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
 {
     if (I.dims().is3D())
         throw Error("imnlmfilt: RGB / colour inputs not yet supported",
@@ -3446,6 +3614,18 @@ void imnlmfilt(const Value &I, double dos,
     if (static_cast<std::size_t>(swsize) > std::min(H, W))
         throw Error("imnlmfilt: SearchWindowSize must be <= min(H, W)",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:swsTooLarge");
+}
+
+} // anonymous
+
+void imnlmfilt(const Value &I, double dos,
+               int swsize, int cwsize,
+               Value &J_out, double &est_out,
+               std::pmr::memory_resource *mr)
+{
+    imnlmfilt_argcheck(I, swsize, cwsize);
+    const std::size_t H = I.dims().rows();
+    const std::size_t W = I.dims().cols();
 
     const ValueType outT = I.type();
     const std::size_t N = H * W;

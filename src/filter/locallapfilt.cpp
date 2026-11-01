@@ -504,11 +504,8 @@ int auto_intensity_levels(double alpha)
     return 16;
 }
 
-} // namespace
-
-Value locallapfilt(const Value &I, double sigma, double alpha, double beta,
-                   int num_intensity_levels, bool process_luminance,
-                   std::pmr::memory_resource *mr)
+void locallapfilt_argcheck(const Value &I, double sigma, double alpha, double beta,
+                           bool &isGray_out)
 {
     if (!std::isfinite(sigma) || sigma < 0.0)
         throw Error("locallapfilt: sigma must be a non-negative finite scalar",
@@ -529,6 +526,18 @@ Value locallapfilt(const Value &I, double sigma, double alpha, double beta,
     if (!isRGB && !isGray)
         throw Error("locallapfilt: I must be H×W (grayscale) or H×W×3 (RGB)",
                     0, 0, "locallapfilt", "", "numkit:locallapfilt:shape");
+    isGray_out = isGray;
+}
+
+} // namespace
+
+Value locallapfilt(const Value &I, double sigma, double alpha, double beta,
+                   int num_intensity_levels, bool process_luminance,
+                   std::pmr::memory_resource *mr)
+{
+    bool isGray = false;
+    locallapfilt_argcheck(I, sigma, alpha, beta, isGray);
+    const auto &dI = I.dims();
 
     // ── Special-case passthroughs (must short-circuit before pyramid) ──
     if ((alpha == 1.0 && beta == 1.0) || (sigma == 0.0 && beta == 1.0)) {

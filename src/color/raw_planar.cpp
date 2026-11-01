@@ -47,10 +47,40 @@ inline void copyElem(Value &dst, size_t di, const Value &src, size_t si)
     }
 }
 
+void raw2planar_argcheck(const Value &cfa)
+{
+    const auto &d = cfa.dims();
+    if (d.ndims() < 2)
+        throw Error("raw2planar: cfa must be 2-D",
+                    0, 0, "raw2planar", "", "numkit:raw2planar:rank");
+    const size_t M = d.dim(0);
+    const size_t N = d.dim(1);
+    if (cfa.numel() != M * N)
+        throw Error("raw2planar: cfa must be a 2-D matrix",
+                    0, 0, "raw2planar", "", "numkit:raw2planar:shape");
+    if ((M % 2) != 0 || (N % 2) != 0)
+        throw Error("raw2planar: cfa dimensions must both be even",
+                    0, 0, "raw2planar", "", "numkit:raw2planar:DimsMustBeEven");
+}
+
+void planar2raw_argcheck(const Value &I)
+{
+    const auto &d = I.dims();
+    if (d.ndims() < 3 || d.dim(2) != 4)
+        throw Error("planar2raw: I must be (M)×(N)×4",
+                    0, 0, "planar2raw", "", "numkit:planar2raw:shape");
+    const size_t Mp = d.dim(0);
+    const size_t Np = d.dim(1);
+    if (I.numel() != Mp * Np * 4)
+        throw Error("planar2raw: I must be (M)×(N)×4",
+                    0, 0, "planar2raw", "", "numkit:planar2raw:shape");
+}
+
 } // anonymous
 
 Value raw2planar(const Value &cfa, std::pmr::memory_resource *mr)
 {
+    raw2planar_argcheck(cfa);
     const auto &d = cfa.dims();
     if (d.ndims() < 2)
         throw Error("raw2planar: cfa must be 2-D",
@@ -91,6 +121,7 @@ Value raw2planar(const Value &cfa, std::pmr::memory_resource *mr)
 
 Value planar2raw(const Value &I, std::pmr::memory_resource *mr)
 {
+    planar2raw_argcheck(I);
     const auto &d = I.dims();
     if (d.ndims() < 3 || d.dim(2) != 4)
         throw Error("planar2raw: I must be (M)×(N)×4",

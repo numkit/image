@@ -52,38 +52,28 @@ double sum_squared_error(const Value &A, const Value &B) {
     return s;
 }
 
-} // anonymous
-
-Value immse(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
+void immse_argcheck(const Value &A, const Value &B) {
     internal::requireImageClassAllowComplex(A, "immse", "A", 1,
                                 internal::ImgClasses::FloatInt);
     internal::requireImageClassAllowComplex(B, "immse", "B", 2,
                                 internal::ImgClasses::FloatInt);
-    // Probed R2025b: real-class mismatch is rejected, but complex
-    // pairs with double (immse(G+1i, G2) computes |z|^2 / N).
-    {
-        const auto eff = [](const Value &v) {
-            return v.type() == ValueType::COMPLEX ? ValueType::DOUBLE
-                                                  : v.type();
-        };
-        if (eff(A) != eff(B)) {
-            throw Error("immse: A and B must have the same class "
-                        + std::string("(got ")
-                        + mtypeName(A.type()) + " and "
-                        + mtypeName(B.type()) + ").",
-                        0, 0, "immse", "", "numkit:immse:differentClass");
-        }
+    const auto eff = [](const Value &v) {
+        return v.type() == ValueType::COMPLEX ? ValueType::DOUBLE
+                                              : v.type();
+    };
+    if (eff(A) != eff(B)) {
+        throw Error("immse: A and B must have the same class "
+                    + std::string("(got ")
+                    + mtypeName(A.type()) + " and "
+                    + mtypeName(B.type()) + ").",
+                    0, 0, "immse", "", "numkit:immse:differentClass");
     }
     if (A.numel() != B.numel())
         throw Error("immse: A and B must have the same number of elements",
                     0, 0, "immse", "", "numkit:immse:size");
-    const double mse = (A.numel() > 0)
-                       ? sum_squared_error(A, B) / double(A.numel())
-                       : 0.0;
-    return Value::scalar(mse, mr);
 }
 
-Value psnr(const Value &A, const Value &B, double peak, std::pmr::memory_resource *mr) {
+void psnr_argcheck(const Value &A, const Value &B) {
     internal::requireImageClass(A, "psnr", "A", 1,
                                 internal::ImgClasses::FloatInt);
     internal::requireImageClass(B, "psnr", "B", 2,
@@ -92,6 +82,37 @@ Value psnr(const Value &A, const Value &B, double peak, std::pmr::memory_resourc
     if (A.numel() != B.numel())
         throw Error("psnr: A and B must have the same number of elements",
                     0, 0, "psnr", "", "numkit:psnr:size");
+}
+
+void ssim_argcheck(const Value &A, const Value &B) {
+    internal::requireImageClass(A, "ssim", "A", 1,
+                                internal::ImgClasses::FloatInt);
+    internal::requireImageClass(B, "ssim", "B", 2,
+                                internal::ImgClasses::FloatInt);
+    internal::requireSameClassPair(A, B, "ssim");
+    if (A.numel() != B.numel())
+        throw Error("ssim: A and B must have the same number of elements",
+                    0, 0, "ssim", "", "numkit:ssim:size");
+}
+
+void corr2_argcheck(const Value &A, const Value &B) {
+    if (B.numel() != A.numel())
+        throw Error("corr2: A and B must have the same number of elements",
+                    0, 0, "corr2", "", "numkit:corr2:size");
+}
+
+} // anonymous
+
+Value immse(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
+    immse_argcheck(A, B);
+    const double mse = (A.numel() > 0)
+                       ? sum_squared_error(A, B) / double(A.numel())
+                       : 0.0;
+    return Value::scalar(mse, mr);
+}
+
+Value psnr(const Value &A, const Value &B, double peak, std::pmr::memory_resource *mr) {
+    psnr_argcheck(A, B);
     if (std::isnan(peak)) peak = class_peak(A.type());
     if (A.numel() == 0) return Value::scalar(std::numeric_limits<double>::infinity(), mr);
     const double mse = sum_squared_error(A, B) / double(A.numel());
@@ -101,14 +122,7 @@ Value psnr(const Value &A, const Value &B, double peak, std::pmr::memory_resourc
 }
 
 Value ssim(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
-    internal::requireImageClass(A, "ssim", "A", 1,
-                                internal::ImgClasses::FloatInt);
-    internal::requireImageClass(B, "ssim", "B", 2,
-                                internal::ImgClasses::FloatInt);
-    internal::requireSameClassPair(A, B, "ssim");
-    if (A.numel() != B.numel())
-        throw Error("ssim: A and B must have the same number of elements",
-                    0, 0, "ssim", "", "numkit:ssim:size");
+    ssim_argcheck(A, B);
     const size_t H = A.dims().rows();
     const size_t W = A.dims().cols();
     if (H == 0 || W == 0) return Value::scalar(1.0, mr);
@@ -416,21 +430,13 @@ Value cast_score_value(double v, ValueType originalClass,
     return out;
 }
 
-} // namespace
-
-Value multissim(const Value &A, const Value &Iref,
-                int num_scales,
-                const std::vector<double> &scale_weights_in,
-                double sigma, double dynamic_range_in,
-                std::vector<Value> *quality_maps_out,
-                std::pmr::memory_resource *mr)
+void multissim_argcheck(const Value &A, const Value &Iref, int num_scales, double sigma)
 {
     internal::requireImageClass(A, "multissim", "A", 1,
                                 internal::ImgClasses::FloatInt);
     internal::requireImageClass(Iref, "multissim", "ref", 2,
                                 internal::ImgClasses::FloatInt);
     internal::requireSameClassPair(A, Iref, "multissim");
-    // ── Validate inputs ──────────────────────────────────────────
     if (A.dims().rows() != Iref.dims().rows()
         || A.dims().cols() != Iref.dims().cols())
         throw Error("multissim: I and Iref must have the same size",
@@ -444,6 +450,18 @@ Value multissim(const Value &A, const Value &Iref,
     if (!std::isfinite(sigma) || sigma <= 0.0)
         throw Error("multissim: Sigma must be a positive scalar",
                     0, 0, "multissim", "", "numkit:multissim:sigma");
+}
+
+} // namespace
+
+Value multissim(const Value &A, const Value &Iref,
+                int num_scales,
+                const std::vector<double> &scale_weights_in,
+                double sigma, double dynamic_range_in,
+                std::vector<Value> *quality_maps_out,
+                std::pmr::memory_resource *mr)
+{
+    multissim_argcheck(A, Iref, num_scales, sigma);
 
     const ValueType origClass = A.type();
     const std::size_t H = A.dims().rows();
@@ -760,14 +778,7 @@ Vol ssim_map_vol(const Vol &A, const Vol &B,
     return out;
 }
 
-} // namespace
-
-Value multissim3(const Value &V, const Value &Vref,
-                 int num_scales,
-                 const std::vector<double> &scale_weights_in,
-                 double sigma, double dynamic_range_in,
-                 std::vector<Value> *quality_maps_out,
-                 std::pmr::memory_resource *mr)
+void multissim3_argcheck(const Value &V, const Value &Vref, int num_scales, double sigma)
 {
     internal::requireImageClass(V, "multissim3", "V", 1,
                                 internal::ImgClasses::FloatInt);
@@ -790,6 +801,18 @@ Value multissim3(const Value &V, const Value &Vref,
         throw Error("multissim3: Sigma must be a positive scalar",
                     0, 0, "multissim3", "",
                     "numkit:multissim3:sigma");
+}
+
+} // namespace
+
+Value multissim3(const Value &V, const Value &Vref,
+                 int num_scales,
+                 const std::vector<double> &scale_weights_in,
+                 double sigma, double dynamic_range_in,
+                 std::vector<Value> *quality_maps_out,
+                 std::pmr::memory_resource *mr)
+{
+    multissim3_argcheck(V, Vref, num_scales, sigma);
 
     const ValueType origClass = V.type();
     Vol Ad = to_double_vol(V);
@@ -875,10 +898,8 @@ Value multissim3(const Value &V, const Value &Vref,
 
 Value corr2(const Value &A, const Value &B, std::pmr::memory_resource *mr)
 {
+    corr2_argcheck(A, B);
     const size_t N = A.numel();
-    if (B.numel() != N)
-        throw Error("corr2: A and B must have the same number of elements",
-                    0, 0, "corr2", "", "numkit:corr2:size");
     if (N == 0) return Value::scalar(std::nan(""), mr);
     long double sa = 0.0L, sb = 0.0L;
     for (size_t i = 0; i < N; ++i) {

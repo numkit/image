@@ -123,6 +123,62 @@ Sig3 parseSemiaxes(const Value &v, double defv = 5.0)
                 0, 0, "fspecial3", "", "numkit:fspecial3:BadSemiaxes");
 }
 
+void fspecial3_argcheck(const std::string &type, const Value &a1, const Value &a2)
+{
+    if (type == "average") {
+        (void)parseHsize(a1);
+        return;
+    }
+    if (type == "gaussian" || type == "log") {
+        (void)parseHsize(a1);
+        (void)parseSigma3(a2, 1.0);
+        return;
+    }
+    if (type == "ellipsoid") {
+        Sig3 ax = parseSemiaxes(a1, 5.0);
+        if (ax.sx <= 0.0 || ax.sy <= 0.0 || ax.sz <= 0.0)
+            throw Error("fspecial3: ellipsoid semiaxes must be positive",
+                        0, 0, "fspecial3", "", "numkit:fspecial3:BadSemiaxes");
+        return;
+    }
+    if (type == "laplacian") {
+        const double g1 = (!a1.isEmpty() && !a1.isUnset()) ? a1.toScalar() : 0.0;
+        const double g2 = (!a2.isEmpty() && !a2.isUnset()) ? a2.toScalar() : 0.0;
+        if (g1 < 0.0)
+            throw Error("fspecial3: Expected input number 2, GAMMA1, to be nonnegative.",
+                        0, 0, "fspecial3", "", "numkit:fspecial3:BadGamma");
+        if (g2 < 0.0)
+            throw Error("fspecial3: Expected input number 3, GAMMA2, to be nonnegative.",
+                        0, 0, "fspecial3", "", "numkit:fspecial3:BadGamma");
+        if (g1 + g2 > 1.0)
+            throw Error("fspecial3: GAMMA1 + GAMMA2 should be less than or equal to 1 and greater than 0.",
+                        0, 0, "fspecial3", "", "numkit:fspecial3:BadGamma");
+        return;
+    }
+    if (type == "sobel" || type == "prewitt") {
+        std::string dir = "X";
+        if (!a1.isEmpty() && !a1.isUnset() && (a1.isChar() || a1.isString()))
+            dir = a1.toString();
+        if (dir != "X" && dir != "x" && dir != "Y" && dir != "y" &&
+            dir != "Z" && dir != "z")
+            throw Error("fspecial3: direction must be 'X', 'Y', or 'Z'",
+                        0, 0, "fspecial3", "", "numkit:fspecial3:BadDir");
+        return;
+    }
+    throw Error("fspecial3: unsupported type '" + type + "'",
+                0, 0, "fspecial3", "", "numkit:fspecial3:BadType");
+}
+
+void fwind2_argcheck(const Value &Hd, const Value &w)
+{
+    if (Hd.dims().is3D() || w.dims().is3D())
+        throw Error("fwind2: inputs must be 2-D",
+                    0, 0, "fwind2", "", "numkit:fwind2:Not2D");
+    if (w.dims().rows() != Hd.dims().rows() || w.dims().cols() != Hd.dims().cols())
+        throw Error("fwind2: window must match Hd shape",
+                    0, 0, "fwind2", "", "numkit:fwind2:ShapeMismatch");
+}
+
 } // namespace
 
 // ── fspecial3 ─────────────────────────────────────────────────────────
@@ -136,6 +192,7 @@ Sig3 parseSemiaxes(const Value &v, double defv = 5.0)
 Value fspecial3(const std::string &type, const Value &a1, const Value &a2,
                 std::pmr::memory_resource *mr)
 {
+    fspecial3_argcheck(type, a1, a2);
     if (type == "average") {
         Size3 s = parseHsize(a1);
         const double v = 1.0 / static_cast<double>(s.H * s.W * s.P);
@@ -312,6 +369,7 @@ Value fspecial3(const std::string &type, const Value &a1, const Value &a2,
 // small filter sizes typical for 2-D image filter design.
 Value fwind2(std::pmr::memory_resource *mr, const Value &Hd, const Value &w)
 {
+    fwind2_argcheck(Hd, w);
     if (Hd.dims().is3D() || w.dims().is3D())
         throw Error("fwind2: inputs must be 2-D",
                     0, 0, "fwind2", "", "numkit:fwind2:Not2D");

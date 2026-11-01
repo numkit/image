@@ -365,12 +365,40 @@ Value buf_to_value(const Buf &B, ValueType targetClass,
     return out;
 }
 
+void fibermetric_argcheck(const Value &I, const std::vector<double> &thickness_in,
+                          double structure_sensitivity)
+{
+    const auto &d = I.dims();
+    if (d.rows() < 2 || d.cols() < 2)
+        throw Error("fibermetric: I must be 2-D or 3-D with all dims >= 2",
+                    0, 0, "fibermetric", "", "numkit:fibermetric:shape");
+    const bool is3d = d.is3D() && d.pages() > 1;
+    if (is3d && d.pages() < 2)
+        throw Error("fibermetric: 3-D input must have at least 2 slices",
+                    0, 0, "fibermetric", "", "numkit:fibermetric:slices");
+
+    for (double t : thickness_in)
+        if (!std::isfinite(t) || t <= 0.0 || std::floor(t) != t)
+            throw Error("fibermetric: thickness must be a vector of positive "
+                        "integers",
+                        0, 0, "fibermetric", "",
+                        "numkit:fibermetric:thickness");
+
+    double c = structure_sensitivity;
+    if (c <= 0.0) c = class_range(I.type()) / 100.0;
+    if (!std::isfinite(c) || c <= 0.0)
+        throw Error("fibermetric: StructureSensitivity must be > 0",
+                    0, 0, "fibermetric", "",
+                    "numkit:fibermetric:sens");
+}
+
 }  // namespace
 
 Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
                   double structure_sensitivity, bool bright_polarity,
                   std::pmr::memory_resource *mr)
 {
+    fibermetric_argcheck(I, thickness_in, structure_sensitivity);
     const auto &d = I.dims();
     if (d.rows() < 2 || d.cols() < 2)
         throw Error("fibermetric: I must be 2-D or 3-D with all dims >= 2",

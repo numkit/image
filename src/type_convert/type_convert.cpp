@@ -224,6 +224,14 @@ Value to_int_impl(const Value &x, ValueType target, double scale, double bias_af
     return out;
 }
 
+void rgb2gray_argcheck(const Value &x)
+{
+    const auto &d = x.dims();
+    if (!d.is3D() || d.pages() != 3)
+        throw Error("rgb2gray: input must be H×W×3", 0, 0, "rgb2gray", "",
+                    "numkit:rgb2gray:size");
+}
+
 } // anonymous
 
 Value im2double(const Value &x, std::pmr::memory_resource *mr) {
@@ -291,10 +299,8 @@ Value mat2gray(const Value &x, double lo, double hi, std::pmr::memory_resource *
 
 Value rgb2gray(const Value &x, std::pmr::memory_resource *mr)
 {
+    rgb2gray_argcheck(x);
     const auto &d = x.dims();
-    if (!d.is3D() || d.pages() != 3)
-        throw Error("rgb2gray: input must be H×W×3", 0, 0, "rgb2gray", "",
-                    "numkit:rgb2gray:size");
     const size_t H = d.rows(), W = d.cols();
     const size_t plane = H * W;
     Value out = Value::matrix(H, W, x.type(), mr);
@@ -409,13 +415,29 @@ inline Value bool_scalar(bool b, std::pmr::memory_resource *mr) {
     return out;
 }
 
-} // anonymous
-
-Value iptnum2ordinal(double n, std::pmr::memory_resource *mr)
+void iptnum2ordinal_argcheck(double n)
 {
     if (!std::isfinite(n) || n <= 0.0 || n != std::floor(n))
         throw Error("iptnum2ordinal: num must be a real positive integer",
                     0, 0, "iptnum2ordinal", "", "numkit:iptnum2ordinal:n");
+}
+
+void imcast_argcheck(const std::string &type, std::string &lo)
+{
+    lo.clear();
+    lo.reserve(type.size());
+    for (char c : type) lo.push_back(static_cast<char>(std::tolower(c)));
+    if (lo != "double" && lo != "single" && lo != "uint8" &&
+        lo != "uint16" && lo != "int16" && lo != "logical")
+        throw Error("imcast: unsupported TYPE", 0, 0, "imcast", "",
+                    "numkit:imcast:type");
+}
+
+} // anonymous
+
+Value iptnum2ordinal(double n, std::pmr::memory_resource *mr)
+{
+    iptnum2ordinal_argcheck(n);
 
     static const char *kWords[] = {
         nullptr,    "first",      "second",   "third",
@@ -445,8 +467,7 @@ Value iptnum2ordinal(double n, std::pmr::memory_resource *mr)
 Value imcast(const Value &I, const std::string &type, std::pmr::memory_resource *mr)
 {
     std::string lo;
-    lo.reserve(type.size());
-    for (char c : type) lo.push_back(static_cast<char>(std::tolower(c)));
+    imcast_argcheck(type, lo);
 
     auto cls_of = [](ValueType t) -> const char * {
         switch (t) {
@@ -506,14 +527,91 @@ Value gray_colormap(int n, std::pmr::memory_resource *mr)
     return map;
 }
 
+void gray2ind_argcheck(int n)
+{
+    if (n < 1 || n > 65536)
+        throw Error("gray2ind: N must be in [1, 65536]",
+                    0, 0, "gray2ind", "", "numkit:gray2ind:n");
+}
+
+void ind2gray_argcheck(const Value &idx, const Value &map)
+{
+    const ValueType xt = idx.type();
+    if (!(xt == ValueType::DOUBLE || xt == ValueType::SINGLE
+          || xt == ValueType::UINT8 || xt == ValueType::UINT16
+          || xt == ValueType::LOGICAL))
+        internal::requireImageClass(idx, "ind2gray", "X", 1,
+                                    internal::ImgClasses::DoubleOnly);
+    internal::requireColormap(map, "ind2gray", 2);
+    if (map.numel() == 0)
+        throw Error("ind2gray: requires (X, MAP) with non-empty MAP",
+                    0, 0, "ind2gray", "", "numkit:ind2gray:nargin");
+    if (map.dims().cols() != 3 || map.dims().is3D())
+        throw Error("ind2gray: MAP must be N-by-3",
+                    0, 0, "ind2gray", "", "numkit:ind2gray:map");
+    if (map.dims().rows() < 1)
+        throw Error("ind2gray: MAP must have at least one row",
+                    0, 0, "ind2gray", "", "numkit:ind2gray:emptyMap");
+}
+
+void ind2rgb_argcheck(const Value &idx, const Value &map)
+{
+    const ValueType xt = idx.type();
+    if (!(xt == ValueType::DOUBLE || xt == ValueType::SINGLE
+          || xt == ValueType::UINT8 || xt == ValueType::UINT16
+          || xt == ValueType::INT16 || xt == ValueType::CHAR))
+        internal::requireImageClass(idx, "ind2rgb", "X", 1,
+                                    internal::ImgClasses::DoubleOnly);
+    internal::requireRealKernelImage(map, "ind2rgb", "map", 2);
+    if (map.type() != ValueType::DOUBLE)
+        internal::requireImageClass(map, "ind2rgb", "map", 2,
+                                    internal::ImgClasses::AnyNumericReal);
+}
+
+void getrangefromclass_argcheck(const Value &I)
+{
+    switch (I.type()) {
+        case ValueType::DOUBLE:
+        case ValueType::SINGLE:
+        case ValueType::LOGICAL:
+        case ValueType::UINT8:
+        case ValueType::UINT16:
+        case ValueType::INT16:
+            break;
+        default:
+            throw Error("getrangefromclass: unrecognized image class",
+                        0, 0, "getrangefromclass", "",
+                        "numkit:getrangefromclass:cls");
+    }
+}
+
+void intlut_argcheck(const Value &A, const Value &LUT, size_t &expectedLen)
+{
+    const ValueType atype = A.type();
+    const ValueType ltype = LUT.type();
+    switch (atype) {
+        case ValueType::UINT8:  expectedLen = 256;   break;
+        case ValueType::UINT16:
+        case ValueType::INT16:  expectedLen = 65536; break;
+        default:
+            throw Error("intlut: A must be uint8, uint16, or int16",
+                        0, 0, "intlut", "", "numkit:intlut:atype");
+    }
+    if (ltype != ValueType::UINT8 && ltype != ValueType::UINT16 &&
+        ltype != ValueType::INT16)
+        throw Error("intlut: LUT must be uint8, uint16, or int16",
+                    0, 0, "intlut", "", "numkit:intlut:luttype");
+    if (LUT.numel() != expectedLen)
+        throw Error("intlut: LUT length does not match input class range",
+                    0, 0, "intlut", "", "numkit:intlut:lutsize");
+}
+
 } // anonymous
 
 std::tuple<Value, Value>
 gray2ind(const Value &I, int n, std::pmr::memory_resource *mr)
 {
-    if (n < 1 || n > 65536)
-        throw Error("gray2ind: N must be in [1, 65536]",
-                    0, 0, "gray2ind", "", "numkit:gray2ind:n");
+    gray2ind_argcheck(n);
 
     const ValueType cls = I.type();
     const auto &d = I.dims();
@@ -574,45 +672,12 @@ gray2ind(const Value &I, int n, std::pmr::memory_resource *mr)
 
 Value ind2gray(const Value &idx, const Value &map, std::pmr::memory_resource *mr)
 {
-    // Probed R2025b: X is double (uint8 result), single (single),
-    // uint8 (uint8) or logical (double); the map must be a real
-    // double M×3 (single / uint8 / complex maps all rejected).
-    {
-        const ValueType xt = idx.type();
-        if (!(xt == ValueType::DOUBLE || xt == ValueType::SINGLE
-              || xt == ValueType::UINT8 || xt == ValueType::UINT16
-              || xt == ValueType::LOGICAL))
-            internal::requireImageClass(idx, "ind2gray", "X", 1,
-                                        internal::ImgClasses::DoubleOnly);
-        internal::requireColormap(map, "ind2gray", 2);
-    }
+    ind2gray_argcheck(idx, map);
     // Logical indices coerce to double 0/1 (ref returns a double
     // grayscale image — probed).
     Value idxUsed = (idx.type() == ValueType::LOGICAL)
         ? internal::coerceToDoubleImage(idx, mr) : Value(idx);
-    // MATLAB ind2gray:
-    //   1. graycm = rgb2gray(MAP)         — per-row YIQ luma, double in [0,1]
-    //   2. graycm = graycm(:,1)            — N×1 grey vector
-    //   3. Class-preserving lookup:
-    //        - double / single X: clamp(X, 1, N) then I = graycm(X)
-    //        - uint8/uint16  X: build LUT in target class (changeClass via
-    //          `uint8/uint16(round(graycm·SCALE))`), padded with last
-    //          entry to vs = 256 / 65536, then intlut.
-    //   4. Output class equals input class.
-    //
-    // Coefficients match MATLAB rgb2gray (Rec. BT.601 YIQ luma):
-    //   Y = 0.298936021293775·R + 0.587043074451121·G + 0.114020904255103·B.
-    if (map.numel() == 0)
-        throw Error("ind2gray: requires (X, MAP) with non-empty MAP",
-                    0, 0, "ind2gray", "", "numkit:ind2gray:nargin");
-    if (map.dims().cols() != 3 || map.dims().is3D())
-        throw Error("ind2gray: MAP must be N-by-3",
-                    0, 0, "ind2gray", "", "numkit:ind2gray:map");
-
     const int M = static_cast<int>(map.dims().rows());
-    if (M < 1)
-        throw Error("ind2gray: MAP must have at least one row",
-                    0, 0, "ind2gray", "", "numkit:ind2gray:emptyMap");
 
     // Build the grey colormap (length M, DOUBLE in [0, 1]).
     constexpr double Cr = 0.298936021293775;
@@ -713,22 +778,7 @@ Value ind2gray(const Value &idx, const Value &map, std::pmr::memory_resource *mr
 
 Value ind2rgb(const Value &idx, const Value &map, std::pmr::memory_resource *mr)
 {
-    // Probed R2025b: X is double, single, uint8, int16 or char (code
-    // values); the map may be single / uint8 / int16 too (all coerced
-    // to a double map); a complex map computes a complex image in the
-    // reference — kernel here is real, so stub.
-    {
-        const ValueType xt = idx.type();
-        if (!(xt == ValueType::DOUBLE || xt == ValueType::SINGLE
-              || xt == ValueType::UINT8 || xt == ValueType::UINT16
-              || xt == ValueType::INT16 || xt == ValueType::CHAR))
-            internal::requireImageClass(idx, "ind2rgb", "X", 1,
-                                        internal::ImgClasses::DoubleOnly);
-        internal::requireRealKernelImage(map, "ind2rgb", "map", 2);
-        if (map.type() != ValueType::DOUBLE)
-            internal::requireImageClass(map, "ind2rgb", "map", 2,
-                                        internal::ImgClasses::AnyNumericReal);
-    }
+    ind2rgb_argcheck(idx, map);
     Value rgbIdxC = (idx.type() == ValueType::CHAR)
         ? internal::coerceToDoubleImage(idx, mr) : Value(idx);
     Value rgbMapC = (map.type() != ValueType::DOUBLE)
@@ -771,6 +821,7 @@ Value ind2rgb(const Value &idx, const Value &map, std::pmr::memory_resource *mr)
 
 Value getrangefromclass(const Value &I, std::pmr::memory_resource *mr)
 {
+    getrangefromclass_argcheck(I);
     Value r = Value::matrix(1, 2, ValueType::DOUBLE, mr);
     double *rd = r.doubleDataMut();
     switch (I.type()) {
@@ -844,25 +895,10 @@ Value iscolormap(const Value &cmap, std::pmr::memory_resource *mr)
 
 Value intlut(const Value &A, const Value &LUT, std::pmr::memory_resource *mr)
 {
+    size_t expectedLen = 0;
+    intlut_argcheck(A, LUT, expectedLen);
     const ValueType atype = A.type();
     const ValueType ltype = LUT.type();
-
-    size_t expectedLen;
-    switch (atype) {
-        case ValueType::UINT8:  expectedLen = 256;   break;
-        case ValueType::UINT16:
-        case ValueType::INT16:  expectedLen = 65536; break;
-        default:
-            throw Error("intlut: A must be uint8, uint16, or int16",
-                        0, 0, "intlut", "", "numkit:intlut:atype");
-    }
-    if (ltype != ValueType::UINT8 && ltype != ValueType::UINT16 &&
-        ltype != ValueType::INT16)
-        throw Error("intlut: LUT must be uint8, uint16, or int16",
-                    0, 0, "intlut", "", "numkit:intlut:luttype");
-    if (LUT.numel() != expectedLen)
-        throw Error("intlut: LUT length does not match input class range",
-                    0, 0, "intlut", "", "numkit:intlut:lutsize");
 
     Value out = alloc_like(A, ltype, mr);
     const size_t N = A.numel();

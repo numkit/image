@@ -212,18 +212,10 @@ Value bilinear_interp_hd(const Value &Hd, std::size_t m_out, std::size_t n_out,
     return out;
 }
 
-}  // namespace
-
-// ── fsamp2 ────────────────────────────────────────────────────────
-Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
-             const std::vector<std::size_t> & /*siz*/,
-             std::pmr::memory_resource *mr)
+void fsamp2_argcheck(const Value &Hd, const Value &f1, const Value &f2)
 {
-    Value Hd0 = (HdIn.type() == ValueType::CHAR)
-        ? internal::coerceToDoubleImage(HdIn, mr) : Value(HdIn);
-    internal::requireImageClassAllowComplex(Hd0, "fsamp2", "Hd", 1,
+    internal::requireImageClassAllowComplex(Hd, "fsamp2", "Hd", 1,
                                 internal::ImgClasses::FloatIntLog);
-    const Value &Hd = Hd0;
     if (!f1.isEmpty() || !f2.isEmpty())
         throw Error("fsamp2: non-uniform-spacing form "
                     "fsamp2(f1, f2, Hd, [m n]) is not yet supported — "
@@ -235,6 +227,62 @@ Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
     if (Hd.dims().is3D() || Hd.dims().rows() < 1 || Hd.dims().cols() < 1)
         throw Error("fsamp2: Hd must be a nonempty 2-D matrix",
                     0, 0, "fsamp2", "", "numkit:fsamp2:shape");
+}
+
+void ftrans2_argcheck(const Value &b)
+{
+    const std::size_t L = b.numel();
+    if (L == 0)
+        throw Error("ftrans2: b must be nonempty",
+                    0, 0, "ftrans2", "", "numkit:ftrans2:bEmpty");
+    if (L % 2 == 0)
+        throw Error("ftrans2: b must be odd-length",
+                    0, 0, "ftrans2", "", "numkit:ftrans2:bLen");
+}
+
+void fwind1_argcheck(const Value &Hd, const Value &win1, const Value &win2)
+{
+    internal::requireImageClassAllowComplex(Hd, "fwind1", "Hd", 1,
+                                internal::ImgClasses::FloatOnly);
+    internal::requireImageClassAllowComplex(win1, "fwind1", "win", 2,
+                                internal::ImgClasses::FloatOnly);
+    if (!win2.isEmpty()) {
+        internal::requireImageClassAllowComplex(win2, "fwind1", "win2", 3,
+                                    internal::ImgClasses::FloatOnly);
+    }
+    if (Hd.numel() == 0)
+        throw Error("fwind1: Hd must be nonempty",
+                    0, 0, "fwind1", "", "numkit:fwind1:empty");
+    if (win1.numel() < 2)
+        throw Error("fwind1: window length must be >= 2",
+                    0, 0, "fwind1", "", "numkit:fwind1:winShort");
+}
+
+void fwind2_argcheck(const Value &Hd, const Value &W)
+{
+    internal::requireImageClassAllowComplex(Hd, "fwind2", "Hd", 1,
+                                internal::ImgClasses::FloatOnly);
+    internal::requireImageClassAllowComplex(W, "fwind2", "win", 2,
+                                internal::ImgClasses::FloatOnly);
+    if (Hd.numel() == 0)
+        throw Error("fwind2: Hd must be nonempty",
+                    0, 0, "fwind2", "", "numkit:fwind2:empty");
+    if (W.numel() == 0)
+        throw Error("fwind2: W must be nonempty",
+                    0, 0, "fwind2", "", "numkit:fwind2:wEmpty");
+}
+
+}  // namespace
+
+// ── fsamp2 ────────────────────────────────────────────────────────
+Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
+             const std::vector<std::size_t> & /*siz*/,
+             std::pmr::memory_resource *mr)
+{
+    Value Hd0 = (HdIn.type() == ValueType::CHAR)
+        ? internal::coerceToDoubleImage(HdIn, mr) : Value(HdIn);
+    fsamp2_argcheck(Hd0, f1, f2);
+    const Value &Hd = Hd0;
 
     if (Hd.isComplex()) {
         const std::size_t H = Hd.dims().rows();
@@ -292,14 +340,9 @@ Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
 Value ftrans2(const Value &b_in, const Value &t_in,
               std::pmr::memory_resource *mr)
 {
+    ftrans2_argcheck(b_in);
     Value b = as_double(b_in, mr);
     const std::size_t L = b.numel();
-    if (L == 0)
-        throw Error("ftrans2: b must be nonempty",
-                    0, 0, "ftrans2", "", "numkit:ftrans2:bEmpty");
-    if (L % 2 == 0)
-        throw Error("ftrans2: b must be odd-length",
-                    0, 0, "ftrans2", "", "numkit:ftrans2:bLen");
     // Check zero.
     bool all_zero = true;
     for (std::size_t i = 0; i < L; ++i)
@@ -436,20 +479,7 @@ T linear_interp_t(const std::vector<double> &xs,
 Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
              std::pmr::memory_resource *mr)
 {
-    internal::requireImageClassAllowComplex(Hd, "fwind1", "Hd", 1,
-                                internal::ImgClasses::FloatOnly);
-    internal::requireImageClassAllowComplex(win1, "fwind1", "win", 2,
-                                internal::ImgClasses::FloatOnly);
-    if (!win2.isEmpty()) {
-        internal::requireImageClassAllowComplex(win2, "fwind1", "win2", 3,
-                                    internal::ImgClasses::FloatOnly);
-    }
-    if (Hd.numel() == 0)
-        throw Error("fwind1: Hd must be nonempty",
-                    0, 0, "fwind1", "", "numkit:fwind1:empty");
-    if (win1.numel() < 2)
-        throw Error("fwind1: window length must be >= 2",
-                    0, 0, "fwind1", "", "numkit:fwind1:winShort");
+    fwind1_argcheck(Hd, win1, win2);
 
     const std::size_t n = win1.numel();
     const bool winComplex = win1.isComplex() || (!win2.isEmpty() && win2.isComplex());
@@ -545,16 +575,7 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
 Value fwind2(const Value &Hd, const Value &W,
              std::pmr::memory_resource *mr)
 {
-    internal::requireImageClassAllowComplex(Hd, "fwind2", "Hd", 1,
-                                internal::ImgClasses::FloatOnly);
-    internal::requireImageClassAllowComplex(W, "fwind2", "win", 2,
-                                internal::ImgClasses::FloatOnly);
-    if (Hd.numel() == 0)
-        throw Error("fwind2: Hd must be nonempty",
-                    0, 0, "fwind2", "", "numkit:fwind2:empty");
-    if (W.numel() == 0)
-        throw Error("fwind2: W must be nonempty",
-                    0, 0, "fwind2", "", "numkit:fwind2:wEmpty");
+    fwind2_argcheck(Hd, W);
 
     auto getC = [](const Value &v, std::size_t idx) -> std::complex<double> {
         return v.isComplex() ? v.complexData()[idx]

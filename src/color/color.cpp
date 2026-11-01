@@ -156,6 +156,10 @@ Value to_unit_double(const Value &x, std::pmr::memory_resource *mr) {
     return out;
 }
 
+void color_layout_argcheck(const Value &x, const char *fn) {
+    (void)detect_layout(x, fn);
+}
+
 } // anonymous
 
 // ════════════════════════════════════════════════════════════════════
@@ -163,6 +167,7 @@ Value to_unit_double(const Value &x, std::pmr::memory_resource *mr) {
 // ════════════════════════════════════════════════════════════════════
 
 Value rgb2hsv(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "rgb2hsv");
     return pixel_transform(x, "rgb2hsv", [](double r, double g, double b) {
         const double cmax = std::max({r, g, b});
         const double cmin = std::min({r, g, b});
@@ -180,6 +185,7 @@ Value rgb2hsv(const Value &x, std::pmr::memory_resource *mr) {
 }
 
 Value hsv2rgb(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "hsv2rgb");
     return pixel_transform_raw(x, "hsv2rgb", [](double h, double s, double v) {
         // Wrap h into [0, 1).
         h = h - std::floor(h);
@@ -212,6 +218,7 @@ Value hsv2rgb(const Value &x, std::pmr::memory_resource *mr) {
 // ════════════════════════════════════════════════════════════════════
 
 Value rgb2ntsc(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "rgb2ntsc");
     // MATLAB R2025b forward coefficients (16-digit, probed via
     // rgb2ntsc(eye(3)). Octave-image uses lower-precision 3-sig-fig
     // matrix; we follow MATLAB per the source-of-truth rule.
@@ -224,6 +231,7 @@ Value rgb2ntsc(const Value &x, std::pmr::memory_resource *mr) {
 }
 
 Value ntsc2rgb(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "ntsc2rgb");
     // MATLAB R2025b inverse coefficients (the canonical 3-digit set:
     // 0.956 / 0.621 / -0.272 / -0.647 / -1.106 / 1.703). Note that
     // these are NOT exactly inv(rgb2ntsc-forward); MATLAB stores the
@@ -246,6 +254,7 @@ Value ntsc2rgb(const Value &x, std::pmr::memory_resource *mr) {
 }
 
 Value rgb2ycbcr(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "rgb2ycbcr");
     // pixel_transform normalises integer input to [0,1] via element_to_unit,
     // so the BT.601 op always sees R,G,B in [0,1] and yields studio-swing
     // Y/Cb/Cr in [0,1]. finalize_class then restores the input's class
@@ -260,6 +269,7 @@ Value rgb2ycbcr(const Value &x, std::pmr::memory_resource *mr) {
 }
 
 Value ycbcr2rgb(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "ycbcr2rgb");
     // Integer YCbCr input is normalised to [0,1] before the inverse;
     // finalize_class then restores the input class (integer -> [0,255]/
     // [0,65535] saturated, double/single unchanged).
@@ -303,6 +313,7 @@ inline double srgb_encode(double c) {
 } // anonymous
 
 Value rgb2xyz(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "rgb2xyz");
     return pixel_transform(x, "rgb2xyz", [](double r, double g, double b) {
         // sRGB → linear.
         const double Rl = srgb_decode(r);
@@ -317,6 +328,7 @@ Value rgb2xyz(const Value &x, std::pmr::memory_resource *mr) {
 }
 
 Value xyz2rgb(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "xyz2rgb");
     // MATLAB xyz2rgb does NOT clamp out-of-gamut linear RGB to [0,1];
     // it applies sign-preserving sRGB gamma so callers can detect and
     // handle out-of-gamut explicitly. Preserve that behaviour:
@@ -358,6 +370,7 @@ inline double finv_lab(double t) {
 } // anonymous
 
 Value xyz2lab(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "xyz2lab");
     return pixel_transform_raw(x, "xyz2lab", [](double X, double Y, double Z) {
         const double fx = f_lab(X / XYZ_Xn);
         const double fy = f_lab(Y / XYZ_Yn);
@@ -370,6 +383,7 @@ Value xyz2lab(const Value &x, std::pmr::memory_resource *mr) {
 }
 
 Value lab2xyz(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "lab2xyz");
     return pixel_transform_raw(x, "lab2xyz", [](double L, double a, double b) {
         const double fy = (L + 16.0) / 116.0;
         const double fx = fy + a / 500.0;
@@ -382,11 +396,13 @@ Value lab2xyz(const Value &x, std::pmr::memory_resource *mr) {
 }
 
 Value rgb2lab(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "rgb2xyz");
     Value xyz = rgb2xyz(x, mr);
     return xyz2lab(xyz, mr);
 }
 
 Value lab2rgb(const Value &x, std::pmr::memory_resource *mr) {
+    color_layout_argcheck(x, "lab2xyz");
     Value xyz = lab2xyz(x, mr);
     return xyz2rgb(xyz, mr);
 }
@@ -528,11 +544,27 @@ inline size_t lab_idx(const LabLayout &L, size_t pix, size_t ch) {
     return pix + ch * L.npix;
 }
 
+void lab_layout_argcheck(const Value &lab, const char *fn)
+{
+    (void)detect_lab_layout(lab, fn);
+    switch (lab.type()) {
+        case ValueType::DOUBLE:
+        case ValueType::SINGLE:
+        case ValueType::UINT8:
+        case ValueType::UINT16:
+            break;
+        default:
+            throw Error(std::string(fn) + ": unsupported LAB class",
+                        0, 0, fn, "", std::string("numkit:") + fn + ":cls");
+    }
+}
+
 } // anonymous
 
 Value lab2double(const Value &lab, std::pmr::memory_resource *mr)
 {
     if (lab.type() == ValueType::DOUBLE) return lab;
+    lab_layout_argcheck(lab, "lab2double");
     auto L = detect_lab_layout(lab, "lab2double");
     Value out = L.is_3d
         ? Value::matrix3d(L.H, L.W, 3, ValueType::DOUBLE, mr)
@@ -572,6 +604,7 @@ Value lab2double(const Value &lab, std::pmr::memory_resource *mr)
 Value lab2single(const Value &lab, std::pmr::memory_resource *mr)
 {
     if (lab.type() == ValueType::SINGLE) return lab;
+    lab_layout_argcheck(lab, "lab2double");
     Value asDouble = lab2double(lab, mr);
     auto L = detect_lab_layout(asDouble, "lab2single");
     Value out = L.is_3d
@@ -587,6 +620,7 @@ Value lab2single(const Value &lab, std::pmr::memory_resource *mr)
 Value lab2uint8(const Value &lab, std::pmr::memory_resource *mr)
 {
     if (lab.type() == ValueType::UINT8) return lab;
+    lab_layout_argcheck(lab, "lab2uint8");
     auto L = detect_lab_layout(lab, "lab2uint8");
     Value out = L.is_3d
         ? Value::matrix3d(L.H, L.W, 3, ValueType::UINT8, mr)
@@ -627,6 +661,7 @@ Value lab2uint8(const Value &lab, std::pmr::memory_resource *mr)
 Value lab2uint16(const Value &lab, std::pmr::memory_resource *mr)
 {
     if (lab.type() == ValueType::UINT16) return lab;
+    lab_layout_argcheck(lab, "lab2uint16");
     auto L = detect_lab_layout(lab, "lab2uint16");
     Value out = L.is_3d
         ? Value::matrix3d(L.H, L.W, 3, ValueType::UINT16, mr)
@@ -704,10 +739,167 @@ void wavelength_to_rgb(double lambda, double gamma,
     b = std::pow(b * factor, gamma);
 }
 
+void colorgradient_argcheck(const Value &C, const Value &w, int n)
+{
+    internal::requireImageClass(C, "colorgradient", "C", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    if (C.dims().cols() != 3)
+        throw Error("colorgradient: C must be K-by-3",
+                    0, 0, "colorgradient", "", "numkit:colorgradient:C");
+    const int K = static_cast<int>(C.dims().rows());
+    if (K < 2)
+        throw Error("colorgradient: C must have at least 2 rows",
+                    0, 0, "colorgradient", "", "numkit:colorgradient:rows");
+    if (n < 2)
+        throw Error("colorgradient: n must be >= 2",
+                    0, 0, "colorgradient", "", "numkit:colorgradient:n");
+    if (w.numel() != 0 && static_cast<int>(w.numel()) != K - 1)
+        throw Error("colorgradient: must have one weight per interval",
+                    0, 0, "colorgradient", "", "numkit:colorgradient:w");
+}
+
+void wavelength2rgb_argcheck(double gamma, const std::string &out_class)
+{
+    if (!(gamma >= 0.0 && gamma <= 1.0))
+        throw Error("wavelength2rgb: gamma must be in [0, 1]",
+                    0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:gamma");
+    std::string lo;
+    lo.reserve(out_class.size());
+    for (char c : out_class) lo.push_back(static_cast<char>(std::tolower(c)));
+    if (lo != "double" && !lo.empty() && lo != "single" &&
+        lo != "uint8" && lo != "uint16" && lo != "int16")
+        throw Error("wavelength2rgb: unsupported class",
+                    0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:cls");
+}
+
+void colorangle_argcheck(const Value &rgb1, const Value &rgb2)
+{
+    const auto a = rgb_rows(rgb1, "RGB1");
+    const auto b = rgb_rows(rgb2, "RGB2");
+    const size_t Na = a.size() / 3;
+    const size_t Nb = b.size() / 3;
+    if (Na != Nb && Na != 1 && Nb != 1)
+        throw Error("colorangle: RGB1 and RGB2 must broadcast (N or 1)",
+                    0, 0, "colorangle", "", "numkit:colorangle:size");
+}
+
+void xyz2double_argcheck(const Value &xyz)
+{
+    const auto &d = xyz.dims();
+    const bool ok_2d = !d.is3D() && d.cols() == 3;
+    const bool ok_3d = d.is3D() && d.pages() == 3;
+    if (!ok_2d && !ok_3d)
+        throw Error("xyz2double: input must be M-by-3 or H-by-W-by-3",
+                    0, 0, "xyz2double", "", "numkit:xyz2double:size");
+    const ValueType t = xyz.type();
+    if (t != ValueType::DOUBLE && t != ValueType::UINT16)
+        throw Error("xyz2double: input must be uint16 or double",
+                    0, 0, "xyz2double", "", "numkit:xyz2double:type");
+}
+
+void contrast_argcheck(const Value &x, int m)
+{
+    if (m < 2)
+        throw Error("contrast: M must be >= 2",
+                    0, 0, "contrast", "", "numkit:contrast:m");
+    const size_t Nx = x.numel();
+    if (Nx == 0)
+        throw Error("contrast: input image must be non-empty",
+                    0, 0, "contrast", "", "numkit:contrast:empty");
+}
+
+void brighten_argcheck(const Value &map, double beta)
+{
+    if (!(beta > -1.0 && beta < 1.0))
+        throw Error("brighten: BETA must be a scalar in the range (-1, 1)",
+                    0, 0, "brighten", "", "numkit:brighten:beta");
+    const auto &d = map.dims();
+    if (d.is3D() || d.cols() != 3)
+        throw Error("brighten: input must be an N-by-3 colormap",
+                    0, 0, "brighten", "", "numkit:brighten:shape");
+}
+
+void xyz2uint16_argcheck(const Value &xyz)
+{
+    const auto &d = xyz.dims();
+    const bool ok_2d = !d.is3D() && d.cols() == 3;
+    const bool ok_3d = d.is3D() && d.pages() == 3;
+    if (!ok_2d && !ok_3d)
+        throw Error("xyz2uint16: input must be M-by-3 or H-by-W-by-3",
+                    0, 0, "xyz2uint16", "", "numkit:xyz2uint16:size");
+    const ValueType t = xyz.type();
+    if (t != ValueType::DOUBLE && t != ValueType::UINT16)
+        throw Error("xyz2uint16: input must be uint16 or double",
+                    0, 0, "xyz2uint16", "", "numkit:xyz2uint16:type");
+}
+
+void deltaE_argcheck(const Value &I1, const Value &I2)
+{
+    const auto &d1 = I1.dims();
+    const auto &d2 = I2.dims();
+    if (!d1.is3D() && !d2.is3D()) {
+        if (d1.cols() != 3 || d2.cols() != 3 ||
+            d1.rows() != d2.rows())
+            throw Error("deltaE: M-by-3 inputs must agree in row count",
+                        0, 0, "deltaE", "", "numkit:deltaE:size");
+    } else if (d1.is3D() && d2.is3D()) {
+        if (d1.pages() != 3 || d2.pages() != 3 ||
+            d1.rows() != d2.rows() || d1.cols() != d2.cols())
+            throw Error("deltaE: H-by-W-by-3 inputs must agree in size",
+                        0, 0, "deltaE", "", "numkit:deltaE:size");
+    } else {
+        throw Error("deltaE: I1 and I2 must both be M-by-3 or H-by-W-by-3",
+                    0, 0, "deltaE", "", "numkit:deltaE:size");
+    }
+}
+
+void whitepoint_argcheck(const std::string &illuminant)
+{
+    std::string lo;
+    lo.reserve(illuminant.size());
+    for (char c : illuminant) lo.push_back(static_cast<char>(std::tolower(c)));
+
+    if (lo != "a" && lo != "c" && lo != "d50" && lo != "d55" &&
+        lo != "d65" && lo != "e" && !lo.empty() && lo != "icc")
+        throw Error("whitepoint: unsupported illuminant '" + illuminant +
+                    "' (use a, c, d50, d55, d65, e, or icc)",
+                    0, 0, "whitepoint", "", "numkit:whitepoint:illum");
+}
+
+void cmap2gray_argcheck(const Value &cmap)
+{
+    const auto &d = cmap.dims();
+    if (d.is3D() || d.cols() != 3 || d.rows() < 1)
+        throw Error("cmap2gray: CMAP must be an N-by-3 colormap",
+                    0, 0, "cmap2gray", "", "numkit:cmap2gray:shape");
+}
+
+void label2rgb_argcheck(const Value &L, const Value &cmap,
+                        const Value &background)
+{
+    internal::requireImageClass(L, "label2rgb", "L", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    if (!cmap.isEmpty() && !cmap.isChar() && !cmap.isString())
+        internal::requireColormap(cmap, "label2rgb", 2);
+    const auto &dL = L.dims();
+    if (dL.is3D() && dL.pages() != 1)
+        throw Error("label2rgb: L must be a 2-D labelled image",
+                    0, 0, "label2rgb", "", "numkit:label2rgb:dims");
+
+    if (cmap.dims().cols() != 3)
+        throw Error("label2rgb: CMAP must be N-by-3",
+                    0, 0, "label2rgb", "", "numkit:label2rgb:cmap");
+
+    if (background.numel() != 3 && background.numel() != 0)
+        throw Error("label2rgb: background must be a 3-element RGB triplet",
+                    0, 0, "label2rgb", "", "numkit:label2rgb:bg");
+}
+
 } // anonymous
 
 Value colorgradient(const Value &C, const Value &w, int n, std::pmr::memory_resource *mr)
 {
+    colorgradient_argcheck(C, w, n);
     // colorgradient is reference-absent (Octave image package API) —
     // the nk-defined contract takes real numeric colours.
     internal::requireImageClass(C, "colorgradient", "C", 1,
@@ -776,6 +968,7 @@ Value colorgradient(const Value &C, const Value &w, int n, std::pmr::memory_reso
 
 Value wavelength2rgb(const Value &wavelength, const std::string &out_class, double gamma, std::pmr::memory_resource *mr)
 {
+    wavelength2rgb_argcheck(gamma, out_class);
     if (!(gamma >= 0.0 && gamma <= 1.0))
         throw Error("wavelength2rgb: gamma must be in [0, 1]",
                     0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:gamma");
@@ -831,6 +1024,7 @@ Value wavelength2rgb(const Value &wavelength, const std::string &out_class, doub
 
 Value colorangle(const Value &rgb1, const Value &rgb2, std::pmr::memory_resource *mr)
 {
+    colorangle_argcheck(rgb1, rgb2);
     const auto a = rgb_rows(rgb1, "RGB1");
     const auto b = rgb_rows(rgb2, "RGB2");
     const size_t Na = a.size() / 3;
@@ -1318,6 +1512,7 @@ Value rgb2lin(const Value &A, std::pmr::memory_resource *mr)
 
 Value xyz2double(const Value &xyz, std::pmr::memory_resource *mr)
 {
+    xyz2double_argcheck(xyz);
     const auto &d = xyz.dims();
     const bool ok_2d = !d.is3D() && d.cols() == 3;
     const bool ok_3d = d.is3D() && d.pages() == 3;
@@ -1349,6 +1544,7 @@ Value xyz2double(const Value &xyz, std::pmr::memory_resource *mr)
 
 Value contrast(const Value &x, int m, std::pmr::memory_resource *mr)
 {
+    contrast_argcheck(x, m);
     if (m < 2)
         throw Error("contrast: M must be >= 2",
                     0, 0, "contrast", "", "numkit:contrast:m");
@@ -1404,6 +1600,7 @@ Value contrast(const Value &x, int m, std::pmr::memory_resource *mr)
 
 Value brighten(const Value &map, double beta, std::pmr::memory_resource *mr)
 {
+    brighten_argcheck(map, beta);
     if (!(beta > -1.0 && beta < 1.0))
         throw Error("brighten: BETA must be a scalar in the range (-1, 1)",
                     0, 0, "brighten", "", "numkit:brighten:beta");
@@ -1424,6 +1621,7 @@ Value brighten(const Value &map, double beta, std::pmr::memory_resource *mr)
 
 Value xyz2uint16(const Value &xyz, std::pmr::memory_resource *mr)
 {
+    xyz2uint16_argcheck(xyz);
     const auto &d = xyz.dims();
     const bool ok_2d = !d.is3D() && d.cols() == 3;
     const bool ok_3d = d.is3D() && d.pages() == 3;
@@ -1458,6 +1656,7 @@ Value xyz2uint16(const Value &xyz, std::pmr::memory_resource *mr)
 
 Value deltaE(const Value &I1, const Value &I2, bool isInputLab, std::pmr::memory_resource *mr)
 {
+    deltaE_argcheck(I1, I2);
     const auto &d1 = I1.dims();
     const auto &d2 = I2.dims();
 
@@ -1516,6 +1715,7 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, std::pmr::memory
 
 Value whitepoint(const std::string &illuminant, std::pmr::memory_resource *mr)
 {
+    whitepoint_argcheck(illuminant);
     std::string lo;
     lo.reserve(illuminant.size());
     for (char c : illuminant) lo.push_back(static_cast<char>(std::tolower(c)));
@@ -1587,6 +1787,7 @@ Value white_cmap(int n, std::pmr::memory_resource *mr)
 
 Value cmap2gray(const Value &cmap, std::pmr::memory_resource *mr)
 {
+    cmap2gray_argcheck(cmap);
     const auto &d = cmap.dims();
     if (d.is3D() || d.cols() != 3 || d.rows() < 1)
         throw Error("cmap2gray: CMAP must be an N-by-3 colormap",
@@ -1619,6 +1820,7 @@ Value cmap2gray(const Value &cmap, std::pmr::memory_resource *mr)
 
 Value label2rgb(const Value &L, const Value &cmap, const Value &background, std::pmr::memory_resource *mr)
 {
+    label2rgb_argcheck(L, cmap, background);
     internal::requireImageClass(L, "label2rgb", "L", 1,
                                 internal::ImgClasses::AnyNumericReal);
     if (!cmap.isEmpty() && !cmap.isChar() && !cmap.isString())

@@ -624,6 +624,13 @@ compute_attribute(const std::vector<Comp> &comps,
     (void)W;
 }
 
+void bwpropfilt_argcheck(const Value &BW, const Value &CC)
+{
+    if (CC.isEmpty() && !BW.isEmpty())
+        internal::requireImageClass(BW, "bwpropfilt", "IN", 1,
+                                    internal::ImgClasses::LogicalOnly);
+}
+
 }  // namespace
 
 Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
@@ -636,9 +643,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
     // Probed R2025b: the BW form is logical-only (double / numeric
     // inputs die with invalidType); the CC form takes the bwconncomp
     // struct.
-    if (CC.isEmpty() && !BW.isEmpty())
-        internal::requireImageClass(BW, "bwpropfilt", "IN", 1,
-                                    internal::ImgClasses::LogicalOnly);
+    bwpropfilt_argcheck(BW, CC);
     const bool from_cc = !CC.isEmpty();
     const std::string attrib_lo = lower_str(attribute);
 
@@ -735,7 +740,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
                                  static_cast<std::size_t>(info.W),
                                  ValueType::LOGICAL, mr);
     uint8_t *od = outBW.logicalDataMut();
-    std::fill(od, od + static_cast<std::size_t>(info.H * info.W), 0);
+    std::fill(od, od + static_cast<std::size_t>(info.H * info.W), static_cast<uint8_t>(0));
     for (std::size_t k = 0; k < K; ++k) {
         if (!keep[k]) continue;
         const Comp &c = info.comps[k];

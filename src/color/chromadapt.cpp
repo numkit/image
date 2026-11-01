@@ -370,6 +370,40 @@ Value rgb_to_value(const RGBPlane &P, ValueType outClass,
     return out;
 }
 
+void chromadapt_argcheck(const Value &A, const Value &illuminant_in,
+                         const std::string &method,
+                         const std::string &color_space)
+{
+    const auto &dA = A.dims();
+    if (!dA.is3D() || dA.pages() != 3)
+        throw Error("chromadapt: A must be H × W × 3 RGB",
+                    0, 0, "chromadapt", "", "numkit:chromadapt:shape");
+    const std::size_t H = dA.rows();
+    const std::size_t W = dA.cols();
+    if (H == 0 || W == 0)
+        throw Error("chromadapt: A must be nonempty",
+                    0, 0, "chromadapt", "", "numkit:chromadapt:empty");
+    if (illuminant_in.numel() != 3)
+        throw Error("chromadapt: illuminant must be a 3-element vector",
+                    0, 0, "chromadapt", "", "numkit:chromadapt:illShape");
+
+    const ValueType origClass = A.type();
+    if (origClass != ValueType::UINT8 && origClass != ValueType::UINT16
+        && origClass != ValueType::SINGLE && origClass != ValueType::DOUBLE)
+        throw Error("chromadapt: A must be uint8 / uint16 / single / double",
+                    0, 0, "chromadapt", "", "numkit:chromadapt:class");
+
+    std::string m;
+    for (char ch : method) m += static_cast<char>(std::tolower(
+        static_cast<unsigned char>(ch)));
+    if (m != "bradford" && m != "vonkries" && m != "simple")
+        throw Error("chromadapt: Method must be 'bradford', 'vonkries', "
+                    "or 'simple'",
+                    0, 0, "chromadapt", "", "numkit:chromadapt:method");
+
+    (void)parse_color_space(color_space);
+}
+
 }  // namespace
 
 Value chromadapt(const Value &A, const Value &illuminant_in,
@@ -377,6 +411,7 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
                  const std::string &color_space,
                  std::pmr::memory_resource *mr)
 {
+    chromadapt_argcheck(A, illuminant_in, method, color_space);
     const auto &dA = A.dims();
     if (!dA.is3D() || dA.pages() != 3)
         throw Error("chromadapt: A must be H × W × 3 RGB",

@@ -120,12 +120,100 @@ Value make_row3(double r, double g, double b, std::pmr::memory_resource *mr)
     return out;
 }
 
+void illumwhite_argcheck(const Value &A, double P, const Value &mask)
+{
+    if (P < 0.0 || P >= 100.0)
+        throw Error("illumwhite: percentile must satisfy 0 <= P < 100",
+                    0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
+    std::size_t H = 0, W = 0;
+    std::vector<unsigned char> maskFlat;
+    validate_image_and_mask(A, mask, H, W, maskFlat, "illumwhite");
+    if (H == 0 || W == 0)
+        throw Error("illumwhite: image is empty",
+                    0, 0, "illumwhite", "", "numkit:illumwhite:empty");
+}
+
+void illumgray_argcheck(const Value &A, const std::vector<double> &P,
+                        const Value &mask, double norm_exp)
+{
+    double p_lo = 1.0, p_hi = 1.0;
+    if (P.size() == 1) {
+        p_lo = P[0]; p_hi = P[0];
+    } else if (P.size() == 2) {
+        p_lo = P[0]; p_hi = P[1];
+    } else if (!P.empty()) {
+        throw Error("illumgray: percentile must be scalar or 2-vector",
+                    0, 0, "illumgray", "", "numkit:illumgray:percentile");
+    }
+    if (p_lo < 0.0 || p_lo >= 100.0 || p_hi < 0.0 || p_hi >= 100.0
+        || p_lo + p_hi > 100.0)
+        throw Error("illumgray: percentiles must satisfy 0 <= P < 100 and "
+                    "p_lo + p_hi <= 100",
+                    0, 0, "illumgray", "", "numkit:illumgray:percentile");
+    if (!(norm_exp > 0.0))
+        throw Error("illumgray: Norm must be a positive scalar",
+                    0, 0, "illumgray", "", "numkit:illumgray:norm");
+    std::size_t H = 0, W = 0;
+    std::vector<unsigned char> maskFlat;
+    validate_image_and_mask(A, mask, H, W, maskFlat, "illumgray");
+    if (H == 0 || W == 0)
+        throw Error("illumgray: image is empty",
+                    0, 0, "illumgray", "", "numkit:illumgray:empty");
+}
+
+void illumpca_argcheck(const Value &A, double P, const Value &mask)
+{
+    if (!(P > 0.0) || P > 50.0)
+        throw Error("illumpca: percentage must satisfy 0 < P <= 50",
+                    0, 0, "illumpca", "", "numkit:illumpca:percentage");
+    std::size_t H = 0, W = 0;
+    std::vector<unsigned char> maskFlat;
+    validate_image_and_mask(A, mask, H, W, maskFlat, "illumpca");
+    if (H == 0 || W == 0)
+        throw Error("illumpca: image is empty",
+                    0, 0, "illumpca", "", "numkit:illumpca:empty");
+}
+
+void imcolordiff_argcheck(const Value &I1, const Value &I2,
+                          const std::string &standard,
+                          double kL, double kC, double kH, double K1, double K2)
+{
+    std::string std_lo = standard;
+    for (auto &c : std_lo)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    const bool is_2000 = (std_lo == "ciede2000" || std_lo == "cie2000");
+    if (!is_2000 && std_lo != "cie94")
+        throw Error("imcolordiff: Standard must be 'CIE94' or 'CIEDE2000'",
+                    0, 0, "imcolordiff", "", "numkit:imcolordiff:standard");
+    if (!(kL > 0.0) || !(kC > 0.0) || !(kH > 0.0)
+        || !(K1 > 0.0) || !(K2 > 0.0))
+        throw Error("imcolordiff: kL, kC, kH, K1, K2 must all be positive",
+                    0, 0, "imcolordiff", "", "numkit:imcolordiff:weights");
+
+    const auto &d1 = I1.dims();
+    const auto &d2 = I2.dims();
+    if (!d1.is3D() && !d2.is3D()) {
+        if (d1.cols() != 3 || d2.cols() != 3 || d1.rows() != d2.rows())
+            throw Error("imcolordiff: c-by-3 inputs must have matching rows",
+                        0, 0, "imcolordiff", "", "numkit:imcolordiff:size");
+    } else if (d1.is3D() && d2.is3D()) {
+        if (d1.pages() != 3 || d2.pages() != 3
+            || d1.rows() != d2.rows() || d1.cols() != d2.cols())
+            throw Error("imcolordiff: H-by-W-by-3 inputs must match in size",
+                        0, 0, "imcolordiff", "", "numkit:imcolordiff:size");
+    } else {
+        throw Error("imcolordiff: I1 and I2 must both be c-by-3 or H-by-W-by-3",
+                    0, 0, "imcolordiff", "", "numkit:imcolordiff:size");
+    }
+}
+
 } // anonymous
 
 // ── illumwhite ─────────────────────────────────────────────────────
 Value illumwhite(const Value &A, double P, const Value &mask,
                  std::pmr::memory_resource *mr)
 {
+    illumwhite_argcheck(A, P, mask);
     if (P < 0.0 || P >= 100.0)
         throw Error("illumwhite: percentile must satisfy 0 <= P < 100",
                     0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
@@ -169,6 +257,7 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
                             const Value &mask, double norm_exp,
                             std::pmr::memory_resource *mr)
 {
+    illumgray_argcheck(A, P, mask, norm_exp);
     double p_lo = 1.0, p_hi = 1.0;   // MATLAB defaults
     if (P.size() == 1) {
         p_lo = P[0]; p_hi = P[0];
@@ -235,6 +324,7 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
 Value illumgray(const Value &A, const std::vector<double> &P,
                 const Value &mask, std::pmr::memory_resource *mr)
 {
+    illumgray_argcheck(A, P, mask, 1.0);
     return illumgray_impl(A, P, mask, 1.0, mr);
 }
 
@@ -339,6 +429,7 @@ void jacobi_eigen_3x3(const Sym3 &M, double evals[3], double evecs[9])
 Value illumpca(const Value &A, double P, const Value &mask,
                std::pmr::memory_resource *mr)
 {
+    illumpca_argcheck(A, P, mask);
     if (!(P > 0.0) || P > 50.0)
         throw Error("illumpca: percentage must satisfy 0 < P <= 50",
                     0, 0, "illumpca", "", "numkit:illumpca:percentage");
@@ -641,6 +732,7 @@ Value imcolordiff(const Value &I1, const Value &I2,
                   double kL, double kC, double kH, double K1, double K2,
                   std::pmr::memory_resource *mr)
 {
+    imcolordiff_argcheck(I1, I2, standard, kL, kC, kH, K1, K2);
     // Normalise the Standard string.
     std::string std_lo = standard;
     for (auto &c : std_lo)

@@ -597,17 +597,13 @@ Value cast_back(const Value &B, ValueType origClass,
     return im2uint8(B, mr);
 }
 
-}  // namespace
-
-Value imreducehaze(const Value &I, double amount,
-                   const std::string &method,
-                   const Value &atmospheric_light,
-                   const std::string &contrast_enhancement,
-                   double boost_amount,
-                   Value &t_out, Value &L_out,
-                   std::pmr::memory_resource *mr)
+void imreducehaze_argcheck(const Value &I, double amount,
+                           const std::string &method,
+                           const std::string &contrast_enhancement,
+                           double boost_amount,
+                           std::string &m_out, std::string &ce_out,
+                           bool &isRGB_out)
 {
-    // ── Validate inputs ──────────────────────────────────────────
     if (!std::isfinite(amount) || amount < 0.0 || amount > 1.0)
         throw Error("imreducehaze: amount must be in [0, 1]",
                     0, 0, "imreducehaze", "", "numkit:imreducehaze:amount");
@@ -636,16 +632,31 @@ Value imreducehaze(const Value &I, double amount,
                     "'boost', or 'none'",
                     0, 0, "imreducehaze", "",
                     "numkit:imreducehaze:contrastEnhancement");
-    if (ce != "boost" && boost_amount > 0.0
-        && !atmospheric_light.isEmpty())   /* sentinel never used */ {
-        // BoostAmount can only be specified when ContrastEnhancement is
-        // 'boost'. We accept a default value silently.
-    }
     if (ce == "boost" && (boost_amount < 0.0 || boost_amount > 1.0
                           || !std::isfinite(boost_amount)))
         throw Error("imreducehaze: BoostAmount must be in [0, 1]",
                     0, 0, "imreducehaze", "",
                     "numkit:imreducehaze:boostAmount");
+    m_out = m;
+    ce_out = ce;
+    isRGB_out = isRGB;
+}
+
+}  // namespace
+
+Value imreducehaze(const Value &I, double amount,
+                   const std::string &method,
+                   const Value &atmospheric_light,
+                   const std::string &contrast_enhancement,
+                   double boost_amount,
+                   Value &t_out, Value &L_out,
+                   std::pmr::memory_resource *mr)
+{
+    std::string m, ce;
+    bool isRGB = false;
+    imreducehaze_argcheck(I, amount, method, contrast_enhancement, boost_amount,
+                          m, ce, isRGB);
+    const ValueType origClass = I.type();
 
     // ── Short-circuit: amount == 0 → passthrough ──────────────────
     if (amount == 0.0) {

@@ -84,6 +84,13 @@ Value apply_along_rows(const Value &A, Fn1D &&fn1d, std::pmr::memory_resource *m
     return out;
 }
 
+void dctmtx_argcheck(double Nd)
+{
+    if (!(Nd > 0.0) || std::floor(Nd) != Nd)
+        throw Error("dctmtx: N must be a positive integer",
+                    0, 0, "dctmtx", "", "numkit:dctmtx:arg");
+}
+
 } // anonymous
 
 Value dct2(const Value &A, std::pmr::memory_resource *mr)
@@ -112,9 +119,7 @@ Value dctmtx(double Nd, std::pmr::memory_resource *mr)
     //   D[k, n] = w[k] · cos(π · (2n+1) · k / (2N))
     //   w[0]    = sqrt(1/N),  w[k>0] = sqrt(2/N)
     // so D*x is the DCT-II of x.
-    if (!(Nd > 0.0) || std::floor(Nd) != Nd)
-        throw Error("dctmtx: N must be a positive integer",
-                    0, 0, "dctmtx", "", "numkit:dctmtx:arg");
+    dctmtx_argcheck(Nd);
     const size_t N = static_cast<size_t>(Nd);
     Value D = Value::matrix(N, N, ValueType::DOUBLE, mr);
     if (N == 0) return D;
@@ -237,26 +242,19 @@ Value make_ellipse_matrix(const double (*src)[6], size_t rows, std::pmr::memory_
     return E;
 }
 
-} // anonymous
-
-std::tuple<Value, Value>
-phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
+Value phantom_argcheck(const Value &model_or_E, std::pmr::memory_resource *mr)
 {
-    if (n == 0) n = 256;
-
-    // Determine ellipses matrix.
-    Value E;
     if (model_or_E.numel() == 0) {
-        E = make_ellipse_matrix(kModSheppLogan, 10, mr);
+        return make_ellipse_matrix(kModSheppLogan, 10, mr);
     } else if (model_or_E.isChar() || model_or_E.isString()) {
         const std::string m = model_or_E.toString();
         std::string lo;
         lo.reserve(m.size());
         for (char c : m) lo.push_back(static_cast<char>(std::tolower(c)));
         if (lo == "shepp-logan")
-            E = make_ellipse_matrix(kSheppLogan, 10, mr);
+            return make_ellipse_matrix(kSheppLogan, 10, mr);
         else if (lo == "modified shepp-logan")
-            E = make_ellipse_matrix(kModSheppLogan, 10, mr);
+            return make_ellipse_matrix(kModSheppLogan, 10, mr);
         else
             throw Error("phantom: unknown MODEL", 0, 0, "phantom", "",
                         "numkit:phantom:model");
@@ -264,8 +262,99 @@ phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
         if (model_or_E.dims().cols() != 6)
             throw Error("phantom: E must be N-by-6",
                         0, 0, "phantom", "", "numkit:phantom:E");
-        E = model_or_E;
+        return model_or_E;
     }
+}
+
+void bestblk_argcheck(const Value &IMS, double k, Value &IMSC, std::pmr::memory_resource *mr)
+{
+    internal::requireRealKernelImage(IMS, "bestblk", "IMS", 1);
+    if (IMS.type() == ValueType::CHAR)
+        IMSC = internal::coerceToDoubleImage(IMS, mr);
+    else
+        internal::requireImageClass(IMS, "bestblk", "IMS", 1,
+                                    internal::ImgClasses::FloatInt);
+    const Value &IMSu = (IMS.type() == ValueType::CHAR) ? IMSC : IMS;
+    if (IMSu.numel() < 2)
+        throw Error("bestblk: IMS must have at least 2 elements",
+                    0, 0, "bestblk", "", "numkit:bestblk:size");
+    if (!(k >= 1.0))
+        throw Error("bestblk: K must be a positive scalar",
+                    0, 0, "bestblk", "", "numkit:bestblk:k");
+}
+
+void fftconv2_argcheck(const Value &A, const Value &B)
+{
+    internal::requireImageClass(A, "fftconv2", "A", 1,
+                                internal::ImgClasses::FloatIntLog);
+    internal::requireImageClass(B, "fftconv2", "B", 2,
+                                internal::ImgClasses::FloatIntLog);
+}
+
+void psf2otf_argcheck(const Value &PSF, Span<const size_t> outsize,
+                      size_t &inH, size_t &inW, size_t &outH, size_t &outW, bool &is1D)
+{
+    const auto &d = PSF.dims();
+    inH = d.rows();
+    inW = d.cols();
+    is1D = (inH == 1 || inW == 1);
+    outH = inH;
+    outW = inW;
+    if (outsize.size() >= 2) {
+        outH = outsize[0];
+        outW = outsize[1];
+    } else if (outsize.size() == 1) {
+        const size_t L = outsize[0];
+        if (is1D) {
+            if (inH == 1) { outH = 1; outW = L; }
+            else          { outH = L; outW = 1; }
+        } else { outH = L; outW = L; }
+    }
+    if (outH < inH || outW < inW)
+        throw Error("psf2otf: OUTSIZE must be larger than PSF size",
+                    0, 0, "psf2otf", "", "numkit:psf2otf:outsize");
+}
+
+void otf2psf_argcheck(const Value &OTF, Span<const size_t> outsize,
+                      size_t &inH, size_t &inW, size_t &outH, size_t &outW, bool &is1D)
+{
+    const auto &d = OTF.dims();
+    inH = d.rows();
+    inW = d.cols();
+    is1D = (inH == 1 || inW == 1);
+    outH = inH;
+    outW = inW;
+    if (outsize.size() == 1) {
+        const size_t L = outsize[0];
+        if (is1D) {
+            if (inH == 1) { outH = 1; outW = L; }
+            else          { outH = L; outW = 1; }
+        } else { outH = L; outW = L; }
+    } else if (outsize.size() >= 2) {
+        outH = outsize[0];
+        outW = outsize[1];
+    }
+    if (outH > inH || outW > inW)
+        throw Error("otf2psf: OUTSIZE must not exceed the size of the OTF "
+                    "array in any dimension",
+                    0, 0, "otf2psf", "", "numkit:otf2psf:outsize");
+}
+
+void normxcorr2_argcheck(const Value &templ, const Value &img)
+{
+    internal::requireImageClass(templ, "normxcorr2", "TEMPLATE", 1,
+                                internal::ImgClasses::FloatIntNoLog);
+    internal::requireImageClass(img, "normxcorr2", "INPUT", 2,
+                                internal::ImgClasses::FloatIntNoLog);
+}
+
+} // anonymous
+
+std::tuple<Value, Value>
+phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
+{
+    Value E = phantom_argcheck(model_or_E, mr);
+    if (n == 0) n = 256;
 
     Value head = Value::matrix(n, n, ValueType::DOUBLE, mr);
     if (n == 0) return {std::move(head), std::move(E)};
@@ -316,21 +405,9 @@ phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
 
 Value bestblk(const Value &IMS, double k, std::pmr::memory_resource *mr)
 {
-    // Probed R2025b: char IMS coerces through double() code values.
-    internal::requireRealKernelImage(IMS, "bestblk", "IMS", 1);
     Value IMSC;
-    if (IMS.type() == ValueType::CHAR)
-        IMSC = internal::coerceToDoubleImage(IMS, mr);
-    else
-        internal::requireImageClass(IMS, "bestblk", "IMS", 1,
-                                    internal::ImgClasses::FloatInt);
+    bestblk_argcheck(IMS, k, IMSC, mr);
     const Value &IMSu = (IMS.type() == ValueType::CHAR) ? IMSC : IMS;
-    if (IMSu.numel() < 2)
-        throw Error("bestblk: IMS must have at least 2 elements",
-                    0, 0, "bestblk", "", "numkit:bestblk:size");
-    if (!(k >= 1.0))
-        throw Error("bestblk: K must be a positive scalar",
-                    0, 0, "bestblk", "", "numkit:bestblk:k");
 
     const size_t nd = IMSu.numel();
     const long long K = static_cast<long long>(std::floor(k));
@@ -373,10 +450,7 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pm
 {
     // fftconv2 is reference-absent (Octave image package API) — the
     // nk-defined contract takes the standard image class set.
-    internal::requireImageClass(A, "fftconv2", "A", 1,
-                                internal::ImgClasses::FloatIntLog);
-    internal::requireImageClass(B, "fftconv2", "B", 2,
-                                internal::ImgClasses::FloatIntLog);
+    fftconv2_argcheck(A, B);
     const size_t ra = A.dims().rows(), ca = A.dims().cols();
     const size_t rb = B.dims().rows(), cb = B.dims().cols();
     if (ra == 0 || ca == 0 || rb == 0 || cb == 0)
@@ -478,29 +552,9 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pm
 
 Value psf2otf(const Value &PSF, Span<const size_t> outsize, std::pmr::memory_resource *mr)
 {
-    const auto &d = PSF.dims();
-    const size_t inH = d.rows();
-    const size_t inW = d.cols();
-    const bool is1D = (inH == 1 || inW == 1);
-
-    // Determine output size (default = input size).
-    //   outsize as 2-vec [outH outW]  — applies for both 1-D and 2-D.
-    //   outsize as scalar L           — for 1-D = new length; 2-D = L×L.
-    size_t outH = inH;
-    size_t outW = inW;
-    if (outsize.size() >= 2) {
-        outH = outsize[0];
-        outW = outsize[1];
-    } else if (outsize.size() == 1) {
-        const size_t L = outsize[0];
-        if (is1D) {
-            if (inH == 1) { outH = 1; outW = L; }
-            else          { outH = L; outW = 1; }
-        } else { outH = L; outW = L; }
-    }
-    if (outH < inH || outW < inW)
-        throw Error("psf2otf: OUTSIZE must be larger than PSF size",
-                    0, 0, "psf2otf", "", "numkit:psf2otf:outsize");
+    size_t inH = 0, inW = 0, outH = 0, outW = 0;
+    bool is1D = false;
+    psf2otf_argcheck(PSF, outsize, inH, inW, outH, outW, is1D);
 
     // Pad PSF with zeros (post-pad).
     Value padded;
@@ -527,33 +581,9 @@ Value psf2otf(const Value &PSF, Span<const size_t> outsize, std::pmr::memory_res
 
 Value otf2psf(const Value &OTF, Span<const size_t> outsize, std::pmr::memory_resource *mr)
 {
-    const auto &d = OTF.dims();
-    const size_t inH = d.rows();
-    const size_t inW = d.cols();
-    const bool is1D = (inH == 1 || inW == 1);
-
-    // Resolve target output shape.
-    //   no outsize             → same as OTF (no cropping)
-    //   1-element outsize      → 1-D vector of that length (matching the
-    //                            non-singleton orientation), or L×L if
-    //                            OTF is 2-D
-    //   2-element outsize      → use directly
-    size_t outH = inH;
-    size_t outW = inW;
-    if (outsize.size() == 1) {
-        const size_t L = outsize[0];
-        if (is1D) {
-            if (inH == 1) { outH = 1; outW = L; }
-            else          { outH = L; outW = 1; }
-        } else { outH = L; outW = L; }
-    } else if (outsize.size() >= 2) {
-        outH = outsize[0];
-        outW = outsize[1];
-    }
-    if (outH > inH || outW > inW)
-        throw Error("otf2psf: OUTSIZE must not exceed the size of the OTF "
-                    "array in any dimension",
-                    0, 0, "otf2psf", "", "numkit:otf2psf:outsize");
+    size_t inH = 0, inW = 0, outH = 0, outW = 0;
+    bool is1D = false;
+    otf2psf_argcheck(OTF, outsize, inH, inW, outH, outW, is1D);
 
     // Inverse FFT.
     Value psf = is1D ? signal::ifft(OTF, -1, 0, mr)
@@ -599,10 +629,7 @@ Value normxcorr2(const Value &templ, const Value &img, std::pmr::memory_resource
 {
     // Probed R2025b: logical templates are rejected (the reference
     // requires element-wise double arithmetic); complex is expectedReal.
-    internal::requireImageClass(templ, "normxcorr2", "TEMPLATE", 1,
-                                internal::ImgClasses::FloatIntNoLog);
-    internal::requireImageClass(img, "normxcorr2", "INPUT", 2,
-                                internal::ImgClasses::FloatIntNoLog);
+    normxcorr2_argcheck(templ, img);
     const size_t mH = templ.dims().rows();
     const size_t mW = templ.dims().cols();
     const size_t bH = img.dims().rows();
@@ -904,19 +931,57 @@ Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
     return J;
 }
 
-} // anonymous
-
-Value deconvwnr(const Value &I, const Value &PSF, double nsr,
-                std::pmr::memory_resource *mr)
+void deconvwnr_nsr_argcheck(const Value &I, const Value &PSF)
 {
     internal::requireImageClass(I, "deconvwnr", "I", 1,
                                 internal::ImgClasses::FloatInt);
-    // Probed R2025b: the PSF must be real double (single PSF rejected).
     internal::requireImageClass(PSF, "deconvwnr", "PSF", 2,
                                 internal::ImgClasses::DoubleOnly);
     if (PSF.dims().is3D())
         throw Error("deconvwnr: PSF must be 2-D",
                     0, 0, "deconvwnr", "", "numkit:deconvwnr:psf");
+}
+
+void deconvwnr_acf_argcheck(const Value &PSF)
+{
+    if (PSF.dims().is3D())
+        throw Error("deconvwnr: PSF must be 2-D",
+                    0, 0, "deconvwnr", "", "numkit:deconvwnr:psf");
+}
+
+void edgetaper_argcheck(const Value &I, const Value &PSF)
+{
+    const auto &dI   = I.dims();
+    const auto &dPSF = PSF.dims();
+    if (dI.is3D())
+        throw Error("edgetaper: I must be 2-D (slice 3-D inputs and call "
+                    "per page)",
+                    0, 0, "edgetaper", "", "numkit:edgetaper:rank");
+    if (dPSF.is3D())
+        throw Error("edgetaper: PSF must be 2-D",
+                    0, 0, "edgetaper", "", "numkit:edgetaper:psfRank");
+    const std::size_t H  = dI.rows();
+    const std::size_t W  = dI.cols();
+    const std::size_t PH = dPSF.rows();
+    const std::size_t PW = dPSF.cols();
+    if (H * W < 2)
+        throw Error("edgetaper: I must have at least 2 elements",
+                    0, 0, "edgetaper", "", "numkit:edgetaper:tooSmall");
+    if (PH * PW < 2)
+        throw Error("edgetaper: PSF must have at least 2 elements",
+                    0, 0, "edgetaper", "", "numkit:edgetaper:psfTooSmall");
+    if (2 * PH > H || 2 * PW > W)
+        throw Error("edgetaper: PSF size must be smaller than half of "
+                    "the image size in any nonsingleton dimension",
+                    0, 0, "edgetaper", "", "numkit:edgetaper:psfSize");
+}
+
+} // anonymous
+
+Value deconvwnr(const Value &I, const Value &PSF, double nsr,
+                std::pmr::memory_resource *mr)
+{
+    deconvwnr_nsr_argcheck(I, PSF);
     const ValueType inT = I.type();
     Value Id = to_double_pmr(I, mr);
     Value PSFd = to_double_pmr(PSF, mr);
@@ -929,9 +994,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
                 const Value &ncorr, const Value &icorr,
                 std::pmr::memory_resource *mr)
 {
-    if (PSF.dims().is3D())
-        throw Error("deconvwnr: PSF must be 2-D",
-                    0, 0, "deconvwnr", "", "numkit:deconvwnr:psf");
+    deconvwnr_acf_argcheck(PSF);
     const ValueType inT = I.type();
     Value Id = to_double_pmr(I, mr);
     Value PSFd = to_double_pmr(PSF, mr);
@@ -1073,29 +1136,13 @@ Value deconvwnr(const Value &I, const Value &PSF,
 // used. A 3-D input throws a clear "use slice + loop" error.
 Value edgetaper(const Value &I, const Value &PSF, std::pmr::memory_resource *mr)
 {
+    edgetaper_argcheck(I, PSF);
     const auto &dI   = I.dims();
     const auto &dPSF = PSF.dims();
-    if (dI.is3D())
-        throw Error("edgetaper: I must be 2-D (slice 3-D inputs and call "
-                    "per page)",
-                    0, 0, "edgetaper", "", "numkit:edgetaper:rank");
-    if (dPSF.is3D())
-        throw Error("edgetaper: PSF must be 2-D",
-                    0, 0, "edgetaper", "", "numkit:edgetaper:psfRank");
     const std::size_t H  = dI.rows();
     const std::size_t W  = dI.cols();
     const std::size_t PH = dPSF.rows();
     const std::size_t PW = dPSF.cols();
-    if (H * W < 2)
-        throw Error("edgetaper: I must have at least 2 elements",
-                    0, 0, "edgetaper", "", "numkit:edgetaper:tooSmall");
-    if (PH * PW < 2)
-        throw Error("edgetaper: PSF must have at least 2 elements",
-                    0, 0, "edgetaper", "", "numkit:edgetaper:psfTooSmall");
-    if (2 * PH > H || 2 * PW > W)
-        throw Error("edgetaper: PSF size must be smaller than half of "
-                    "the image size in any nonsingleton dimension",
-                    0, 0, "edgetaper", "", "numkit:edgetaper:psfSize");
 
     // Promote to DOUBLE for the math (we round back to class at the end).
     const ValueType inT = I.type();
@@ -1339,12 +1386,7 @@ double fminbnd_brent(F f, double ax, double bx,
     return xf;
 }
 
-} // anonymous (Brent)
-
-DeconvregResult deconvreg(const Value &I, const Value &PSF,
-                          double np, double lo, double hi,
-                          const Value &regop,
-                          std::pmr::memory_resource *mr)
+void deconvreg_argcheck(const Value &PSF, double np, double lo, double hi)
 {
     if (PSF.dims().is3D())
         throw Error("deconvreg: PSF must be 2-D (slice 3-D inputs and "
@@ -1360,6 +1402,16 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
         throw Error("deconvreg: LRANGE must be finite, non-negative, "
                     "and lo <= hi",
                     0, 0, "deconvreg", "", "numkit:deconvreg:lrange");
+}
+
+} // anonymous (Brent)
+
+DeconvregResult deconvreg(const Value &I, const Value &PSF,
+                          double np, double lo, double hi,
+                          const Value &regop,
+                          std::pmr::memory_resource *mr)
+{
+    deconvreg_argcheck(PSF, np, lo, hi);
 
     const ValueType inT = I.type();
     Value Id   = to_double_pmr(I, mr);

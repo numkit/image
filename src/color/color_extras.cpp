@@ -45,11 +45,101 @@
 
 namespace numkit::image {
 
+namespace {
+
+void rgb2lightness_argcheck(const Value &RGB)
+{
+    const ValueType t0 = RGB.type();
+    if (!(t0 == ValueType::DOUBLE || t0 == ValueType::SINGLE
+          || t0 == ValueType::UINT8))
+        internal::requireImageClass(RGB, "rgb2lightness", "RGB", 1,
+                                    internal::ImgClasses::FloatOnly);
+    if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
+        throw Error("rgb2lightness: input must be H×W×3",
+                    0, 0, "rgb2lightness", "", "numkit:rgb2lightness:Shape");
+}
+
+void rgb2ind_inmap_argcheck(const Value &RGB, const Value &cmap)
+{
+    if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
+        throw Error("rgb2ind: input must be H×W×3",
+                    0, 0, "rgb2ind", "", "numkit:rgb2ind:Shape");
+    if (cmap.dims().is3D() || cmap.dims().cols() != 3)
+        throw Error("rgb2ind: colormap must be K×3",
+                    0, 0, "rgb2ind", "", "numkit:rgb2ind:CmapShape");
+}
+
+void rgbwide2ycbcr_argcheck(const Value &RGB, int bits_per_sample)
+{
+    if (bits_per_sample != 10 && bits_per_sample != 12)
+        throw Error("rgbwide2ycbcr: BPS must be 10 or 12",
+                    0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:bps");
+    if (RGB.type() != ValueType::UINT16)
+        throw Error("rgbwide2ycbcr: RGB must be UINT16",
+                    0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:class");
+
+    const auto &d = RGB.dims();
+    if (d.is3D()) {
+        if (d.pages() != 3)
+            throw Error("rgbwide2ycbcr: H×W×3 image expected",
+                        0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:shape");
+    } else {
+        if (d.cols() != 3)
+            throw Error("rgbwide2ycbcr: p×3 colour list expected",
+                        0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:shape");
+    }
+}
+
+void cmunique_xm_argcheck(const Value &MAP)
+{
+    if (MAP.dims().cols() != 3 || MAP.dims().is3D())
+        throw Error("cmunique: MAP must be N×3",
+                    0, 0, "cmunique", "", "numkit:cmunique:map");
+}
+
+void cmunique_rgb_argcheck(const Value &RGB)
+{
+    if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
+        throw Error("cmunique: RGB must be H×W×3",
+                    0, 0, "cmunique", "", "numkit:cmunique:rgb");
+}
+
+void cmunique_i_argcheck(const Value &I)
+{
+    if (I.dims().ndims() > 2)
+        throw Error("cmunique: I must be a 2-D intensity image",
+                    0, 0, "cmunique", "", "numkit:cmunique:i");
+}
+
+void ycbcr2rgbwide_argcheck(const Value &YCBCR, int bits_per_sample)
+{
+    if (bits_per_sample != 10 && bits_per_sample != 12)
+        throw Error("ycbcr2rgbwide: BPS must be 10 or 12",
+                    0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:bps");
+    if (YCBCR.type() != ValueType::UINT16)
+        throw Error("ycbcr2rgbwide: YCBCR must be UINT16",
+                    0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:class");
+
+    const auto &d = YCBCR.dims();
+    if (d.is3D()) {
+        if (d.pages() != 3)
+            throw Error("ycbcr2rgbwide: H×W×3 image expected",
+                        0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:shape");
+    } else {
+        if (d.cols() != 3)
+            throw Error("ycbcr2rgbwide: p×3 colour list expected",
+                        0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:shape");
+    }
+}
+
+} // anonymous
+
 // ── rgb2lightness ─────────────────────────────────────────────────────
 // L = first channel of rgb2lab(RGB). MATLAB's rgb2lightness returns
 // single. NK's rgb2lab returns double, so we cast on the way out.
 Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr)
 {
+    rgb2lightness_argcheck(RGB);
     // Probed R2025b: double / single / uint8 accepted (int16 and
     // complex rejected; uint8 returns a single result).
     {
@@ -96,6 +186,7 @@ Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr)
 std::pair<Value, Value>
 rgb2ind_inmap(const Value &RGB, const Value &cmap, std::pmr::memory_resource *mr)
 {
+    rgb2ind_inmap_argcheck(RGB, cmap);
     if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
         throw Error("rgb2ind: input must be H×W×3",
                     0, 0, "rgb2ind", "", "numkit:rgb2ind:Shape");
@@ -178,6 +269,7 @@ rgb2ind_inmap(const Value &RGB, const Value &cmap, std::pmr::memory_resource *mr
 Value rgbwide2ycbcr(const Value &RGB, int bits_per_sample,
                     std::pmr::memory_resource *mr)
 {
+    rgbwide2ycbcr_argcheck(RGB, bits_per_sample);
     if (bits_per_sample != 10 && bits_per_sample != 12)
         throw Error("rgbwide2ycbcr: BPS must be 10 or 12",
                     0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:bps");
@@ -424,6 +516,7 @@ cmunique_core(std::pmr::vector<double> &c, std::size_t H, std::size_t W,
 std::pair<Value, Value>
 cmunique_xm(const Value &X, const Value &MAP, std::pmr::memory_resource *mr)
 {
+    cmunique_xm_argcheck(MAP);
     if (MAP.dims().cols() != 3 || MAP.dims().is3D())
         throw Error("cmunique: MAP must be N×3",
                     0, 0, "cmunique", "", "numkit:cmunique:map");
@@ -451,6 +544,7 @@ cmunique_xm(const Value &X, const Value &MAP, std::pmr::memory_resource *mr)
 std::pair<Value, Value>
 cmunique_rgb(const Value &RGB, std::pmr::memory_resource *mr)
 {
+    cmunique_rgb_argcheck(RGB);
     if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
         throw Error("cmunique: RGB must be H×W×3",
                     0, 0, "cmunique", "", "numkit:cmunique:rgb");
@@ -472,6 +566,7 @@ cmunique_rgb(const Value &RGB, std::pmr::memory_resource *mr)
 std::pair<Value, Value>
 cmunique_i(const Value &I, std::pmr::memory_resource *mr)
 {
+    cmunique_i_argcheck(I);
     if (I.dims().ndims() > 2)
         throw Error("cmunique: I must be a 2-D intensity image",
                     0, 0, "cmunique", "", "numkit:cmunique:i");
@@ -524,6 +619,7 @@ cmunique_i(const Value &I, std::pmr::memory_resource *mr)
 Value ycbcr2rgbwide(const Value &YCBCR, int bits_per_sample,
                     std::pmr::memory_resource *mr)
 {
+    ycbcr2rgbwide_argcheck(YCBCR, bits_per_sample);
     if (bits_per_sample != 10 && bits_per_sample != 12)
         throw Error("ycbcr2rgbwide: BPS must be 10 or 12",
                     0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:bps");
@@ -692,6 +788,44 @@ inline double hlg_lin2rgb(double v)
     return a * std::log(12.0 * v - b) + c;
 }
 
+void rgbwide2xyz_argcheck(const Value &RGB, int bits_per_sample,
+                          const std::string &color_space)
+{
+    std::string cs_lo;
+    for (char ch : color_space)
+        cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    bool is_bt2020 = (cs_lo == "bt.2020" || cs_lo == "bt2020");
+    bool is_bt2100 = (cs_lo == "bt.2100" || cs_lo == "bt2100");
+    if (!is_bt2020 && !is_bt2100)
+        throw Error("rgbwide2xyz: ColorSpace must be 'BT.2020' or 'BT.2100'",
+                    0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:cs");
+    (void)(is_bt2020 ? bt2020_params(bits_per_sample)
+                     : bt2100_params(bits_per_sample));
+    const auto &d = RGB.dims();
+    if (d.is3D() && d.pages() != 3)
+        throw Error("rgbwide2xyz: RGB must be Nx3 or HxWx3",
+                    0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:shape");
+}
+
+void xyz2rgbwide_argcheck(const Value &XYZ, int bits_per_sample,
+                          const std::string &color_space)
+{
+    std::string cs_lo;
+    for (char ch : color_space)
+        cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    bool is_bt2020 = (cs_lo == "bt.2020" || cs_lo == "bt2020");
+    bool is_bt2100 = (cs_lo == "bt.2100" || cs_lo == "bt2100");
+    if (!is_bt2020 && !is_bt2100)
+        throw Error("xyz2rgbwide: ColorSpace must be 'BT.2020' or 'BT.2100'",
+                    0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:cs");
+    (void)(is_bt2020 ? bt2020_params(bits_per_sample)
+                     : bt2100_params(bits_per_sample));
+    const auto &d = XYZ.dims();
+    if (d.is3D() && d.pages() != 3)
+        throw Error("xyz2rgbwide: XYZ must be Nx3 or HxWx3",
+                    0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:shape");
+}
+
 }  // namespace
 
 Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
@@ -699,6 +833,7 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
                   const std::string &linearization,
                   std::pmr::memory_resource *mr)
 {
+    rgbwide2xyz_argcheck(RGB, bits_per_sample, color_space);
     std::string cs_lo;
     for (char ch : color_space)
         cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -786,6 +921,7 @@ Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
                   const std::string &linearization,
                   std::pmr::memory_resource *mr)
 {
+    xyz2rgbwide_argcheck(XYZ, bits_per_sample, color_space);
     std::string cs_lo;
     for (char ch : color_space)
         cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -1035,6 +1171,53 @@ void make_similar(Value &A, Value &B, const std::string &scaling,
     }
 }
 
+void imfuse_argcheck(const std::string &method, const std::string &scaling,
+                     const Value &channels)
+{
+    static const std::array<const char *, 5> methods{
+        "falsecolor", "blend", "diff", "checkerboard", "montage"};
+    bool method_ok = false;
+    for (auto m : methods) if (method == m) { method_ok = true; break; }
+    if (!method_ok)
+        throw Error("imfuse: unknown METHOD '" + method
+                  + "' (allowed: falsecolor / blend / diff / "
+                    "checkerboard / montage)",
+                    0, 0, "imfuse", "", "numkit:imfuse:method");
+    if (scaling != "independent" && scaling != "joint" && scaling != "none")
+        throw Error("imfuse: unknown SCALING '" + scaling + "'",
+                    0, 0, "imfuse", "", "numkit:imfuse:scaling");
+    if (method == "falsecolor" && channels.numel() == 3) {
+        for (int k = 0; k < 3; ++k) {
+            const double v = channels.elemAsDouble(k);
+            if (v != 0.0 && v != 1.0 && v != 2.0)
+                throw Error("imfuse: ColorChannels values must be 0, 1, or 2",
+                            0, 0, "imfuse", "", "numkit:imfuse:channels");
+        }
+    }
+}
+
+void tonemap_argcheck(const Value &HDR, double lremap_lo, double lremap_hi,
+                      double saturation, int ntilesR, int ntilesC)
+{
+    internal::requireImageClass(HDR, "tonemap", "HDR", 1,
+                                internal::ImgClasses::FloatOnly);
+    if (!(lremap_lo >= 0.0 && lremap_lo <= 1.0
+       && lremap_hi >= 0.0 && lremap_hi <= 1.0
+       && lremap_lo < lremap_hi))
+        throw Error("tonemap: AdjustLightness must satisfy "
+                    "0 <= lo < hi <= 1",
+                    0, 0, "tonemap", "", "numkit:tonemap:adjust");
+    if (!(saturation >= 0))
+        throw Error("tonemap: AdjustSaturation must be non-negative",
+                    0, 0, "tonemap", "", "numkit:tonemap:sat");
+    if (ntilesR < 2 || ntilesC < 2)
+        throw Error("tonemap: NumberOfTiles values must be >= 2",
+                    0, 0, "tonemap", "", "numkit:tonemap:tiles");
+    if (HDR.dims().is3D() && HDR.dims().pages() != 3)
+        throw Error("tonemap: HDR must be H×W or H×W×3",
+                    0, 0, "tonemap", "", "numkit:tonemap:shape");
+}
+
 } // anonymous (imfuse helpers)
 
 Value imfuse(const Value &Ain, const Value &Bin,
@@ -1043,6 +1226,7 @@ Value imfuse(const Value &Ain, const Value &Bin,
              const Value &channels,
              std::pmr::memory_resource *mr)
 {
+    imfuse_argcheck(method, scaling, channels);
     static const std::array<const char *, 5> methods{
         "falsecolor", "blend", "diff", "checkerboard", "montage"};
     bool method_ok = false;
@@ -1229,6 +1413,7 @@ Value tonemap(const Value &HDR,
               int ntilesR, int ntilesC,
               std::pmr::memory_resource *mr)
 {
+    tonemap_argcheck(HDR, lremap_lo, lremap_hi, saturation, ntilesR, ntilesC);
     internal::requireImageClass(HDR, "tonemap", "HDR", 1,
                                 internal::ImgClasses::FloatOnly);
     // Single HDR: compute on the double copy (ref gives identical
@@ -1944,6 +2129,39 @@ bool parseColorSpec(const std::string &name, double rgb[3])
 
 // [Phase 2b] end of promoted colormap/label2rgb cluster
 
+namespace {
+
+void labeloverlay_argcheck(const Value &A_in, const Value &L_in,
+                           double transparency)
+{
+    const auto &dA = A_in.dims();
+    const std::size_t H = dA.rows();
+    const std::size_t W = dA.cols();
+    if (H == 0 || W == 0)
+        throw Error("labeloverlay: A must be nonempty",
+                    0, 0, "labeloverlay", "", "numkit:labeloverlay:emptyA");
+    const bool isRGB = dA.is3D() && dA.pages() == 3;
+    const bool isGray = !dA.is3D() || (dA.is3D() && dA.pages() == 1);
+    if (!isRGB && !isGray)
+        throw Error("labeloverlay: A must be grayscale (H×W) or RGB (H×W×3)",
+                    0, 0, "labeloverlay", "", "numkit:labeloverlay:shapeA");
+
+    const auto &dL = L_in.dims();
+    if (dL.is3D() && dL.pages() != 1)
+        throw Error("labeloverlay: L must be 2-D",
+                    0, 0, "labeloverlay", "", "numkit:labeloverlay:shapeL");
+    if (dL.rows() != H || dL.cols() != W)
+        throw Error("labeloverlay: size(L) must match size(A,1:2)",
+                    0, 0, "labeloverlay", "", "numkit:labeloverlay:sizeMismatch");
+
+    if (!std::isfinite(transparency) || transparency < 0 || transparency > 1)
+        throw Error("labeloverlay: Transparency must be in [0, 1]",
+                    0, 0, "labeloverlay", "",
+                    "numkit:labeloverlay:transparency");
+}
+
+} // anonymous
+
 Value labeloverlay(const Value &A_in, const Value &L_in,
                    const Value &colormap,
                    const std::string &color_assignment,
@@ -1951,6 +2169,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
                    double transparency,
                    std::pmr::memory_resource *mr)
 {
+    labeloverlay_argcheck(A_in, L_in, transparency);
     // ── Validate A ────────────────────────────────────────────────
     const auto &dA = A_in.dims();
     const std::size_t H = dA.rows();

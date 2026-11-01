@@ -25,9 +25,7 @@ inline double elem_as_double(const Value &v, std::size_t i)
     return v.elemAsDouble(i);
 }
 
-} // anonymous namespace
-
-Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLow, double gHigh, bool symmetric, std::pmr::memory_resource *mr)
+void graycomatrix_argcheck(const Value &I, int numLevels, double gLow, double gHigh)
 {
     if (numLevels < 2)
         throw Error("graycomatrix: NumLevels must be >= 2",
@@ -37,12 +35,29 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLo
     if (d.is3D())
         throw Error("graycomatrix: 2-D grayscale input only",
                     0, 0, "graycomatrix", "", "numkit:graycomatrix:unsupportedShape");
-    const std::size_t R = d.rows();
-    const std::size_t C = d.cols();
 
     if (gLow >= gHigh)
         throw Error("graycomatrix: GrayLimits[1] must exceed GrayLimits[0]",
                     0, 0, "graycomatrix", "", "numkit:graycomatrix:badLimits");
+}
+
+void graycoprops_argcheck(const Value &G)
+{
+    const auto &d = G.dims();
+    if (d.rows() != d.cols() || d.rows() == 0)
+        throw Error("graycoprops: GLCM must be square and non-empty",
+                    0, 0, "graycoprops", "", "numkit:graycoprops:badShape");
+}
+
+} // anonymous namespace
+
+Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLow, double gHigh, bool symmetric, std::pmr::memory_resource *mr)
+{
+    graycomatrix_argcheck(I, numLevels, gLow, gHigh);
+
+    const auto &d = I.dims();
+    const std::size_t R = d.rows();
+    const std::size_t C = d.cols();
 
     // Pre-quantise the image into level indices in [0, numLevels-1].
     // MATLAB clamps out-of-range to the closest end-bin.
@@ -91,10 +106,8 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLo
 
 Value graycoprops(const Value &G, std::pmr::memory_resource *mr)
 {
+    graycoprops_argcheck(G);
     const auto &d = G.dims();
-    if (d.rows() != d.cols() || d.rows() == 0)
-        throw Error("graycoprops: GLCM must be square and non-empty",
-                    0, 0, "graycoprops", "", "numkit:graycoprops:badShape");
     const std::size_t L = d.rows();
 
     // Normalise to a joint probability.

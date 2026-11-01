@@ -72,6 +72,136 @@ inline void store_classed(Value &out, size_t i, double v, ValueType t) {
     }
 }
 
+void stretchlim_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "stretchlim", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    internal::requireNonemptyImage(I, "stretchlim", "I", 1);
+}
+
+void imadjust_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "imadjust", "I", 1,
+                                internal::ImgClasses::FloatInt);
+}
+
+void adapthisteq_argcheck(const Value &I, const AdaptHistEqOptions &opts)
+{
+    if (opts.numTilesR < 2 || opts.numTilesC < 2)
+        throw Error("adapthisteq: NumTiles must be >= 2 in each dimension",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badTiles");
+    if (!(opts.clipLimit >= 0.0 && opts.clipLimit <= 1.0))
+        throw Error("adapthisteq: ClipLimit must be in [0, 1]",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badClip");
+    if (opts.nBins < 2)
+        throw Error("adapthisteq: NBins must be >= 2",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badBins");
+    if (opts.distribution != "uniform" && opts.distribution != "rayleigh" &&
+        opts.distribution != "exponential")
+        throw Error("adapthisteq: Distribution must be 'uniform', "
+                    "'rayleigh' or 'exponential'",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badDistribution");
+    if (opts.range != "full" && opts.range != "original")
+        throw Error("adapthisteq: Range must be 'full' or 'original'",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:badRange");
+
+    const Dims &d = I.dims();
+    if (d.ndim() > 2 || (d.ndim() == 3 && d.pages() > 1))
+        throw Error("adapthisteq: input must be a 2-D greyscale image",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
+    if (I.isComplex() || I.isCell() || I.isStruct() ||
+        I.isString() || I.isFuncHandle())
+        throw Error("adapthisteq: input must be a real numeric image",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
+    if (d.rows() == 0 || d.cols() == 0)
+        throw Error("adapthisteq: input image is empty",
+                    0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
+}
+
+void graythresh_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "graythresh", "I", 1,
+                                internal::ImgClasses::FloatInt);
+}
+
+void multithresh_argcheck(int N)
+{
+    if (N > 5)
+        throw Error("multithresh: N > 5 not supported (exhaustive search would be too slow)",
+                    0, 0, "multithresh", "", "numkit:multithresh:tooMany");
+}
+
+void imbinarize_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "imbinarize", "I", 1,
+                                internal::ImgClasses::FloatInt);
+}
+
+void imbinarize_argcheck(const Value &I, const Value &T)
+{
+    internal::requireImageClass(I, "imbinarize", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (T.numel() != I.numel())
+        throw Error("imbinarize: per-pixel T must have the same number "
+                    "of elements as I",
+                    0, 0, "imbinarize", "", "numkit:imbinarize:Tshape");
+}
+
+void imquantize_argcheck(const Value &I, const Value &levels)
+{
+    internal::requireImageClass(I, "imquantize", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    internal::requireImageClass(levels, "imquantize", "levels", 2,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void adaptthresh_argcheck(const Value &I, double sensitivity,
+                          const std::string &statistic)
+{
+    internal::requireImageClass(I, "adaptthresh", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (!(sensitivity >= 0.0 && sensitivity <= 1.0))
+        throw Error("adaptthresh: sensitivity must be in [0, 1]",
+                    0, 0, "adaptthresh", "", "numkit:adaptthresh:sens");
+    const std::string s = statistic.empty() ? std::string("mean")
+                                            : statistic;
+    if (s != "mean" && s != "Mean" && s != "MEAN" &&
+        s != "gaussian" && s != "Gaussian" && s != "GAUSSIAN")
+        throw Error("adaptthresh: statistic must be 'mean' or 'gaussian'",
+                    0, 0, "adaptthresh", "", "numkit:adaptthresh:stat");
+}
+
+void imflatfield_argcheck(const Value &I, const Value &mask)
+{
+    const auto &d = I.dims();
+    const size_t H = d.rows();
+    const size_t W = d.cols();
+    if (mask.numel() > 0 && (mask.dims().rows() != H || mask.dims().cols() != W))
+        throw Error("imflatfield: mask must match spatial dims of I",
+                    0, 0, "imflatfield", "", "numkit:imflatfield:masksize");
+}
+
+void wcodemat_argcheck(int nb, const std::string &opt)
+{
+    if (nb < 1)
+        throw Error("wcodemat: NB must be a positive integer",
+                    0, 0, "wcodemat", "", "numkit:wcodemat:nb");
+    std::string lo;
+    lo.reserve(opt.size());
+    for (char c : opt) lo.push_back(static_cast<char>(std::tolower(c)));
+    if (lo.empty()) lo = "mat";
+    if (lo != "mat" && lo != "row" && lo != "col")
+        throw Error("wcodemat: opt must be 'mat', 'row', or 'col'",
+                    0, 0, "wcodemat", "", "numkit:wcodemat:opt");
+}
+
+void grayslice_argcheck(int N)
+{
+    if (N < 1)
+        throw Error("grayslice: N must be a positive integer",
+                    0, 0, "grayslice", "", "numkit:grayslice:n");
+}
+
 } // anonymous
 
 std::tuple<Value, Value>
@@ -115,6 +245,7 @@ imhist(const Value &I, int n, std::pmr::memory_resource *mr)
 
 Value stretchlim(const Value &I, double low_tol, double high_tol, std::pmr::memory_resource *mr)
 {
+    stretchlim_argcheck(I);
     internal::requireImageClass(I, "stretchlim", "I", 1,
                                 internal::ImgClasses::FloatInt);
     internal::requireNonemptyImage(I, "stretchlim", "I", 1);
@@ -178,6 +309,7 @@ Value stretchlim(const Value &I, double low_tol, double high_tol, std::pmr::memo
 
 Value imadjust(const Value &I, double low_in, double high_in, double low_out, double high_out, double gamma, std::pmr::memory_resource *mr)
 {
+    imadjust_argcheck(I);
     internal::requireImageClass(I, "imadjust", "I", 1,
                                 internal::ImgClasses::FloatInt);
     // Auto-fill missing endpoints via stretchlim defaults.
@@ -378,6 +510,7 @@ static double mapProbability(double p, int dist, double alpha,
 Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
                   std::pmr::memory_resource *mr)
 {
+    adapthisteq_argcheck(I, opts);
     // ---- 1. validate options ------------------------------------
     if (opts.numTilesR < 2 || opts.numTilesC < 2)
         throw Error("adapthisteq: NumTiles must be >= 2 in each dimension",
@@ -700,6 +833,7 @@ otsuthresh(const Value &counts_v, std::pmr::memory_resource *mr) {
 
 std::tuple<Value, Value>
 graythresh(const Value &I, std::pmr::memory_resource *mr) {
+    graythresh_argcheck(I);
     // Probed R2025b: the standard imadjust/imbinarize family class set
     // (logical rejected; the default-threshold imbinarize path routes
     // through here BEFORE imbinarize's own gate can voice).
@@ -715,6 +849,7 @@ graythresh(const Value &I, std::pmr::memory_resource *mr) {
 
 std::tuple<Value, Value>
 multithresh(const Value &I, int N, std::pmr::memory_resource *mr) {
+    multithresh_argcheck(N);
     if (N < 1) N = 1;
     if (N > 5)
         throw Error("multithresh: N > 5 not supported (exhaustive search would be too slow)",
@@ -909,6 +1044,7 @@ multithresh(const Value &I, int N, std::pmr::memory_resource *mr) {
 }
 
 Value imbinarize(const Value &I, double thresh, std::pmr::memory_resource *mr) {
+    imbinarize_argcheck(I);
     internal::requireImageClass(I, "imbinarize", "I", 1,
                                 internal::ImgClasses::FloatInt);
     const size_t N = I.numel();
@@ -932,6 +1068,7 @@ Value imbinarize(const Value &I, double thresh, std::pmr::memory_resource *mr) {
 // values are directly comparable. Composes with `adaptthresh`.
 Value imbinarize(const Value &I, const Value &T, std::pmr::memory_resource *mr)
 {
+    imbinarize_argcheck(I, T);
     internal::requireImageClass(I, "imbinarize", "I", 1,
                                 internal::ImgClasses::FloatInt);
     if (T.numel() != I.numel())
@@ -956,6 +1093,7 @@ Value imbinarize(const Value &I, const Value &T, std::pmr::memory_resource *mr)
 }
 
 Value imquantize(const Value &I, const Value &levels, std::pmr::memory_resource *mr) {
+    imquantize_argcheck(I, levels);
     internal::requireImageClass(I, "imquantize", "I", 1,
                                 internal::ImgClasses::FloatInt);
     internal::requireImageClass(levels, "imquantize", "levels", 2,
@@ -1114,6 +1252,7 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
 
 Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const std::string &statistic, std::pmr::memory_resource *mr)
 {
+    adaptthresh_argcheck(I, sensitivity, statistic);
     internal::requireImageClass(I, "adaptthresh", "I", 1,
                                 internal::ImgClasses::FloatInt);
     if (!(sensitivity >= 0.0 && sensitivity <= 1.0))
@@ -1190,6 +1329,7 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const st
 
 Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::memory_resource *mr)
 {
+    imflatfield_argcheck(I, mask);
     const ValueType classin = I.type();
     const auto &d = I.dims();
     const size_t H = d.rows();
@@ -1276,6 +1416,7 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::mem
 
 Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, std::pmr::memory_resource *mr)
 {
+    wcodemat_argcheck(nb, opt);
     if (nb < 1)
         throw Error("wcodemat: NB must be a positive integer",
                     0, 0, "wcodemat", "", "numkit:wcodemat:nb");
@@ -1417,6 +1558,7 @@ Value graysliceQuantize(const Value &I, const std::vector<double> &thresh,
 
 Value grayslice(const Value &I, int N, std::pmr::memory_resource *mr)
 {
+    grayslice_argcheck(N);
     if (N < 1)
         throw Error("grayslice: N must be a positive integer",
                     0, 0, "grayslice", "", "numkit:grayslice:n");

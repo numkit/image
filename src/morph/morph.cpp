@@ -189,10 +189,24 @@ Value strel_line(double len, double theta_deg, std::pmr::memory_resource *mr) {
     return pack_logical(m, H, W, mr);
 }
 
+void strel_argcheck(const std::string &shape, const Value &arbitrary_nhood)
+{
+    if (shape == "arbitrary" || shape.empty()) {
+        if (arbitrary_nhood.numel() == 0)
+            throw Error("strel('arbitrary', NHOOD): NHOOD missing",
+                        0, 0, "strel", "", "numkit:strel:nargin");
+    } else if (shape != "square" && shape != "rectangle" &&
+               shape != "diamond" && shape != "disk" && shape != "line") {
+        throw Error("strel: unknown shape '" + shape + "'", 0, 0, "strel", "",
+                    "numkit:strel:badshape");
+    }
+}
+
 } // anonymous
 
 Value strel(const std::string &shape, const std::vector<double> &params, const Value &arbitrary_nhood, std::pmr::memory_resource *mr)
 {
+    strel_argcheck(shape, arbitrary_nhood);
     // Compute the raw logical neighbourhood, then wrap it in a 1x1
     // struct with fields {Neighborhood, Dimensionality} matching
     // MATLAB's strel-object exposed properties. unpack_se() (used by
@@ -217,10 +231,7 @@ Value strel(const std::string &shape, const std::vector<double> &params, const V
         const double len = params.size() >= 1 ? params[0] : 3.0;
         const double th  = params.size() >= 2 ? params[1] : 0.0;
         nhood = strel_line(len, th, mr);
-    } else if (shape == "arbitrary" || shape.empty()) {
-        if (arbitrary_nhood.numel() == 0)
-            throw Error("strel('arbitrary', NHOOD): NHOOD missing",
-                        0, 0, "strel", "", "numkit:strel:nargin");
+    } else {
         const auto &d = arbitrary_nhood.dims();
         const int H = (int)d.rows();
         const int W = (int)d.cols();
@@ -231,9 +242,6 @@ Value strel(const std::string &shape, const std::vector<double> &params, const V
                 m[(size_t)r * (size_t)W + (size_t)c] = (v != 0.0) ? 1 : 0;
             }
         nhood = pack_logical(m, H, W, mr);
-    } else {
-        throw Error("strel: unknown shape '" + shape + "'", 0, 0, "strel", "",
-                    "numkit:strel:badshape");
     }
 
     auto se = Value::structArray(1, 1, mr);
@@ -565,6 +573,76 @@ Value morph_op(const Value &I, const Value &SE, std::pmr::memory_resource *mr)
     return out;
 }
 
+void imreconstruct_argcheck(const Value &marker, const Value &mask)
+{
+    internal::requireImageClass(marker, "imreconstruct", "marker", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    internal::requireImageClass(mask, "imreconstruct", "mask", 2,
+                                internal::ImgClasses::AnyNumericReal);
+    if (marker.type() != mask.type())
+        throw Error("imreconstruct: marker and mask must have the same "
+                        "class (got "
+                        + std::string(mtypeName(marker.type())) + " and "
+                        + std::string(mtypeName(mask.type())) + ").",
+                    0, 0, "imreconstruct", "",
+                    "numkit:imreconstruct:notSameClass");
+    if (mask.dims().rows() != marker.dims().rows()
+        || mask.dims().cols() != marker.dims().cols())
+        throw Error("imreconstruct: marker and mask must have the same shape",
+                    0, 0, "imreconstruct", "", "numkit:imreconstruct:shape");
+}
+
+void imfill_holes_argcheck(const Value &BW)
+{
+    internal::requireImageClass(BW, "imfill", "BW", 1,
+                                internal::ImgClasses::FloatIntLog);
+}
+
+void imregionalmax_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "imregionalmax", "I", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void imregionalmin_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "imregionalmin", "I", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void imhmax_argcheck(const Value &I, double h)
+{
+    internal::requireImageClass(I, "imhmax", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (!(h >= 0.0))
+        throw Error("imhmax: h must be ≥ 0",
+                    0, 0, "imhmax", "", "numkit:imhmax:h");
+}
+
+void imhmin_argcheck(const Value &I, double h)
+{
+    internal::requireImageClass(I, "imhmin", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (!(h >= 0.0))
+        throw Error("imhmin: h must be ≥ 0",
+                    0, 0, "imhmin", "", "numkit:imhmin:h");
+}
+
+void imimposemin_argcheck(const Value &I, const Value &BW)
+{
+    internal::requireImageClass(I, "imimposemin", "I", 1,
+                                internal::ImgClasses::FloatInt);
+    if (BW.dims().rows() != I.dims().rows() || BW.dims().cols() != I.dims().cols())
+        throw Error("imimposemin: I and BW must have the same shape",
+                    0, 0, "imimposemin", "", "numkit:imimposemin:shape");
+}
+
+void imclearborder_argcheck(const Value &BW)
+{
+    internal::requireImageClass(BW, "imclearborder", "BW", 1,
+                                internal::ImgClasses::FloatIntLog);
+}
+
 } // anonymous
 
 Value imerode(const Value &I, const Value &SE, std::pmr::memory_resource *mr) {
@@ -598,25 +676,10 @@ Value imclose(const Value &I, const Value &SE, std::pmr::memory_resource *mr) {
 
 Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(marker, "imreconstruct", "marker", 1,
-                                internal::ImgClasses::AnyNumericReal);
-    internal::requireImageClass(mask, "imreconstruct", "mask", 2,
-                                internal::ImgClasses::AnyNumericReal);
-    // The reference requires marker and mask of the SAME class (probed:
-    // double marker + logical mask dies with notSameClass).
-    if (marker.type() != mask.type())
-        throw Error("imreconstruct: marker and mask must have the same "
-                        "class (got "
-                        + std::string(mtypeName(marker.type())) + " and "
-                        + std::string(mtypeName(mask.type())) + ").",
-                    0, 0, "imreconstruct", "",
-                    "numkit:imreconstruct:notSameClass");
+    imreconstruct_argcheck(marker, mask);
     if (conn != 4) conn = 8;
     const size_t H = marker.dims().rows();
     const size_t W = marker.dims().cols();
-    if (mask.dims().rows() != H || mask.dims().cols() != W)
-        throw Error("imreconstruct: marker and mask must have the same shape",
-                    0, 0, "imreconstruct", "", "numkit:imreconstruct:shape");
 
     const size_t N = marker.numel();
     const ValueType srcT = marker.type();
@@ -742,8 +805,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::
 
 Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "imfill", "BW", 1,
-                                internal::ImgClasses::FloatIntLog);
+    imfill_holes_argcheck(BW);
     if (conn != 4) conn = 8;
     const size_t H = BW.dims().rows();
     const size_t W = BW.dims().cols();
@@ -829,8 +891,7 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
 
 Value imregionalmax(const Value &I, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imregionalmax", "I", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    imregionalmax_argcheck(I);
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
     const size_t N = I.numel();
@@ -877,8 +938,7 @@ Value imregionalmax(const Value &I, int conn, std::pmr::memory_resource *mr)
 
 Value imregionalmin(const Value &I, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imregionalmin", "I", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    imregionalmin_argcheck(I);
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
     const size_t N = I.numel();
@@ -912,11 +972,7 @@ Value imregionalmin(const Value &I, int conn, std::pmr::memory_resource *mr)
 
 Value imhmax(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imhmax", "I", 1,
-                                internal::ImgClasses::FloatInt);
-    if (!(h >= 0.0))
-        throw Error("imhmax: h must be ≥ 0",
-                    0, 0, "imhmax", "", "numkit:imhmax:h");
+    imhmax_argcheck(I, h);
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
     const size_t N = I.numel();
@@ -939,11 +995,7 @@ Value imhmax(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
 
 Value imhmin(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imhmin", "I", 1,
-                                internal::ImgClasses::FloatInt);
-    if (!(h >= 0.0))
-        throw Error("imhmin: h must be ≥ 0",
-                    0, 0, "imhmin", "", "numkit:imhmin:h");
+    imhmin_argcheck(I, h);
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
     const size_t N = I.numel();
@@ -1015,14 +1067,10 @@ Value imextendedmin(const Value &I, double h, int conn, std::pmr::memory_resourc
 
 Value imimposemin(const Value &I, const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(I, "imimposemin", "I", 1,
-                                internal::ImgClasses::FloatInt);
+    imimposemin_argcheck(I, BW);
     const size_t H = I.dims().rows();
     const size_t W = I.dims().cols();
     const size_t N = I.numel();
-    if (BW.dims().rows() != H || BW.dims().cols() != W)
-        throw Error("imimposemin: I and BW must have the same shape",
-                    0, 0, "imimposemin", "", "numkit:imimposemin:shape");
     if (N == 0) return Value::matrix(H, W, I.type(), mr);
 
     // Per-class lift step h.
@@ -1095,8 +1143,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn, std::pmr::memory_re
 
 Value imclearborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "imclearborder", "BW", 1,
-                                internal::ImgClasses::FloatIntLog);
+    imclearborder_argcheck(BW);
     if (BW.type() != ValueType::LOGICAL)
         return internal::maskImageByLogical(
             BW,
@@ -1157,6 +1204,84 @@ Value tophat_subtract(const Value &lhs, const Value &rhs, std::pmr::memory_resou
     return out;
 }
 
+void mmgradm_argcheck(const Value &I)
+{
+    internal::requireImageClass(I, "mmgradm", "I", 1,
+                                internal::ImgClasses::FloatIntLog);
+}
+
+void bwpack_argcheck(const Value &BW)
+{
+    internal::requireImageClass(BW, "bwpack", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void bwunpack_argcheck(const Value &BWP, size_t &M)
+{
+    internal::requireUint32Packed(BWP, "bwunpack");
+    constexpr size_t CLASS_BITS = 32;
+    const size_t pH = BWP.dims().rows();
+    if (M == static_cast<size_t>(-1)) M = pH * CLASS_BITS;
+    if (M > pH * CLASS_BITS)
+        throw Error("bwunpack: M exceeds packed-row capacity",
+                    0, 0, "bwunpack", "", "numkit:bwunpack:M");
+}
+
+void applylut_argcheck(const Value &BW, const Value &LUT, size_t &lutLen, size_t &nq, size_t &n)
+{
+    internal::requireImageClass(BW, "applylut", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    lutLen = LUT.numel();
+    if (lutLen == 0)
+        throw Error("applylut: LUT must be non-empty",
+                    0, 0, "applylut", "", "numkit:applylut:lutsize");
+    nq = 0;
+    while ((size_t{1} << nq) < lutLen) ++nq;
+    if ((size_t{1} << nq) != lutLen)
+        throw Error("applylut: LUT length must be 2^(n*n)",
+                    0, 0, "applylut", "", "numkit:applylut:lutsize");
+    n = static_cast<size_t>(std::round(std::sqrt((double)nq)));
+    if (n * n != nq)
+        throw Error("applylut: LUT length not 2^(n*n) for any integer n",
+                    0, 0, "applylut", "", "numkit:applylut:lutshape");
+}
+
+void bwlookup_argcheck(const Value &lut)
+{
+    const size_t n = lut.numel();
+    if (n != 16 && n != 512)
+        throw Error("bwlookup: Expected LUT (argument 2) to have 16 or 512 elements.",
+                    0, 0, "bwlookup", "", "numkit:bwlookup:lutsize");
+}
+
+void bwmorph3_argcheck(const Value &V, const std::string &op, int &opIdx)
+{
+    if      (op == "branchpoints") opIdx = 0;
+    else if (op == "clean")        opIdx = 1;
+    else if (op == "endpoints")    opIdx = 2;
+    else if (op == "fill")         opIdx = 3;
+    else if (op == "majority")     opIdx = 4;
+    else if (op == "remove")       opIdx = 5;
+    else throw Error("bwmorph3: unknown operation '" + op + "'",
+                     0, 0, "bwmorph3", "", "numkit:bwmorph3:badOp");
+
+    if (V.dims().ndim() > 3)
+        throw Error("bwmorph3: input must be a 2-D or 3-D array",
+                    0, 0, "bwmorph3", "", "numkit:bwmorph3:rank");
+}
+
+void bwhitmiss_argcheck(const Value &BW)
+{
+    internal::requireImageClass(BW, "bwhitmiss", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void imkeepborder_argcheck(const Value &BW)
+{
+    internal::requireImageClass(BW, "imkeepborder", "BW", 1,
+                                internal::ImgClasses::FloatIntLog);
+}
+
 } // anonymous
 
 Value imtophat(const Value &I, const Value &SE, std::pmr::memory_resource *mr)
@@ -1176,8 +1301,7 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, std::pmr
 {
     // mmgradm is reference-absent (Octave image package API) — the
     // nk-defined contract takes the standard grayscale class set.
-    internal::requireImageClass(I, "mmgradm", "I", 1,
-                                internal::ImgClasses::FloatIntLog);
+    mmgradm_argcheck(I);
     const bool dilEmpty = se_dil.numel() == 0;
     const bool eroEmpty = se_ero.numel() == 0;
     Value dilated = dilEmpty ? Value{} : imdilate(I, se_dil, mr);
@@ -1250,8 +1374,7 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, std::pmr
 
 Value bwpack(const Value &BW, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwpack", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    bwpack_argcheck(BW);
     constexpr size_t CLASS_BITS = 32;
     const size_t H = BW.dims().rows();
     const size_t W = BW.dims().cols();
@@ -1277,16 +1400,10 @@ Value bwpack(const Value &BW, std::pmr::memory_resource *mr)
 
 Value bwunpack(const Value &BWP, size_t M, std::pmr::memory_resource *mr)
 {
-    // Probed R2025b: even a logical BWP is rejected — packed data is
-    // uint32, full stop.
-    internal::requireUint32Packed(BWP, "bwunpack");
+    bwunpack_argcheck(BWP, M);
     constexpr size_t CLASS_BITS = 32;
     const size_t pH = BWP.dims().rows();
     const size_t W  = BWP.dims().cols();
-    if (M == static_cast<size_t>(-1)) M = pH * CLASS_BITS;
-    if (M > pH * CLASS_BITS)
-        throw Error("bwunpack: M exceeds packed-row capacity",
-                    0, 0, "bwunpack", "", "numkit:bwunpack:M");
 
     Value out = Value::matrix(M, W, ValueType::LOGICAL, mr);
     if (M == 0 || W == 0) return out;
@@ -1306,22 +1423,8 @@ Value bwunpack(const Value &BWP, size_t M, std::pmr::memory_resource *mr)
 
 Value applylut(const Value &BW, const Value &LUT, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "applylut", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
-    const size_t lutLen = LUT.numel();
-    if (lutLen == 0)
-        throw Error("applylut: LUT must be non-empty",
-                    0, 0, "applylut", "", "numkit:applylut:lutsize");
-    // Need lutLen == 2^(n*n) for some integer n.
-    size_t nq = 0;
-    while ((size_t{1} << nq) < lutLen) ++nq;
-    if ((size_t{1} << nq) != lutLen)
-        throw Error("applylut: LUT length must be 2^(n*n)",
-                    0, 0, "applylut", "", "numkit:applylut:lutsize");
-    const size_t n = static_cast<size_t>(std::round(std::sqrt((double)nq)));
-    if (n * n != nq)
-        throw Error("applylut: LUT length not 2^(n*n) for any integer n",
-                    0, 0, "applylut", "", "numkit:applylut:lutshape");
+    size_t lutLen = 0, nq = 0, n = 0;
+    applylut_argcheck(BW, LUT, lutLen, nq, n);
 
     const size_t H = BW.dims().rows();
     const size_t W = BW.dims().cols();
@@ -1379,10 +1482,7 @@ Value applylut(const Value &BW, const Value &LUT, std::pmr::memory_resource *mr)
 // element table sizes.
 Value bwlookup(const Value &BW, const Value &lut, std::pmr::memory_resource *mr)
 {
-    const size_t n = lut.numel();
-    if (n != 16 && n != 512)
-        throw Error("bwlookup: Expected LUT (argument 2) to have 16 or 512 elements.",
-                    0, 0, "bwlookup", "", "numkit:bwlookup:lutsize");
+    bwlookup_argcheck(lut);
     return applylut(BW, lut, mr);
 }
 
@@ -1400,20 +1500,12 @@ Value bwlookup(const Value &BW, const Value &lut, std::pmr::memory_resource *mr)
 //   remove       : centre set  AND  faces6 != 6  (strip interior voxels)
 Value bwmorph3(const Value &V, const std::string &op, std::pmr::memory_resource *mr)
 {
-    enum Op { BRANCH, CLEAN, ENDP, FILL, MAJORITY, REMOVE } o;
-    if      (op == "branchpoints") o = BRANCH;
-    else if (op == "clean")        o = CLEAN;
-    else if (op == "endpoints")    o = ENDP;
-    else if (op == "fill")         o = FILL;
-    else if (op == "majority")     o = MAJORITY;
-    else if (op == "remove")       o = REMOVE;
-    else throw Error("bwmorph3: unknown operation '" + op + "'",
-                     0, 0, "bwmorph3", "", "numkit:bwmorph3:badOp");
+    int opIdx = 0;
+    bwmorph3_argcheck(V, op, opIdx);
+    enum Op { BRANCH = 0, CLEAN = 1, ENDP = 2, FILL = 3, MAJORITY = 4, REMOVE = 5 };
+    const Op o = static_cast<Op>(opIdx);
 
     const auto &d = V.dims();
-    if (d.ndim() > 3)
-        throw Error("bwmorph3: input must be a 2-D or 3-D array",
-                    0, 0, "bwmorph3", "", "numkit:bwmorph3:rank");
     const int H = static_cast<int>(d.rows());
     const int W = static_cast<int>(d.cols());
     const int P = d.is3D() ? static_cast<int>(d.pages()) : 1;
@@ -1465,8 +1557,7 @@ Value bwmorph3(const Value &V, const std::string &op, std::pmr::memory_resource 
 
 Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwhitmiss", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    bwhitmiss_argcheck(BW);
     const size_t H = BW.dims().rows();
     const size_t W = BW.dims().cols();
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
@@ -1500,8 +1591,7 @@ Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2, std::pmr::m
 // so we just hand that through.
 Value imkeepborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "imkeepborder", "BW", 1,
-                                internal::ImgClasses::FloatIntLog);
+    imkeepborder_argcheck(BW);
     if (BW.type() != ValueType::LOGICAL)
         return internal::maskImageByLogical(
             BW,
@@ -1942,6 +2032,33 @@ bool runOnePass(const std::string &op, std::uint8_t *bw,
     return false;  // unknown operation
 }
 
+void bwmorph_argcheck(const Value &BW, const std::string &op)
+{
+    internal::requireImageClass(BW, "bwmorph", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    if (BW.dims().ndim() > 2 || BW.dims().is3D())
+        throw numkit::Error("bwmorph: input must be a 2-D binary image",
+                            0, 0, "bwmorph", "",
+                            "numkit:bwmorph:unsupportedShape");
+    static const char *const known[] = {
+        "dilate", "erode", "bridge", "clean", "diag", "endpoints",
+        "fatten", "fill", "hbreak", "majority", "perim4", "perim8",
+        "remove", "open", "close", "bothat", "tophat", "thin",
+        "skeleton", "skel", "shrink", "spur", "thicken",
+        "branchpoints"};
+    bool recognised = false;
+    for (const char *k : known) {
+        if (op == k) {
+            recognised = true;
+            break;
+        }
+    }
+    if (!recognised)
+        throw numkit::Error("bwmorph: unknown operation '" + op + "'",
+                            0, 0, "bwmorph", "",
+                            "numkit:bwmorph:badOp");
+}
+
 }  // anonymous namespace
 
 // ──────────────────────────────────────────────────────────────────
@@ -1950,13 +2067,7 @@ bool runOnePass(const std::string &op, std::uint8_t *bw,
 Value bwmorph(const Value &BW, const std::string &op, int n,
               std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwmorph", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
-    // 2-D input only — reject genuine 3-D volumes / higher-rank tensors.
-    if (BW.dims().ndim() > 2 || BW.dims().is3D())
-        throw numkit::Error("bwmorph: input must be a 2-D binary image",
-                            0, 0, "bwmorph", "",
-                            "numkit:bwmorph:unsupportedShape");
+    bwmorph_argcheck(BW, op);
 
     const std::size_t R = BW.dims().rows();
     const std::size_t C = BW.dims().cols();
@@ -1968,27 +2079,6 @@ Value bwmorph(const Value &BW, const std::string &op, int n,
     numkit::ScratchVec<std::uint8_t> bw(N, &arena);
     for (std::size_t i = 0; i < N; ++i)
         bw[i] = (BW.elemAsDouble(i) != 0.0) ? 1 : 0;
-
-    // Reject unknown ops up-front so an n == 0 call still validates.
-    {
-        static const char *const known[] = {
-            "dilate", "erode", "bridge", "clean", "diag", "endpoints",
-            "fatten", "fill", "hbreak", "majority", "perim4", "perim8",
-            "remove", "open", "close", "bothat", "tophat", "thin",
-            "skeleton", "skel", "shrink", "spur", "thicken",
-            "branchpoints"};
-        bool recognised = false;
-        for (const char *k : known) {
-            if (op == k) {
-                recognised = true;
-                break;
-            }
-        }
-        if (!recognised)
-            throw numkit::Error("bwmorph: unknown operation '" + op + "'",
-                                0, 0, "bwmorph", "",
-                                "numkit:bwmorph:badOp");
-    }
 
     auto emitLogical = [&](const std::uint8_t *buf) -> Value {
         Value out = Value::matrix(R, C, ValueType::LOGICAL, mr);
@@ -2078,16 +2168,13 @@ int name_to_dir4(const std::string &s) {
     return -1;
 }
 
-} // anonymous
-
-Value bwtraceboundary(const Value &BW, const Value &P,
-                      const std::string &fstep, int conn,
-                      std::size_t m, const std::string &dir,
-                      std::pmr::memory_resource *mr)
+void bwtraceboundary_argcheck(const Value &BW, const Value &P,
+                              const std::string &fstep, int conn,
+                              const std::string &dir,
+                              long &pr, long &pc, int &fidx)
 {
     internal::requireImageClass(BW, "bwtraceboundary", "BW", 1,
                                 internal::ImgClasses::AnyNumericReal);
-    // P must be real double (probed: uint8 P is rejected, complex too).
     internal::requireRealDoubleArg(P, "bwtraceboundary", "P", 2);
     if (BW.dims().is3D())
         throw Error("bwtraceboundary: BW must be 2-D",
@@ -2109,8 +2196,8 @@ Value bwtraceboundary(const Value &BW, const Value &P,
 
     const std::size_t M = BW.dims().rows();
     const std::size_t N = BW.dims().cols();
-    const long pr = static_cast<long>(P.elemAsDouble(0)) - 1;  // 0-based
-    const long pc = static_cast<long>(P.elemAsDouble(1)) - 1;
+    pr = static_cast<long>(P.elemAsDouble(0)) - 1;
+    pc = static_cast<long>(P.elemAsDouble(1)) - 1;
     if (pr < 0 || pc < 0
      || static_cast<std::size_t>(pr) >= M
      || static_cast<std::size_t>(pc) >= N)
@@ -2118,7 +2205,43 @@ Value bwtraceboundary(const Value &BW, const Value &P,
                     0, 0, "bwtraceboundary", "",
                     "numkit:bwtraceboundary:pbounds");
 
-    // Validate starting pixel is foreground.
+    const std::size_t k = static_cast<std::size_t>(pc) * M
+                        + static_cast<std::size_t>(pr);
+    const bool is_fg = BW.isLogical() ? (BW.logicalData()[k] != 0)
+                                      : (BW.elemAsDouble(k) != 0.0);
+    if (!is_fg)
+        throw Error("bwtraceboundary: P must be a foreground pixel",
+                    0, 0, "bwtraceboundary", "",
+                    "numkit:bwtraceboundary:pfg");
+
+    fidx = (conn == 8) ? name_to_dir8(fstep) : name_to_dir4(fstep);
+    if (fidx < 0)
+        throw Error("bwtraceboundary: invalid FSTEP for given CONN",
+                    0, 0, "bwtraceboundary", "",
+                    "numkit:bwtraceboundary:fstep");
+}
+
+void makelut_argcheck(int n)
+{
+    if (n != 2 && n != 3)
+        throw Error("makelut: N must be 2 or 3.",
+                    0, 0, "makelut", "", "numkit:makelut:badN");
+}
+
+} // anonymous
+
+Value bwtraceboundary(const Value &BW, const Value &P,
+                      const std::string &fstep, int conn,
+                      std::size_t m, const std::string &dir,
+                      std::pmr::memory_resource *mr)
+{
+    long pr = 0, pc = 0;
+    int fidx = 0;
+    bwtraceboundary_argcheck(BW, P, fstep, conn, dir, pr, pc, fidx);
+
+    const std::size_t M = BW.dims().rows();
+    const std::size_t N = BW.dims().cols();
+
     auto fg_at = [&](long r, long c) -> bool {
         if (r < 0 || c < 0
          || static_cast<std::size_t>(r) >= M
@@ -2128,19 +2251,10 @@ Value bwtraceboundary(const Value &BW, const Value &P,
         if (BW.isLogical()) return BW.logicalData()[k] != 0;
         return BW.elemAsDouble(k) != 0.0;
     };
-    if (!fg_at(pr, pc))
-        throw Error("bwtraceboundary: P must be a foreground pixel",
-                    0, 0, "bwtraceboundary", "",
-                    "numkit:bwtraceboundary:pfg");
 
     const int nd = conn;
     const int *Dr = (conn == 8) ? kDr8 : kDr4;
     const int *Dc = (conn == 8) ? kDc8 : kDc4;
-    const int fidx = (conn == 8) ? name_to_dir8(fstep) : name_to_dir4(fstep);
-    if (fidx < 0)
-        throw Error("bwtraceboundary: invalid FSTEP for given CONN",
-                    0, 0, "bwtraceboundary", "",
-                    "numkit:bwtraceboundary:fstep");
 
     const int rot = (dir == "clockwise") ? +1 : -1;
 
@@ -2200,9 +2314,7 @@ Value bwtraceboundary(const Value &BW, const Value &P,
 // path for user-code handles is the separate MakelutCallbackBuiltin in bundle.
 Value makelut(FnHandle fun, int n, std::pmr::memory_resource *mr)
 {
-    if (n != 2 && n != 3)
-        throw Error("makelut: N must be 2 or 3.",
-                    0, 0, "makelut", "", "numkit:makelut:badN");
+    makelut_argcheck(n);
     const int nq = n * n;
     const std::size_t N = std::size_t{1} << nq;   // 16 or 512
     Value lut = Value::matrix(N, 1, ValueType::DOUBLE, mr);

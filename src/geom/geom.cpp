@@ -187,11 +187,53 @@ bool methodKernel(const std::string &m, double (*&k)(double), double &kw) {
     k = rkCubic; kw = 4.0; return true;     // MATLAB default is bicubic
 }
 
+Shape geom_shape_argcheck(const Value &A)
+{
+    return shapeOf(A);
+}
+
+void imresize_scale_argcheck(double scale)
+{
+    if (!(scale > 0.0))
+        throw Error("imresize: scale must be > 0",
+                    0, 0, "imresize", "", "numkit:imresize:scale");
+}
+
+void imcrop3_argcheck(const Value &V, const Value &cuboid)
+{
+    if (cuboid.numel() != 6)
+        throw Error("imcrop3: CUBOID must be a 6-element vector "
+                    "[XMIN YMIN ZMIN WIDTH HEIGHT DEPTH]",
+                    0, 0, "imcrop3", "", "numkit:imcrop3:cuboid");
+
+    const auto &dV = V.dims();
+    if (dV.ndims() < 3)
+        throw Error("imcrop3: V must be at least 3-D",
+                    0, 0, "imcrop3", "", "numkit:imcrop3:rank");
+}
+
+void axes2pix_argcheck(const Value &ext)
+{
+    internal::requireImageClassAllowComplex(ext, "axes2pix", "EXTENT", 2,
+                                            internal::ImgClasses::FloatOnly);
+    if (ext.numel() < 1)
+        throw Error("axes2pix: EXTENT must be a non-empty vector",
+                    0, 0, "axes2pix", "", "numkit:axes2pix:extent");
+}
+
+void impyramid_argcheck(const std::string &type, bool &reduce_out)
+{
+    if      (type == "reduce" || type == "Reduce") reduce_out = true;
+    else if (type == "expand" || type == "Expand") reduce_out = false;
+    else throw Error("impyramid: type must be 'reduce' or 'expand'",
+                     0, 0, "impyramid", "", "numkit:impyramid:type");
+}
+
 } // anonymous
 
 Value imresize(const Value &A, size_t outH, size_t outW, const std::string &method, std::pmr::memory_resource *mr)
 {
-    const Shape s = shapeOf(A);
+    const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
     if (outH == 0 || outW == 0)
         return makeOut(outH, outW, s.C, t, mr);
@@ -227,10 +269,8 @@ Value imresize(const Value &A, size_t outH, size_t outW, const std::string &meth
 
 Value imresize(const Value &A, double scale, const std::string &method, std::pmr::memory_resource *mr)
 {
-    const Shape s = shapeOf(A);
-    if (!(scale > 0.0))
-        throw Error("imresize: scale must be > 0",
-                    0, 0, "imresize", "", "numkit:imresize:scale");
+    const Shape s = geom_shape_argcheck(A);
+    imresize_scale_argcheck(scale);
     const size_t outH = static_cast<size_t>(std::round(scale * double(s.H)));
     const size_t outW = static_cast<size_t>(std::round(scale * double(s.W)));
     if (methodIsNearest(method))
@@ -244,7 +284,7 @@ Value imresize(const Value &A, double scale, const std::string &method, std::pmr
 
 Value imcrop(const Value &A, double xmin, double ymin, double width, double height, std::pmr::memory_resource *mr)
 {
-    const Shape s = shapeOf(A);
+    const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
 
     // MATLAB rect = [xmin ymin width height], xmin/ymin are 1-based
@@ -281,17 +321,11 @@ Value imcrop(const Value &A, double xmin, double ymin, double width, double heig
 // `images:imcrop3:cropCuboidOutofBounds`).
 Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr)
 {
-    if (cuboid.numel() != 6)
-        throw Error("imcrop3: CUBOID must be a 6-element vector "
-                    "[XMIN YMIN ZMIN WIDTH HEIGHT DEPTH]",
-                    0, 0, "imcrop3", "", "numkit:imcrop3:cuboid");
+    imcrop3_argcheck(V, cuboid);
 
     // Resolve input shape: H × W × D × T  (T defaults to 1 for 3-D inputs).
     const auto &dV = V.dims();
     const int nd = dV.ndims();
-    if (nd < 3)
-        throw Error("imcrop3: V must be at least 3-D",
-                    0, 0, "imcrop3", "", "numkit:imcrop3:rank");
     const std::size_t H = dV.dim(0);
     const std::size_t W = dV.dim(1);
     const std::size_t D = dV.dim(2);
@@ -386,7 +420,7 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
 
 Value imrotate(const Value &A, double angle, const std::string &method, const std::string &bbox, std::pmr::memory_resource *mr)
 {
-    const Shape s = shapeOf(A);
+    const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
     const bool nearest = methodIsNearest(method);
     const bool isCrop = (bbox == "crop" || bbox == "Crop");
@@ -506,7 +540,7 @@ Value imrotate(const Value &A, double angle, const std::string &method, const st
 
 Value imtranslate(const Value &A, double dx, double dy, std::pmr::memory_resource *mr)
 {
-    const Shape s = shapeOf(A);
+    const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
     Value B = makeOut(s.H, s.W, s.C, t, mr);
     for (size_t c = 0; c < s.C; ++c)
@@ -527,14 +561,9 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::
     if (extent.type() == ValueType::CHAR) {
         extentCoerced = internal::coerceToDoubleImage(extent, mr);
         extP = &extentCoerced;
-    } else {
-        internal::requireImageClassAllowComplex(extent, "axes2pix", "EXTENT", 2,
-                                                internal::ImgClasses::FloatOnly);
     }
     const Value &ext = *extP;
-    if (ext.numel() < 1)
-        throw Error("axes2pix: EXTENT must be a non-empty vector",
-                    0, 0, "axes2pix", "", "numkit:axes2pix:extent");
+    axes2pix_argcheck(ext);
 
     const auto &d = axesCoord.dims();
     const size_t H = d.rows();
@@ -588,14 +617,11 @@ Value impyramid(const Value &A, const std::string &type, std::pmr::memory_resour
     // Binomial 5-tap kernel [1 4 6 4 1]/16 (MATLAB / Octave default).
     static constexpr double kBurt[5] = {1.0 / 16, 4.0 / 16, 6.0 / 16,
                                         4.0 / 16, 1.0 / 16};
+    geom_shape_argcheck(A);
+    bool reduce = false;
+    impyramid_argcheck(type, reduce);
     const Shape s = shapeOf(A);
     const ValueType t = A.type();
-
-    bool reduce;
-    if      (type == "reduce" || type == "Reduce") reduce = true;
-    else if (type == "expand" || type == "Expand") reduce = false;
-    else throw Error("impyramid: type must be 'reduce' or 'expand'",
-                     0, 0, "impyramid", "", "numkit:impyramid:type");
 
     size_t Hout, Wout;
     if (reduce) { Hout = (s.H + 1) / 2; Wout = (s.W + 1) / 2; }
@@ -818,15 +844,7 @@ inline int mirrorIdx(int i, int N) {
     return m;
 }
 
-} // anonymous
-
-// Lower-level entry: scale is the user-supplied (per-axis) scale.
-// Pass scale=outLen/inLen for the size-vector branch.
-Value imresize3_core(const Value &V,
-                     size_t outR, size_t outC, size_t outD,
-                     double scaleY, double scaleX, double scaleZ,
-                     const std::string &method, bool antialias,
-                     std::pmr::memory_resource *mr)
+void imresize3_argcheck(const Value &V)
 {
     const auto &dims = V.dims();
     if (dims.ndims() < 2)
@@ -838,6 +856,30 @@ Value imresize3_core(const Value &V,
     if (V.numel() != inR * inC * inD)
         throw Error("imresize3: V must be a 3-D numeric volume",
                     0, 0, "imresize3", "", "numkit:imresize3:shape");
+}
+
+void imresize3_scale_argcheck(double scale)
+{
+    if (!(scale > 0.0))
+        throw Error("imresize3: scale must be > 0",
+                    0, 0, "imresize3", "", "numkit:imresize3:scale");
+}
+
+} // anonymous
+
+// Lower-level entry: scale is the user-supplied (per-axis) scale.
+// Pass scale=outLen/inLen for the size-vector branch.
+Value imresize3_core(const Value &V,
+                     size_t outR, size_t outC, size_t outD,
+                     double scaleY, double scaleX, double scaleZ,
+                     const std::string &method, bool antialias,
+                     std::pmr::memory_resource *mr)
+{
+    imresize3_argcheck(V);
+    const auto &dims = V.dims();
+    const size_t inR = dims.dim(0);
+    const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
+    const size_t inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
 
     const ValueType T = V.type();
     if (outR == 0 || outC == 0 || outD == 0)
@@ -950,9 +992,7 @@ Value imresize3(const Value &V, double scale,
                 const std::string &method, bool antialias,
                 std::pmr::memory_resource *mr)
 {
-    if (!(scale > 0.0))
-        throw Error("imresize3: scale must be > 0",
-                    0, 0, "imresize3", "", "numkit:imresize3:scale");
+    imresize3_scale_argcheck(scale);
     const auto &dims = V.dims();
     const size_t inR = dims.dim(0);
     const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;

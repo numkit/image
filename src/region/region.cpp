@@ -102,6 +102,26 @@ std::vector<uint8_t> read_bw(const Value &BW) {
     return out;
 }
 
+void bwconncomp_argcheck(const Value &BW) {
+    internal::requireImageClass(BW, "bwconncomp", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void bwperim_argcheck(const Value &BW) {
+    internal::requireImageClassAllowComplex(BW, "bwperim", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void bwareaopen_argcheck(const Value &BW) {
+    internal::requireImageClass(BW, "bwareaopen", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void bwboundaries_argcheck(const Value &BW) {
+    internal::requireImageClass(BW, "bwboundaries", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
 } // anonymous
 
 std::tuple<Value, Value>
@@ -193,8 +213,7 @@ bwlabeln(const Value &BW, int conn, std::pmr::memory_resource *mr)
 
 Value bwconncomp(const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwconncomp", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    bwconncomp_argcheck(BW);
     if (conn != 4) conn = 8;
     const int H = (int)BW.dims().rows();
     const int W = (int)BW.dims().cols();
@@ -290,11 +309,54 @@ CCInfo parse_cc(const Value &CC, const char *fn)
     return info;
 }
 
+CCInfo labelmatrix_argcheck(const Value &CC)
+{
+    return parse_cc(CC, "labelmatrix");
+}
+
+CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, std::vector<char> &keep)
+{
+    CCInfo info = parse_cc(CC, "cc2bw");
+    const std::size_t K = info.K;
+    keep.assign(K, 0);
+    if (objects_to_keep.isEmpty()) {
+        std::fill(keep.begin(), keep.end(), static_cast<char>(1));
+    } else {
+        const std::size_t N = objects_to_keep.numel();
+        if (objects_to_keep.type() == ValueType::LOGICAL) {
+            if (N != K)
+                throw Error("cc2bw: ObjectsToKeep logical vector length "
+                            "must equal NumObjects",
+                            0, 0, "cc2bw", "",
+                            "numkit:cc2bw:logicalLen");
+            for (std::size_t i = 0; i < K; ++i)
+                keep[i] = objects_to_keep.elemAsDouble(i) != 0.0 ? 1 : 0;
+        } else {
+            for (std::size_t i = 0; i < N; ++i) {
+                const double v = objects_to_keep.elemAsDouble(i);
+                if (!std::isfinite(v) || v <= 0.0 || std::floor(v) != v)
+                    throw Error("cc2bw: ObjectsToKeep must be positive "
+                                "integers or a logical vector",
+                                0, 0, "cc2bw", "",
+                                "numkit:cc2bw:badIdx");
+                const std::size_t idx = static_cast<std::size_t>(v);
+                if (idx > K)
+                    throw Error("cc2bw: ObjectsToKeep index exceeds "
+                                "NumObjects",
+                                0, 0, "cc2bw", "",
+                                "numkit:cc2bw:idxRange");
+                keep[idx - 1] = 1;
+            }
+        }
+    }
+    return info;
+}
+
 }  // namespace
 
 Value labelmatrix(const Value &CC, std::pmr::memory_resource *mr)
 {
-    const CCInfo info = parse_cc(CC, "labelmatrix");
+    const CCInfo info = labelmatrix_argcheck(CC);
     const std::size_t H = info.H, W = info.W, K = info.K;
     // Choose output class per MATLAB:
     //   K ≤ 255      → uint8
@@ -339,43 +401,9 @@ Value labelmatrix(const Value &CC, std::pmr::memory_resource *mr)
 Value cc2bw(const Value &CC, const Value &objects_to_keep,
             std::pmr::memory_resource *mr)
 {
-    const CCInfo info = parse_cc(CC, "cc2bw");
+    std::vector<char> keep;
+    const CCInfo info = cc2bw_argcheck(CC, objects_to_keep, keep);
     const std::size_t H = info.H, W = info.W, K = info.K;
-
-    // Resolve which components to rasterise.
-    std::vector<char> keep(K, 0);
-    if (objects_to_keep.isEmpty()) {
-        std::fill(keep.begin(), keep.end(), 1);
-    } else {
-        const std::size_t N = objects_to_keep.numel();
-        if (objects_to_keep.type() == ValueType::LOGICAL) {
-            // Logical mask: length must equal K.
-            if (N != K)
-                throw Error("cc2bw: ObjectsToKeep logical vector length "
-                            "must equal NumObjects",
-                            0, 0, "cc2bw", "",
-                            "numkit:cc2bw:logicalLen");
-            for (std::size_t i = 0; i < K; ++i)
-                keep[i] = objects_to_keep.elemAsDouble(i) != 0.0 ? 1 : 0;
-        } else {
-            // Numeric indices — must be positive integers ≤ K.
-            for (std::size_t i = 0; i < N; ++i) {
-                const double v = objects_to_keep.elemAsDouble(i);
-                if (!std::isfinite(v) || v <= 0.0 || std::floor(v) != v)
-                    throw Error("cc2bw: ObjectsToKeep must be positive "
-                                "integers or a logical vector",
-                                0, 0, "cc2bw", "",
-                                "numkit:cc2bw:badIdx");
-                const std::size_t idx = static_cast<std::size_t>(v);
-                if (idx > K)
-                    throw Error("cc2bw: ObjectsToKeep index exceeds "
-                                "NumObjects",
-                                0, 0, "cc2bw", "",
-                                "numkit:cc2bw:idxRange");
-                keep[idx - 1] = 1;
-            }
-        }
-    }
 
     Value BW = Value::matrix(H, W, ValueType::LOGICAL, mr);
     uint8_t *bd = BW.logicalDataMut();
@@ -405,8 +433,7 @@ Value bwarea(const Value &BW, std::pmr::memory_resource *mr) {
 Value bwperim(const Value &BW, int conn, std::pmr::memory_resource *mr) {
     // Probed R2025b: unlike the rest of the bw* family bwperim takes
     // complex BW and reads the real part.
-    internal::requireImageClassAllowComplex(BW, "bwperim", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    bwperim_argcheck(BW);
     if (conn != 4) conn = 8;
     const int H = (int)BW.dims().rows();
     const int W = (int)BW.dims().cols();
@@ -436,8 +463,7 @@ Value bwperim(const Value &BW, int conn, std::pmr::memory_resource *mr) {
 
 Value bwareaopen(const Value &BW, int P, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwareaopen", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    bwareaopen_argcheck(BW);
     if (conn != 4) conn = 8;
     if (P < 1) P = 1;
     const int H = (int)BW.dims().rows();
@@ -476,8 +502,7 @@ Value bwareaopen(const Value &BW, int P, int conn, std::pmr::memory_resource *mr
 
 Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwboundaries", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    bwboundaries_argcheck(BW);
     if (conn != 4) conn = 8;
     const int H = (int)BW.dims().rows();
     const int W = (int)BW.dims().cols();
@@ -663,6 +688,33 @@ double regionPerimeter(const std::vector<int> &L, int H, int W,
     return 0.980 * (double)Ne + 1.406 * (double)No - 0.091 * (double)Nc;
 }
 
+void regionprops_argcheck(const Value &BW_or_L, const std::vector<std::string> &propsIn)
+{
+    internal::requireImageClass(BW_or_L, "regionprops", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    static const char *kKnown[] = {
+        "all", "basic",
+        "area", "centroid", "boundingbox", "perimeter",
+        "majoraxislength", "minoraxislength", "eccentricity", "orientation",
+        "equivdiameter", "extent", "pixelidxlist", "pixellist",
+        "meanintensity", "maxintensity", "minintensity",
+        "weightedcentroid", "pixelvalues",
+    };
+    for (const auto &q : propsIn) {
+        std::string lc = q;
+        for (char &ch : lc)
+            if (ch >= 'A' && ch <= 'Z') ch = char(ch + 32);
+        bool ok = false;
+        for (const char *k : kKnown)
+            if (lc == k) { ok = true; break; }
+        if (!ok)
+            throw Error("regionprops: property '" + q +
+                            "' is not supported in this revision",
+                        0, 0, "regionprops", "",
+                        "numkit:regionprops:badProperty");
+    }
+}
+
 } // namespace
 
 // ════════════════════════════════════════════════════════════════════
@@ -671,8 +723,7 @@ double regionPerimeter(const std::vector<int> &L, int H, int W,
 
 Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn, const Value &intensity, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW_or_L, "regionprops", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    regionprops_argcheck(BW_or_L, propsIn);
     const bool haveI = !intensity.isEmpty() && intensity.numel() > 0;
     // Detect input: integer-valued matrix → treat as label image,
     // else binary → run bwlabel internally.
@@ -721,35 +772,6 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
         }
         return false;
     };
-    // Reject unknown / unimplemented property names with a clear error instead
-    // of silently dropping them (the silent drop surfaces later as a confusing
-    // "non-existent field" on the result struct). Properties MATLAB ships but
-    // nk does not implement yet (Solidity, ConvexArea, EulerNumber,
-    // FilledArea, Circularity, Extrema, ConvexHull, …) land here too. See
-    // bugs/image/regionprops-perimeter.
-    {
-        static const char *kKnown[] = {
-            "all", "basic",
-            "area", "centroid", "boundingbox", "perimeter",
-            "majoraxislength", "minoraxislength", "eccentricity", "orientation",
-            "equivdiameter", "extent", "pixelidxlist", "pixellist",
-            "meanintensity", "maxintensity", "minintensity",
-            "weightedcentroid", "pixelvalues",
-        };
-        for (const auto &q : propsIn) {
-            std::string lc = q;
-            for (char &ch : lc)
-                if (ch >= 'A' && ch <= 'Z') ch = char(ch + 32);
-            bool ok = false;
-            for (const char *k : kKnown)
-                if (lc == k) { ok = true; break; }
-            if (!ok)
-                throw Error("regionprops: property '" + q +
-                                "' is not supported in this revision",
-                            0, 0, "regionprops", "",
-                            "numkit:regionprops:badProperty");
-        }
-    }
 
     // MATLAB: an empty property list (or 'basic') returns the BASIC set
     // {Area, Centroid, BoundingBox}; 'all' adds every shape measurement.
@@ -1039,12 +1061,42 @@ void dt1D(const std::vector<double> &f, std::vector<double> &d, size_t n)
     }
 }
 
+void bwdist_argcheck(const Value &BW)
+{
+    internal::requireImageClass(BW, "bwdist", "BW", 1,
+                                internal::ImgClasses::AnyNumericReal);
+}
+
+void fchcode_argcheck(const Value &bound)
+{
+    internal::requireImageClass(bound, "fchcode", "bound", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    if (bound.dims().cols() != 2)
+        throw Error("fchcode: bound must be K-by-2",
+                    0, 0, "fchcode", "", "numkit:fchcode:size");
+}
+
+void bwareafilt_argcheck(const Value &BW)
+{
+    internal::requireImageClass(BW, "bwareafilt", "BW", 1,
+                                internal::ImgClasses::LogicalOnly);
+}
+
+void bweuler_argcheck(const Value &BW, int conn)
+{
+    if (conn != 4 && conn != 8)
+        throw Error("bweuler: connectivity must be 4 or 8",
+                    0, 0, "bweuler", "", "numkit:bweuler:conn");
+    if (BW.dims().is3D())
+        throw Error("bweuler: BW must have 2 dimensions",
+                    0, 0, "bweuler", "", "numkit:bweuler:dims");
+}
+
 } // anonymous
 
 Value bwdist(const Value &BW, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwdist", "BW", 1,
-                                internal::ImgClasses::AnyNumericReal);
+    bwdist_argcheck(BW);
     const size_t H = BW.dims().rows();
     const size_t W = BW.dims().cols();
     // Probed R2025b: distances are single for every input class.
@@ -1123,11 +1175,7 @@ Value fchcode(const Value &bound, std::pmr::memory_resource *mr)
 {
     // fchcode is reference-absent (Octave image package API) — the
     // nk-defined contract takes real numeric coordinate matrices.
-    internal::requireImageClass(bound, "fchcode", "bound", 1,
-                                internal::ImgClasses::AnyNumericReal);
-    if (bound.dims().cols() != 2)
-        throw Error("fchcode: bound must be K-by-2",
-                    0, 0, "fchcode", "", "numkit:fchcode:size");
+    fchcode_argcheck(bound);
     size_t K = bound.dims().rows();
 
     // Direction map matching Octave (rows = dr+2, cols = dc+2):
@@ -1202,8 +1250,7 @@ Value fchcode(const Value &bound, std::pmr::memory_resource *mr)
 
 Value bwareafilt(const Value &BW, double lo, double hi, size_t n_keep, bool keep_largest, int conn, std::pmr::memory_resource *mr)
 {
-    internal::requireImageClass(BW, "bwareafilt", "BW", 1,
-                                internal::ImgClasses::LogicalOnly);
+    bwareafilt_argcheck(BW);
     if (conn != 4) conn = 8;
     const int H = static_cast<int>(BW.dims().rows());
     const int W = static_cast<int>(BW.dims().cols());
@@ -1309,20 +1356,15 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, std::p
 
 Value bweuler(const Value &BW, int conn, std::pmr::memory_resource *mr)
 {
+    bweuler_argcheck(BW, conn);
     // Pratt bit-quad LUT (Octave-image bweuler.m).
     static constexpr int lut8[16] = {0, 1, 1, 0, 1, 0, -2, -1,
                                      1, -2, 0, -1, 0, -1, -1, 0};
     static constexpr int lut4[16] = {0, 1, 1, 0, 1, 0,  2, -1,
                                      1,  2, 0, -1, 0, -1, -1, 0};
-    if (conn != 4 && conn != 8)
-        throw Error("bweuler: connectivity must be 4 or 8",
-                    0, 0, "bweuler", "", "numkit:bweuler:conn");
     const int *lut = (conn == 4) ? lut4 : lut8;
 
     const auto &d = BW.dims();
-    if (d.is3D())
-        throw Error("bweuler: BW must have 2 dimensions",
-                    0, 0, "bweuler", "", "numkit:bweuler:dims");
 
     const int M = static_cast<int>(d.rows());
     const int N = static_cast<int>(d.cols());

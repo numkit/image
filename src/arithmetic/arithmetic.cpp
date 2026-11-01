@@ -154,21 +154,90 @@ inline double classMax(ValueType t) {
     }
 }
 
+void imarith_argcheck(const Value &x)
+{
+    switch (x.type()) {
+        case ValueType::DOUBLE:
+        case ValueType::SINGLE:
+        case ValueType::UINT8:
+        case ValueType::UINT16:
+        case ValueType::INT16:
+        case ValueType::LOGICAL:
+            break;
+        default:
+            throw Error("imarith: unsupported image class", 0, 0, "imarith", "",
+                        "numkit:imarith:badtype");
+    }
+}
+
+void imlincomb_argcheck(const std::vector<double> &coefs,
+                        const std::vector<Value> &images,
+                        ValueType output_class)
+{
+    if (coefs.size() != images.size() && coefs.size() != images.size() + 1)
+        throw Error("imlincomb: number of coefficients must equal number of images "
+                    "(optional one extra for the additive constant)",
+                    0, 0, "imlincomb", "", "numkit:imlincomb:nargin");
+    if (images.empty()) return;
+    const size_t n = images[0].numel();
+    for (size_t k = 0; k < images.size(); ++k) {
+        if (images[k].numel() != n)
+            throw Error("imlincomb: all images must have the same size",
+                        0, 0, "imlincomb", "", "numkit:imlincomb:size");
+    }
+    switch (output_class) {
+        case ValueType::DOUBLE:
+        case ValueType::SINGLE:
+        case ValueType::UINT8:
+        case ValueType::UINT16:
+        case ValueType::INT16:
+            break;
+        default:
+            throw Error("imlincomb: unsupported output class",
+                        0, 0, "imlincomb", "", "numkit:imlincomb:badtype");
+    }
+}
+
+void imapplymatrix_argcheck(const Value &M, const Value &x, ValueType output_class)
+{
+    internal::requireImageClassAllowComplex(M, "imapplymatrix", "M", 1,
+                                internal::ImgClasses::AnyNumericReal);
+    internal::requireImageClassAllowComplex(x, "imapplymatrix", "X", 2,
+                                internal::ImgClasses::FloatInt);
+    const auto &dx = x.dims();
+    const size_t pages = dx.is3D() ? dx.pages() : 1;
+    const size_t Mcols = M.dims().cols();
+    if (Mcols != pages)
+        throw Error("imapplymatrix: matrix columns must match the third dimension of X",
+                    0, 0, "imapplymatrix", "", "numkit:imapplymatrix:size");
+    if (M.isComplex() || x.isComplex()) {
+        if (output_class != ValueType::DOUBLE && output_class != ValueType::SINGLE &&
+            output_class != ValueType::UINT8 && output_class != ValueType::UINT16 &&
+            output_class != ValueType::INT16 && output_class != ValueType::COMPLEX)
+            throw Error("imapplymatrix: unsupported output class",
+                        0, 0, "imapplymatrix", "", "numkit:imapplymatrix:badtype");
+    }
+}
+
 } // anonymous
 
 Value imadd(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+    imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return a + b; }, mr);
 }
 
 Value imsubtract(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+    imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return a - b; }, mr);
 }
 
 Value immultiply(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+    imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return a * b; }, mr);
 }
 
 Value imdivide(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+    imarith_argcheck(x);
     return binop(x, y, [](double a, double b){
         if (b == 0.0) {
             if (a > 0.0) return std::numeric_limits<double>::infinity();
@@ -180,16 +249,19 @@ Value imdivide(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
 }
 
 Value imabsdiff(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+    imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return std::fabs(a - b); }, mr);
 }
 
 Value imcomplement(const Value &x, std::pmr::memory_resource *mr) {
+    imarith_argcheck(x);
     const double cmax = classMax(x.type());
     return unop(x, [=](double v){ return cmax - v; }, mr);
 }
 
 Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &images, ValueType output_class, std::pmr::memory_resource *mr)
 {
+    imlincomb_argcheck(coefs, images, output_class);
     if (coefs.size() != images.size() && coefs.size() != images.size() + 1)
         throw Error("imlincomb: number of coefficients must equal number of images "
                     "(optional one extra for the additive constant)",
@@ -249,6 +321,7 @@ Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &imag
 
 Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, std::pmr::memory_resource *mr)
 {
+    imapplymatrix_argcheck(M, x, output_class);
     // Probed R2025b: M coerces every numeric class (logical X dies at
     // the output-class check); complex M / complex X both compute
     // complex results in the reference.
