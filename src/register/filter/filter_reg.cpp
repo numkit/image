@@ -1025,7 +1025,9 @@ void roifilt2_reg(Span<const Value> args, std::size_t /*nargout*/,
     // no max: name-value tail in the reference
     auto *mr = ctx.engine->resource();
     // Function-handle form: J = roifilt2(I, BW, fun).
-    if (args[2].isFuncHandle() || args[2].isChar() || args[2].isString()) {
+    const bool isFh2 = args[2].isFuncHandle()
+                    || (args[2].isCell() && args[2].numel() >= 1 && args[2].cellAt(0).isFuncHandle());
+    if (isFh2 || args[2].isChar() || args[2].isString()) {
         const Value &I = args[0];
         const Value &BW = args[1];
         if (I.dims().ndim() > 2)
@@ -1071,7 +1073,8 @@ void nlfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
                     0, 0, "nlfilter", "", "numkit:nlfilter:nhood");
     const std::size_t m = static_cast<std::size_t>(nh.elemAsDouble(0));
     const std::size_t n = static_cast<std::size_t>(nh.elemAsDouble(1));
-    if (!fn.isFuncHandle())
+    if (!fn.isFuncHandle()
+        && !(fn.isCell() && fn.numel() >= 1 && fn.cellAt(0).isFuncHandle()))
         throw Error("nlfilter: 3rd argument must be a function handle",
                     0, 0, "nlfilter", "", "numkit:nlfilter:fun");
     auto cb = [&ctx, &fn](Span<const Value> a, Span<Value> o,
@@ -1133,7 +1136,8 @@ void colfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
     const std::string kind = args[bi].toString();
     const Value &fn = args[bi + 1];
-    if (!fn.isFuncHandle())
+    if (!fn.isFuncHandle()
+        && !(fn.isCell() && fn.numel() >= 1 && fn.cellAt(0).isFuncHandle()))
         throw Error("colfilt: fun must be a function handle",
                     0, 0, "colfilt", "", "numkit:colfilt:fun");
     auto cb = [&ctx, &fn](Span<const Value> a, Span<Value> o,
