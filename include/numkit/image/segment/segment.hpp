@@ -1,6 +1,6 @@
 /// @file segment.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/segment/segment.hpp
+// toolboxes/image/include/numkit/image/segment/segment.hpp
 //
 // Image-segmentation utilities and similarity metrics. The
 // "deep-learning" segmentation entries (segmentAnythingModel,

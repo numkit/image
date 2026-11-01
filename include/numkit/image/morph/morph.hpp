@@ -1,4 +1,4 @@
-// toolboxes/image/include/nk/image/morph/morph.hpp
+// toolboxes/image/include/numkit/image/morph/morph.hpp
 //
 // Morphological operations.
 

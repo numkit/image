@@ -1,4 +1,4 @@
-// toolboxes/image/include/nk/image/color/color.hpp
+// toolboxes/image/include/numkit/image/color/color.hpp
 //
 // Colour space conversions and colormaps.
 

@@ -1,6 +1,6 @@
 /// @file geom.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/geom/geom.hpp
+// toolboxes/image/include/numkit/image/geom/geom.hpp
 //
 // Basic geometric transforms: resize / crop / rotate / translate.
 // All preserve the input element type (uint8, double, …) and accept

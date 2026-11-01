@@ -1,6 +1,6 @@
 /// @file quality.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/quality/quality.hpp
+// toolboxes/image/include/numkit/image/quality/quality.hpp
 //
 // Image-quality metrics.
 

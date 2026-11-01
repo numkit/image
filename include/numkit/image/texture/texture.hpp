@@ -1,6 +1,6 @@
 /// @file texture.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/texture/texture.hpp
+// toolboxes/image/include/numkit/image/texture/texture.hpp
 //
 // Texture-analysis primitives. The gray-level co-occurrence matrix
 // (GLCM) and its property extractors are the work-horses of

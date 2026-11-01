@@ -1,6 +1,6 @@
 /// @file type_gates.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/internal/type_gates.hpp
+// toolboxes/image/include/numkit/image/internal/type_gates.hpp
 //
 // Shared <fn>_argcheck cores for toolboxes/image (argcheck separation,
 // dev-docs/todo/argcheck_separation.md — boundary rule: raw arguments in,

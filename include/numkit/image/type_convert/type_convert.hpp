@@ -1,4 +1,4 @@
-// toolboxes/image/include/nk/image/type_convert/type_convert.hpp
+// toolboxes/image/include/numkit/image/type_convert/type_convert.hpp
 //
 // Image type conversion and class-related helpers.
 

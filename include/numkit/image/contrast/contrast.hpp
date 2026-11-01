@@ -1,6 +1,6 @@
 /// @file contrast.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/contrast/contrast.hpp
+// toolboxes/image/include/numkit/image/contrast/contrast.hpp
 // Histogram-based contrast operations.
 
 #pragma once

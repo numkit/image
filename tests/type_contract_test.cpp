@@ -5,7 +5,7 @@
 // MATLAB R2025b the same day (build/probe12..13 + probe30 batteries,
 // ~1100 mirrored probes). The reference takes a DIFFERENT class set per
 // entry — the tests pin the per-entry asymmetries the shared gates in
-// include/nk/image/internal/type_gates.hpp encode.
+// include/numkit/image/internal/type_gates.hpp encode.
 
 #include <numkit/core/standard_engine.hpp>
 #include <numkit/core/engine.hpp>

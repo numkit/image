@@ -1,6 +1,6 @@
 /// @file transform.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/transform/transform.hpp
+// toolboxes/image/include/numkit/image/transform/transform.hpp
 //
 // Image transforms: 2-D DCT, integral images, checkerboard / phantom
 // patterns, normalised cross-correlation, OTF / PSF conversions.
