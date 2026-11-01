@@ -7,7 +7,7 @@
 // entry — the tests pin the per-entry asymmetries the shared gates in
 // include/nk/image/internal/type_gates.hpp encode.
 
-#include <numkit/bundle/standard_engine.hpp>
+#include <numkit/core/standard_engine.hpp>
 #include <numkit/core/engine.hpp>
 #include <numkit/value/error.hpp>
 #include <gtest/gtest.h>

@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <numkit/core/engine.hpp>
-#include <numkit/bundle/standard_engine.hpp>
+#include <numkit/core/standard_engine.hpp>
 
 #include <string>
 #include <utility>

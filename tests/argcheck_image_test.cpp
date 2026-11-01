@@ -12,7 +12,7 @@
 //     clamp-to-empty);
 //   * wcodemat nb ROUNDS fractional values (reference-tolerant).
 
-#include <numkit/bundle/standard_engine.hpp>
+#include <numkit/core/standard_engine.hpp>
 #include <numkit/core/engine.hpp>
 #include <numkit/value/error.hpp>
 #include <gtest/gtest.h>

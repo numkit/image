@@ -5,7 +5,7 @@
 // up to N [x y]=[col row] integer coordinates. Verified vs MATLAB R2025b.
 // Fixes bugs/image/corner.md.
 
-#include <numkit/bundle/standard_engine.hpp>
+#include <numkit/core/standard_engine.hpp>
 #include <numkit/core/engine.hpp>
 #include <gtest/gtest.h>
 
