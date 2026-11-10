@@ -76,6 +76,13 @@ if(NOT TARGET numkit_value)
     endif()
 endif()
 
+if(NOT TARGET numkit_value_c AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../value/src/c_api.cpp")
+    add_library(numkit_value_c SHARED "${CMAKE_CURRENT_SOURCE_DIR}/../value/src/c_api.cpp")
+    add_library(numkit::value_c ALIAS numkit_value_c)
+    target_compile_definitions(numkit_value_c PRIVATE NUMKIT_VALUE_C_BUILD=1)
+    target_link_libraries(numkit_value_c PUBLIC numkit_value)
+endif()
+
 # Dependency: numkit/sys
 if(NOT TARGET numkit_sys)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../sys/CMakeLists.txt")
@@ -147,6 +154,7 @@ file(GLOB_RECURSE IMAGE_COMPUTE_SOURCES
 file(GLOB_RECURSE IMAGE_PLUGIN_SOURCES
     "src/register/*.cpp"
     "src/module.cpp"
+    "src/c_api.cpp"
 )
 
 add_library(numkit_image_core STATIC ${IMAGE_COMPUTE_SOURCES})
@@ -188,7 +196,18 @@ target_include_directories(numkit_image
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(numkit_image PUBLIC numkit_image_core)
+target_link_libraries(numkit_image PUBLIC numkit_image_core numkit_value_c)
+if(APPLE)
+    set_target_properties(numkit_image PROPERTIES
+        BUILD_RPATH "@loader_path;@loader_path/..;@loader_path/../../lib;@loader_path/../../../lib"
+        INSTALL_RPATH "@loader_path;@loader_path/../lib"
+    )
+elseif(UNIX)
+    set_target_properties(numkit_image PROPERTIES
+        BUILD_RPATH "$ORIGIN;$ORIGIN/..;$ORIGIN/../../lib;$ORIGIN/../../../lib"
+        INSTALL_RPATH "$ORIGIN;$ORIGIN/../lib"
+    )
+endif()
 
 if(MSVC)
     target_compile_options(numkit_image PRIVATE /W4 /MP /bigobj)
@@ -277,4 +296,23 @@ if(NUMKIT_BUILD_TESTS AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         target_compile_options(numkit_image_test PRIVATE /W3 /MP /bigobj)
     endif()
     add_test(NAME numkit_image_test COMMAND numkit_image_test)
+endif()
+
+if(NUMKIT_BUILD_C_TESTS OR NUMKIT_BUILD_TESTS)
+    enable_testing()
+    if(NOT TARGET GTest::gtest_main)
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+        set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG v1.14.0
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_MakeAvailable(googletest)
+    endif()
+    add_executable(numkit_image_c_test tests/c_api/image_c_api.cpp)
+    target_link_libraries(numkit_image_c_test PRIVATE numkit_image GTest::gtest_main)
+    add_test(NAME numkit_image_c_test COMMAND numkit_image_c_test)
 endif()
