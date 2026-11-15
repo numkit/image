@@ -25,7 +25,7 @@ public:
     std::string evalClass(const std::string &expr)
     {
         engine.eval("tc_r = " + expr + ";");
-        return engine.eval("class(tc_r);").toString();
+        return std::string(engine.eval("class(tc_r);").toString().as_ref());
     }
 
     void expectError(const std::string &code, const std::string &id)

@@ -36,7 +36,7 @@ static void parse_nv_pairs(keel::ArrayRef<Value> args, keel::usize start_idx,
         if (!args[start_idx].isChar() && !args[start_idx].isString())
             throw Error(std::string(fn) + ": expected option name string",
                         0, 0, fn, "", "numkit:image:badNvArg");
-        std::string name = args[start_idx].toString();
+        std::string name(args[start_idx].toString().as_ref());
         for (auto &c : name) c = static_cast<char>(std::tolower(
             static_cast<unsigned char>(c)));
         if (name == "mask") {
@@ -85,7 +85,7 @@ void imcolordiff_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("imcolordiff: expected option name string",
                         0, 0, "imcolordiff", "", "numkit:imcolordiff:badNvArg");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string name_lo = name;
         for (auto &c : name_lo)
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));

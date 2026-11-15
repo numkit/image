@@ -40,8 +40,8 @@ inline std::string lowerExt(const std::string &path) {
     return e;
 }
 
-bool isTiffBytes(const std::string &b);
-Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr);
+bool isTiffBytes(keel::StringRef b);
+Value imreadFromBytes(keel::StringRef bytes, keel::Allocator *mr);
 std::pair<Value, Value>
 readPngWithMap(const keel::u8 *data, keel::usize len,
                keel::Allocator *mr = nullptr);
@@ -56,7 +56,7 @@ void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayR
     if (!args[0].isChar() && !args[0].isString())
         throw Error("imread: path must be a string",
                     0, 0, "imread", "", "numkit:imread:type");
-    const std::string path = args[0].toString();
+    const std::string path(args[0].toString().as_ref());
 
     // Read the file through the engine's VFS prosloyka — the WASM engine
     // has no direct file access; the bytes come from the IDE's virtual or
@@ -83,7 +83,7 @@ void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayR
         throw Error("imread: failed to load '" + path + "' — file not found",
                     0, 0, "imread", "", "numkit:imread:load");
     // Binary-safe read (an image is raw bytes, not UTF-8 text).
-    const std::string bytes = rp.fs->readFileBytes(rp.path);
+    const std::string bytes(rp.fs->readFileBytes(rp.path).as_ref());
     const bool tiff = isTiffBytes(bytes);
 
     // Optional 2nd numeric arg = page index (TIFF multi-page).
@@ -132,7 +132,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
         throw Error("imwrite: path must be a string",
                     0, 0, "imwrite", "", "numkit:imwrite:type");
 
-    const std::string path = args[1].toString();
+    const std::string path(args[1].toString().as_ref());
     const std::string ext = lowerExt(path);
 
     // TIFF route — collect optional 3rd positional 'tif' format string,
@@ -146,7 +146,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
         // and tolerate.
         keel::usize nvStart = 2;
         if (args.size() >= 3 && (args[2].isChar() || args[2].isString())) {
-            std::string s = args[2].toString();
+            std::string s(args[2].toString().as_ref());
             std::string lo;
             lo.reserve(s.size());
             for (char c : s) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
@@ -156,7 +156,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
             if (!args[i].isChar() && !args[i].isString())
                 throw Error("imwrite TIFF: NV name must be a string",
                             0, 0, "imwrite", "", "numkit:imwrite:badNVName");
-            std::string key = args[i].toString();
+            std::string key(args[i].toString().as_ref());
             std::string lkey;
             lkey.reserve(key.size());
             for (char c : key) lkey.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
@@ -166,7 +166,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
                 for (auto &c : compression)
                     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             } else if (lkey == "writemode") {
-                std::string m = v.toString();
+                std::string m(v.toString().as_ref());
                 std::string lo;
                 for (char c : m) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
                 appendMode = (lo == "append");
@@ -185,7 +185,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
         std::vector<keel::u8> existing;
         const std::vector<keel::u8> *exptr = nullptr;
         if (appendMode && rp.fs->exists(rp.path)) {
-            const std::string eb = rp.fs->readFileBytes(rp.path);
+            const std::string eb(rp.fs->readFileBytes(rp.path).as_ref());
             existing.assign(eb.begin(), eb.end());
             exptr = &existing;
         }
@@ -212,14 +212,14 @@ void imfinfo_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
     if (!args[0].isChar() && !args[0].isString())
         throw Error("imfinfo: path must be a string",
                     0, 0, "imfinfo", "", "numkit:imfinfo:type");
-    const std::string path = args[0].toString();
+    const std::string path(args[0].toString().as_ref());
 
     // Read through the VFS prosloyka (virtual or real FS); never fopen.
     auto rp = ctx.engine->resolvePath(path);
     if (!rp.fs || !rp.fs->exists(rp.path))
         throw Error("imfinfo: failed to read '" + path + "' — file not found",
                     0, 0, "imfinfo", "", "numkit:imfinfo:read");
-    const std::string bytes = rp.fs->readFileBytes(rp.path);
+    const std::string bytes(rp.fs->readFileBytes(rp.path).as_ref());
     outs[0] = imfinfoFromBytes(bytes, path, ctx.engine->allocator());
 }
 

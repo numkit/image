@@ -35,7 +35,7 @@ void fspecial3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[0].isChar() && !args[0].isString())
         throw Error("fspecial3: type must be a string",
                     0, 0, "fspecial3", "", "numkit:fspecial3:BadType");
-    const std::string type = args[0].toString();
+    const std::string type(args[0].toString().as_ref());
     Value empty;
     // Positional layout per MATLAB R2025b:
     //   sobel/prewitt:  a1 = direction        (no hsize — fixed 3×3×3)

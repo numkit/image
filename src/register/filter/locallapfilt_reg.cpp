@@ -59,7 +59,7 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("locallapfilt: expected NV-pair name string",
                         0, 0, "locallapfilt", "",
                         "numkit:locallapfilt:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -67,7 +67,7 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (nlo == "numintensitylevels") {
             const Value &v = args[i + 1];
             if (is_string(v)) {
-                std::string s = v.toString();
+                std::string s(v.toString().as_ref());
                 std::string slo;
                 for (char ch : s)
                     slo += static_cast<char>(std::tolower(
@@ -87,7 +87,7 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                                 "numkit:locallapfilt:nIntRange");
             }
         } else if (nlo == "colormode") {
-            std::string s = args[i + 1].toString();
+            std::string s(args[i + 1].toString().as_ref());
             std::string slo;
             for (char ch : s)
                 slo += static_cast<char>(std::tolower(

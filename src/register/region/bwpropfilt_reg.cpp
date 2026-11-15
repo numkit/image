@@ -61,7 +61,7 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (i >= args.size() || !is_string(args[i]))
         throw Error("bwpropfilt: expected attribute string",
                     0, 0, "bwpropfilt", "", "numkit:bwpropfilt:noAttr");
-    const std::string attrib = args[i].toString();
+    const std::string attrib(args[i].toString().as_ref());
     ++i;
     // range or n.
     if (i >= args.size())
@@ -89,7 +89,7 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     int conn = 8;
     // Optional 'keep' direction (only with scalar n).
     if (i < args.size() && is_string(args[i])) {
-        std::string dir = args[i].toString();
+        std::string dir(args[i].toString().as_ref());
         std::string dlo;
         for (char ch : dir)
             dlo += static_cast<char>(std::tolower(

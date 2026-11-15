@@ -476,7 +476,7 @@ void imfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     for (keel::usize i = 2; i < args.size(); ++i) {
         const Value &a = args[i];
         if (a.isChar() || a.isString()) {
-            auto s = a.toString();
+            std::string s(a.toString().as_ref());
             for (char &ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             if      (s.rfind("rep", 0) == 0)  boundary = PadMode::Replicate;
             else if (s.rfind("sym", 0) == 0)  boundary = PadMode::Symmetric;
@@ -591,7 +591,7 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter: name-value name must be a string",
                         0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badNVName");
-        const std::string key = args[i].toString();
+        const std::string key(args[i].toString().as_ref());
         std::string lower = key;
         for (auto &ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         if (lower == "normalizationfactor") {
@@ -635,7 +635,7 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter3: name-value name must be a string",
                         0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badNVName");
-        std::string lower = args[i].toString();
+        std::string lower(args[i].toString().as_ref());
         for (auto &ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         if (lower == "normalizationfactor") {
             normFactor = args[i + 1].toScalar();
@@ -877,7 +877,7 @@ void imsharpen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     while (i < args.size()) {
         if (args[i].isChar() || args[i].isString()) {
             sawNV = true;
-            const std::string nm = args[i].toString();
+            const std::string nm(args[i].toString().as_ref());
             if (i + 1 >= args.size())
                 throw Error("imsharpen: missing value for '" + nm + "'",
                             0, 0, "imsharpen", "", "numkit:imsharpen:nv");
@@ -973,7 +973,7 @@ void ordfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         const Value &a = args[i];
         if (a.isEmpty()) continue;
         if (a.isChar() || a.isString()) {
-            const std::string s = a.toString();
+            const keel::String s = a.toString();
             if      (s == "replicate") pad = PadMode::Replicate;
             else if (s == "symmetric") pad = PadMode::Symmetric;
             else if (s == "circular")  pad = PadMode::Circular;
@@ -1052,11 +1052,11 @@ void nlfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     bool indexed = false;
     keel::usize k = 1;
     if (args[1].isChar() || args[1].isString()) {
-        std::string s = args[1].toString();
+        std::string s(args[1].toString().as_ref());
         for (auto &c : s) c = static_cast<char>(
             std::tolower(static_cast<unsigned char>(c)));
         if (s != "indexed")
-            throw Error("nlfilter: unknown literal '" + args[1].toString()
+            throw Error("nlfilter: unknown literal '" + std::string(args[1].toString().as_ref())
                       + "' (expected 'indexed')",
                         0, 0, "nlfilter", "", "numkit:nlfilter:badLiteral");
         indexed = true;
@@ -1095,11 +1095,11 @@ void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     bool indexed = false;
     keel::usize k = 1;
     if (args[1].isChar() || args[1].isString()) {
-        std::string s = args[1].toString();
+        std::string s(args[1].toString().as_ref());
         for (auto &c : s) c = static_cast<char>(
             std::tolower(static_cast<unsigned char>(c)));
         if (s != "indexed")
-            throw Error("colfilt: unknown literal '" + args[1].toString()
+            throw Error("colfilt: unknown literal '" + std::string(args[1].toString().as_ref())
                       + "' (expected 'indexed')",
                         0, 0, "colfilt", "", "numkit:colfilt:badLiteral");
         indexed = true;
@@ -1133,7 +1133,7 @@ void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[bi].isChar() && !args[bi].isString())
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
-    const std::string kind = args[bi].toString();
+    const std::string kind(args[bi].toString().as_ref());
     const Value &fn = args[bi + 1];
     if (!fn.isFuncHandle())
         throw Error("colfilt: fun must be a function handle",
@@ -1162,7 +1162,7 @@ void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("imnlmfilt: expected NV-pair name",
                         0, 0, "imnlmfilt", "", "numkit:imnlmfilt:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -1213,7 +1213,7 @@ void imgaborfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("imgaborfilt: expected NV-pair name",
                         0, 0, "imgaborfilt", "", "numkit:imgaborfilt:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -1253,7 +1253,7 @@ void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("imdiffusefilt: expected NV-pair name",
                         0, 0, "imdiffusefilt", "",
                         "numkit:imdiffusefilt:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -1314,7 +1314,7 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("imguidedfilter: expected NV-pair name",
                         0, 0, "imguidedfilter", "",
                         "numkit:imguidedfilter:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(

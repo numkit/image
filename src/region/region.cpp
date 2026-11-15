@@ -231,14 +231,14 @@ Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
     auto cc = Value::structArray(1, 1, mr);
     auto &el = cc.structArrayElem(0);
 
-    el.emplace("Connectivity", Value::scalar(double(conn), mr));
+    el.put(keel::String::from("Connectivity"), Value::scalar(double(conn), mr));
 
     Value sz = Value::matrix(1, 2, ValueType::DOUBLE, mr);
     sz.doubleDataMut()[0] = double(H);
     sz.doubleDataMut()[1] = double(W);
-    el.emplace("ImageSize", std::move(sz));
+    el.put(keel::String::from("ImageSize"), std::move(sz));
 
-    el.emplace("NumObjects", Value::scalar(double(K), mr));
+    el.put(keel::String::from("NumObjects"), Value::scalar(double(K), mr));
 
     // Build PixelIdxList: 1xK cell of column-vector indices.
     Value pixList = Value::cell(1, static_cast<keel::usize>(K), mr);
@@ -258,7 +258,7 @@ Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
             pixList.cellAt(k) = std::move(col);
         }
     }
-    el.emplace("PixelIdxList", std::move(pixList));
+    el.put(keel::String::from("PixelIdxList"), std::move(pixList));
 
     return cc;
 }
@@ -291,12 +291,12 @@ CCInfo parse_cc(const Value &CC, const char *fn)
                     0, 0, fn, "", std::string("numkit:") + fn + ":notStruct");
     const auto &el = CC.structArrayElem(0);
     auto need = [&](const char *name) -> const Value & {
-        auto it = el.find(name);
-        if (it == el.end())
+        const Value *v = el.get(name);
+        if (!v)
             throw Error(std::string(fn) + ": CC missing field '"
                         + name + "'", 0, 0, fn, "",
                         std::string("numkit:") + fn + ":noField");
-        return it->second;
+        return *v;
     };
     const Value &sz = need("ImageSize");
     if (sz.numel() < 2)
@@ -848,7 +848,7 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
     for (int lab = 1; lab <= K; ++lab) {
         auto &el = sa.structArrayElem(static_cast<keel::usize>(lab - 1));
         if (wArea) {
-            el.emplace("Area", Value::scalar(double(area[(keel::usize)lab]), mr));
+            el.put(keel::String::from("Area"), Value::scalar(double(area[(keel::usize)lab]), mr));
         }
         if (wCent) {
             // Centroid in MATLAB: 1-based (x, y) = (col+1, row+1) means.
@@ -856,7 +856,7 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
             Value cn = Value::matrix(1, 2, ValueType::DOUBLE, mr);
             cn.doubleDataMut()[0] = (a > 0.0) ? sumX[(keel::usize)lab] / a + 1.0 : 0.0;
             cn.doubleDataMut()[1] = (a > 0.0) ? sumY[(keel::usize)lab] / a + 1.0 : 0.0;
-            el.emplace("Centroid", cn);
+            el.put(keel::String::from("Centroid"), cn);
         }
         if (wBbox) {
             // BoundingBox: [xmin-0.5, ymin-0.5, width, height]
@@ -868,28 +868,28 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
                                             minX[(keel::usize)lab] + 1);
             bb.doubleDataMut()[3] = double(maxY[(keel::usize)lab] -
                                             minY[(keel::usize)lab] + 1);
-            el.emplace("BoundingBox", bb);
+            el.put(keel::String::from("BoundingBox"), bb);
         }
 
         // ── Moment / area / bbox based scalar shape descriptors ──
         constexpr double kPi = 3.14159265358979323846;
         const double N = double(area[(keel::usize)lab]);
         if (wEquivD)
-            el.emplace("EquivDiameter",
-                       Value::scalar((N > 0.0) ? std::sqrt(4.0 * N / kPi) : 0.0, mr));
+            el.put(keel::String::from("EquivDiameter"),
+                   Value::scalar((N > 0.0) ? std::sqrt(4.0 * N / kPi) : 0.0, mr));
         if (wExtent) {
             const double bw = double(maxX[(keel::usize)lab] - minX[(keel::usize)lab] + 1);
             const double bh = double(maxY[(keel::usize)lab] - minY[(keel::usize)lab] + 1);
             const double bba = bw * bh;
-            el.emplace("Extent",
-                       Value::scalar((bba > 0.0) ? N / bba : 0.0, mr));
+            el.put(keel::String::from("Extent"),
+                   Value::scalar((bba > 0.0) ? N / bba : 0.0, mr));
         }
         if (wPerim) {
             const double per = (area[(keel::usize)lab] > 0 && firstR[(keel::usize)lab] >= 0)
                 ? regionPerimeter(L, H, W, lab,
                                   firstR[(keel::usize)lab], firstC[(keel::usize)lab])
                 : 0.0;
-            el.emplace("Perimeter", Value::scalar(per, mr));
+            el.put(keel::String::from("Perimeter"), Value::scalar(per, mr));
         }
         if (wEllipse) {
             // Normalized second central moments with the +1/12 per-pixel
@@ -930,10 +930,10 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
                     orient = (180.0 / kPi) * std::atan(num / den);
                 }
             }
-            if (wMajor)  el.emplace("MajorAxisLength", Value::scalar(major, mr));
-            if (wMinor)  el.emplace("MinorAxisLength", Value::scalar(minor, mr));
-            if (wEcc)    el.emplace("Eccentricity",    Value::scalar(ecc, mr));
-            if (wOrient) el.emplace("Orientation",     Value::scalar(orient, mr));
+            if (wMajor)  el.put(keel::String::from("MajorAxisLength"), Value::scalar(major, mr));
+            if (wMinor)  el.put(keel::String::from("MinorAxisLength"), Value::scalar(minor, mr));
+            if (wEcc)    el.put(keel::String::from("Eccentricity"),    Value::scalar(ecc, mr));
+            if (wOrient) el.put(keel::String::from("Orientation"),     Value::scalar(orient, mr));
         }
 
         // ── Per-pixel list fields ──
@@ -946,7 +946,7 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
                 double *pd = pil.doubleDataMut();
                 for (keel::usize i = 0; i < P; ++i)
                     pd[i] = static_cast<double>(idxList[i]);
-                el.emplace("PixelIdxList", std::move(pil));
+                el.put(keel::String::from("PixelIdxList"), std::move(pil));
             }
             if (wPixList) {
                 // [x y] = [col row], 1-based, derived from the sorted index.
@@ -959,7 +959,7 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
                     pl[i]     = static_cast<double>(col0 + 1);   // x = col
                     pl[P + i] = static_cast<double>(row0 + 1);   // y = row
                 }
-                el.emplace("PixelList", std::move(plv));
+                el.put(keel::String::from("PixelList"), std::move(plv));
             }
             // ── Intensity measurements (grayscale image supplied) ──
             if (needIntensity) {
@@ -985,17 +985,17 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
                     }
                     if (pv) pv[i] = iv;
                 }
-                if (wMeanI) el.emplace("MeanIntensity",
-                                       Value::scalar(P ? sumI / double(P) : 0.0, mr));
-                if (wMaxI)  el.emplace("MaxIntensity", Value::scalar(maxI, mr));
-                if (wMinI)  el.emplace("MinIntensity", Value::scalar(minI, mr));
+                if (wMeanI) el.put(keel::String::from("MeanIntensity"),
+                                   Value::scalar(P ? sumI / double(P) : 0.0, mr));
+                if (wMaxI)  el.put(keel::String::from("MaxIntensity"), Value::scalar(maxI, mr));
+                if (wMinI)  el.put(keel::String::from("MinIntensity"), Value::scalar(minI, mr));
                 if (wWCent) {
                     Value wc = Value::matrix(1, 2, ValueType::DOUBLE, mr);
                     wc.doubleDataMut()[0] = (sumI != 0.0) ? sumIx / sumI : 0.0;
                     wc.doubleDataMut()[1] = (sumI != 0.0) ? sumIy / sumI : 0.0;
-                    el.emplace("WeightedCentroid", std::move(wc));
+                    el.put(keel::String::from("WeightedCentroid"), std::move(wc));
                 }
-                if (wPixVal) el.emplace("PixelValues", std::move(pvv));
+                if (wPixVal) el.put(keel::String::from("PixelValues"), std::move(pvv));
             }
         }
     }

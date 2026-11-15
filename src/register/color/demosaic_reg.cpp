@@ -26,7 +26,7 @@ static std::string asString(const Value &v) {
     if (!v.isChar() && !v.isString())
         throw Error("demosaic: expected a string argument",
                     0, 0, "demosaic", "", "numkit:demosaic:type");
-    return v.toString();
+    return std::string(v.toString().as_ref());
 }
 
 void demosaic_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,

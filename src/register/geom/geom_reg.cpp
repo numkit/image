@@ -46,7 +46,7 @@ static std::string argString(const Value &v) {
     if (!v.isChar() && !v.isString())
         throw Error("image geom: expected a string argument",
                     0, 0, "geom", "", "numkit:image:geom:type");
-    return v.toString();
+    return std::string(v.toString().as_ref());
 }
 
 void imresize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,

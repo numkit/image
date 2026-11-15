@@ -95,7 +95,7 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("multissim3: expected NV-pair name string",
                         0, 0, "multissim3", "", "numkit:multissim3:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -151,7 +151,7 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("multissim: expected NV-pair name string",
                         0, 0, "multissim", "", "numkit:multissim:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(

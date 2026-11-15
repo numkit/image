@@ -112,7 +112,7 @@ void imfill_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         !(args[1].isChar() || args[1].isString()))
         throw Error("imfill: only the 'holes' mode is implemented",
                     0, 0, "imfill", "", "numkit:imfill:mode");
-    const std::string mode = args[1].toString();
+    const keel::String mode = args[1].toString();
     if (mode != "holes" && mode != "Holes" && mode != "HOLES")
         throw Error("imfill: only 'holes' mode is implemented "
                     "(seed-list mode not yet supported)",
@@ -320,7 +320,7 @@ void bwmorph3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!(args[1].isChar() || args[1].isString()))
         throw Error("bwmorph3: requires (V, operation)",
                     0, 0, "bwmorph3", "", "numkit:bwmorph3:nargin");
-    outs[0] = bwmorph3(args[0], args[1].toString(), ctx.engine->allocator());
+    outs[0] = bwmorph3(args[0], std::string(args[1].toString().as_ref()), ctx.engine->allocator());
 }
 
 void bwhitmiss_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -362,7 +362,7 @@ void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[1].isChar())
         throw Error("bwmorph: op must be a string",
                     0, 0, "bwmorph", "", "numkit:bwmorph:badOp");
-    std::string op = args[1].toString();
+    std::string op(args[1].toString().as_ref());
     // Normalise to lowercase.
     for (auto &ch : op) ch = static_cast<char>(std::tolower(ch));
     // MATLAB accepts "skel" as a prefix-match for "skeleton".
@@ -386,7 +386,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         throw Error("bwtraceboundary: FSTEP must be a string",
                     0, 0, "bwtraceboundary", "",
                     "numkit:bwtraceboundary:fstep");
-    std::string fstep = args[2].toString();
+    std::string fstep(args[2].toString().as_ref());
     // Upper-case fstep.
     for (auto &ch : fstep)
         ch = static_cast<char>(std::toupper(

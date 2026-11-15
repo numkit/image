@@ -36,7 +36,7 @@ std::string parse_method(keel::ArrayRef<Value> args, keel::usize i, const std::s
     if (i < args.size() && (args[i].isChar() || args[i].isString())) {
         // MATLAB method names ('Canny', 'Sobel', 'Roberts', …) are
         // case-insensitive; downstream comparisons are all lowercase.
-        std::string s = args[i].toString();
+        std::string s(args[i].toString().as_ref());
         std::transform(s.begin(), s.end(), s.begin(),
                        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
         return s;
@@ -142,7 +142,7 @@ void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     Value filter_coef;
     keel::usize i = 1;
     if (i < args.size() && is_string(args[i])) {
-        std::string m = args[i].toString();
+        std::string m(args[i].toString().as_ref());
         std::string mlo;
         for (char ch : m)
             mlo += static_cast<char>(std::tolower(
@@ -163,7 +163,7 @@ void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("cornermetric: expected NV-pair name",
                         0, 0, "cornermetric", "", "numkit:cornermetric:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -200,7 +200,7 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     // Optional positional METHOD.
     if (i < args.size() && is_string(args[i])) {
-        std::string m = args[i].toString();
+        std::string m(args[i].toString().as_ref());
         if (m == "Harris" || m == "MinimumEigenvalue") {
             method = m;
             ++i;
@@ -218,7 +218,7 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("corner: expected NV-pair name",
                         0, 0, "corner", "", "numkit:corner:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -250,7 +250,7 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("hough: expected NV-pair name",
                         0, 0, "hough", "", "numkit:hough:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -295,7 +295,7 @@ void houghlines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("houghlines: expected NV-pair name",
                         0, 0, "houghlines", "", "numkit:houghlines:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -340,7 +340,7 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("houghpeaks: expected NV-pair name",
                         0, 0, "houghpeaks", "", "numkit:houghpeaks:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -413,7 +413,7 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                             + std::to_string(i + 1) + ".",
                         0, 0, "imfindcircles", "", "numkit:imfindcircles:badNvName");
         }
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo = name;
         for (char &ch : nlo) {
             ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));

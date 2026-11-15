@@ -486,7 +486,7 @@ void deltaE_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("deltaE: name-value pairs require string keys",
                         0, 0, "deltaE", "", "numkit:deltaE:nv");
-        std::string key = args[i].toString();
+        std::string key(args[i].toString().as_ref());
         std::string lo;
         for (char c : key) lo.push_back(static_cast<char>(std::tolower(c)));
         if (lo == "isinputlab")

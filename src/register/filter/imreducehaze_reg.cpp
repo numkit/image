@@ -53,7 +53,7 @@ void imreducehaze_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             throw Error("imreducehaze: expected NV-pair name string",
                         0, 0, "imreducehaze", "",
                         "numkit:imreducehaze:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(

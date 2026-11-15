@@ -114,12 +114,12 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
                     0, 0, fn, "", std::string("numkit:") + fn + ":notStruct");
     const auto &el = CC.structArrayElem(0);
     auto need = [&](const char *name) -> const Value & {
-        auto it = el.find(name);
-        if (it == el.end())
+        const Value *v = el.get(name);
+        if (!v)
             throw Error(std::string(fn) + ": CC missing '" + name + "'",
                         0, 0, fn, "",
                         std::string("numkit:") + fn + ":noField");
-        return it->second;
+        return *v;
     };
     const Value &sz = need("ImageSize");
     if (sz.numel() < 2)
@@ -128,8 +128,7 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
                     std::string("numkit:") + fn + ":sizeDim");
     info.H = static_cast<int>(sz.elemAsDouble(0));
     info.W = static_cast<int>(sz.elemAsDouble(1));
-    auto itConn = el.find("Connectivity");
-    if (itConn != el.end()) info.conn = static_cast<int>(itConn->second.toScalar());
+    if (const Value *vConn = el.get("Connectivity")) info.conn = static_cast<int>(vConn->toScalar());
     const Value &nob = need("NumObjects");
     const keel::usize K = static_cast<keel::usize>(nob.toScalar());
     const Value &pl = need("PixelIdxList");
@@ -721,20 +720,20 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
         auto &el = out.structArrayElem(0);
         const auto &src = cc_use->structArrayElem(0);
         // Copy Connectivity + ImageSize.
-        if (auto it = src.find("Connectivity"); it != src.end())
-            el.emplace("Connectivity", it->second);
-        if (auto it = src.find("ImageSize"); it != src.end())
-            el.emplace("ImageSize", it->second);
+        if (const Value *v = src.get("Connectivity"))
+            el.put(keel::String::from("Connectivity"), *v);
+        if (const Value *v = src.get("ImageSize"))
+            el.put(keel::String::from("ImageSize"), *v);
         // Build filtered PixelIdxList.
         keel::usize Kkept = 0;
         for (keel::usize k = 0; k < K; ++k) if (keep[k]) ++Kkept;
-        el.emplace("NumObjects", Value::scalar(static_cast<double>(Kkept), mr));
+        el.put(keel::String::from("NumObjects"), Value::scalar(static_cast<double>(Kkept), mr));
         Value cell = Value::cell(1, Kkept, mr);
-        const Value &orig = src.at("PixelIdxList");
+        const Value &orig = *src.get("PixelIdxList");
         keel::usize w = 0;
         for (keel::usize k = 0; k < K; ++k)
             if (keep[k]) cell.cellAt(w++) = orig.cellAt(k);
-        el.emplace("PixelIdxList", std::move(cell));
+        el.put(keel::String::from("PixelIdxList"), std::move(cell));
         return out;
     }
     // BW input → return logical mask.

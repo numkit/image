@@ -49,7 +49,7 @@ void rgb2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     // NK always behaves as 'nodither'; if 'dither' is requested we
     // throw to keep parity honest (KNOWN GAP).
     if (args.size() >= 3 && (args[2].isChar() || args[2].isString())) {
-        const std::string s = args[2].toString();
+        const keel::String s = args[2].toString();
         if (s == "dither")
             throw Error("rgb2ind: 'dither' option not implemented in v1 "
                         "(KNOWN GAP); pass 'nodither' instead",
@@ -114,7 +114,7 @@ void rgbwide2xyz_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("rgbwide2xyz: expected NV-pair name string",
                         0, 0, "rgbwide2xyz", "",
                         "numkit:rgbwide2xyz:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name) nlo += static_cast<char>(std::tolower(
             static_cast<unsigned char>(ch)));
@@ -150,7 +150,7 @@ void xyz2rgbwide_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("xyz2rgbwide: expected NV-pair name string",
                         0, 0, "xyz2rgbwide", "",
                         "numkit:xyz2rgbwide:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name) nlo += static_cast<char>(std::tolower(
             static_cast<unsigned char>(ch)));
@@ -207,7 +207,7 @@ void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     Value channels;  // empty → default (green-magenta)
     keel::usize i = 2;
     if (i < args.size() && is_string(args[i])) {
-        std::string m = args[i].toString();
+        std::string m(args[i].toString().as_ref());
         static const std::array<const char *, 5> mset{
             "falsecolor", "blend", "diff", "checkerboard", "montage"};
         static const std::array<const char *, 2> nvset{
@@ -233,7 +233,7 @@ void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("imfuse: expected NV-pair name string",
                         0, 0, "imfuse", "", "numkit:imfuse:badNvArg");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -249,7 +249,7 @@ void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         } else if (nlo == "colorchannels") {
             const Value &v = args[i + 1];
             if (is_string(v)) {
-                std::string s = v.toString();
+                std::string s(v.toString().as_ref());
                 std::string slo;
                 for (char ch : s)
                     slo += static_cast<char>(std::tolower(
@@ -296,7 +296,7 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("tonemap: expected NV-pair name",
                         0, 0, "tonemap", "", "numkit:tonemap:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -356,7 +356,7 @@ void labeloverlay_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("labeloverlay: expected NV-pair name string",
                         0, 0, "labeloverlay", "",
                         "numkit:labeloverlay:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -444,7 +444,7 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             double rgb[3];
             if (!parseColorSpec(args[2].toString(), rgb))
                 throw Error("label2rgb: invalid zerocolor string '" +
-                            args[2].toString() + "'",
+                            std::string(args[2].toString().as_ref()) + "'",
                             0, 0, "label2rgb", "",
                             "numkit:label2rgb:zerocolor");
             bg = Value::matrix(1, 3, ValueType::DOUBLE, mr);

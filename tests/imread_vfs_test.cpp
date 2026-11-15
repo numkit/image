@@ -35,26 +35,34 @@ public:
     std::map<std::string, std::string> files;  // path -> raw bytes
 
     // Text read must never be used for an image — fail loudly if it is.
-    std::string readFile(const std::string &p) override
+    keel::String readFile(keel::StringRef p) override
     {
-        throw std::runtime_error("MemFS::readFile must not be used for imread (" + p + ")");
+        throw std::runtime_error("MemFS::readFile must not be used for imread (" +
+                                 std::string(p.data(), p.size()) + ")");
     }
-    void writeFile(const std::string &p, const std::string &c) override { files[p] = c; }
-    bool exists(const std::string &p) override { return files.count(p) != 0; }
-    std::string name() const override { return "mem"; }
+    void writeFile(keel::StringRef p, keel::StringRef c) override
+    {
+        files[std::string(p.data(), p.size())] = std::string(c.data(), c.size());
+    }
+    bool exists(keel::StringRef p) override
+    {
+        return files.count(std::string(p.data(), p.size())) != 0;
+    }
+    keel::String name() const override { return keel::String::from("mem"); }
 
     // The binary surface imread/imfinfo actually use.
-    std::string readFileBytes(const std::string &p) override
+    keel::String readFileBytes(keel::StringRef p) override
     {
-        auto it = files.find(p);
+        std::string key(p.data(), p.size());
+        auto it = files.find(key);
         if (it == files.end())
-            throw std::runtime_error("MemFS: no such file " + p);
-        return it->second;
+            throw std::runtime_error("MemFS: no such file " + key);
+        return keel::String::from(keel::StringRef(it->second.data(), it->second.size()));
     }
     // The binary surface imwrite actually uses.
-    void writeFileBytes(const std::string &p, const std::string &bytes) override
+    void writeFileBytes(keel::StringRef p, keel::StringRef bytes) override
     {
-        files[p] = bytes;
+        files[std::string(p.data(), p.size())] = std::string(bytes.data(), bytes.size());
     }
 };
 
@@ -68,7 +76,7 @@ public:
 
     void SetUp() override
     {
-                auto fs = std::make_unique<MemFS>();
+        auto fs = keel::make_unique<MemFS>();
         mem = fs.get();
         engine.registerVirtualFS(std::move(fs));
     }
@@ -79,7 +87,7 @@ public:
     void stage(const std::string &genMat, const std::string &ext, const std::string &vkey)
     {
         engine.eval(genMat + " p = [tempname '" + ext + "']; imwrite(A, p);");
-        const std::string disk = engine.eval("p").toString();
+        const std::string disk(engine.eval("p").toString().as_ref());
         std::ifstream f(disk, std::ios::binary);
         ASSERT_TRUE(static_cast<bool>(f)) << "could not open imwrite temp file: " << disk;
         std::ostringstream ss;

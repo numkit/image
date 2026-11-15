@@ -15,7 +15,7 @@ public:
     void SetUp() override {}
     Value eval(const std::string &c) { return engine.eval(c); }
     double evalScalar(const std::string &c) { return eval(c).toScalar(); }
-    std::string evalString(const std::string &c) { return eval(c).toString(); }
+    std::string evalString(const std::string &c) { return std::string(eval(c).toString().as_ref()); }
 };
 
 // ── rgb2lightness ─────────────────────────────────────────────────────

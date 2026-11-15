@@ -253,7 +253,7 @@ Value phantom_argcheck(const Value &model_or_E, keel::Allocator *mr)
     if (model_or_E.numel() == 0) {
         return make_ellipse_matrix(kModSheppLogan, 10, mr);
     } else if (model_or_E.isChar() || model_or_E.isString()) {
-        const std::string m = model_or_E.toString();
+        const keel::String m = model_or_E.toString();
         std::string lo;
         lo.reserve(m.size());
         for (char c : m) lo.push_back(static_cast<char>(std::tolower(c)));

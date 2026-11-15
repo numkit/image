@@ -61,7 +61,7 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("graycomatrix: NV-pair name must be a string",
                          0, 0, "graycomatrix", "",
                          "numkit:graycomatrix:badNVName");
-        const std::string key = args[i].toString();
+        const std::string key(args[i].toString().as_ref());
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumLevels"))
             numLevels = argcheck::expectedPositiveInteger(

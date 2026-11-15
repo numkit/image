@@ -250,8 +250,8 @@ Value strel(const std::string &shape, const std::vector<double> &params, const V
 
     auto se = Value::structArray(1, 1, mr);
     auto &el = se.structArrayElem(0);
-    el.emplace("Neighborhood", std::move(nhood));
-    el.emplace("Dimensionality", Value::scalar(2.0, mr));
+    el.put(keel::String::from("Neighborhood"), std::move(nhood));
+    el.put(keel::String::from("Dimensionality"), Value::scalar(2.0, mr));
     return se;
 }
 
@@ -298,8 +298,7 @@ SEInfo unpack_se(const Value &SE) {
     const Value *nhood = &SE;
     if (SE.isStruct() && SE.numel() >= 1) {
         const auto &fields = SE.structArrayElem(0);
-        auto it = fields.find("Neighborhood");
-        if (it != fields.end()) nhood = &it->second;
+        if (const Value *v = fields.get("Neighborhood")) nhood = v;
     }
     SEInfo s{};
     s.H = (int)nhood->dims().rows();

@@ -138,7 +138,7 @@ void adapthisteq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar())
             throw Error("adapthisteq: NV-pair name must be a string",
                          0, 0, "adapthisteq", "", "numkit:adapthisteq:badNVName");
-        const std::string key = args[i].toString();
+        const std::string key(args[i].toString().as_ref());
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumTiles")) {
             if (v.numel() < 2)
@@ -195,7 +195,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     // Method-string form: imbinarize(I, 'global') | imbinarize(I, 'adaptive', ...).
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
-        std::string m = args[1].toString();
+        std::string m(args[1].toString().as_ref());
         for (char &c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         if (m == "global") {
             auto [t, em] = graythresh(args[0], mr);
@@ -211,7 +211,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 if (!args[i].isChar() && !args[i].isString())
                     throw Error("imbinarize: expected a Name-Value pair",
                                 0, 0, "imbinarize", "", "numkit:imbinarize:nv");
-                std::string nm = args[i].toString();
+                std::string nm(args[i].toString().as_ref());
                 for (char &c : nm) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
                 if (nm == "sensitivity")
                     sens = args[i + 1].toScalar();
@@ -220,7 +220,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     for (char &c : polarity)
                         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
                 } else
-                    throw Error("imbinarize: unknown option '" + args[i].toString() + "'",
+                    throw Error("imbinarize: unknown option '" + std::string(args[i].toString().as_ref()) + "'",
                                 0, 0, "imbinarize", "", "numkit:imbinarize:opt");
             }
             if (polarity != "bright")

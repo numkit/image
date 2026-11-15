@@ -11,6 +11,7 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
 #include <string>
@@ -21,14 +22,14 @@ namespace numkit::image {
 Value jet_colormap(int m, keel::Allocator *mr);
 
 // Dispatch a named MATLAB colormap (jet/hsv/parula/...). Throws on unknown.
-Value resolve_named_colormap(const std::string &name, int N,
+Value resolve_named_colormap(keel::StringRef name, int N,
                              keel::Allocator *mr);
 
 // Lower-case a string (ASCII).
-std::string lower(const std::string &s);
+std::string lower(keel::StringRef s);
 
 // Parse a MATLAB ColorSpec (single letter or full name) into RGB in [0,1].
 // Returns false if unrecognised.
-bool parseColorSpec(const std::string &name, double rgb[3]);
+bool parseColorSpec(keel::StringRef name, double rgb[3]);
 
 } // namespace numkit::image

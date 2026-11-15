@@ -136,7 +136,7 @@ void cc2bw_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("cc2bw: expected NV-pair name string",
                         0, 0, "cc2bw", "", "numkit:cc2bw:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
@@ -217,7 +217,7 @@ void regionprops_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("regionprops: property names must be strings",
                         0, 0, "regionprops", "", "numkit:regionprops:type");
-        props.push_back(args[i].toString());
+        props.emplace_back(args[i].toString().as_ref());
     }
     outs[0] = regionprops(args[0], props, intensity, ctx.engine->allocator());
 }
@@ -341,7 +341,7 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         const Value &a = args[i];
         if (a.isEmpty()) continue;
         if (a.isChar() || a.isString()) {
-            const std::string s = a.toString();
+            const keel::String s = a.toString();
             std::string lo_s;
             lo_s.reserve(s.size());
             for (char c : s) lo_s.push_back(static_cast<char>(std::tolower(c)));

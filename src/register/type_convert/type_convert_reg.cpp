@@ -90,7 +90,7 @@ void imcast_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[1].isChar() && !args[1].isString())
         throw Error("imcast: TYPE must be a string",
                     0, 0, "imcast", "", "numkit:imcast:type");
-    outs[0] = imcast(args[0], args[1].toString(), ctx.engine->allocator());
+    outs[0] = imcast(args[0], std::string(args[1].toString().as_ref()), ctx.engine->allocator());
 }
 
 void gray2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,

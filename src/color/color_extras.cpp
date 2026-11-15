@@ -1814,7 +1814,7 @@ Value bone_colormap(int m, keel::Allocator *mr)
 
 // Dispatch a named MATLAB colormap. Throws for anything not in the
 // supported set.
-Value resolve_named_colormap(const std::string &name, int N,
+Value resolve_named_colormap(keel::StringRef name, int N,
                              keel::Allocator *mr)
 {
     std::string lo;
@@ -1828,7 +1828,8 @@ Value resolve_named_colormap(const std::string &name, int N,
     if (lo == "hot")     return hot_colormap(N, mr);
     if (lo == "cool")    return cool_colormap(N, mr);
     if (lo == "bone")    return bone_colormap(N, mr);
-    throw Error("labeloverlay: unsupported colormap name '" + name +
+    throw Error("labeloverlay: unsupported colormap name '" +
+                std::string(name.data(), name.size()) +
                 "' (supported: jet, hsv, parula, gray, hot, cool, bone)",
                 0, 0, "labeloverlay", "", "numkit:labeloverlay:cmapName");
 }
@@ -2101,7 +2102,7 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
 }
 
 // ── Lowercase helper ──────────────────────────────────────────────
-std::string lower(const std::string &s)
+std::string lower(keel::StringRef s)
 {
     std::string lo;
     lo.reserve(s.size());
@@ -2113,7 +2114,7 @@ std::string lower(const std::string &s)
 // Parse a MATLAB color-spec string into an RGB triplet in [0,1], matching
 // label2rgb's parseZerocolor (single-letter ColorSpec or full color name).
 // Returns false if the string is not a recognized color.
-bool parseColorSpec(const std::string &name, double rgb[3])
+bool parseColorSpec(keel::StringRef name, double rgb[3])
 {
     const std::string lo = lower(name);
     auto set = [&](double r, double g, double b) {

@@ -175,7 +175,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
             throw Error("graydiffweight: expected NV-pair name string",
                         0, 0, "graydiffweight", "",
                         "numkit:graydiffweight:badNvArg");
-        std::string name = a[i].toString();
+        std::string name(a[i].toString().as_ref());
         std::string nlo = name;
         for (auto &ch : nlo)
             ch = static_cast<char>(std::tolower(
@@ -242,7 +242,7 @@ void gradientweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
             throw Error("gradientweight: expected NV-pair name string",
                         0, 0, "gradientweight", "",
                         "numkit:gradientweight:badNvArg");
-        std::string name = a[i].toString();
+        std::string name(a[i].toString().as_ref());
         std::string nlo = name;
         for (auto &ch : nlo)
             ch = static_cast<char>(std::tolower(

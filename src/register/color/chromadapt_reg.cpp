@@ -36,7 +36,7 @@ void chromadapt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("chromadapt: expected NV-pair name string",
                         0, 0, "chromadapt", "", "numkit:chromadapt:badNv");
-        std::string name = args[i].toString();
+        std::string name(args[i].toString().as_ref());
         std::string nlo;
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
