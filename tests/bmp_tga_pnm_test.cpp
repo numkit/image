@@ -24,7 +24,7 @@ TEST(BmpCodecTest, Gray8RoundTrip) {
         }
     }
 
-    std::string bytes = writeBmpToBytes(orig);
+    keel::String bytes = writeBmpToBytes(orig);
     EXPECT_GT(bytes.size(), 14u + 40u + 1024u);
 
     keel::u32 w32 = 0, h32 = 0;
@@ -50,7 +50,7 @@ TEST(BmpCodecTest, Rgb8AndRgba8RoundTrip) {
     for (keel::usize i = 0; i < H * W * 3; ++i) {
         rgb.uint8DataMut()[i] = static_cast<keel::u8>((i * 17) % 256);
     }
-    std::string rgbBytes = writeBmpToBytes(rgb);
+    keel::String rgbBytes = writeBmpToBytes(rgb);
     Value rgbBack = readBmp(reinterpret_cast<const keel::u8*>(rgbBytes.data()), rgbBytes.size());
     EXPECT_EQ(rgbBack.dims().pages(), 3u);
     for (keel::usize i = 0; i < H * W * 3; ++i) {
@@ -62,7 +62,7 @@ TEST(BmpCodecTest, Rgb8AndRgba8RoundTrip) {
     for (keel::usize i = 0; i < H * W * 4; ++i) {
         rgba.uint8DataMut()[i] = static_cast<keel::u8>((i * 23) % 256);
     }
-    std::string rgbaBytes = writeBmpToBytes(rgba);
+    keel::String rgbaBytes = writeBmpToBytes(rgba);
     Value rgbaBack = readBmp(reinterpret_cast<const keel::u8*>(rgbaBytes.data()), rgbaBytes.size());
     EXPECT_EQ(rgbaBack.dims().pages(), 4u);
     for (keel::usize i = 0; i < H * W * 4; ++i) {
@@ -76,7 +76,7 @@ TEST(TgaCodecTest, GrayAndRgbRoundTrip) {
     Value gray = Value::matrix(H, W, ValueType::UINT8);
     for (keel::usize i = 0; i < H * W; ++i) gray.uint8DataMut()[i] = static_cast<keel::u8>(i % 256);
 
-    std::string grayBytes = writeTgaToBytes(gray);
+    keel::String grayBytes = writeTgaToBytes(gray);
     Value grayBack = readTga(reinterpret_cast<const keel::u8*>(grayBytes.data()), grayBytes.size());
     EXPECT_EQ(grayBack.dims().rows(), H);
     EXPECT_EQ(grayBack.dims().cols(), W);
@@ -88,7 +88,7 @@ TEST(TgaCodecTest, GrayAndRgbRoundTrip) {
     Value rgb = Value::matrix3d(H, W, 3, ValueType::UINT8);
     for (keel::usize i = 0; i < H * W * 3; ++i) rgb.uint8DataMut()[i] = static_cast<keel::u8>((i * 13) % 256);
 
-    std::string rgbBytes = writeTgaToBytes(rgb);
+    keel::String rgbBytes = writeTgaToBytes(rgb);
     Value rgbBack = readTga(reinterpret_cast<const keel::u8*>(rgbBytes.data()), rgbBytes.size());
     EXPECT_EQ(rgbBack.dims().pages(), 3u);
     for (keel::usize i = 0; i < H * W * 3; ++i) {
@@ -103,8 +103,8 @@ TEST(PnmCodecTest, BinaryPgmPpm8BitAnd16BitRoundTrip) {
     Value pgm8 = Value::matrix(H, W, ValueType::UINT8);
     for (keel::usize i = 0; i < H * W; ++i) pgm8.uint8DataMut()[i] = static_cast<keel::u8>((i * 7) % 256);
 
-    std::string pgm8Bytes = writePnmToBytes(pgm8);
-    EXPECT_EQ(pgm8Bytes.substr(0, 3), "P5\n");
+    keel::String pgm8Bytes = writePnmToBytes(pgm8);
+    EXPECT_TRUE(pgm8Bytes.as_ref().substr(0, 3) == "P5\n");
     Value pgm8Back = readPnm(reinterpret_cast<const keel::u8*>(pgm8Bytes.data()), pgm8Bytes.size());
     EXPECT_EQ(pgm8Back.type(), ValueType::UINT8);
     for (keel::usize i = 0; i < H * W; ++i) {
@@ -115,7 +115,7 @@ TEST(PnmCodecTest, BinaryPgmPpm8BitAnd16BitRoundTrip) {
     Value pgm16 = Value::matrix(H, W, ValueType::UINT16);
     for (keel::usize i = 0; i < H * W; ++i) pgm16.uint16DataMut()[i] = static_cast<keel::u16>(i * 100);
 
-    std::string pgm16Bytes = writePnmToBytes(pgm16);
+    keel::String pgm16Bytes = writePnmToBytes(pgm16);
     Value pgm16Back = readPnm(reinterpret_cast<const keel::u8*>(pgm16Bytes.data()), pgm16Bytes.size());
     EXPECT_EQ(pgm16Back.type(), ValueType::UINT16);
     for (keel::usize i = 0; i < H * W; ++i) {
@@ -126,8 +126,8 @@ TEST(PnmCodecTest, BinaryPgmPpm8BitAnd16BitRoundTrip) {
     Value ppm8 = Value::matrix3d(H, W, 3, ValueType::UINT8);
     for (keel::usize i = 0; i < H * W * 3; ++i) ppm8.uint8DataMut()[i] = static_cast<keel::u8>((i * 19) % 256);
 
-    std::string ppm8Bytes = writePnmToBytes(ppm8);
-    EXPECT_EQ(ppm8Bytes.substr(0, 3), "P6\n");
+    keel::String ppm8Bytes = writePnmToBytes(ppm8);
+    EXPECT_TRUE(ppm8Bytes.as_ref().substr(0, 3) == "P6\n");
     Value ppm8Back = readPnm(reinterpret_cast<const keel::u8*>(ppm8Bytes.data()), ppm8Bytes.size());
     EXPECT_EQ(ppm8Back.dims().pages(), 3u);
     for (keel::usize i = 0; i < H * W * 3; ++i) {

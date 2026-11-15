@@ -97,14 +97,14 @@ void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayR
     }
 
     if (tiff) {
-        std::vector<keel::u8> buf(bytes.begin(), bytes.end());
+        keel::ArrayRef<keel::u8> buf(reinterpret_cast<const keel::u8 *>(bytes.data()), bytes.size());
         // Two-output form `[A, map] = imread(file)` — palette TIFFs.
         if (nargout >= 2) {
-            auto pair = readTiffWithMap(std::move(buf), page, ctx.engine->allocator());
+            auto pair = readTiffWithMap(buf, page, ctx.engine->allocator());
             outs[0] = std::move(pair.first);
             outs[1] = std::move(pair.second);
         } else {
-            outs[0] = readTiff(std::move(buf), page, ctx.engine->allocator());
+            outs[0] = readTiff(buf, page, ctx.engine->allocator());
         }
         return;
     }
@@ -182,16 +182,19 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
         if (!rp.fs)
             throw Error("imwrite: no filesystem for '" + path + "'",
                         0, 0, "imwrite", "", "numkit:imwrite:write");
-        std::vector<keel::u8> existing;
-        const std::vector<keel::u8> *exptr = nullptr;
+        keel::String existingBytes;
+        keel::ArrayRef<keel::u8> existingRef;
         if (appendMode && rp.fs->exists(rp.path)) {
-            const std::string eb(rp.fs->readFileBytes(rp.path).as_ref());
-            existing.assign(eb.begin(), eb.end());
-            exptr = &existing;
+            existingBytes = rp.fs->readFileBytes(rp.path);
+            existingRef = keel::ArrayRef<keel::u8>(
+                reinterpret_cast<const keel::u8 *>(existingBytes.data()),
+                existingBytes.size());
         }
-        const std::vector<keel::u8> buf =
-            writeTiffToBytes(args[0], compression, exptr);
-        rp.fs->writeFileBytes(rp.path, std::string(buf.begin(), buf.end()));
+        const keel::Array<keel::u8> buf =
+            writeTiffToBytes(args[0], compression, existingRef);
+        rp.fs->writeFileBytes(
+            rp.path,
+            keel::StringRef(reinterpret_cast<const char *>(buf.data()), buf.size()));
         return;
     }
 
@@ -200,7 +203,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
     if (!rp.fs)
         throw Error("imwrite: no filesystem for '" + path + "'",
                     0, 0, "imwrite", "", "numkit:imwrite:write");
-    const std::string bytes = imwriteToBytes(args[0], ext, ctx.engine->allocator());
+    const keel::String bytes = imwriteToBytes(args[0], ext, ctx.engine->allocator());
     rp.fs->writeFileBytes(rp.path, bytes);
 }
 

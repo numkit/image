@@ -22,7 +22,7 @@ TEST(PngCodecTest, Gray8RoundTrip) {
         }
     }
 
-    std::string pngBytes = writePngToBytes(orig, 6);
+    keel::String pngBytes = writePngToBytes(orig, 6);
     EXPECT_GT(pngBytes.size(), 8u + 25u + 12u + 12u);
 
     keel::u32 w32 = 0, h32 = 0;
@@ -51,7 +51,7 @@ TEST(PngCodecTest, Rgb8AndRgba8RoundTrip) {
     for (keel::usize i = 0; i < H * W * 3; ++i) {
         rgb.uint8DataMut()[i] = static_cast<keel::u8>((i * 31) % 256);
     }
-    std::string rgbBytes = writePngToBytes(rgb, 6);
+    keel::String rgbBytes = writePngToBytes(rgb, 6);
     Value rgbBack = readPng(reinterpret_cast<const keel::u8*>(rgbBytes.data()), rgbBytes.size());
     EXPECT_EQ(rgbBack.dims().pages(), 3u);
     EXPECT_EQ(rgbBack.type(), ValueType::UINT8);
@@ -64,7 +64,7 @@ TEST(PngCodecTest, Rgb8AndRgba8RoundTrip) {
     for (keel::usize i = 0; i < H * W * 4; ++i) {
         rgba.uint8DataMut()[i] = static_cast<keel::u8>((i * 47) % 256);
     }
-    std::string rgbaBytes = writePngToBytes(rgba, 6);
+    keel::String rgbaBytes = writePngToBytes(rgba, 6);
     Value rgbaBack = readPng(reinterpret_cast<const keel::u8*>(rgbaBytes.data()), rgbaBytes.size());
     EXPECT_EQ(rgbaBack.dims().pages(), 4u);
     EXPECT_EQ(rgbaBack.type(), ValueType::UINT8);
@@ -81,7 +81,7 @@ TEST(PngCodecTest, Gray16AndRgb16PrecisionRoundTrip) {
     for (keel::usize i = 0; i < H * W; ++i) {
         gray16.uint16DataMut()[i] = static_cast<keel::u16>(i * 123);
     }
-    std::string gray16Bytes = writePngToBytes(gray16, 6);
+    keel::String gray16Bytes = writePngToBytes(gray16, 6);
     Value gray16Back = readPng(reinterpret_cast<const keel::u8*>(gray16Bytes.data()), gray16Bytes.size());
     EXPECT_EQ(gray16Back.type(), ValueType::UINT16);
     EXPECT_EQ(gray16Back.dims().rows(), H);
@@ -95,7 +95,7 @@ TEST(PngCodecTest, Gray16AndRgb16PrecisionRoundTrip) {
     for (keel::usize i = 0; i < H * W * 3; ++i) {
         rgb16.uint16DataMut()[i] = static_cast<keel::u16>(i * 57 + 1000);
     }
-    std::string rgb16Bytes = writePngToBytes(rgb16, 6);
+    keel::String rgb16Bytes = writePngToBytes(rgb16, 6);
     Value rgb16Back = readPng(reinterpret_cast<const keel::u8*>(rgb16Bytes.data()), rgb16Bytes.size());
     EXPECT_EQ(rgb16Back.type(), ValueType::UINT16);
     EXPECT_EQ(rgb16Back.dims().pages(), 3u);

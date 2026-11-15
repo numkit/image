@@ -49,14 +49,14 @@ TEST(CodecsRobustnessTest, TruncatedPngAndBadCrc) {
     Value img = Value::matrix(10, 10, ValueType::UINT8);
     for (keel::usize i = 0; i < 100; ++i) img.uint8DataMut()[i] = static_cast<keel::u8>(i);
 
-    std::string pngBytes = writePngToBytes(img);
+    keel::String pngBytes = writePngToBytes(img);
     ASSERT_GT(pngBytes.size(), 20u);
 
     // 1. Truncated PNG (cut off in the middle of IDAT)
     EXPECT_THROW(readPng(reinterpret_cast<const keel::u8*>(pngBytes.data()), pngBytes.size() / 2), Error);
 
     // 2. Corrupt IDAT chunk CRC (modify a byte inside the IDAT payload)
-    std::string corrupt = pngBytes;
+    keel::String corrupt = pngBytes.clone();
     corrupt[corrupt.size() - 20] ^= 0xFF;
     // Inflate or chunk validation must detect corruption cleanly
     EXPECT_THROW(readPng(reinterpret_cast<const keel::u8*>(corrupt.data()), corrupt.size()), Error);
@@ -64,11 +64,11 @@ TEST(CodecsRobustnessTest, TruncatedPngAndBadCrc) {
 
 TEST(CodecsRobustnessTest, DeflateCorruptedAdler32) {
     std::vector<keel::u8> data = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-    std::vector<keel::u8> compressed = zlibCompress(data.data(), data.size());
+    keel::Array<keel::u8> compressed = zlibCompress(data.data(), data.size());
 
     ASSERT_GE(compressed.size(), 6u);
     // Corrupt Adler-32 checksum (last 4 bytes of zlib stream)
-    compressed.back() ^= 0xFF;
+    compressed[compressed.size() - 1] ^= 0xFF;
 
     EXPECT_THROW(zlibDecompress(compressed.data(), compressed.size(), 10), Error);
 }
@@ -97,28 +97,28 @@ TEST(CodecsRobustnessTest, ExtremeDimensionsRoundTrip) {
         }
 
         // PNG
-        std::string pngData = writePngToBytes(gray);
+        keel::String pngData = writePngToBytes(gray);
         Value pngBack = readPng(reinterpret_cast<const keel::u8*>(pngData.data()), pngData.size());
         EXPECT_EQ(pngBack.dims().rows(), H);
         EXPECT_EQ(pngBack.dims().cols(), W);
         for (keel::usize i = 0; i < H * W; ++i) EXPECT_EQ(pngBack.uint8Data()[i], gray.uint8Data()[i]);
 
         // BMP (tests 4-byte row padding on odd strides)
-        std::string bmpData = writeBmpToBytes(gray);
+        keel::String bmpData = writeBmpToBytes(gray);
         Value bmpBack = readBmp(reinterpret_cast<const keel::u8*>(bmpData.data()), bmpData.size());
         EXPECT_EQ(bmpBack.dims().rows(), H);
         EXPECT_EQ(bmpBack.dims().cols(), W);
         for (keel::usize i = 0; i < H * W; ++i) EXPECT_EQ(bmpBack.uint8Data()[i], gray.uint8Data()[i]);
 
         // TGA
-        std::string tgaData = writeTgaToBytes(gray);
+        keel::String tgaData = writeTgaToBytes(gray);
         Value tgaBack = readTga(reinterpret_cast<const keel::u8*>(tgaData.data()), tgaData.size());
         EXPECT_EQ(tgaBack.dims().rows(), H);
         EXPECT_EQ(tgaBack.dims().cols(), W);
         for (keel::usize i = 0; i < H * W; ++i) EXPECT_EQ(tgaBack.uint8Data()[i], gray.uint8Data()[i]);
 
         // PNM PGM
-        std::string pnmData = writePnmToBytes(gray);
+        keel::String pnmData = writePnmToBytes(gray);
         Value pnmBack = readPnm(reinterpret_cast<const keel::u8*>(pnmData.data()), pnmData.size());
         EXPECT_EQ(pnmBack.dims().rows(), H);
         EXPECT_EQ(pnmBack.dims().cols(), W);
@@ -157,7 +157,7 @@ TEST(CodecsRobustnessTest, PngAllFiveFilterTypes) {
     scanlines.push_back(4);
     scanlines.push_back(2); scanlines.push_back(2); scanlines.push_back(2); scanlines.push_back(2);
 
-    std::vector<keel::u8> compressedIdat = zlibCompress(scanlines.data(), scanlines.size());
+    keel::Array<keel::u8> compressedIdat = zlibCompress(scanlines.data(), scanlines.size());
 
     // Assemble valid PNG container
     std::vector<keel::u8> png;

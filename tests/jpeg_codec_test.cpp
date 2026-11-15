@@ -22,7 +22,7 @@ TEST(JpegCodecTest, Gray8RoundTripAndPeek) {
         }
     }
 
-    std::string jpgBytes = writeJpegToBytes(orig, 95);
+    keel::String jpgBytes = writeJpegToBytes(orig, 95);
     EXPECT_GT(jpgBytes.size(), 100u);
 
     // Verify SOI and EOI markers
@@ -53,8 +53,8 @@ TEST(JpegCodecTest, Rgb8RoundTripAndQualityLevels) {
     }
 
     // High quality (90) vs Low quality (30)
-    std::string highQ = writeJpegToBytes(rgb, 90);
-    std::string lowQ  = writeJpegToBytes(rgb, 30);
+    keel::String highQ = writeJpegToBytes(rgb, 90);
+    keel::String lowQ  = writeJpegToBytes(rgb, 30);
     EXPECT_GT(highQ.size(), lowQ.size()); // Lower quality results in smaller byte size
 
     keel::u32 w32 = 0, h32 = 0;

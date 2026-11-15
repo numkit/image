@@ -23,12 +23,12 @@ TEST(DeflateTest, Crc32AndAdler32KnownVectors) {
 
 TEST(DeflateTest, EmptyRoundTrip) {
     std::vector<keel::u8> empty;
-    std::vector<keel::u8> comp = deflateRaw(empty.data(), empty.size());
-    std::vector<keel::u8> decomp = inflateRaw(comp.data(), comp.size());
+    keel::Array<keel::u8> comp = deflateRaw(empty.data(), empty.size());
+    keel::Array<keel::u8> decomp = inflateRaw(comp.data(), comp.size());
     EXPECT_TRUE(decomp.empty());
 
-    std::vector<keel::u8> zcomp = zlibCompress(empty.data(), empty.size());
-    std::vector<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
+    keel::Array<keel::u8> zcomp = zlibCompress(empty.data(), empty.size());
+    keel::Array<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
     EXPECT_TRUE(zdecomp.empty());
 }
 
@@ -37,23 +37,23 @@ TEST(DeflateTest, SmallStringRoundTrip) {
     const auto *ptr = reinterpret_cast<const keel::u8*>(s.data());
     
     // Raw Deflate
-    std::vector<keel::u8> comp = deflateRaw(ptr, s.size(), 6);
-    std::vector<keel::u8> decomp = inflateRaw(comp.data(), comp.size());
-    EXPECT_EQ(std::string(decomp.begin(), decomp.end()), s);
+    keel::Array<keel::u8> comp = deflateRaw(ptr, s.size(), 6);
+    keel::Array<keel::u8> decomp = inflateRaw(comp.data(), comp.size());
+    EXPECT_EQ(std::string(reinterpret_cast<const char *>(decomp.data()), decomp.size()), s);
 
     // Zlib format
-    std::vector<keel::u8> zcomp = zlibCompress(ptr, s.size(), 6);
-    std::vector<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
-    EXPECT_EQ(std::string(zdecomp.begin(), zdecomp.end()), s);
+    keel::Array<keel::u8> zcomp = zlibCompress(ptr, s.size(), 6);
+    keel::Array<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
+    EXPECT_EQ(std::string(reinterpret_cast<const char *>(zdecomp.data()), zdecomp.size()), s);
 }
 
 TEST(DeflateTest, HighlyRepetitiveData) {
     std::vector<keel::u8> rep(100000, 0x42);
-    std::vector<keel::u8> zcomp = zlibCompress(rep.data(), rep.size(), 6);
+    keel::Array<keel::u8> zcomp = zlibCompress(rep.data(), rep.size(), 6);
     EXPECT_LT(zcomp.size(), 1000u); // High compression ratio
 
-    std::vector<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
-    EXPECT_EQ(zdecomp, rep);
+    keel::Array<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
+    EXPECT_EQ(std::vector<keel::u8>(zdecomp.begin(), zdecomp.end()), rep);
 }
 
 TEST(DeflateTest, RandomAndPatternedDataRoundTrip) {
@@ -66,8 +66,8 @@ TEST(DeflateTest, RandomAndPatternedDataRoundTrip) {
 
     // Test multiple compression levels: 0 (store), 1 (fast), 6 (default), 9 (high)
     for (int lvl : {0, 1, 6, 9}) {
-        std::vector<keel::u8> zcomp = zlibCompress(data.data(), data.size(), lvl);
-        std::vector<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
-        EXPECT_EQ(zdecomp, data);
+        keel::Array<keel::u8> zcomp = zlibCompress(data.data(), data.size(), lvl);
+        keel::Array<keel::u8> zdecomp = zlibDecompress(zcomp.data(), zcomp.size());
+        EXPECT_EQ(std::vector<keel::u8>(zdecomp.begin(), zdecomp.end()), data);
     }
 }
