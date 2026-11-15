@@ -8,7 +8,7 @@
 #include <numkit/sys/vfs.hpp>
 #include <numkit/value/value.hpp>
 
-#include <filesystem>
+#include <keel/fs.h>
 #include <random>
 
 using namespace numkit;
@@ -21,9 +21,8 @@ public:
             }
 
     void TearDown() override {
-        std::error_code ec;
-        for (const auto &f : {"test_gray.png", "test_rgb.png", "photo.jpg", "matrix.bmp", "image.tga", "image.pgm"}) {
-            std::filesystem::remove(f, ec);
+        for (const auto *f : {"test_gray.png", "test_rgb.png", "photo.jpg", "matrix.bmp", "image.tga", "image.pgm"}) {
+            (void)keel::fs_remove(f);
         }
     }
 

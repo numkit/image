@@ -5,25 +5,26 @@
 // and live in fixtures/.
 
 #include <numkit/core/standard_engine.hpp>
+#include <keel/fs.h>
 #include <gtest/gtest.h>
-#include <filesystem>
 #include <string>
 
 class ImreadTiffTest : public ::testing::Test
 {
 public:
     numkit::StandardEngine engine;
-    std::filesystem::path fixtures;
+    keel::String fixtures;
 
     void SetUp() override
     {
-                // __FILE__ points at this source file at compile time; fixtures/
+        // __FILE__ points at this source file at compile time; fixtures/
         // is a sibling directory. Robust across desktop and CI builds.
-        fixtures = std::filesystem::path(__FILE__).parent_path() / "fixtures";
+        fixtures = keel::path_join(keel::path_dirname(__FILE__), "fixtures");
     }
     std::string path(const std::string &name) const
     {
-        return (fixtures / name).string();
+        keel::String p = keel::path_join(fixtures, name);
+        return std::string(p.data(), p.size());
     }
 };
 
