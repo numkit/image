@@ -3,6 +3,9 @@
 // Colour-space conversions. Portable scalar implementation; SIMD
 // optimisation deferred to a later phase.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/math.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -32,7 +35,7 @@ namespace {
 // + chan*s_chan]. Supports H×W×3 (s_pix=1, s_chan=H*W) and N×3 colormap
 // (s_pix=1, s_chan=N).
 struct Layout {
-    size_t H, W, npix, s_pix, s_chan;
+    keel::usize H, W, npix, s_pix, s_chan;
     bool is_3d;
 };
 
@@ -59,7 +62,7 @@ Layout detect_layout(const Value &x, const char *fn) {
 }
 
 // Read a [0,1] float from an integer image element with class scaling.
-inline double element_to_unit(const Value &x, size_t i) {
+inline double element_to_unit(const Value &x, keel::usize i) {
     const double v = x.elemAsDouble(i);
     switch (x.type()) {
         case ValueType::DOUBLE:
@@ -72,20 +75,20 @@ inline double element_to_unit(const Value &x, size_t i) {
     }
 }
 
-Value alloc_out_double(const Layout &lay, std::pmr::memory_resource *mr) {
+Value alloc_out_double(const Layout &lay, keel::Allocator *mr) {
     if (lay.is_3d) return Value::matrix3d(lay.H, lay.W, 3, ValueType::DOUBLE, mr);
     return Value::matrix(lay.H, 3, ValueType::DOUBLE, mr);
 }
 
 // Generic per-pixel transform.
 template <typename Op>
-Value pixel_transform(const Value &x, const char *fn, Op op, std::pmr::memory_resource *mr) {
+Value pixel_transform(const Value &x, const char *fn, Op op, keel::Allocator *mr) {
     auto lay = detect_layout(x, fn);
     Value out = alloc_out_double(lay, mr);
     if (lay.npix == 0) return out;
     double *od = out.doubleDataMut();
 
-    for (size_t p = 0; p < lay.npix; ++p) {
+    for (keel::usize p = 0; p < lay.npix; ++p) {
         const double a = element_to_unit(x, p + 0 * lay.s_chan);
         const double b = element_to_unit(x, p + 1 * lay.s_chan);
         const double c = element_to_unit(x, p + 2 * lay.s_chan);
@@ -101,13 +104,13 @@ Value pixel_transform(const Value &x, const char *fn, Op op, std::pmr::memory_re
 // is read as raw doubles (used for HSV / YCbCr / Lab → RGB where the
 // input is already in the appropriate domain).
 template <typename Op>
-Value pixel_transform_raw(const Value &x, const char *fn, Op op, std::pmr::memory_resource *mr) {
+Value pixel_transform_raw(const Value &x, const char *fn, Op op, keel::Allocator *mr) {
     auto lay = detect_layout(x, fn);
     Value out = alloc_out_double(lay, mr);
     if (lay.npix == 0) return out;
     double *od = out.doubleDataMut();
 
-    for (size_t p = 0; p < lay.npix; ++p) {
+    for (keel::usize p = 0; p < lay.npix; ++p) {
         const double a = x.elemAsDouble(p + 0 * lay.s_chan);
         const double b = x.elemAsDouble(p + 1 * lay.s_chan);
         const double c = x.elemAsDouble(p + 2 * lay.s_chan);
@@ -123,21 +126,21 @@ Value pixel_transform_raw(const Value &x, const char *fn, Op op, std::pmr::memor
 // MATLAB's class-preserving colour conversions: DOUBLE passes through,
 // SINGLE is cast, and integer classes are scaled to their full studio
 // range, rounded, and saturated.
-Value finalize_class(const Value &res01, ValueType cls, std::pmr::memory_resource *mr) {
+Value finalize_class(const Value &res01, ValueType cls, keel::Allocator *mr) {
     if (cls == ValueType::DOUBLE) return res01;
     const auto &d = res01.dims();
     Value out = d.is3D() ? Value::matrix3d(d.rows(), d.cols(), d.pages(), cls, mr)
                          : Value::matrix(d.rows(), d.cols(), cls, mr);
-    const size_t N = res01.numel();
+    const keel::usize N = res01.numel();
     const double *rd = res01.doubleData();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = rd[i];
         const double c = std::clamp(v, 0.0, 1.0);
         switch (cls) {
             case ValueType::SINGLE: out.singleDataMut()[i] = static_cast<float>(v); break;
-            case ValueType::UINT8:  out.uint8DataMut()[i]  = static_cast<uint8_t>(std::lround(c * 255.0)); break;
-            case ValueType::UINT16: out.uint16DataMut()[i] = static_cast<uint16_t>(std::lround(c * 65535.0)); break;
-            case ValueType::INT16:  out.int16DataMut()[i]  = static_cast<int16_t>(std::lround(c * 65535.0) - 32768); break;
+            case ValueType::UINT8:  out.uint8DataMut()[i]  = static_cast<keel::u8>(std::lround(c * 255.0)); break;
+            case ValueType::UINT16: out.uint16DataMut()[i] = static_cast<keel::u16>(std::lround(c * 65535.0)); break;
+            case ValueType::INT16:  out.int16DataMut()[i]  = static_cast<keel::i16>(std::lround(c * 65535.0) - 32768); break;
             default:                 out.doubleDataMut()[i] = v; break;
         }
     }
@@ -146,13 +149,13 @@ Value finalize_class(const Value &res01, ValueType cls, std::pmr::memory_resourc
 
 // Build a [0,1] DOUBLE copy of an image, scaling integer classes by their
 // max (used to normalise integer YCbCr input before the inverse).
-Value to_unit_double(const Value &x, std::pmr::memory_resource *mr) {
+Value to_unit_double(const Value &x, keel::Allocator *mr) {
     const auto &d = x.dims();
     Value out = d.is3D() ? Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr)
                          : Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
-    const size_t N = x.numel();
+    const keel::usize N = x.numel();
     double *od = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) od[i] = element_to_unit(x, i);
+    for (keel::usize i = 0; i < N; ++i) od[i] = element_to_unit(x, i);
     return out;
 }
 
@@ -166,7 +169,7 @@ void color_layout_argcheck(const Value &x, const char *fn) {
 // RGB ↔ HSV  (MATLAB convention: all channels in [0, 1])
 // ════════════════════════════════════════════════════════════════════
 
-Value rgb2hsv(const Value &x, std::pmr::memory_resource *mr) {
+Value rgb2hsv(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2hsv");
     return pixel_transform(x, "rgb2hsv", [](double r, double g, double b) {
         const double cmax = std::max({r, g, b});
@@ -184,7 +187,7 @@ Value rgb2hsv(const Value &x, std::pmr::memory_resource *mr) {
     }, mr);
 }
 
-Value hsv2rgb(const Value &x, std::pmr::memory_resource *mr) {
+Value hsv2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "hsv2rgb");
     return pixel_transform_raw(x, "hsv2rgb", [](double h, double s, double v) {
         // Wrap h into [0, 1).
@@ -217,7 +220,7 @@ Value hsv2rgb(const Value &x, std::pmr::memory_resource *mr) {
 // RGB ↔ NTSC (YIQ, 3-significant-figure matrix from Wikipedia/MATLAB)
 // ════════════════════════════════════════════════════════════════════
 
-Value rgb2ntsc(const Value &x, std::pmr::memory_resource *mr) {
+Value rgb2ntsc(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2ntsc");
     // MATLAB R2025b forward coefficients (16-digit, probed via
     // rgb2ntsc(eye(3)). Octave-image uses lower-precision 3-sig-fig
@@ -230,7 +233,7 @@ Value rgb2ntsc(const Value &x, std::pmr::memory_resource *mr) {
     }, mr);
 }
 
-Value ntsc2rgb(const Value &x, std::pmr::memory_resource *mr) {
+Value ntsc2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "ntsc2rgb");
     // MATLAB R2025b inverse coefficients (the canonical 3-digit set:
     // 0.956 / 0.621 / -0.272 / -0.647 / -1.106 / 1.703). Note that
@@ -253,7 +256,7 @@ Value ntsc2rgb(const Value &x, std::pmr::memory_resource *mr) {
     }, mr);
 }
 
-Value rgb2ycbcr(const Value &x, std::pmr::memory_resource *mr) {
+Value rgb2ycbcr(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2ycbcr");
     // pixel_transform normalises integer input to [0,1] via element_to_unit,
     // so the BT.601 op always sees R,G,B in [0,1] and yields studio-swing
@@ -268,7 +271,7 @@ Value rgb2ycbcr(const Value &x, std::pmr::memory_resource *mr) {
     return finalize_class(res, x.type(), mr);
 }
 
-Value ycbcr2rgb(const Value &x, std::pmr::memory_resource *mr) {
+Value ycbcr2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "ycbcr2rgb");
     // Integer YCbCr input is normalised to [0,1] before the inverse;
     // finalize_class then restores the input class (integer -> [0,255]/
@@ -312,7 +315,7 @@ inline double srgb_encode(double c) {
 }
 } // anonymous
 
-Value rgb2xyz(const Value &x, std::pmr::memory_resource *mr) {
+Value rgb2xyz(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2xyz");
     return pixel_transform(x, "rgb2xyz", [](double r, double g, double b) {
         // sRGB → linear.
@@ -327,7 +330,7 @@ Value rgb2xyz(const Value &x, std::pmr::memory_resource *mr) {
     }, mr);
 }
 
-Value xyz2rgb(const Value &x, std::pmr::memory_resource *mr) {
+Value xyz2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "xyz2rgb");
     // MATLAB xyz2rgb does NOT clamp out-of-gamut linear RGB to [0,1];
     // it applies sign-preserving sRGB gamma so callers can detect and
@@ -369,7 +372,7 @@ inline double finv_lab(double t) {
 }
 } // anonymous
 
-Value xyz2lab(const Value &x, std::pmr::memory_resource *mr) {
+Value xyz2lab(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "xyz2lab");
     return pixel_transform_raw(x, "xyz2lab", [](double X, double Y, double Z) {
         const double fx = f_lab(X / XYZ_Xn);
@@ -382,7 +385,7 @@ Value xyz2lab(const Value &x, std::pmr::memory_resource *mr) {
     }, mr);
 }
 
-Value lab2xyz(const Value &x, std::pmr::memory_resource *mr) {
+Value lab2xyz(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "lab2xyz");
     return pixel_transform_raw(x, "lab2xyz", [](double L, double a, double b) {
         const double fy = (L + 16.0) / 116.0;
@@ -395,13 +398,13 @@ Value lab2xyz(const Value &x, std::pmr::memory_resource *mr) {
     }, mr);
 }
 
-Value rgb2lab(const Value &x, std::pmr::memory_resource *mr) {
+Value rgb2lab(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2xyz");
     Value xyz = rgb2xyz(x, mr);
     return xyz2lab(xyz, mr);
 }
 
-Value lab2rgb(const Value &x, std::pmr::memory_resource *mr) {
+Value lab2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "lab2xyz");
     Value xyz = lab2xyz(x, mr);
     return xyz2rgb(xyz, mr);
@@ -418,11 +421,11 @@ Value lab2rgb(const Value &x, std::pmr::memory_resource *mr) {
 
 namespace {
 
-inline void copy_plane(const Value &src, size_t plane,
-                       size_t H, size_t W, Value &dst)
+inline void copy_plane(const Value &src, keel::usize plane,
+                       keel::usize H, keel::usize W, Value &dst)
 {
-    const size_t N = H * W;
-    const size_t off = plane * N;
+    const keel::usize N = H * W;
+    const keel::usize off = plane * N;
     const ValueType T = src.type();
     switch (T) {
         case ValueType::DOUBLE:
@@ -439,11 +442,11 @@ inline void copy_plane(const Value &src, size_t plane,
             break;
         case ValueType::UINT16:
             std::memcpy(dst.uint16DataMut(),
-                        src.uint16Data() + off, N * sizeof(std::uint16_t));
+                        src.uint16Data() + off, N * sizeof(keel::u16));
             break;
         case ValueType::INT16:
             std::memcpy(dst.int16DataMut(),
-                        src.int16Data() + off, N * sizeof(std::int16_t));
+                        src.int16Data() + off, N * sizeof(keel::i16));
             break;
         case ValueType::LOGICAL:
             std::memcpy(dst.logicalDataMut(),
@@ -451,7 +454,7 @@ inline void copy_plane(const Value &src, size_t plane,
             break;
         default:
             // Generic fallback — re-read elements.
-            for (size_t i = 0; i < N; ++i) {
+            for (keel::usize i = 0; i < N; ++i) {
                 const double v = src.elemAsDouble(off + i);
                 dst.doubleDataMut()[i] = v;
             }
@@ -460,15 +463,15 @@ inline void copy_plane(const Value &src, size_t plane,
 
 } // anonymous
 
-void imsplit(const Value &I, std::vector<Value> &planes, std::pmr::memory_resource *mr)
+void imsplit(const Value &I, std::vector<Value> &planes, keel::Allocator *mr)
 {
     const auto &d = I.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     planes.clear();
     planes.reserve(P);
-    for (size_t p = 0; p < P; ++p) {
+    for (keel::usize p = 0; p < P; ++p) {
         Value plane = Value::matrix(H, W, I.type(), mr);
         copy_plane(I, p, H, W, plane);
         planes.push_back(std::move(plane));
@@ -484,19 +487,19 @@ namespace {
 // stored consecutively).
 std::vector<double> rgb_rows(const Value &v, const char *name) {
     const auto &d = v.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
     if (v.numel() == 3) {
         std::vector<double> out(3);
-        for (size_t i = 0; i < 3; ++i) out[i] = v.elemAsDouble(i);
+        for (keel::usize i = 0; i < 3; ++i) out[i] = v.elemAsDouble(i);
         return out;
     }
     if (W != 3)
         throw Error(std::string(name) + " must be a 3-element or N-by-3 array",
                     0, 0, "colorangle", "", "numkit:colorangle:shape");
     std::vector<double> out(3 * H);
-    for (size_t r = 0; r < H; ++r)
-        for (size_t c = 0; c < 3; ++c)
+    for (keel::usize r = 0; r < H; ++r)
+        for (keel::usize c = 0; c < 3; ++c)
             // col-major source: idx = c*H + r → row-major dest: r*3 + c.
             out[r * 3 + c] = v.elemAsDouble(c * H + r);
     return out;
@@ -510,7 +513,7 @@ namespace {
 // where plane is the per-channel stride (npix == plane). Throws on
 // other shapes.
 struct LabLayout {
-    size_t H, W, npix;
+    keel::usize H, W, npix;
     bool is_3d;
 };
 
@@ -533,14 +536,14 @@ LabLayout detect_lab_layout(const Value &v, const char *fn) {
 }
 
 template <typename T>
-Value lab_alloc_int(const LabLayout &L, ValueType cls, std::pmr::memory_resource *mr)
+Value lab_alloc_int(const LabLayout &L, ValueType cls, keel::Allocator *mr)
 {
     return L.is_3d ? Value::matrix3d(L.H, L.W, 3, cls, mr)
                    : Value::matrix(L.H, 3, cls, mr);
 }
 
 // Per-pixel channel reader / writer in the same layout as detect_lab_layout.
-inline size_t lab_idx(const LabLayout &L, size_t pix, size_t ch) {
+inline keel::usize lab_idx(const LabLayout &L, keel::usize pix, keel::usize ch) {
     return pix + ch * L.npix;
 }
 
@@ -561,7 +564,7 @@ void lab_layout_argcheck(const Value &lab, const char *fn)
 
 } // anonymous
 
-Value lab2double(const Value &lab, std::pmr::memory_resource *mr)
+Value lab2double(const Value &lab, keel::Allocator *mr)
 {
     if (lab.type() == ValueType::DOUBLE) return lab;
     lab_layout_argcheck(lab, "lab2double");
@@ -571,7 +574,7 @@ Value lab2double(const Value &lab, std::pmr::memory_resource *mr)
         : Value::matrix(L.H, 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
 
-    for (size_t p = 0; p < L.npix; ++p) {
+    for (keel::usize p = 0; p < L.npix; ++p) {
         const double l_ = lab.elemAsDouble(lab_idx(L, p, 0));
         const double a_ = lab.elemAsDouble(lab_idx(L, p, 1));
         const double b_ = lab.elemAsDouble(lab_idx(L, p, 2));
@@ -601,7 +604,7 @@ Value lab2double(const Value &lab, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value lab2single(const Value &lab, std::pmr::memory_resource *mr)
+Value lab2single(const Value &lab, keel::Allocator *mr)
 {
     if (lab.type() == ValueType::SINGLE) return lab;
     lab_layout_argcheck(lab, "lab2double");
@@ -612,12 +615,12 @@ Value lab2single(const Value &lab, std::pmr::memory_resource *mr)
         : Value::matrix(L.H, 3, ValueType::SINGLE, mr);
     float *of = out.singleDataMut();
     const double *src = asDouble.doubleData();
-    for (size_t i = 0; i < 3 * L.npix; ++i)
+    for (keel::usize i = 0; i < 3 * L.npix; ++i)
         of[i] = static_cast<float>(src[i]);
     return out;
 }
 
-Value lab2uint8(const Value &lab, std::pmr::memory_resource *mr)
+Value lab2uint8(const Value &lab, keel::Allocator *mr)
 {
     if (lab.type() == ValueType::UINT8) return lab;
     lab_layout_argcheck(lab, "lab2uint8");
@@ -625,10 +628,10 @@ Value lab2uint8(const Value &lab, std::pmr::memory_resource *mr)
     Value out = L.is_3d
         ? Value::matrix3d(L.H, L.W, 3, ValueType::UINT8, mr)
         : Value::matrix(L.H, 3, ValueType::UINT8, mr);
-    std::uint8_t *od = out.uint8DataMut();
+    keel::u8 *od = out.uint8DataMut();
 
-    for (size_t p = 0; p < L.npix; ++p) {
-        for (size_t ch = 0; ch < 3; ++ch) {
+    for (keel::usize p = 0; p < L.npix; ++p) {
+        for (keel::usize ch = 0; ch < 3; ++ch) {
             const double v = lab.elemAsDouble(lab_idx(L, p, ch));
             double w;
             switch (lab.type()) {
@@ -652,13 +655,13 @@ Value lab2uint8(const Value &lab, std::pmr::memory_resource *mr)
             }
             if (w < 0)   w = 0;
             if (w > 255) w = 255;
-            od[lab_idx(L, p, ch)] = static_cast<std::uint8_t>(std::lround(w));
+            od[lab_idx(L, p, ch)] = static_cast<keel::u8>(std::lround(w));
         }
     }
     return out;
 }
 
-Value lab2uint16(const Value &lab, std::pmr::memory_resource *mr)
+Value lab2uint16(const Value &lab, keel::Allocator *mr)
 {
     if (lab.type() == ValueType::UINT16) return lab;
     lab_layout_argcheck(lab, "lab2uint16");
@@ -666,10 +669,10 @@ Value lab2uint16(const Value &lab, std::pmr::memory_resource *mr)
     Value out = L.is_3d
         ? Value::matrix3d(L.H, L.W, 3, ValueType::UINT16, mr)
         : Value::matrix(L.H, 3, ValueType::UINT16, mr);
-    std::uint16_t *od = out.uint16DataMut();
+    keel::u16 *od = out.uint16DataMut();
 
-    for (size_t p = 0; p < L.npix; ++p) {
-        for (size_t ch = 0; ch < 3; ++ch) {
+    for (keel::usize p = 0; p < L.npix; ++p) {
+        for (keel::usize ch = 0; ch < 3; ++ch) {
             const double v = lab.elemAsDouble(lab_idx(L, p, ch));
             double w;
             switch (lab.type()) {
@@ -693,7 +696,7 @@ Value lab2uint16(const Value &lab, std::pmr::memory_resource *mr)
             }
             if (w < 0)     w = 0;
             if (w > 65535) w = 65535;
-            od[lab_idx(L, p, ch)] = static_cast<std::uint16_t>(std::lround(w));
+            od[lab_idx(L, p, ch)] = static_cast<keel::u16>(std::lround(w));
         }
     }
     return out;
@@ -776,8 +779,8 @@ void colorangle_argcheck(const Value &rgb1, const Value &rgb2)
 {
     const auto a = rgb_rows(rgb1, "RGB1");
     const auto b = rgb_rows(rgb2, "RGB2");
-    const size_t Na = a.size() / 3;
-    const size_t Nb = b.size() / 3;
+    const keel::usize Na = a.size() / 3;
+    const keel::usize Nb = b.size() / 3;
     if (Na != Nb && Na != 1 && Nb != 1)
         throw Error("colorangle: RGB1 and RGB2 must broadcast (N or 1)",
                     0, 0, "colorangle", "", "numkit:colorangle:size");
@@ -802,7 +805,7 @@ void contrast_argcheck(const Value &x, int m)
     if (m < 2)
         throw Error("contrast: M must be >= 2",
                     0, 0, "contrast", "", "numkit:contrast:m");
-    const size_t Nx = x.numel();
+    const keel::usize Nx = x.numel();
     if (Nx == 0)
         throw Error("contrast: input image must be non-empty",
                     0, 0, "contrast", "", "numkit:contrast:empty");
@@ -897,7 +900,7 @@ void label2rgb_argcheck(const Value &L, const Value &cmap,
 
 } // anonymous
 
-Value colorgradient(const Value &C, const Value &w, int n, std::pmr::memory_resource *mr)
+Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
 {
     colorgradient_argcheck(C, w, n);
     // colorgradient is reference-absent (Octave image package API) —
@@ -916,40 +919,40 @@ Value colorgradient(const Value &C, const Value &w, int n, std::pmr::memory_reso
                     0, 0, "colorgradient", "", "numkit:colorgradient:n");
 
     std::vector<double> wv;
-    wv.reserve(static_cast<size_t>(K - 1));
+    wv.reserve(static_cast<keel::usize>(K - 1));
     if (w.numel() == 0) {
-        wv.assign(static_cast<size_t>(K - 1), 1.0);
+        wv.assign(static_cast<keel::usize>(K - 1), 1.0);
     } else {
         if (static_cast<int>(w.numel()) != K - 1)
             throw Error("colorgradient: must have one weight per interval",
                         0, 0, "colorgradient", "", "numkit:colorgradient:w");
-        for (size_t i = 0; i < w.numel(); ++i)
+        for (keel::usize i = 0; i < w.numel(); ++i)
             wv.push_back(w.elemAsDouble(i));
     }
 
     double total = 0.0;
     for (double x : wv) total += x;
     if (total == 0.0) total = 1.0;
-    std::vector<int> wpos(static_cast<size_t>(K), 0);
+    std::vector<int> wpos(static_cast<keel::usize>(K), 0);
     double acc = 0.0;
     wpos[0] = 1;
     for (int i = 0; i < K - 1; ++i) {
-        acc += wv[(size_t)i];
-        wpos[(size_t)(i + 1)] = static_cast<int>(
+        acc += wv[(keel::usize)i];
+        wpos[(keel::usize)(i + 1)] = static_cast<int>(
             1 + std::lround((n - 1) * acc / total));
     }
 
-    Value map = Value::matrix(static_cast<size_t>(n), 3,
+    Value map = Value::matrix(static_cast<keel::usize>(n), 3,
                               ValueType::DOUBLE, mr);
     double *md = map.doubleDataMut();
 
     auto Cval = [&](int r, int c) {
-        return C.elemAsDouble(static_cast<size_t>(c) * (size_t)K + (size_t)r);
+        return C.elemAsDouble(static_cast<keel::usize>(c) * (keel::usize)K + (keel::usize)r);
     };
 
     for (int i = 0; i < K - 1; ++i) {
-        const int p0 = wpos[(size_t)i];
-        const int p1 = wpos[(size_t)(i + 1)];
+        const int p0 = wpos[(keel::usize)i];
+        const int p1 = wpos[(keel::usize)(i + 1)];
         if (p0 == p1) continue;
         const int len = p1 - p0 + 1;
         for (int ch = 0; ch < 3; ++ch) {
@@ -958,7 +961,7 @@ Value colorgradient(const Value &C, const Value &w, int n, std::pmr::memory_reso
             for (int k = 0; k < len; ++k) {
                 const double t = (len == 1) ? 0.0 :
                                  static_cast<double>(k) / (len - 1);
-                md[(size_t)ch * (size_t)n + (size_t)(p0 - 1 + k)] =
+                md[(keel::usize)ch * (keel::usize)n + (keel::usize)(p0 - 1 + k)] =
                     a + t * (b - a);
             }
         }
@@ -966,7 +969,7 @@ Value colorgradient(const Value &C, const Value &w, int n, std::pmr::memory_reso
     return map;
 }
 
-Value wavelength2rgb(const Value &wavelength, const std::string &out_class, double gamma, std::pmr::memory_resource *mr)
+Value wavelength2rgb(const Value &wavelength, const std::string &out_class, double gamma, keel::Allocator *mr)
 {
     wavelength2rgb_argcheck(gamma, out_class);
     if (!(gamma >= 0.0 && gamma <= 1.0))
@@ -974,7 +977,7 @@ Value wavelength2rgb(const Value &wavelength, const std::string &out_class, doub
                     0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:gamma");
 
     const auto &d = wavelength.dims();
-    const size_t N = wavelength.numel();
+    const keel::usize N = wavelength.numel();
     if (N == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
 
@@ -984,7 +987,7 @@ Value wavelength2rgb(const Value &wavelength, const std::string &out_class, doub
     //   column vector N×1   → N×1×3.
     //   matrix M×N (>=2x2)  → M×N×3.
     Value out;
-    size_t H, W, plane;
+    keel::usize H, W, plane;
     if (N == 1) {
         out = Value::matrix(1, 3, ValueType::DOUBLE, mr);
         H = 1; W = 3; plane = 3;
@@ -1000,7 +1003,7 @@ Value wavelength2rgb(const Value &wavelength, const std::string &out_class, doub
         wavelength_to_rgb(wavelength.toScalar(), gamma, r, g, b);
         od[0] = r; od[1] = g; od[2] = b;
     } else {
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             double r, g, b;
             wavelength_to_rgb(wavelength.elemAsDouble(i), gamma, r, g, b);
             od[0 * plane + i] = r;
@@ -1022,23 +1025,23 @@ Value wavelength2rgb(const Value &wavelength, const std::string &out_class, doub
                 0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:cls");
 }
 
-Value colorangle(const Value &rgb1, const Value &rgb2, std::pmr::memory_resource *mr)
+Value colorangle(const Value &rgb1, const Value &rgb2, keel::Allocator *mr)
 {
     colorangle_argcheck(rgb1, rgb2);
     const auto a = rgb_rows(rgb1, "RGB1");
     const auto b = rgb_rows(rgb2, "RGB2");
-    const size_t Na = a.size() / 3;
-    const size_t Nb = b.size() / 3;
+    const keel::usize Na = a.size() / 3;
+    const keel::usize Nb = b.size() / 3;
     if (Na != Nb && Na != 1 && Nb != 1)
         throw Error("colorangle: RGB1 and RGB2 must broadcast (N or 1)",
                     0, 0, "colorangle", "", "numkit:colorangle:size");
-    const size_t N = std::max(Na, Nb);
+    const keel::usize N = std::max(Na, Nb);
 
     Value out = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     if (N == 0) return out;
     double *od = out.doubleDataMut();
 
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double *ai = &a[(Na == 1 ? 0 : i) * 3];
         const double *bi = &b[(Nb == 1 ? 0 : i) * 3];
         const double dot = ai[0]*bi[0] + ai[1]*bi[1] + ai[2]*bi[2];
@@ -1058,10 +1061,10 @@ Value colorangle(const Value &rgb1, const Value &rgb2, std::pmr::memory_resource
     return out;
 }
 
-Value gray_cmap(int n, std::pmr::memory_resource *mr)
+Value gray_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = od[1] = od[2] = 0.0;
@@ -1078,10 +1081,10 @@ Value gray_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value hot_cmap(int n, std::pmr::memory_resource *mr)
+Value hot_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     auto R = [&](int r) -> double & { return od[0 * n + r]; };
     auto G = [&](int r) -> double & { return od[1 * n + r]; };
@@ -1113,10 +1116,10 @@ Value hot_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value cool_cmap(int n, std::pmr::memory_resource *mr)
+Value cool_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0]     = 0.0;  // R
@@ -1134,10 +1137,10 @@ Value cool_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value spring_cmap(int n, std::pmr::memory_resource *mr)
+Value spring_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 1.0; od[1] = 0.0; od[2] = 1.0;
@@ -1153,10 +1156,10 @@ Value spring_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value summer_cmap(int n, std::pmr::memory_resource *mr)
+Value summer_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 0.0; od[1] = 0.5; od[2] = 0.4;
@@ -1172,10 +1175,10 @@ Value summer_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value autumn_cmap(int n, std::pmr::memory_resource *mr)
+Value autumn_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 1.0; od[1] = 0.0; od[2] = 0.0;
@@ -1190,10 +1193,10 @@ Value autumn_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value winter_cmap(int n, std::pmr::memory_resource *mr)
+Value winter_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 0.0; od[1] = 0.0; od[2] = 1.0;
@@ -1209,10 +1212,10 @@ Value winter_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value copper_cmap(int n, std::pmr::memory_resource *mr)
+Value copper_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = od[1] = od[2] = 0.0;
@@ -1230,10 +1233,10 @@ Value copper_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value pink_cmap(int n, std::pmr::memory_resource *mr)
+Value pink_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         const double v = std::sqrt(1.0 / 3.0);
@@ -1305,7 +1308,7 @@ Value pink_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value hsv_cmap(int n, std::pmr::memory_resource *mr)
+Value hsv_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     if (n == 1) {
@@ -1315,7 +1318,7 @@ Value hsv_cmap(int n, std::pmr::memory_resource *mr)
         return out;
     }
     // Build N×3 [hue, 1, 1] then dispatch through hsv2rgb.
-    Value hsv_in = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value hsv_in = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *id = hsv_in.doubleDataMut();
     const double inv = 1.0 / static_cast<double>(n);
     for (int i = 0; i < n; ++i) {
@@ -1326,10 +1329,10 @@ Value hsv_cmap(int n, std::pmr::memory_resource *mr)
     return hsv2rgb(hsv_in, mr);
 }
 
-Value flag_cmap(int n, std::pmr::memory_resource *mr)
+Value flag_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     static constexpr double kFlag[4][3] = {
         {1.0, 0.0, 0.0}, {1.0, 1.0, 1.0}, {0.0, 0.0, 1.0}, {0.0, 0.0, 0.0}
@@ -1343,10 +1346,10 @@ Value flag_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value prism_cmap(int n, std::pmr::memory_resource *mr)
+Value prism_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     static constexpr double kPrism[6][3] = {
         {1.0, 0.0,        0.0},
@@ -1365,10 +1368,10 @@ Value prism_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value lines_cmap(int n, std::pmr::memory_resource *mr)
+Value lines_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         // MATLAB special-case: lines(1) → [0 0 1] (last fallback blue).
@@ -1394,10 +1397,10 @@ Value lines_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value bone_cmap(int n, std::pmr::memory_resource *mr)
+Value bone_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 0.125; od[1] = 0.125; od[2] = 0.125;
@@ -1474,7 +1477,7 @@ Value bone_cmap(int n, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value rgb2lin(const Value &A, std::pmr::memory_resource *mr)
+Value rgb2lin(const Value &A, keel::Allocator *mr)
 {
     // MATLAB R2025b convention: int classes float to single; else keep
     // input class. Range outside [0, 1] is allowed — the function uses
@@ -1486,7 +1489,7 @@ Value rgb2lin(const Value &A, std::pmr::memory_resource *mr)
 
     auto sRGBtoLin = [](double x) -> double {
         const double s = (x < 0.0) ? -1.0 : 1.0;
-        const double ax = std::abs(x);
+        const double ax = keel::abs(x);
         if (ax < 0.04045) return s * (ax / 12.92);
         return s * std::pow((ax + 0.055) / 1.055, 2.4);
     };
@@ -1495,22 +1498,22 @@ Value rgb2lin(const Value &A, std::pmr::memory_resource *mr)
     Value out = d.is3D()
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(), in.type(), mr)
         : Value::matrix(d.rows(), d.cols(), in.type(), mr);
-    const size_t N = in.numel();
+    const keel::usize N = in.numel();
 
     if (in.type() == ValueType::DOUBLE) {
         const double *pin = in.doubleData();
         double *pout = out.doubleDataMut();
-        for (size_t i = 0; i < N; ++i) pout[i] = sRGBtoLin(pin[i]);
+        for (keel::usize i = 0; i < N; ++i) pout[i] = sRGBtoLin(pin[i]);
     } else {
         const float *pin = in.singleData();
         float *pout = out.singleDataMut();
-        for (size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             pout[i] = static_cast<float>(sRGBtoLin(static_cast<double>(pin[i])));
     }
     return out;
 }
 
-Value xyz2double(const Value &xyz, std::pmr::memory_resource *mr)
+Value xyz2double(const Value &xyz, keel::Allocator *mr)
 {
     xyz2double_argcheck(xyz);
     const auto &d = xyz.dims();
@@ -1527,34 +1530,34 @@ Value xyz2double(const Value &xyz, std::pmr::memory_resource *mr)
     Value out = ok_3d
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr)
         : Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
-    const size_t N = xyz.numel();
+    const keel::usize N = xyz.numel();
     double *od = out.doubleDataMut();
     if (t == ValueType::DOUBLE) {
         const double *id = xyz.doubleData();
-        for (size_t i = 0; i < N; ++i) od[i] = id[i];
+        for (keel::usize i = 0; i < N; ++i) od[i] = id[i];
     } else {
         // ICC: uint16 32768 ↔ 1.0 → divide by 32768.
-        const uint16_t *id = xyz.uint16Data();
+        const keel::u16 *id = xyz.uint16Data();
         constexpr double inv32768 = 1.0 / 32768.0;
-        for (size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             od[i] = static_cast<double>(id[i]) * inv32768;
     }
     return out;
 }
 
-Value contrast(const Value &x, int m, std::pmr::memory_resource *mr)
+Value contrast(const Value &x, int m, keel::Allocator *mr)
 {
     contrast_argcheck(x, m);
     if (m < 2)
         throw Error("contrast: M must be >= 2",
                     0, 0, "contrast", "", "numkit:contrast:m");
-    const size_t Nx = x.numel();
+    const keel::usize Nx = x.numel();
     if (Nx == 0)
         throw Error("contrast: input image must be non-empty",
                     0, 0, "contrast", "", "numkit:contrast:empty");
 
     double xmin = x.elemAsDouble(0), xmax = xmin;
-    for (size_t i = 1; i < Nx; ++i) {
+    for (keel::usize i = 1; i < Nx; ++i) {
         const double v = x.elemAsDouble(i);
         if (v < xmin) xmin = v;
         if (v > xmax) xmax = v;
@@ -1567,9 +1570,9 @@ Value contrast(const Value &x, int m, std::pmr::memory_resource *mr)
                     0, 0, "contrast", "", "numkit:contrast:flat");
 
     std::vector<double> sorted;
-    sorted.reserve(Nx + static_cast<size_t>(m + 1));
+    sorted.reserve(Nx + static_cast<keel::usize>(m + 1));
     const double inv_range = 1.0 / range;
-    for (size_t i = 0; i < Nx; ++i) {
+    for (keel::usize i = 0; i < Nx; ++i) {
         const double v = x.elemAsDouble(i);
         sorted.push_back(std::round((m - 1) * (v - xmin) * inv_range));
     }
@@ -1579,17 +1582,17 @@ Value contrast(const Value &x, int m, std::pmr::memory_resource *mr)
 
     // f = 1-based positions where sorted[i+1] != sorted[i].
     std::vector<double> f;
-    f.reserve(static_cast<size_t>(m));
-    for (size_t i = 0; i + 1 < sorted.size(); ++i)
+    f.reserve(static_cast<keel::usize>(m));
+    for (keel::usize i = 0; i + 1 < sorted.size(); ++i)
         if (sorted[i + 1] != sorted[i])
             f.push_back(static_cast<double>(i + 1));
     if (f.empty())
         return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     const double fmax = f.back();  // sorted, last is max
-    const size_t N = f.size();
+    const keel::usize N = f.size();
     Value out = Value::matrix(N, 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = f[i] / fmax;
         od[0 * N + i] = v;
         od[1 * N + i] = v;
@@ -1598,7 +1601,7 @@ Value contrast(const Value &x, int m, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value brighten(const Value &map, double beta, std::pmr::memory_resource *mr)
+Value brighten(const Value &map, double beta, keel::Allocator *mr)
 {
     brighten_argcheck(map, beta);
     if (!(beta > -1.0 && beta < 1.0))
@@ -1609,17 +1612,17 @@ Value brighten(const Value &map, double beta, std::pmr::memory_resource *mr)
     if (d.is3D() || d.cols() != 3)
         throw Error("brighten: input must be an N-by-3 colormap",
                     0, 0, "brighten", "", "numkit:brighten:shape");
-    const size_t N = map.numel();
+    const keel::usize N = map.numel();
     Value out = Value::matrix(d.rows(), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = map.elemAsDouble(i);
         od[i] = std::pow(v, gamma);
     }
     return out;
 }
 
-Value xyz2uint16(const Value &xyz, std::pmr::memory_resource *mr)
+Value xyz2uint16(const Value &xyz, keel::Allocator *mr)
 {
     xyz2uint16_argcheck(xyz);
     const auto &d = xyz.dims();
@@ -1636,25 +1639,25 @@ Value xyz2uint16(const Value &xyz, std::pmr::memory_resource *mr)
     Value out = ok_3d
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::UINT16, mr)
         : Value::matrix(d.rows(), d.cols(), ValueType::UINT16, mr);
-    const size_t N = xyz.numel();
-    uint16_t *od = out.uint16DataMut();
+    const keel::usize N = xyz.numel();
+    keel::u16 *od = out.uint16DataMut();
     if (t == ValueType::UINT16) {
-        const uint16_t *id = xyz.uint16Data();
-        for (size_t i = 0; i < N; ++i) od[i] = id[i];
+        const keel::u16 *id = xyz.uint16Data();
+        for (keel::usize i = 0; i < N; ++i) od[i] = id[i];
     } else {
         const double *id = xyz.doubleData();
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = id[i] * 32768.0;
             long r = (v <= 0.0) ? 0L : std::lround(v);
             if (r < 0L) r = 0L;
             if (r > 65535L) r = 65535L;
-            od[i] = static_cast<uint16_t>(r);
+            od[i] = static_cast<keel::u16>(r);
         }
     }
     return out;
 }
 
-Value deltaE(const Value &I1, const Value &I2, bool isInputLab, std::pmr::memory_resource *mr)
+Value deltaE(const Value &I1, const Value &I2, bool isInputLab, keel::Allocator *mr)
 {
     deltaE_argcheck(I1, I2);
     const auto &d1 = I1.dims();
@@ -1662,7 +1665,7 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, std::pmr::memory
 
     // Determine output shape based on input dims.
     enum Shape { COLORMAP, IMAGE } shape;
-    size_t out_h, out_w;
+    keel::usize out_h, out_w;
     if (!d1.is3D() && !d2.is3D()) {
         if (d1.cols() != 3 || d2.cols() != 3 ||
             d1.rows() != d2.rows())
@@ -1697,8 +1700,8 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, std::pmr::memory
     Value out = Value::matrix(out_h, out_w,
                               to_double ? ValueType::DOUBLE : ValueType::SINGLE,
                               mr);
-    const size_t plane = out_h * out_w;
-    for (size_t i = 0; i < plane; ++i) {
+    const keel::usize plane = out_h * out_w;
+    for (keel::usize i = 0; i < plane; ++i) {
         const double l1 = A.elemAsDouble(0 * plane + i);
         const double a1 = A.elemAsDouble(1 * plane + i);
         const double b1 = A.elemAsDouble(2 * plane + i);
@@ -1713,7 +1716,7 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, std::pmr::memory
     return out;
 }
 
-Value whitepoint(const std::string &illuminant, std::pmr::memory_resource *mr)
+Value whitepoint(const std::string &illuminant, keel::Allocator *mr)
 {
     whitepoint_argcheck(illuminant);
     std::string lo;
@@ -1742,7 +1745,7 @@ Value whitepoint(const std::string &illuminant, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value lin2rgb(const Value &A, std::pmr::memory_resource *mr)
+Value lin2rgb(const Value &A, keel::Allocator *mr)
 {
     Value in;
     if (A.type() == ValueType::DOUBLE) in = A;
@@ -1751,7 +1754,7 @@ Value lin2rgb(const Value &A, std::pmr::memory_resource *mr)
 
     auto linTosRGB = [](double x) -> double {
         const double s = (x < 0.0) ? -1.0 : 1.0;
-        const double ax = std::abs(x);
+        const double ax = keel::abs(x);
         if (ax <= 0.0031308) return s * (12.92 * ax);
         return s * (1.055 * std::pow(ax, 1.0 / 2.4) - 0.055);
     };
@@ -1760,39 +1763,39 @@ Value lin2rgb(const Value &A, std::pmr::memory_resource *mr)
     Value out = d.is3D()
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(), in.type(), mr)
         : Value::matrix(d.rows(), d.cols(), in.type(), mr);
-    const size_t N = in.numel();
+    const keel::usize N = in.numel();
 
     if (in.type() == ValueType::DOUBLE) {
         const double *pin = in.doubleData();
         double *pout = out.doubleDataMut();
-        for (size_t i = 0; i < N; ++i) pout[i] = linTosRGB(pin[i]);
+        for (keel::usize i = 0; i < N; ++i) pout[i] = linTosRGB(pin[i]);
     } else {
         const float *pin = in.singleData();
         float *pout = out.singleDataMut();
-        for (size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             pout[i] = static_cast<float>(linTosRGB(static_cast<double>(pin[i])));
     }
     return out;
 }
 
-Value white_cmap(int n, std::pmr::memory_resource *mr)
+Value white_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    Value out = Value::matrix(static_cast<size_t>(n), 3, ValueType::DOUBLE, mr);
+    Value out = Value::matrix(static_cast<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    const size_t total = static_cast<size_t>(n) * 3;
-    for (size_t i = 0; i < total; ++i) od[i] = 1.0;
+    const keel::usize total = static_cast<keel::usize>(n) * 3;
+    for (keel::usize i = 0; i < total; ++i) od[i] = 1.0;
     return out;
 }
 
-Value cmap2gray(const Value &cmap, std::pmr::memory_resource *mr)
+Value cmap2gray(const Value &cmap, keel::Allocator *mr)
 {
     cmap2gray_argcheck(cmap);
     const auto &d = cmap.dims();
     if (d.is3D() || d.cols() != 3 || d.rows() < 1)
         throw Error("cmap2gray: CMAP must be an N-by-3 colormap",
                     0, 0, "cmap2gray", "", "numkit:cmap2gray:shape");
-    const size_t N = d.rows();
+    const keel::usize N = d.rows();
     Value out = Value::matrix(N, 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     // MATLAB R2020b+ derives Y from inv(YIQ→RGB) — first row of inv
@@ -1804,7 +1807,7 @@ Value cmap2gray(const Value &cmap, std::pmr::memory_resource *mr)
     constexpr double Cr = 0.29893602129377539;
     constexpr double Cg = 0.58704307445112136;
     constexpr double Cb = 0.11402090425510331;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double r = cmap.elemAsDouble(0 * N + i);
         const double g = cmap.elemAsDouble(1 * N + i);
         const double b = cmap.elemAsDouble(2 * N + i);
@@ -1818,7 +1821,7 @@ Value cmap2gray(const Value &cmap, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value label2rgb(const Value &L, const Value &cmap, const Value &background, std::pmr::memory_resource *mr)
+Value label2rgb(const Value &L, const Value &cmap, const Value &background, keel::Allocator *mr)
 {
     label2rgb_argcheck(L, cmap, background);
     internal::requireImageClass(L, "label2rgb", "L", 1,
@@ -1826,8 +1829,8 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, std:
     if (!cmap.isEmpty() && !cmap.isChar() && !cmap.isString())
         internal::requireColormap(cmap, "label2rgb", 2);
     const auto &dL = L.dims();
-    const size_t H = dL.rows();
-    const size_t W = dL.cols();
+    const keel::usize H = dL.rows();
+    const keel::usize W = dL.cols();
     if (dL.is3D() && dL.pages() != 1)
         throw Error("label2rgb: L must be a 2-D labelled image",
                     0, 0, "label2rgb", "", "numkit:label2rgb:dims");
@@ -1835,7 +1838,7 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, std:
     if (cmap.dims().cols() != 3)
         throw Error("label2rgb: CMAP must be N-by-3",
                     0, 0, "label2rgb", "", "numkit:label2rgb:cmap");
-    const size_t N = cmap.dims().rows();
+    const keel::usize N = cmap.dims().rows();
 
     double bg[3] = {1.0, 1.0, 1.0};
     if (background.numel() == 3) {
@@ -1848,21 +1851,21 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, std:
 
     Value out = Value::matrix3d(H, W, 3, ValueType::UINT8, mr);
     if (H == 0 || W == 0) return out;
-    uint8_t *od = out.uint8DataMut();
-    const size_t plane = H * W;
+    keel::u8 *od = out.uint8DataMut();
+    const keel::usize plane = H * W;
     const double *cd = cmap.doubleData();
 
-    auto sat = [](double v) -> uint8_t {
+    auto sat = [](double v) -> keel::u8 {
         v = std::round(v * 255.0);
         if (v < 0)   v = 0;
         if (v > 255) v = 255;
-        return static_cast<uint8_t>(v);
+        return static_cast<keel::u8>(v);
     };
 
-    for (size_t i = 0; i < plane; ++i) {
+    for (keel::usize i = 0; i < plane; ++i) {
         const double lv = L.elemAsDouble(i);
-        const int64_t lab = static_cast<int64_t>(lv);
-        if (lv < 0 || lab != static_cast<int64_t>(lv))
+        const keel::i64 lab = static_cast<keel::i64>(lv);
+        if (lv < 0 || lab != static_cast<keel::i64>(lv))
             throw Error("label2rgb: L must be non-negative integer-valued",
                         0, 0, "label2rgb", "", "numkit:label2rgb:value");
         if (lab == 0) {
@@ -1870,7 +1873,7 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, std:
             od[1 * plane + i] = sat(bg[1]);
             od[2 * plane + i] = sat(bg[2]);
         } else {
-            const size_t row = static_cast<size_t>(lab) - 1;
+            const keel::usize row = static_cast<keel::usize>(lab) - 1;
             if (row >= N)
                 throw Error("label2rgb: CMAP has fewer rows than max label",
                             0, 0, "label2rgb", "", "numkit:label2rgb:short");

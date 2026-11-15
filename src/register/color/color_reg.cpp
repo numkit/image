@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -26,32 +28,32 @@ namespace numkit::image {
 namespace detail {
 
 #define NUMKIT_COLOR_REG(name, mxArgs)                                                \
-    void name##_reg(Span<const Value> args, size_t /*nargout*/,                   \
-                    Span<Value> outs, CallContext &ctx)                           \
+    void name##_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,                   \
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)                           \
     {                                                                               \
         argcheck::checkNargin(args.size(), 1, mxArgs, #name);                    \
-        outs[0] = name(args[0], ctx.engine->resource());                           \
+        outs[0] = name(args[0], ctx.engine->allocator());                           \
     }
 
 // No count wall in the reference: option / custom-parser tail.
 #define NUMKIT_COLOR_NV_REG(name)                                                      \
-    void name##_reg(Span<const Value> args, size_t /*nargout*/,                   \
-                    Span<Value> outs, CallContext &ctx)                           \
+    void name##_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,                   \
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)                           \
     {                                                                               \
         argcheck::checkNargin(args.size(), 1, #name);                              \
-        outs[0] = name(args[0], ctx.engine->resource());                           \
+        outs[0] = name(args[0], ctx.engine->allocator());                           \
     }
 
-void imsplit_reg(Span<const Value> args, size_t nargout,
-                 Span<Value> outs, CallContext &ctx)
+void imsplit_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imsplit");
     // no max: name-value tail in the reference
     std::vector<Value> planes;
-    imsplit(args[0], planes, ctx.engine->resource());
-    const size_t M = std::min((size_t)outs.size(),
-                               std::max(nargout, (size_t)1));
-    for (size_t i = 0; i < M && i < planes.size(); ++i)
+    imsplit(args[0], planes, ctx.engine->allocator());
+    const keel::usize M = std::min((keel::usize)outs.size(),
+                               std::max(nargout, (keel::usize)1));
+    for (keel::usize i = 0; i < M && i < planes.size(); ++i)
         outs[i] = std::move(planes[i]);
 }
 
@@ -77,12 +79,12 @@ NUMKIT_COLOR_NV_REG(lab2xyz)
 // label2rgb_reg lives in color_extras.cpp (it needs the jet/named-colormap
 // helpers there); this TU keeps only the uint8 pixel-mapping core above.
 
-void colorgradient_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void colorgradient_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "colorgradient");
     // no max: absent from the R2025b reference build
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     Value w;
     int n = 64;
     // Octave shorthand: colorgradient(C, w_or_n) — if 2nd arg is scalar,
@@ -101,12 +103,12 @@ void colorgradient_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = colorgradient(args[0], w, n, mr);
 }
 
-void wavelength2rgb_reg(Span<const Value> args, size_t /*nargout*/,
-                        Span<Value> outs, CallContext &ctx)
+void wavelength2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "wavelength2rgb");
     // no max: absent from the R2025b reference build
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     std::string cls = "double";
     double gamma = 0.8;
     if (args.size() >= 2 && !args[1].isEmpty()) {
@@ -119,23 +121,23 @@ void wavelength2rgb_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = wavelength2rgb(args[0], cls, gamma, mr);
 }
 
-void colorangle_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void colorangle_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "colorangle");
     // no max: name-value tail in the reference
-    outs[0] = colorangle(args[0], args[1], ctx.engine->resource());
+    outs[0] = colorangle(args[0], args[1], ctx.engine->allocator());
 }
 
-void cmap2gray_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void cmap2gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "cmap2gray");
-    outs[0] = cmap2gray(args[0], ctx.engine->resource());
+    outs[0] = cmap2gray(args[0], ctx.engine->allocator());
 }
 
-void gray_reg(Span<const Value> args, size_t /*nargout*/,
-              Span<Value> outs, CallContext &ctx)
+void gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+              keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "gray");
     int n = 256;
@@ -150,11 +152,11 @@ void gray_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "gray", "", "numkit:gray:n");
         n = static_cast<int>(d);
     }
-    outs[0] = gray_cmap(n, ctx.engine->resource());
+    outs[0] = gray_cmap(n, ctx.engine->allocator());
 }
 
-void hot_reg(Span<const Value> args, size_t /*nargout*/,
-             Span<Value> outs, CallContext &ctx)
+void hot_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+             keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "hot");
     int n = 256;
@@ -169,11 +171,11 @@ void hot_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "hot", "", "numkit:hot:n");
         n = static_cast<int>(d);
     }
-    outs[0] = hot_cmap(n, ctx.engine->resource());
+    outs[0] = hot_cmap(n, ctx.engine->allocator());
 }
 
-void cool_reg(Span<const Value> args, size_t /*nargout*/,
-              Span<Value> outs, CallContext &ctx)
+void cool_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+              keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "cool");
     int n = 256;
@@ -188,11 +190,11 @@ void cool_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "cool", "", "numkit:cool:n");
         n = static_cast<int>(d);
     }
-    outs[0] = cool_cmap(n, ctx.engine->resource());
+    outs[0] = cool_cmap(n, ctx.engine->allocator());
 }
 
-void spring_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void spring_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "spring");
     int n = 256;
@@ -207,11 +209,11 @@ void spring_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "spring", "", "numkit:spring:n");
         n = static_cast<int>(d);
     }
-    outs[0] = spring_cmap(n, ctx.engine->resource());
+    outs[0] = spring_cmap(n, ctx.engine->allocator());
 }
 
-void summer_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void summer_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "summer");
     int n = 256;
@@ -226,11 +228,11 @@ void summer_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "summer", "", "numkit:summer:n");
         n = static_cast<int>(d);
     }
-    outs[0] = summer_cmap(n, ctx.engine->resource());
+    outs[0] = summer_cmap(n, ctx.engine->allocator());
 }
 
-void autumn_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void autumn_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "autumn");
     int n = 256;
@@ -245,11 +247,11 @@ void autumn_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "autumn", "", "numkit:autumn:n");
         n = static_cast<int>(d);
     }
-    outs[0] = autumn_cmap(n, ctx.engine->resource());
+    outs[0] = autumn_cmap(n, ctx.engine->allocator());
 }
 
-void winter_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void winter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "winter");
     int n = 256;
@@ -264,11 +266,11 @@ void winter_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "winter", "", "numkit:winter:n");
         n = static_cast<int>(d);
     }
-    outs[0] = winter_cmap(n, ctx.engine->resource());
+    outs[0] = winter_cmap(n, ctx.engine->allocator());
 }
 
-void copper_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void copper_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "copper");
     int n = 256;
@@ -283,11 +285,11 @@ void copper_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "copper", "", "numkit:copper:n");
         n = static_cast<int>(d);
     }
-    outs[0] = copper_cmap(n, ctx.engine->resource());
+    outs[0] = copper_cmap(n, ctx.engine->allocator());
 }
 
-void pink_reg(Span<const Value> args, size_t /*nargout*/,
-              Span<Value> outs, CallContext &ctx)
+void pink_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+              keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "pink");
     int n = 256;
@@ -302,11 +304,11 @@ void pink_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "pink", "", "numkit:pink:n");
         n = static_cast<int>(d);
     }
-    outs[0] = pink_cmap(n, ctx.engine->resource());
+    outs[0] = pink_cmap(n, ctx.engine->allocator());
 }
 
-void hsv_cmap_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void hsv_cmap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "hsv");
     int n = 256;
@@ -321,11 +323,11 @@ void hsv_cmap_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "hsv", "", "numkit:hsv:n");
         n = static_cast<int>(d);
     }
-    outs[0] = hsv_cmap(n, ctx.engine->resource());
+    outs[0] = hsv_cmap(n, ctx.engine->allocator());
 }
 
-void flag_reg(Span<const Value> args, size_t /*nargout*/,
-              Span<Value> outs, CallContext &ctx)
+void flag_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+              keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "flag");
     int n = 256;
@@ -340,11 +342,11 @@ void flag_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "flag", "", "numkit:flag:n");
         n = static_cast<int>(d);
     }
-    outs[0] = flag_cmap(n, ctx.engine->resource());
+    outs[0] = flag_cmap(n, ctx.engine->allocator());
 }
 
-void prism_reg(Span<const Value> args, size_t /*nargout*/,
-               Span<Value> outs, CallContext &ctx)
+void prism_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "prism");
     int n = 256;
@@ -359,11 +361,11 @@ void prism_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "prism", "", "numkit:prism:n");
         n = static_cast<int>(d);
     }
-    outs[0] = prism_cmap(n, ctx.engine->resource());
+    outs[0] = prism_cmap(n, ctx.engine->allocator());
 }
 
-void lines_reg(Span<const Value> args, size_t /*nargout*/,
-               Span<Value> outs, CallContext &ctx)
+void lines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "lines");
     int n = 256;
@@ -378,11 +380,11 @@ void lines_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "lines", "", "numkit:lines:n");
         n = static_cast<int>(d);
     }
-    outs[0] = lines_cmap(n, ctx.engine->resource());
+    outs[0] = lines_cmap(n, ctx.engine->allocator());
 }
 
-void bone_reg(Span<const Value> args, size_t /*nargout*/,
-              Span<Value> outs, CallContext &ctx)
+void bone_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+              keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "bone");
     int n = 256;
@@ -397,11 +399,11 @@ void bone_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "bone", "", "numkit:bone:n");
         n = static_cast<int>(d);
     }
-    outs[0] = bone_cmap(n, ctx.engine->resource());
+    outs[0] = bone_cmap(n, ctx.engine->allocator());
 }
 
-void white_reg(Span<const Value> args, size_t /*nargout*/,
-               Span<Value> outs, CallContext &ctx)
+void white_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "white");
     int n = 256;
@@ -416,50 +418,50 @@ void white_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "white", "", "numkit:white:n");
         n = static_cast<int>(d);
     }
-    outs[0] = white_cmap(n, ctx.engine->resource());
+    outs[0] = white_cmap(n, ctx.engine->allocator());
 }
 
-void rgb2lin_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void rgb2lin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 5, "rgb2lin");
-    outs[0] = rgb2lin(args[0], ctx.engine->resource());
+    outs[0] = rgb2lin(args[0], ctx.engine->allocator());
 }
 
-void lin2rgb_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void lin2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 5, "lin2rgb");
-    outs[0] = lin2rgb(args[0], ctx.engine->resource());
+    outs[0] = lin2rgb(args[0], ctx.engine->allocator());
 }
 
-void xyz2double_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void xyz2double_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "xyz2double");
     // no max: name-value tail in the reference
-    outs[0] = xyz2double(args[0], ctx.engine->resource());
+    outs[0] = xyz2double(args[0], ctx.engine->allocator());
 }
 
-void xyz2uint16_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void xyz2uint16_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "xyz2uint16");
     // no max: name-value tail in the reference
-    outs[0] = xyz2uint16(args[0], ctx.engine->resource());
+    outs[0] = xyz2uint16(args[0], ctx.engine->allocator());
 }
 
-void brighten_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void brighten_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "brighten");
     // no max: name-value tail in the reference
     const double beta = args[1].toScalar();
-    outs[0] = brighten(args[0], beta, ctx.engine->resource());
+    outs[0] = brighten(args[0], beta, ctx.engine->allocator());
 }
 
-void contrast_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void contrast_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "contrast");
     // no max: name-value tail in the reference
@@ -471,16 +473,16 @@ void contrast_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "contrast", "", "numkit:contrast:m");
         m = static_cast<int>(d);
     }
-    outs[0] = contrast(args[0], m, ctx.engine->resource());
+    outs[0] = contrast(args[0], m, ctx.engine->allocator());
 }
 
-void deltaE_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void deltaE_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "deltaE");
     bool isInputLab = false;
     // Parse name-value pair: 'isInputLab', value.
-    for (size_t i = 2; i + 1 < args.size(); i += 2) {
+    for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("deltaE: name-value pairs require string keys",
                         0, 0, "deltaE", "", "numkit:deltaE:nv");
@@ -493,11 +495,11 @@ void deltaE_reg(Span<const Value> args, size_t /*nargout*/,
             throw Error("deltaE: unknown name '" + key + "'",
                         0, 0, "deltaE", "", "numkit:deltaE:nv");
     }
-    outs[0] = deltaE(args[0], args[1], isInputLab, ctx.engine->resource());
+    outs[0] = deltaE(args[0], args[1], isInputLab, ctx.engine->allocator());
 }
 
-void whitepoint_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void whitepoint_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, "whitepoint");
     std::string illum = "icc";  // default
@@ -507,7 +509,7 @@ void whitepoint_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "whitepoint", "", "numkit:whitepoint:type");
         illum = args[0].toString();
     }
-    outs[0] = whitepoint(illum, ctx.engine->resource());
+    outs[0] = whitepoint(illum, ctx.engine->allocator());
 }
 
 } // namespace detail

@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -21,15 +23,15 @@ namespace numkit::image {
 
 namespace detail {
 
-void chromadapt_reg(Span<const Value> args, std::size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void chromadapt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 6, "chromadapt");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     std::string method = "bradford";
     std::string colorSpace = "srgb";
-    std::size_t i = 2;
+    keel::usize i = 2;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("chromadapt: expected NV-pair name string",

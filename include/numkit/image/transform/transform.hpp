@@ -7,8 +7,9 @@
 
 #pragma once
 
-#include <memory_resource>
-#include <numkit/value/span.hpp>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 #include <string>
 #include <tuple>
@@ -28,7 +29,7 @@ namespace numkit::image {
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `M × N` DCT coefficients of the same size as `A`.
 /// @see idct2, dctmtx
-Value dct2(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value dct2(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse 2-D DCT (`A = idct2(B)`).
 ///
@@ -38,7 +39,7 @@ Value dct2(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Reconstructed `M × N` matrix.
 /// @see dct2
-Value idct2(const Value &B, std::pmr::memory_resource *mr = nullptr);
+Value idct2(const Value &B, keel::Allocator *mr = nullptr);
 
 /// @brief `N × N` DCT-II transform matrix (`D = dctmtx(N)`).
 ///
@@ -50,7 +51,7 @@ Value idct2(const Value &B, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `N × N` orthonormal matrix.
 /// @see dct2
-Value dctmtx(double N, std::pmr::memory_resource *mr = nullptr);
+Value dctmtx(keel::f64 N, keel::Allocator *mr = nullptr);
 
 /// @brief Summed-area table (`J = integralImage(I)`).
 ///
@@ -63,7 +64,7 @@ Value dctmtx(double N, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `(M+1) × (N+1)` integral image.
 /// @see integralImage3
-Value integralImage(const Value &I, std::pmr::memory_resource *mr = nullptr);
+Value integralImage(const Value &I, keel::Allocator *mr = nullptr);
 
 /// @brief 3-D summed-volume table (`J = integralImage3(V)`).
 ///
@@ -74,7 +75,7 @@ Value integralImage(const Value &I, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `(M+1) × (N+1) × (P+1)` integral volume.
 /// @see integralImage
-Value integralImage3(const Value &V, std::pmr::memory_resource *mr = nullptr);
+Value integralImage3(const Value &V, keel::Allocator *mr = nullptr);
 
 /// @brief Checkerboard test pattern (`I = checkerboard(side, M, N)`).
 ///
@@ -88,8 +89,8 @@ Value integralImage3(const Value &V, std::pmr::memory_resource *mr = nullptr);
 /// @param N     Horizontal block count (0 → default 4).
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `2·M·side × 2·N·side` checkerboard.
-Value checkerboard(size_t side, size_t M, size_t N,
-                   std::pmr::memory_resource *mr = nullptr);
+Value checkerboard(keel::usize side, keel::usize M, keel::usize N,
+                   keel::Allocator *mr = nullptr);
 
 /// @brief Normalised cross-correlation (`C = normxcorr2(template, img)`).
 ///
@@ -102,7 +103,7 @@ Value checkerboard(size_t side, size_t M, size_t N,
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       Correlation map.
 Value normxcorr2(const Value &templ, const Value &img,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief PSF → OTF (`OTF = psf2otf(PSF, outsize)`).
 ///
@@ -115,8 +116,8 @@ Value normxcorr2(const Value &templ, const Value &img,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         COMPLEX OTF.
 /// @see otf2psf
-Value psf2otf(const Value &PSF, Span<const size_t> outsize = {},
-              std::pmr::memory_resource *mr = nullptr);
+Value psf2otf(const Value &PSF, keel::ArrayRef<keel::usize> outsize = {},
+              keel::Allocator *mr = nullptr);
 
 /// @brief 2-D convolution via FFT (`Y = fftconv2(A, B, shape)`).
 ///
@@ -130,7 +131,7 @@ Value psf2otf(const Value &PSF, Span<const size_t> outsize = {},
 /// @return       Convolution result.
 /// @throws Error  Unknown `shape` (`m:fftconv2:shape`).
 Value fftconv2(const Value &A, const Value &B, const std::string &shape,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Wiener deconvolution (`J = deconvwnr(I, PSF, NSR)` /
 /// `deconvwnr(I, PSF, NCORR, ICORR)`).
@@ -164,8 +165,8 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape,
 /// @param nsr      Noise-to-signal power ratio (default 0).
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         Deblurred image, same class and shape as `I`.
-Value deconvwnr(const Value &I, const Value &PSF, double nsr,
-                std::pmr::memory_resource *mr = nullptr);
+Value deconvwnr(const Value &I, const Value &PSF, keel::f64 nsr,
+                keel::Allocator *mr = nullptr);
 /// @brief Wiener deconvolution using autocorrelation functions (`J = deconvwnr(I, PSF, NCORR, ICORR)`).
 /// @param I Blurred input image.
 /// @param PSF Point-spread function.
@@ -175,12 +176,12 @@ Value deconvwnr(const Value &I, const Value &PSF, double nsr,
 /// @return Deblurred image.
 Value deconvwnr(const Value &I, const Value &PSF,
                 const Value &ncorr, const Value &icorr,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Result of regularized deconvolution (`[J, LAGRA] = deconvreg(...)`).
 struct DeconvregResult {
     Value  J;     ///< Deblurred restored image.
-    double lagra; ///< Lagrange multiplier λ.
+    keel::f64 lagra; ///< Lagrange multiplier λ.
 };
 
 /// @brief Tikhonov-regularized deconvolution (`[J, LAGRA] = deconvreg(I, PSF, NP, ...)`)
@@ -196,9 +197,9 @@ struct DeconvregResult {
 /// @param mr Memory resource for output allocation.
 /// @return DeconvregResult containing restored image `J` and Lagrange multiplier `lagra`.
 DeconvregResult deconvreg(const Value &I, const Value &PSF,
-                          double np, double lo, double hi,
+                          keel::f64 np, keel::f64 lo, keel::f64 hi,
                           const Value &regop,
-                          std::pmr::memory_resource *mr = nullptr);
+                          keel::Allocator *mr = nullptr);
 
 /// @brief Taper image edges via blur (`J = edgetaper(I, PSF)`).
 ///
@@ -234,7 +235,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Tapered image, same class and shape as `I`.
 Value edgetaper(const Value &I, const Value &PSF,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Best block size for block-wise processing
 /// (`siz = bestblk(IMS, k)`).
@@ -247,8 +248,8 @@ Value edgetaper(const Value &I, const Value &PSF,
 /// @param k    Maximum block size (default 100).
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Best block size vector.
-Value bestblk(const Value &IMS, double k,
-              std::pmr::memory_resource *mr = nullptr);
+Value bestblk(const Value &IMS, keel::f64 k,
+              keel::Allocator *mr = nullptr);
 
 /// @brief OTF → PSF (`PSF = otf2psf(OTF, outsize)`).
 ///
@@ -262,8 +263,8 @@ Value bestblk(const Value &IMS, double k,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         PSF (DOUBLE or COMPLEX).
 /// @see psf2otf
-Value otf2psf(const Value &OTF, Span<const size_t> outsize = {},
-              std::pmr::memory_resource *mr = nullptr);
+Value otf2psf(const Value &OTF, keel::ArrayRef<keel::usize> outsize = {},
+              keel::Allocator *mr = nullptr);
 
 /// @brief Shepp-Logan computational head phantom
 /// (`[P, E] = phantom(model_or_E, n)`).
@@ -278,8 +279,8 @@ Value otf2psf(const Value &OTF, Span<const size_t> outsize = {},
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            `(P, E)` — image and ellipse matrix actually used.
 std::tuple<Value, Value>
-phantom(const Value &model_or_E, size_t n,
-        std::pmr::memory_resource *mr = nullptr);
+phantom(const Value &model_or_E, keel::usize n,
+        keel::Allocator *mr = nullptr);
 
 
 /// @}

@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 #include <string>
 
@@ -28,8 +29,8 @@ namespace numkit::image {
 /// @return        Resampled image; element type preserved.
 ///
 /// @see imcrop, imrotate
-Value imresize(const Value &A, double scale, const std::string &method,
-               std::pmr::memory_resource *mr = nullptr);
+Value imresize(const Value &A, keel::f64 scale, const std::string &method,
+               keel::Allocator *mr = nullptr);
 
 /// @brief Resample an image to an explicit output size
 /// (`B = imresize(A, [outH outW], method)`).
@@ -44,9 +45,9 @@ Value imresize(const Value &A, double scale, const std::string &method,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Resampled image; element type preserved.
 /// @see imcrop, imrotate
-Value imresize(const Value &A, size_t outH, size_t outW,
+Value imresize(const Value &A, keel::usize outH, keel::usize outW,
                const std::string &method,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Crop a rectangular region
 /// (`B = imcrop(A, [xmin ymin width height])`).
@@ -62,9 +63,9 @@ Value imresize(const Value &A, size_t outH, size_t outW,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Cropped sub-image.
 /// @see imresize
-Value imcrop(const Value &A, double xmin, double ymin,
-             double width, double height,
-             std::pmr::memory_resource *mr = nullptr);
+Value imcrop(const Value &A, keel::f64 xmin, keel::f64 ymin,
+             keel::f64 width, keel::f64 height,
+             keel::Allocator *mr = nullptr);
 
 /// @brief Crop a 3-D image volume (`VOUT = imcrop3(V, cuboid)`).
 ///
@@ -84,7 +85,7 @@ Value imcrop(const Value &A, double xmin, double ymin,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Cropped sub-volume.
 Value imcrop3(const Value &V, const Value &cuboid,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// Rotate an image counter-clockwise (`B = imrotate(A, angle, method, bbox)`).
 ///
@@ -96,9 +97,9 @@ Value imcrop3(const Value &V, const Value &cuboid,
 ///                that fall outside).
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Rotated image; pixels outside source filled with 0.
-Value imrotate(const Value &A, double angle, const std::string &method,
+Value imrotate(const Value &A, keel::f64 angle, const std::string &method,
                const std::string &bbox,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Shift an image by an arbitrary `(dx, dy)` translation
 /// (`B = imtranslate(A, [dx dy])`).
@@ -113,8 +114,8 @@ Value imrotate(const Value &A, double angle, const std::string &method,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Translated image, same shape and class as `A`.
 /// @see imrotate, imresize
-Value imtranslate(const Value &A, double dx, double dy,
-                  std::pmr::memory_resource *mr = nullptr);
+Value imtranslate(const Value &A, keel::f64 dx, keel::f64 dy,
+                  keel::Allocator *mr = nullptr);
 
 /// World-axis ↔ pixel coordinate mapping (`pix = axes2pix(n, extent, axesCoord)`).
 ///
@@ -128,8 +129,8 @@ Value imtranslate(const Value &A, double dx, double dy,
 /// @param axesCoord Array of axis-space coordinates to convert.
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          Pixel-space coordinates, same shape as `axesCoord`.
-Value axes2pix(double n, const Value &extent, const Value &axesCoord,
-               std::pmr::memory_resource *mr = nullptr);
+Value axes2pix(keel::f64 n, const Value &extent, const Value &axesCoord,
+               keel::Allocator *mr = nullptr);
 
 /// @brief Resample a 3-D volume to a new size
 /// (`B = imresize3(V, scale|[r c d], method, ...)`).
@@ -158,15 +159,15 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord,
 /// @param antialias `true` to enable anti-aliasing when shrinking.
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          Resampled volume; element type preserved with clip.
-Value imresize3(const Value &V, size_t outR, size_t outC, size_t outD,
+Value imresize3(const Value &V, keel::usize outR, keel::usize outC, keel::usize outD,
                 const std::string &method, bool antialias,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Resample a 3-D volume by a uniform scale factor
 /// (`B = imresize3(V, scale, ...)`). See size-vector overload.
-Value imresize3(const Value &V, double scale,
+Value imresize3(const Value &V, keel::f64 scale,
                 const std::string &method, bool antialias,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Rotate a 3-D volume around an arbitrary axis
 /// (`B = imrotate3(V, angle, W, method, bbox, FillValues=v)`).
@@ -194,11 +195,11 @@ Value imresize3(const Value &V, double scale,
 /// @param fill       Out-of-bounds fill value (default 0).
 /// @param mr         Memory resource (nullptr → process default).
 /// @return           Rotated volume; element type preserved.
-Value imrotate3(const Value &V, double angle_deg,
-                double Wx, double Wy, double Wz,
+Value imrotate3(const Value &V, keel::f64 angle_deg,
+                keel::f64 Wx, keel::f64 Wy, keel::f64 Wz,
                 const std::string &method, const std::string &bbox,
-                double fill,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::f64 fill,
+                keel::Allocator *mr = nullptr);
 
 /// Burt–Adelson image pyramid step (`B = impyramid(A, type)`).
 ///
@@ -212,7 +213,7 @@ Value imrotate3(const Value &V, double angle_deg,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Downsampled / upsampled image.
 Value impyramid(const Value &A, const std::string &type,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 
 /// @}

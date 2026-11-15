@@ -19,6 +19,10 @@
 //   * `dithering` arg ('dither' | 'nodither') — deferred; always
 //     equivalent to 'nodither' (no error diffusion).
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -28,7 +32,6 @@
 #include <numkit/ops/matlab_mt19937.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
@@ -137,7 +140,7 @@ void ycbcr2rgbwide_argcheck(const Value &YCBCR, int bits_per_sample)
 // ── rgb2lightness ─────────────────────────────────────────────────────
 // L = first channel of rgb2lab(RGB). MATLAB's rgb2lightness returns
 // single. NK's rgb2lab returns double, so we cast on the way out.
-Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr)
+Value rgb2lightness(const Value &RGB, keel::Allocator *mr)
 {
     rgb2lightness_argcheck(RGB);
     // Probed R2025b: double / single / uint8 accepted (int16 and
@@ -153,8 +156,8 @@ Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr)
         throw Error("rgb2lightness: input must be H×W×3",
                     0, 0, "rgb2lightness", "", "numkit:rgb2lightness:Shape");
     Value lab = rgb2lab(RGB, mr);
-    const size_t H = lab.dims().rows();
-    const size_t W = lab.dims().cols();
+    const keel::usize H = lab.dims().rows();
+    const keel::usize W = lab.dims().cols();
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
     if (H == 0 || W == 0) return out;
     // Page 0 of column-major H×W×3 = first H*W elements.
@@ -163,10 +166,10 @@ Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr)
         std::memcpy(dst, lab.singleData(), H * W * sizeof(float));
     } else if (lab.type() == ValueType::DOUBLE) {
         const double *src = lab.doubleData();
-        for (size_t i = 0; i < H * W; ++i) dst[i] = static_cast<float>(src[i]);
+        for (keel::usize i = 0; i < H * W; ++i) dst[i] = static_cast<float>(src[i]);
     } else {
         // Fallback via elemAsDouble for any other lab type.
-        for (size_t i = 0; i < H * W; ++i)
+        for (keel::usize i = 0; i < H * W; ++i)
             dst[i] = static_cast<float>(lab.elemAsDouble(i));
     }
     // Probed R2025b: double input → double result (single / uint8 stay
@@ -184,7 +187,7 @@ Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr)
 // the output is double, which our v1 doesn't produce). Tie-breaking
 // picks the lowest cmap index (matches MATLAB's nodither path).
 std::pair<Value, Value>
-rgb2ind_inmap(const Value &RGB, const Value &cmap, std::pmr::memory_resource *mr)
+rgb2ind_inmap(const Value &RGB, const Value &cmap, keel::Allocator *mr)
 {
     rgb2ind_inmap_argcheck(RGB, cmap);
     if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
@@ -194,20 +197,20 @@ rgb2ind_inmap(const Value &RGB, const Value &cmap, std::pmr::memory_resource *mr
         throw Error("rgb2ind: colormap must be K×3",
                     0, 0, "rgb2ind", "", "numkit:rgb2ind:CmapShape");
 
-    const size_t H = RGB.dims().rows();
-    const size_t W = RGB.dims().cols();
-    const size_t K = cmap.dims().rows();
-    const size_t HW = H * W;
+    const keel::usize H = RGB.dims().rows();
+    const keel::usize W = RGB.dims().cols();
+    const keel::usize K = cmap.dims().rows();
+    const keel::usize HW = H * W;
 
     // Convert RGB pixels to double in [0, 1].
-    ScratchArena scratch(mr);
-    ScratchVec<double> pix(HW * 3, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> pix(HW * 3, scratch.allocator());
     {
         const double scale = (RGB.type() == ValueType::UINT8)  ? 1.0 / 255.0
                             : (RGB.type() == ValueType::UINT16) ? 1.0 / 65535.0
                             : 1.0;  // double/single already in [0,1]
-        for (size_t p = 0; p < 3; ++p)
-            for (size_t i = 0; i < HW; ++i)
+        for (keel::usize p = 0; p < 3; ++p)
+            for (keel::usize i = 0; i < HW; ++i)
                 pix[p * HW + i] = RGB.elemAsDouble(p * HW + i) * scale;
     }
 
@@ -217,25 +220,25 @@ rgb2ind_inmap(const Value &RGB, const Value &cmap, std::pmr::memory_resource *mr
     if (HW == 0) return {X, cmap};
 
     // Read cmap as K×3.
-    ScratchVec<double> cm(K * 3, &scratch);
-    for (size_t c = 0; c < 3; ++c)
-        for (size_t k = 0; k < K; ++k)
+    keel::Array<double> cm(K * 3, scratch.allocator());
+    for (keel::usize c = 0; c < 3; ++c)
+        for (keel::usize k = 0; k < K; ++k)
             cm[c * K + k] = cmap.elemAsDouble(k + c * K);
 
-    auto write_idx = [&](size_t i, size_t k1based) {
+    auto write_idx = [&](keel::usize i, keel::usize k1based) {
         if (idxT == ValueType::UINT8)
-            X.uint8DataMut()[i] = static_cast<uint8_t>(k1based);
+            X.uint8DataMut()[i] = static_cast<keel::u8>(k1based);
         else
-            X.uint16DataMut()[i] = static_cast<uint16_t>(k1based);
+            X.uint16DataMut()[i] = static_cast<keel::u16>(k1based);
     };
 
-    for (size_t i = 0; i < HW; ++i) {
+    for (keel::usize i = 0; i < HW; ++i) {
         const double r = pix[0 * HW + i];
         const double g = pix[1 * HW + i];
         const double b = pix[2 * HW + i];
         double bestDist = std::numeric_limits<double>::infinity();
-        size_t bestK = 0;
-        for (size_t k = 0; k < K; ++k) {
+        keel::usize bestK = 0;
+        for (keel::usize k = 0; k < K; ++k) {
             const double dr = r - cm[0 * K + k];
             const double dg = g - cm[1 * K + k];
             const double db = b - cm[2 * K + k];
@@ -267,7 +270,7 @@ rgb2ind_inmap(const Value &RGB, const Value &cmap, std::pmr::memory_resource *mr
 //        Cb_out = round((224·Cb + 128)·2^(bps − 8))
 //        Cr_out = round((224·Cr + 128)·2^(bps − 8))
 Value rgbwide2ycbcr(const Value &RGB, int bits_per_sample,
-                    std::pmr::memory_resource *mr)
+                    keel::Allocator *mr)
 {
     rgbwide2ycbcr_argcheck(RGB, bits_per_sample);
     if (bits_per_sample != 10 && bits_per_sample != 12)
@@ -295,28 +298,28 @@ Value rgbwide2ycbcr(const Value &RGB, int bits_per_sample,
     const double nominalRange = nominalPeak - blackLevel;
     const double scale        = (bits_per_sample == 10) ?  4.0 :  16.0; // 2^(bps-8)
 
-    const std::size_t H = is_image ? d.rows() : d.rows();
-    const std::size_t W = is_image ? d.cols() : 1;
-    const std::size_t N = H * W;
+    const keel::usize H = is_image ? d.rows() : d.rows();
+    const keel::usize W = is_image ? d.cols() : 1;
+    const keel::usize N = H * W;
 
     Value out;
     if (is_image) out = Value::matrix3d(H, W, 3, ValueType::UINT16, mr);
     else          out = Value::matrix(H, 3, ValueType::UINT16, mr);
 
-    const uint16_t *src = RGB.uint16Data();
-    uint16_t *dst = out.uint16DataMut();
+    const keel::u16 *src = RGB.uint16Data();
+    keel::u16 *dst = out.uint16DataMut();
 
     // For the p × 3 list, channels are columns (stride = H = p).
     // For the H × W × 3 image, channels are pages (stride = H · W = N).
-    const std::size_t ch_stride = is_image ? N : H;
+    const keel::usize ch_stride = is_image ? N : H;
 
-    auto clamp_round = [](double v) -> uint16_t {
+    auto clamp_round = [](double v) -> keel::u16 {
         if (v < 0.0)        return 0;
         if (v > 65535.0)    return 65535;
-        return static_cast<uint16_t>(v + 0.5);   // round-half-up
+        return static_cast<keel::u16>(v + 0.5);   // round-half-up
     };
 
-    for (std::size_t k = 0; k < (is_image ? N : H); ++k) {
+    for (keel::usize k = 0; k < (is_image ? N : H); ++k) {
         const double R = (static_cast<double>(src[0 * ch_stride + k]) - blackLevel) / nominalRange;
         const double G = (static_cast<double>(src[1 * ch_stride + k]) - blackLevel) / nominalRange;
         const double B = (static_cast<double>(src[2 * ch_stride + k]) - blackLevel) / nominalRange;
@@ -362,7 +365,7 @@ namespace {
 // Convert input pixel value (any class) to double in [0, 1] per
 // MATLAB's im2double rules (uint8 / uint16 scaled by intmax; double
 // and single passed through).
-inline double im2double_scalar(const Value &v, std::size_t i)
+inline double im2double_scalar(const Value &v, keel::usize i)
 {
     switch (v.type()) {
         case ValueType::UINT8:  return v.uint8Data()[i] / 255.0;
@@ -379,23 +382,23 @@ inline double im2double_scalar(const Value &v, std::size_t i)
 // length N referencing `map_in` (M × 3 colormap). Outputs `(Y,
 // newmap)` per MATLAB rules — Y is uint8 if newmap has ≤ 256 rows.
 std::pair<Value, Value>
-cmunique_core(std::pmr::vector<double> &c, std::size_t H, std::size_t W,
-              const std::pmr::vector<double> &map_in, std::size_t M,
-              std::pmr::memory_resource *mr)
+cmunique_core(keel::Array<double> &c, keel::usize H, keel::usize W,
+              const keel::Array<double> &map_in, keel::usize M,
+              keel::Allocator *mr)
 {
     constexpr double tol = 1.0 / 1024.0;
 
     // Quantise map.
-    std::pmr::vector<double> map(3 * M, mr);
-    for (std::size_t k = 0; k < 3 * M; ++k)
+    keel::Array<double> map(3 * M, mr);
+    for (keel::usize k = 0; k < 3 * M; ++k)
         map[k] = std::round(map_in[k] / tol) * tol;
 
     // Sort indices by columns [3 2 1] ascending. map is col-major
     // M × 3: map[r, c] = map_in[c * M + r].
-    std::pmr::vector<std::size_t> ndx(M, mr);
-    for (std::size_t k = 0; k < M; ++k) ndx[k] = k;
+    keel::Array<keel::usize> ndx(M, mr);
+    for (keel::usize k = 0; k < M; ++k) ndx[k] = k;
     std::sort(ndx.begin(), ndx.end(),
-        [&](std::size_t a, std::size_t b) {
+        [&](keel::usize a, keel::usize b) {
             const double a3 = map[2 * M + a], b3 = map[2 * M + b];
             if (a3 != b3) return a3 < b3;
             const double a2 = map[1 * M + a], b2 = map[1 * M + b];
@@ -404,13 +407,13 @@ cmunique_core(std::pmr::vector<double> &c, std::size_t H, std::size_t W,
         });
 
     // pos[ndx[k]] = k+1 (1-based).
-    std::pmr::vector<std::size_t> pos(M, mr);
-    for (std::size_t k = 0; k < M; ++k) pos[ndx[k]] = k + 1;
+    keel::Array<keel::usize> pos(M, mr);
+    for (keel::usize k = 0; k < M; ++k) pos[ndx[k]] = k + 1;
 
     // d[k] = (consecutive sorted rows k and k+1 match within tol).
-    std::pmr::vector<unsigned char> d(M > 0 ? M - 1 : 0, 0, mr);
-    for (std::size_t k = 0; k + 1 < M; ++k) {
-        const std::size_t a = ndx[k], b = ndx[k + 1];
+    keel::Array<unsigned char> d(M > 0 ? M - 1 : 0, 0, mr);
+    for (keel::usize k = 0; k + 1 < M; ++k) {
+        const keel::usize a = ndx[k], b = ndx[k + 1];
         const bool same =
             std::fabs(map[0 * M + a] - map[0 * M + b]) < tol &&
             std::fabs(map[1 * M + a] - map[1 * M + b]) < tol &&
@@ -419,9 +422,9 @@ cmunique_core(std::pmr::vector<double> &c, std::size_t H, std::size_t W,
     }
 
     // loc[k] = (k+1) - cumsum(d)[k]  with prefix [0; cumsum(d)].
-    std::pmr::vector<std::size_t> loc(M, mr);
-    std::size_t csum = 0;
-    for (std::size_t k = 0; k < M; ++k) {
+    keel::Array<keel::usize> loc(M, mr);
+    keel::usize csum = 0;
+    for (keel::usize k = 0; k < M; ++k) {
         loc[k] = (k + 1) - csum;
         if (k < d.size()) csum += d[k];
     }
@@ -429,81 +432,81 @@ cmunique_core(std::pmr::vector<double> &c, std::size_t H, std::size_t W,
     // Remap c: c[i] = loc[pos[c[i] - 1] - 1].  (Both pos and loc
     // are 1-based on output; we convert input c to 0-based then
     // back.)
-    const std::size_t N = c.size();
-    for (std::size_t i = 0; i < N; ++i) {
-        const std::size_t orig = static_cast<std::size_t>(c[i]) - 1;
-        const std::size_t sorted_pos = pos[orig] - 1;
+    const keel::usize N = c.size();
+    for (keel::usize i = 0; i < N; ++i) {
+        const keel::usize orig = static_cast<keel::usize>(c[i]) - 1;
+        const keel::usize sorted_pos = pos[orig] - 1;
         c[i] = static_cast<double>(loc[sorted_pos]);
     }
 
     // Drop duplicate rows from ndx (positions where d is true).
-    std::pmr::vector<std::size_t> kept_ndx(mr);
+    keel::Array<keel::usize> kept_ndx(mr);
     kept_ndx.reserve(M);
-    for (std::size_t k = 0; k < M; ++k) {
+    for (keel::usize k = 0; k < M; ++k) {
         const bool drop = (k < d.size()) && d[k];
         if (!drop) kept_ndx.push_back(ndx[k]);
     }
-    const std::size_t nmap1 = kept_ndx.size();
+    const keel::usize nmap1 = kept_ndx.size();
 
     // Build compressed map.
-    std::pmr::vector<double> map1(3 * nmap1, mr);
-    for (std::size_t k = 0; k < nmap1; ++k) {
+    keel::Array<double> map1(3 * nmap1, mr);
+    for (keel::usize k = 0; k < nmap1; ++k) {
         map1[0 * nmap1 + k] = map[0 * M + kept_ndx[k]];
         map1[1 * nmap1 + k] = map[1 * M + kept_ndx[k]];
         map1[2 * nmap1 + k] = map[2 * M + kept_ndx[k]];
     }
 
     // Count usage of each compressed colour.
-    std::pmr::vector<std::size_t> nuse(nmap1, 0, mr);
-    for (std::size_t i = 0; i < N; ++i) {
-        const std::size_t k = static_cast<std::size_t>(c[i]);
+    keel::Array<keel::usize> nuse(nmap1, 0, mr);
+    for (keel::usize i = 0; i < N; ++i) {
+        const keel::usize k = static_cast<keel::usize>(c[i]);
         if (k >= 1 && k <= nmap1) ++nuse[k - 1];
     }
     // d2[k] = (nuse[k] == 0). Remap unused → drop.
-    std::pmr::vector<unsigned char> d2(nmap1, 0, mr);
-    for (std::size_t k = 0; k < nmap1; ++k) d2[k] = (nuse[k] == 0) ? 1 : 0;
+    keel::Array<unsigned char> d2(nmap1, 0, mr);
+    for (keel::usize k = 0; k < nmap1; ++k) d2[k] = (nuse[k] == 0) ? 1 : 0;
     // loc2[k] = (k+1) - cumsum(d2)[k+1].
-    std::pmr::vector<std::size_t> loc2(nmap1, mr);
-    std::size_t cs = 0;
-    for (std::size_t k = 0; k < nmap1; ++k) {
+    keel::Array<keel::usize> loc2(nmap1, mr);
+    keel::usize cs = 0;
+    for (keel::usize k = 0; k < nmap1; ++k) {
         cs += d2[k];
         loc2[k] = (k + 1) - cs;
     }
-    for (std::size_t i = 0; i < N; ++i) {
-        const std::size_t k = static_cast<std::size_t>(c[i]) - 1;
+    for (keel::usize i = 0; i < N; ++i) {
+        const keel::usize k = static_cast<keel::usize>(c[i]) - 1;
         c[i] = static_cast<double>(loc2[k]);
     }
     // Remove unused rows from map1.
-    std::pmr::vector<double> map2_R(mr), map2_G(mr), map2_B(mr);
-    for (std::size_t k = 0; k < nmap1; ++k) {
+    keel::Array<double> map2_R(mr), map2_G(mr), map2_B(mr);
+    for (keel::usize k = 0; k < nmap1; ++k) {
         if (!d2[k]) {
             map2_R.push_back(map1[0 * nmap1 + k]);
             map2_G.push_back(map1[1 * nmap1 + k]);
             map2_B.push_back(map1[2 * nmap1 + k]);
         }
     }
-    const std::size_t nmap2 = map2_R.size();
+    const keel::usize nmap2 = map2_R.size();
 
     // Determine final output class for Y.
     double max_c = 0.0;
-    for (std::size_t i = 0; i < N; ++i) if (c[i] > max_c) max_c = c[i];
+    for (keel::usize i = 0; i < N; ++i) if (c[i] > max_c) max_c = c[i];
     const bool to_uint8 = (max_c <= 256.0);
 
     Value Y = to_uint8
         ? Value::matrix(H, W, ValueType::UINT8, mr)
         : Value::matrix(H, W, ValueType::DOUBLE, mr);
     if (to_uint8) {
-        std::uint8_t *yp = Y.uint8DataMut();
-        for (std::size_t i = 0; i < N; ++i)
-            yp[i] = static_cast<std::uint8_t>(c[i] - 1.0);   // 0-based
+        keel::u8 *yp = Y.uint8DataMut();
+        for (keel::usize i = 0; i < N; ++i)
+            yp[i] = static_cast<keel::u8>(c[i] - 1.0);   // 0-based
     } else {
         double *yp = Y.doubleDataMut();
-        for (std::size_t i = 0; i < N; ++i) yp[i] = c[i];     // 1-based
+        for (keel::usize i = 0; i < N; ++i) yp[i] = c[i];     // 1-based
     }
 
     Value newmap = Value::matrix(nmap2, 3, ValueType::DOUBLE, mr);
     double *np = newmap.doubleDataMut();
-    for (std::size_t k = 0; k < nmap2; ++k) {
+    for (keel::usize k = 0; k < nmap2; ++k) {
         np[0 * nmap2 + k] = map2_R[k];
         np[1 * nmap2 + k] = map2_G[k];
         np[2 * nmap2 + k] = map2_B[k];
@@ -514,75 +517,75 @@ cmunique_core(std::pmr::vector<double> &c, std::size_t H, std::size_t W,
 } // anonymous
 
 std::pair<Value, Value>
-cmunique_xm(const Value &X, const Value &MAP, std::pmr::memory_resource *mr)
+cmunique_xm(const Value &X, const Value &MAP, keel::Allocator *mr)
 {
     cmunique_xm_argcheck(MAP);
     if (MAP.dims().cols() != 3 || MAP.dims().is3D())
         throw Error("cmunique: MAP must be N×3",
                     0, 0, "cmunique", "", "numkit:cmunique:map");
-    const std::size_t M = MAP.dims().rows();
-    const std::size_t H = X.dims().rows();
-    const std::size_t W = X.dims().cols();
-    const std::size_t N = X.numel();
+    const keel::usize M = MAP.dims().rows();
+    const keel::usize H = X.dims().rows();
+    const keel::usize W = X.dims().cols();
+    const keel::usize N = X.numel();
 
-    std::pmr::vector<double> map_in(3 * M, mr);
-    for (std::size_t c = 0; c < 3; ++c)
-        for (std::size_t r = 0; r < M; ++r)
+    keel::Array<double> map_in(3 * M, mr);
+    for (keel::usize c = 0; c < 3; ++c)
+        for (keel::usize r = 0; r < M; ++r)
             map_in[c * M + r] = MAP.elemAsDouble(c * M + r);
 
     // Convert X to double + offset for integer classes (MATLAB:
     // c = double(a) + 1 for non-double X).
-    std::pmr::vector<double> c(N, mr);
+    keel::Array<double> c(N, mr);
     const bool isInt = (X.type() == ValueType::UINT8
                      || X.type() == ValueType::UINT16);
-    for (std::size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         c[i] = X.elemAsDouble(i) + (isInt ? 1.0 : 0.0);
 
     return cmunique_core(c, H, W, map_in, M, mr);
 }
 
 std::pair<Value, Value>
-cmunique_rgb(const Value &RGB, std::pmr::memory_resource *mr)
+cmunique_rgb(const Value &RGB, keel::Allocator *mr)
 {
     cmunique_rgb_argcheck(RGB);
     if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
         throw Error("cmunique: RGB must be H×W×3",
                     0, 0, "cmunique", "", "numkit:cmunique:rgb");
-    const std::size_t H = RGB.dims().rows();
-    const std::size_t W = RGB.dims().cols();
-    const std::size_t N = H * W;
-    const std::size_t M = N;
-    std::pmr::vector<double> map_in(3 * M, mr);
+    const keel::usize H = RGB.dims().rows();
+    const keel::usize W = RGB.dims().cols();
+    const keel::usize N = H * W;
+    const keel::usize M = N;
+    keel::Array<double> map_in(3 * M, mr);
     // map(:, c) = im2double(reshape(RGB(:,:,c), [], 1))
-    for (std::size_t c = 0; c < 3; ++c)
-        for (std::size_t k = 0; k < N; ++k)
+    for (keel::usize c = 0; c < 3; ++c)
+        for (keel::usize k = 0; k < N; ++k)
             map_in[c * M + k] = im2double_scalar(RGB, c * N + k);
     // c = reshape(1:N, H, W) — column-major identity 1..N.
-    std::pmr::vector<double> idx(N, mr);
-    for (std::size_t i = 0; i < N; ++i) idx[i] = static_cast<double>(i + 1);
+    keel::Array<double> idx(N, mr);
+    for (keel::usize i = 0; i < N; ++i) idx[i] = static_cast<double>(i + 1);
     return cmunique_core(idx, H, W, map_in, M, mr);
 }
 
 std::pair<Value, Value>
-cmunique_i(const Value &I, std::pmr::memory_resource *mr)
+cmunique_i(const Value &I, keel::Allocator *mr)
 {
     cmunique_i_argcheck(I);
     if (I.dims().ndims() > 2)
         throw Error("cmunique: I must be a 2-D intensity image",
                     0, 0, "cmunique", "", "numkit:cmunique:i");
-    const std::size_t H = I.dims().rows();
-    const std::size_t W = I.dims().cols();
-    const std::size_t N = H * W;
-    const std::size_t M = N;
-    std::pmr::vector<double> map_in(3 * M, mr);
-    for (std::size_t k = 0; k < N; ++k) {
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = H * W;
+    const keel::usize M = N;
+    keel::Array<double> map_in(3 * M, mr);
+    for (keel::usize k = 0; k < N; ++k) {
         const double v = im2double_scalar(I, k);
         map_in[0 * M + k] = v;
         map_in[1 * M + k] = v;
         map_in[2 * M + k] = v;
     }
-    std::pmr::vector<double> idx(N, mr);
-    for (std::size_t i = 0; i < N; ++i) idx[i] = static_cast<double>(i + 1);
+    keel::Array<double> idx(N, mr);
+    for (keel::usize i = 0; i < N; ++i) idx[i] = static_cast<double>(i + 1);
     return cmunique_core(idx, H, W, map_in, M, mr);
 }
 
@@ -617,7 +620,7 @@ cmunique_i(const Value &I, std::pmr::memory_resource *mr)
 // Bit-equal on every probed test vector (round-trip with
 // rgbwide2ycbcr).
 Value ycbcr2rgbwide(const Value &YCBCR, int bits_per_sample,
-                    std::pmr::memory_resource *mr)
+                    keel::Allocator *mr)
 {
     ycbcr2rgbwide_argcheck(YCBCR, bits_per_sample);
     if (bits_per_sample != 10 && bits_per_sample != 12)
@@ -651,26 +654,26 @@ Value ycbcr2rgbwide(const Value &YCBCR, int bits_per_sample,
         blackLevel = 256.0;    nominalRange = 3504.0;     // 3760 - 256
     }
 
-    const std::size_t H = d.rows();
-    const std::size_t W = is_image ? d.cols() : 1;
-    const std::size_t N = H * W;
+    const keel::usize H = d.rows();
+    const keel::usize W = is_image ? d.cols() : 1;
+    const keel::usize N = H * W;
 
     Value out;
     if (is_image) out = Value::matrix3d(H, W, 3, ValueType::UINT16, mr);
     else          out = Value::matrix(H, 3, ValueType::UINT16, mr);
 
-    const uint16_t *src = YCBCR.uint16Data();
-    uint16_t *dst = out.uint16DataMut();
+    const keel::u16 *src = YCBCR.uint16Data();
+    keel::u16 *dst = out.uint16DataMut();
 
-    const std::size_t ch_stride = is_image ? N : H;
+    const keel::usize ch_stride = is_image ? N : H;
 
-    auto clamp_round = [](double v) -> uint16_t {
+    auto clamp_round = [](double v) -> keel::u16 {
         if (v < 0.0)        return 0;
         if (v > 65535.0)    return 65535;
-        return static_cast<uint16_t>(v + 0.5);
+        return static_cast<keel::u16>(v + 0.5);
     };
 
-    for (std::size_t k = 0; k < (is_image ? N : H); ++k) {
+    for (keel::usize k = 0; k < (is_image ? N : H); ++k) {
         const double Yn  = (static_cast<double>(src[0 * ch_stride + k]) - yzero)
                             / yrange;
         const double Cbn = (static_cast<double>(src[1 * ch_stride + k]) - chromazero)
@@ -831,7 +834,7 @@ void xyz2rgbwide_argcheck(const Value &XYZ, int bits_per_sample,
 Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
                   const std::string &color_space,
                   const std::string &linearization,
-                  std::pmr::memory_resource *mr)
+                  keel::Allocator *mr)
 {
     rgbwide2xyz_argcheck(RGB, bits_per_sample, color_space);
     std::string cs_lo;
@@ -855,10 +858,10 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
     if (d.is3D() && d.pages() != 3)
         throw Error("rgbwide2xyz: RGB must be Nx3 or HxWx3",
                     0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:shape");
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
     const bool is_image = d.is3D();
-    const std::size_t Np = is_image ? (H * W) : H;
+    const keel::usize Np = is_image ? (H * W) : H;
 
     Value out;
     if (is_image)
@@ -875,9 +878,9 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
         return hlg_rgb2lin(v);
     };
 
-    for (std::size_t i = 0; i < Np; ++i) {
+    for (keel::usize i = 0; i < Np; ++i) {
         // Read raw R, G, B values.
-        std::size_t i_r, i_g, i_b;
+        keel::usize i_r, i_g, i_b;
         if (is_image) {
             i_r = i;
             i_g = H * W + i;
@@ -919,7 +922,7 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
 Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
                   const std::string &color_space,
                   const std::string &linearization,
-                  std::pmr::memory_resource *mr)
+                  keel::Allocator *mr)
 {
     xyz2rgbwide_argcheck(XYZ, bits_per_sample, color_space);
     std::string cs_lo;
@@ -946,10 +949,10 @@ Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
     if (d.is3D() && d.pages() != 3)
         throw Error("xyz2rgbwide: XYZ must be Nx3 or HxWx3",
                     0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:shape");
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
     const bool is_image = d.is3D();
-    const std::size_t Np = is_image ? (H * W) : H;
+    const keel::usize Np = is_image ? (H * W) : H;
 
     Value out;
     if (is_image)
@@ -957,22 +960,22 @@ Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
     else
         out = Value::matrix(H, 3, ValueType::UINT16, mr);
 
-    uint16_t *od = out.uint16DataMut();
+    keel::u16 *od = out.uint16DataMut();
     auto lin_to_rgb = [&](double v) -> double {
         if (is_bt2020 || !use_hlg) {
             return bt_lin2rgb(v < 0.0 ? 0.0 : v, P.alpha, P.beta);
         }
         return hlg_lin2rgb(v < 0.0 ? 0.0 : v);
     };
-    auto clamp_to_uint16 = [](double v) -> uint16_t {
+    auto clamp_to_uint16 = [](double v) -> keel::u16 {
         const double r = std::round(v);
         if (r < 0.0)     return 0;
         if (r > 65535.0) return 65535;
-        return static_cast<uint16_t>(r);
+        return static_cast<keel::u16>(r);
     };
 
-    for (std::size_t i = 0; i < Np; ++i) {
-        std::size_t i_r, i_g, i_b;
+    for (keel::usize i = 0; i < Np; ++i) {
+        keel::usize i_r, i_g, i_b;
         if (is_image) {
             i_r = i;
             i_g = H * W + i;
@@ -1022,47 +1025,47 @@ Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
 namespace {
 
 // Get H, W (ignoring channels) of a 2-D or 3-D image.
-inline void hw_of(const Value &I, std::size_t &H, std::size_t &W) {
+inline void hw_of(const Value &I, keel::usize &H, keel::usize &W) {
     H = I.dims().rows();
     W = I.dims().cols();
 }
 
 // Channels: 1 for HxW, 3 (or other) for HxWx3.
-inline std::size_t channels_of(const Value &I) {
+inline keel::usize channels_of(const Value &I) {
     return I.dims().is3D() ? I.dims().pages() : 1;
 }
 
 // Zero-pad I to (outH, outW) with the same channel count.
-Value pad_zeros(const Value &I, std::size_t outH, std::size_t outW,
-                std::pmr::memory_resource *mr)
+Value pad_zeros(const Value &I, keel::usize outH, keel::usize outW,
+                keel::Allocator *mr)
 {
-    std::size_t H, W;
+    keel::usize H, W;
     hw_of(I, H, W);
-    const std::size_t C = channels_of(I);
+    const keel::usize C = channels_of(I);
     if (H == outH && W == outW) return I;
     const ValueType T = I.type();
     Value out = (C == 1)
         ? Value::matrix(outH, outW, T, mr)
         : Value::matrix3d(outH, outW, C, T, mr);
-    for (std::size_t ch = 0; ch < C; ++ch) {
-        for (std::size_t c = 0; c < W; ++c) {
-            for (std::size_t r = 0; r < H; ++r) {
-                const std::size_t src_idx = (C == 1)
+    for (keel::usize ch = 0; ch < C; ++ch) {
+        for (keel::usize c = 0; c < W; ++c) {
+            for (keel::usize r = 0; r < H; ++r) {
+                const keel::usize src_idx = (C == 1)
                     ? c * H + r
                     : ch * H * W + c * H + r;
-                const std::size_t dst_idx = (C == 1)
+                const keel::usize dst_idx = (C == 1)
                     ? c * outH + r
                     : ch * outH * outW + c * outH + r;
                 const double v = I.elemAsDouble(src_idx);
                 switch (T) {
                     case ValueType::DOUBLE:  out.doubleDataMut()[dst_idx]  = v; break;
                     case ValueType::SINGLE:  out.singleDataMut()[dst_idx]  = static_cast<float>(v); break;
-                    case ValueType::UINT8:   out.uint8DataMut()[dst_idx]   = static_cast<std::uint8_t>(v); break;
-                    case ValueType::UINT16:  out.uint16DataMut()[dst_idx]  = static_cast<std::uint16_t>(v); break;
-                    case ValueType::UINT32:  out.uint32DataMut()[dst_idx]  = static_cast<std::uint32_t>(v); break;
-                    case ValueType::INT8:    out.int8DataMut()[dst_idx]    = static_cast<std::int8_t>(v); break;
-                    case ValueType::INT16:   out.int16DataMut()[dst_idx]   = static_cast<std::int16_t>(v); break;
-                    case ValueType::INT32:   out.int32DataMut()[dst_idx]   = static_cast<std::int32_t>(v); break;
+                    case ValueType::UINT8:   out.uint8DataMut()[dst_idx]   = static_cast<keel::u8>(v); break;
+                    case ValueType::UINT16:  out.uint16DataMut()[dst_idx]  = static_cast<keel::u16>(v); break;
+                    case ValueType::UINT32:  out.uint32DataMut()[dst_idx]  = static_cast<keel::u32>(v); break;
+                    case ValueType::INT8:    out.int8DataMut()[dst_idx]    = static_cast<keel::i8>(v); break;
+                    case ValueType::INT16:   out.int16DataMut()[dst_idx]   = static_cast<keel::i16>(v); break;
+                    case ValueType::INT32:   out.int32DataMut()[dst_idx]   = static_cast<keel::i32>(v); break;
                     case ValueType::LOGICAL: out.logicalDataMut()[dst_idx] = v != 0.0 ? 1 : 0; break;
                     default: out.doubleDataMut()[dst_idx] = v; break;
                 }
@@ -1073,9 +1076,9 @@ Value pad_zeros(const Value &I, std::size_t outH, std::size_t outW,
 }
 
 // MATLAB R2025b scaleGrayscaleImage: cast to single, scale [min,max] → [0,1].
-Value scale_grayscale_image(const Value &I, std::pmr::memory_resource *mr) {
+Value scale_grayscale_image(const Value &I, keel::Allocator *mr) {
     if (I.isLogical()) return I;
-    const std::size_t N = I.numel();
+    const keel::usize N = I.numel();
     Value out = (I.dims().is3D())
         ? Value::matrix3d(I.dims().rows(), I.dims().cols(),
                           I.dims().pages(), ValueType::SINGLE, mr)
@@ -1085,7 +1088,7 @@ Value scale_grayscale_image(const Value &I, std::pmr::memory_resource *mr) {
     if (N == 0) return out;
     float mn = std::numeric_limits<float>::infinity();
     float mx = -std::numeric_limits<float>::infinity();
-    for (std::size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const float v = static_cast<float>(I.elemAsDouble(i));
         od[i] = v;
         if (v < mn) mn = v;
@@ -1093,21 +1096,21 @@ Value scale_grayscale_image(const Value &I, std::pmr::memory_resource *mr) {
     }
     if (mn == mx) return out;  // constant passthrough as-is
     const float inv = 1.0f / (mx - mn);
-    for (std::size_t i = 0; i < N; ++i) od[i] = (od[i] - mn) * inv;
+    for (keel::usize i = 0; i < N; ++i) od[i] = (od[i] - mn) * inv;
     return out;
 }
 
 // Joint scale.
 void scale_two_grayscale_images(Value &A, Value &B,
-                                std::pmr::memory_resource *mr) {
+                                keel::Allocator *mr) {
     float mn = std::numeric_limits<float>::infinity();
     float mx = -std::numeric_limits<float>::infinity();
-    for (std::size_t i = 0; i < A.numel(); ++i) {
+    for (keel::usize i = 0; i < A.numel(); ++i) {
         const float v = static_cast<float>(A.elemAsDouble(i));
         if (v < mn) mn = v;
         if (v > mx) mx = v;
     }
-    for (std::size_t i = 0; i < B.numel(); ++i) {
+    for (keel::usize i = 0; i < B.numel(); ++i) {
         const float v = static_cast<float>(B.elemAsDouble(i));
         if (v < mn) mn = v;
         if (v > mx) mx = v;
@@ -1119,7 +1122,7 @@ void scale_two_grayscale_images(Value &A, Value &B,
             : Value::matrix(X.dims().rows(), X.dims().cols(),
                             ValueType::SINGLE, mr);
         float *yd = Y.singleDataMut();
-        for (std::size_t i = 0; i < X.numel(); ++i) {
+        for (keel::usize i = 0; i < X.numel(); ++i) {
             const float v = static_cast<float>(X.elemAsDouble(i));
             yd[i] = (mn == mx) ? v : (v - mn) / (mx - mn);
         }
@@ -1130,7 +1133,7 @@ void scale_two_grayscale_images(Value &A, Value &B,
 }
 
 void make_similar(Value &A, Value &B, const std::string &scaling,
-                  std::pmr::memory_resource *mr)
+                  keel::Allocator *mr)
 {
     const bool aIsRGB = A.dims().is3D();
     const bool bIsRGB = B.dims().is3D();
@@ -1149,22 +1152,22 @@ void make_similar(Value &A, Value &B, const std::string &scaling,
     } else if (aIsRGB && !bIsRGB) {
         if (scaling != "none") B = scale_grayscale_image(B, mr);
         Value Bg = im2uint8(B, mr);
-        const std::size_t H = Bg.dims().rows();
-        const std::size_t W = Bg.dims().cols();
+        const keel::usize H = Bg.dims().rows();
+        const keel::usize W = Bg.dims().cols();
         Value Brep = Value::matrix3d(H, W, 3, ValueType::UINT8, mr);
-        for (std::size_t ch = 0; ch < 3; ++ch)
-            for (std::size_t i = 0; i < H * W; ++i)
+        for (keel::usize ch = 0; ch < 3; ++ch)
+            for (keel::usize i = 0; i < H * W; ++i)
                 Brep.uint8DataMut()[ch * H * W + i] = Bg.uint8Data()[i];
         B = Brep;
         A = im2uint8(A, mr);
     } else {
         if (scaling != "none") A = scale_grayscale_image(A, mr);
         Value Ag = im2uint8(A, mr);
-        const std::size_t H = Ag.dims().rows();
-        const std::size_t W = Ag.dims().cols();
+        const keel::usize H = Ag.dims().rows();
+        const keel::usize W = Ag.dims().cols();
         Value Arep = Value::matrix3d(H, W, 3, ValueType::UINT8, mr);
-        for (std::size_t ch = 0; ch < 3; ++ch)
-            for (std::size_t i = 0; i < H * W; ++i)
+        for (keel::usize ch = 0; ch < 3; ++ch)
+            for (keel::usize i = 0; i < H * W; ++i)
                 Arep.uint8DataMut()[ch * H * W + i] = Ag.uint8Data()[i];
         A = Arep;
         B = im2uint8(B, mr);
@@ -1224,7 +1227,7 @@ Value imfuse(const Value &Ain, const Value &Bin,
              const std::string &method,
              const std::string &scaling,
              const Value &channels,
-             std::pmr::memory_resource *mr)
+             keel::Allocator *mr)
 {
     imfuse_argcheck(method, scaling, channels);
     static const std::array<const char *, 5> methods{
@@ -1240,18 +1243,18 @@ Value imfuse(const Value &Ain, const Value &Bin,
         throw Error("imfuse: unknown SCALING '" + scaling + "'",
                     0, 0, "imfuse", "", "numkit:imfuse:scaling");
 
-    std::size_t Ha, Wa, Hb, Wb;
+    keel::usize Ha, Wa, Hb, Wb;
     hw_of(Ain, Ha, Wa);
     hw_of(Bin, Hb, Wb);
 
     Value A, B;
     if (method == "montage") {
-        const std::size_t H = std::max(Ha, Hb);
+        const keel::usize H = std::max(Ha, Hb);
         A = pad_zeros(Ain, H, Wa, mr);
         B = pad_zeros(Bin, H, Wb, mr);
     } else {
-        const std::size_t H = std::max(Ha, Hb);
-        const std::size_t W = std::max(Wa, Wb);
+        const keel::usize H = std::max(Ha, Hb);
+        const keel::usize W = std::max(Wa, Wb);
         A = pad_zeros(Ain, H, W, mr);
         B = pad_zeros(Bin, H, W, mr);
     }
@@ -1276,16 +1279,16 @@ Value imfuse(const Value &Ain, const Value &Bin,
                 ch[k] = static_cast<int>(v);
             }
         }
-        const std::size_t H = A.dims().rows();
-        const std::size_t W = A.dims().cols();
-        const std::size_t plane = H * W;
+        const keel::usize H = A.dims().rows();
+        const keel::usize W = A.dims().cols();
+        const keel::usize plane = H * W;
         Value R = Value::matrix3d(H, W, 3, ValueType::UINT8, mr);
-        std::uint8_t *rd = R.uint8DataMut();
+        keel::u8 *rd = R.uint8DataMut();
         for (int p = 0; p < 3; ++p) {
-            const std::uint8_t *src = (ch[p] == 1) ? A.uint8Data()
+            const keel::u8 *src = (ch[p] == 1) ? A.uint8Data()
                                     : (ch[p] == 2) ? B.uint8Data()
                                     : nullptr;
-            std::uint8_t *dst = rd + p * plane;
+            keel::u8 *dst = rd + p * plane;
             if (src) std::memcpy(dst, src, plane);
         }
         return R;
@@ -1293,22 +1296,22 @@ Value imfuse(const Value &Ain, const Value &Bin,
 
     if (method == "blend") {
         make_similar(A, B, scaling, mr);
-        const std::size_t H = A.dims().rows();
-        const std::size_t W = A.dims().cols();
-        const std::size_t C = channels_of(A);
+        const keel::usize H = A.dims().rows();
+        const keel::usize W = A.dims().cols();
+        const keel::usize C = channels_of(A);
         Value R = (C == 1)
             ? Value::matrix(H, W, ValueType::UINT8, mr)
             : Value::matrix3d(H, W, C, ValueType::UINT8, mr);
-        const std::size_t N = H * W * C;
-        const std::uint8_t *ap = A.uint8Data();
-        const std::uint8_t *bp = B.uint8Data();
-        std::uint8_t *rp = R.uint8DataMut();
-        for (std::size_t i = 0; i < N; ++i) {
+        const keel::usize N = H * W * C;
+        const keel::u8 *ap = A.uint8Data();
+        const keel::u8 *bp = B.uint8Data();
+        keel::u8 *rp = R.uint8DataMut();
+        for (keel::usize i = 0; i < N; ++i) {
             const float v = 0.5f * static_cast<float>(ap[i])
                           + 0.5f * static_cast<float>(bp[i]);
             int rv = static_cast<int>(v + 0.5f);
             if (rv < 0) rv = 0; else if (rv > 255) rv = 255;
-            rp[i] = static_cast<std::uint8_t>(rv);
+            rp[i] = static_cast<keel::u8>(rv);
         }
         return R;
     }
@@ -1321,11 +1324,11 @@ Value imfuse(const Value &Ain, const Value &Bin,
             A = scale_grayscale_image(A, mr);
             B = scale_grayscale_image(B, mr);
         }
-        const std::size_t H = A.dims().rows();
-        const std::size_t W = A.dims().cols();
-        const std::size_t N = H * W;
+        const keel::usize H = A.dims().rows();
+        const keel::usize W = A.dims().cols();
+        const keel::usize N = H * W;
         Value diff = Value::matrix(H, W, ValueType::SINGLE, mr);
-        for (std::size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const float va = static_cast<float>(A.elemAsDouble(i));
             const float vb = static_cast<float>(B.elemAsDouble(i));
             diff.singleDataMut()[i] = std::fabs(va - vb);
@@ -1336,32 +1339,32 @@ Value imfuse(const Value &Ain, const Value &Bin,
 
     if (method == "checkerboard") {
         make_similar(A, B, scaling, mr);
-        const std::size_t H = A.dims().rows();
-        const std::size_t W = A.dims().cols();
-        const std::size_t C = channels_of(A);
+        const keel::usize H = A.dims().rows();
+        const keel::usize W = A.dims().cols();
+        const keel::usize C = channels_of(A);
         // 16x16 base = [1 0; 0 1] tiled 8x8.
         Value base = Value::matrix(16, 16, ValueType::LOGICAL, mr);
-        std::uint8_t *bbp = base.logicalDataMut();
-        for (std::size_t c = 0; c < 16; ++c)
-            for (std::size_t r = 0; r < 16; ++r) {
-                const std::size_t br = r / 8;
-                const std::size_t bc = c / 8;
-                bbp[c * 16 + r] = static_cast<std::uint8_t>((br + bc + 1) % 2);
+        keel::u8 *bbp = base.logicalDataMut();
+        for (keel::usize c = 0; c < 16; ++c)
+            for (keel::usize r = 0; r < 16; ++r) {
+                const keel::usize br = r / 8;
+                const keel::usize bc = c / 8;
+                bbp[c * 16 + r] = static_cast<keel::u8>((br + bc + 1) % 2);
             }
         Value mask = imresize(base, H, W, "nearest", mr);
         Value R = (C == 1)
             ? Value::matrix(H, W, ValueType::UINT8, mr)
             : Value::matrix3d(H, W, C, ValueType::UINT8, mr);
-        const std::uint8_t *m = mask.logicalData();
-        const std::uint8_t *ap = A.uint8Data();
-        const std::uint8_t *bp2 = B.uint8Data();
-        std::uint8_t *rp = R.uint8DataMut();
-        const std::size_t plane = H * W;
-        for (std::size_t ch = 0; ch < C; ++ch) {
-            const std::uint8_t *a_ch = ap + ch * plane;
-            const std::uint8_t *b_ch = bp2 + ch * plane;
-            std::uint8_t *r_ch = rp + ch * plane;
-            for (std::size_t i = 0; i < plane; ++i)
+        const keel::u8 *m = mask.logicalData();
+        const keel::u8 *ap = A.uint8Data();
+        const keel::u8 *bp2 = B.uint8Data();
+        keel::u8 *rp = R.uint8DataMut();
+        const keel::usize plane = H * W;
+        for (keel::usize ch = 0; ch < C; ++ch) {
+            const keel::u8 *a_ch = ap + ch * plane;
+            const keel::u8 *b_ch = bp2 + ch * plane;
+            keel::u8 *r_ch = rp + ch * plane;
+            for (keel::usize i = 0; i < plane; ++i)
                 r_ch[i] = m[i] ? a_ch[i] : b_ch[i];
         }
         return R;
@@ -1369,24 +1372,24 @@ Value imfuse(const Value &Ain, const Value &Bin,
 
     // method == "montage"
     make_similar(A, B, scaling, mr);
-    const std::size_t H = A.dims().rows();
-    const std::size_t WAa = A.dims().cols();
-    const std::size_t WBb = B.dims().cols();
-    const std::size_t C = channels_of(A);
-    const std::size_t Wt = WAa + WBb;
+    const keel::usize H = A.dims().rows();
+    const keel::usize WAa = A.dims().cols();
+    const keel::usize WBb = B.dims().cols();
+    const keel::usize C = channels_of(A);
+    const keel::usize Wt = WAa + WBb;
     Value R = (C == 1)
         ? Value::matrix(H, Wt, ValueType::UINT8, mr)
         : Value::matrix3d(H, Wt, C, ValueType::UINT8, mr);
-    const std::uint8_t *ap = A.uint8Data();
-    const std::uint8_t *bp = B.uint8Data();
-    std::uint8_t *rp = R.uint8DataMut();
-    for (std::size_t ch = 0; ch < C; ++ch) {
-        for (std::size_t c = 0; c < WAa; ++c)
-            for (std::size_t r = 0; r < H; ++r)
+    const keel::u8 *ap = A.uint8Data();
+    const keel::u8 *bp = B.uint8Data();
+    keel::u8 *rp = R.uint8DataMut();
+    for (keel::usize ch = 0; ch < C; ++ch) {
+        for (keel::usize c = 0; c < WAa; ++c)
+            for (keel::usize r = 0; r < H; ++r)
                 rp[ch * H * Wt + c * H + r]
                     = ap[ch * H * WAa + c * H + r];
-        for (std::size_t c = 0; c < WBb; ++c)
-            for (std::size_t r = 0; r < H; ++r)
+        for (keel::usize c = 0; c < WBb; ++c)
+            for (keel::usize r = 0; r < H; ++r)
                 rp[ch * H * Wt + (WAa + c) * H + r]
                     = bp[ch * H * WBb + c * H + r];
     }
@@ -1411,7 +1414,7 @@ Value tonemap(const Value &HDR,
               double lremap_lo, double lremap_hi,
               double saturation,
               int ntilesR, int ntilesC,
-              std::pmr::memory_resource *mr)
+              keel::Allocator *mr)
 {
     tonemap_argcheck(HDR, lremap_lo, lremap_hi, saturation, ntilesR, ntilesC);
     internal::requireImageClass(HDR, "tonemap", "HDR", 1,
@@ -1436,21 +1439,21 @@ Value tonemap(const Value &HDR,
         throw Error("tonemap: NumberOfTiles values must be >= 2",
                     0, 0, "tonemap", "", "numkit:tonemap:tiles");
 
-    const std::size_t H = HDR.dims().rows();
-    const std::size_t W = HDR.dims().cols();
+    const keel::usize H = HDR.dims().rows();
+    const keel::usize W = HDR.dims().cols();
     const bool isRGB = HDR.dims().is3D();
     if (isRGB && HDR.dims().pages() != 3)
         throw Error("tonemap: HDR must be H×W or H×W×3",
                     0, 0, "tonemap", "", "numkit:tonemap:shape");
-    const std::size_t C = isRGB ? 3 : 1;
-    const std::size_t plane = H * W;
-    const std::size_t Ntot = plane * C;
+    const keel::usize C = isRGB ? 3 : 1;
+    const keel::usize plane = H * W;
+    const keel::usize Ntot = plane * C;
 
     // Step 1+2: read into double; find min nonzero; replace zeros with min_nz.
-    std::pmr::vector<double> data(Ntot, 0.0, mr);
+    keel::Array<double> data(Ntot, 0.0, mr);
     double min_nz = std::numeric_limits<double>::infinity();
     bool any_nz = false;
-    for (std::size_t i = 0; i < Ntot; ++i) {
+    for (keel::usize i = 0; i < Ntot; ++i) {
         const double v = HDR.elemAsDouble(i);
         if (v < 0.0)
             throw Error("tonemap: HDR must be non-negative",
@@ -1470,13 +1473,13 @@ Value tonemap(const Value &HDR,
         std::memset(out.uint8DataMut(), 0, Ntot);
         return out;
     }
-    for (std::size_t i = 0; i < Ntot; ++i)
+    for (keel::usize i = 0; i < Ntot; ++i)
         if (data[i] == 0.0) data[i] = min_nz;
 
     // Step 3: log2, then mat2gray to [0, 1].
     double gmin = std::numeric_limits<double>::infinity();
     double gmax = -std::numeric_limits<double>::infinity();
-    for (std::size_t i = 0; i < Ntot; ++i) {
+    for (keel::usize i = 0; i < Ntot; ++i) {
         const double v = std::log2(data[i]);
         data[i] = v;
         if (v < gmin) gmin = v;
@@ -1485,16 +1488,16 @@ Value tonemap(const Value &HDR,
     const double span = gmax - gmin;
     if (span > 0.0) {
         const double inv = 1.0 / span;
-        for (std::size_t i = 0; i < Ntot; ++i) data[i] = (data[i] - gmin) * inv;
+        for (keel::usize i = 0; i < Ntot; ++i) data[i] = (data[i] - gmin) * inv;
     } else {
         // Constant log image → all zeros after mat2gray.
         std::fill(data.begin(), data.end(), 0.0);
     }
 
     // Wrap into a Value for downstream helpers.
-    auto wrap_plane = [&](std::size_t ch) {
+    auto wrap_plane = [&](keel::usize ch) {
         Value V = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        for (std::size_t i = 0; i < plane; ++i)
+        for (keel::usize i = 0; i < plane; ++i)
             V.doubleDataMut()[i] = data[ch * plane + i];
         return V;
     };
@@ -1513,23 +1516,23 @@ Value tonemap(const Value &HDR,
 
     // RGB path.
     Value RGB = Value::matrix3d(H, W, 3, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < Ntot; ++i)
+    for (keel::usize i = 0; i < Ntot; ++i)
         RGB.doubleDataMut()[i] = data[i];
     Value Lab = rgb2lab(RGB, mr);  // H x W x 3 double
 
     // L / 100.
-    for (std::size_t i = 0; i < plane; ++i)
+    for (keel::usize i = 0; i < plane; ++i)
         Lab.doubleDataMut()[i] /= 100.0;
     // Wrap L into a 2-D image; apply adapthisteq + imadjust; write back.
     Value Lplane = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < plane; ++i)
+    for (keel::usize i = 0; i < plane; ++i)
         Lplane.doubleDataMut()[i] = Lab.doubleData()[i];
     Lplane = adapthisteq(Lplane, opts, mr);
     Lplane = imadjust(Lplane, lremap_lo, lremap_hi, 0.0, 1.0, 1.0, mr);
-    for (std::size_t i = 0; i < plane; ++i)
+    for (keel::usize i = 0; i < plane; ++i)
         Lab.doubleDataMut()[i] = Lplane.elemAsDouble(i) * 100.0;
     // a, b * saturation.
-    for (std::size_t i = 0; i < plane; ++i) {
+    for (keel::usize i = 0; i < plane; ++i) {
         Lab.doubleDataMut()[plane + i]      *= saturation;
         Lab.doubleDataMut()[2 * plane + i] *= saturation;
     }
@@ -1586,13 +1589,13 @@ Value tonemap(const Value &HDR,
 //   J(r,1) = u(1:length(r));
 //   J(g,2) = u(1:length(g));
 //   J(b,3) = u(end-length(b)+1:end);
-Value jet_colormap(int m, std::pmr::memory_resource *mr)
+Value jet_colormap(int m, keel::Allocator *mr)
 {
     if (m < 1) m = 1;
-    Value out = Value::matrix(static_cast<std::size_t>(m), 3,
+    Value out = Value::matrix(static_cast<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    std::fill(od, od + 3 * static_cast<std::size_t>(m), 0.0);
+    std::fill(od, od + 3 * static_cast<keel::usize>(m), 0.0);
     const int n = (m + 3) / 4;            // ceil(m/4)
     const int ulen = n + (n - 1) + n;      // length(u)
     auto u_at = [&](int i) -> double {     // 1-based
@@ -1610,11 +1613,11 @@ Value jet_colormap(int m, std::pmr::memory_resource *mr)
         if (r >= 1 && r <= m) {
             // u(1..length(r)) — k-th valid r maps to u(rcount+1)
             ++rcount;
-            od[0 * static_cast<std::size_t>(m) + (r - 1)] = u_at(rcount);
+            od[0 * static_cast<keel::usize>(m) + (r - 1)] = u_at(rcount);
         }
         if (g >= 1 && g <= m) {
             ++gcount;
-            od[1 * static_cast<std::size_t>(m) + (g - 1)] = u_at(gcount);
+            od[1 * static_cast<keel::usize>(m) + (g - 1)] = u_at(gcount);
         }
         if (b >= 1 && b <= m) ++bcount;  // tally only; assigned below
     }
@@ -1625,7 +1628,7 @@ Value jet_colormap(int m, std::pmr::memory_resource *mr)
         const int b = g - n;
         if (b >= 1 && b <= m) {
             ++bsofar;
-            od[2 * static_cast<std::size_t>(m) + (b - 1)] =
+            od[2 * static_cast<keel::usize>(m) + (b - 1)] =
                 u_at(ulen - bcount + bsofar);
         }
     }
@@ -1634,10 +1637,10 @@ Value jet_colormap(int m, std::pmr::memory_resource *mr)
 
 // ── hsv(N) — MATLAB-canonical HSV colormap ────────────────────────
 // hsv2rgb([h s v]) with h = (0:N-1)'/N, s=v=1.
-Value hsv_colormap(int m, std::pmr::memory_resource *mr)
+Value hsv_colormap(int m, keel::Allocator *mr)
 {
     if (m < 1) m = 1;
-    Value out = Value::matrix(static_cast<std::size_t>(m), 3,
+    Value out = Value::matrix(static_cast<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     for (int i = 0; i < m; ++i) {
@@ -1655,9 +1658,9 @@ Value hsv_colormap(int m, std::pmr::memory_resource *mr)
             case 4: r = f;     g = 0;     b = 1;     break;
             case 5: r = 1;     g = 0;     b = 1 - f; break;
         }
-        od[0 * static_cast<std::size_t>(m) + i] = r;
-        od[1 * static_cast<std::size_t>(m) + i] = g;
-        od[2 * static_cast<std::size_t>(m) + i] = b;
+        od[0 * static_cast<keel::usize>(m) + i] = r;
+        od[1 * static_cast<keel::usize>(m) + i] = g;
+        od[2 * static_cast<keel::usize>(m) + i] = b;
     }
     return out;
 }
@@ -1691,10 +1694,10 @@ static const double kParulaRef[64 * 3] = {
     0.9769, 0.9839, 0.0805
 };
 
-Value parula_colormap(int m, std::pmr::memory_resource *mr)
+Value parula_colormap(int m, keel::Allocator *mr)
 {
     if (m < 1) m = 1;
-    Value out = Value::matrix(static_cast<std::size_t>(m), 3,
+    Value out = Value::matrix(static_cast<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (m == 1) {
@@ -1716,7 +1719,7 @@ Value parula_colormap(int m, std::pmr::memory_resource *mr)
         for (int ch = 0; ch < 3; ++ch) {
             const double v = (1 - a) * kParulaRef[lo * 3 + ch]
                            + a       * kParulaRef[hi * 3 + ch];
-            od[ch * static_cast<std::size_t>(m) + i] = v;
+            od[ch * static_cast<keel::usize>(m) + i] = v;
         }
     }
     return out;
@@ -1724,10 +1727,10 @@ Value parula_colormap(int m, std::pmr::memory_resource *mr)
 
 // ── Other named colormaps — minimal set needed for labeloverlay ───
 // gray, hot, cool, bone — all are simple closed-form linear ramps.
-Value gray_colormap(int m, std::pmr::memory_resource *mr)
+Value gray_colormap(int m, keel::Allocator *mr)
 {
     if (m < 1) m = 1;
-    Value out = Value::matrix(static_cast<std::size_t>(m), 3,
+    Value out = Value::matrix(static_cast<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     for (int i = 0; i < m; ++i) {
@@ -1739,14 +1742,14 @@ Value gray_colormap(int m, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value hot_colormap(int m, std::pmr::memory_resource *mr)
+Value hot_colormap(int m, keel::Allocator *mr)
 {
     // From MATLAB R2025b graphics/hot.m:
     //   n = fix(3/8*m);  r = [(1:n)'/n; ones(m-n,1)];
     //   g = [zeros(n,1); (1:n)'/n; ones(m-2*n,1)];
     //   b = [zeros(2*n,1); (1:m-2*n)'/(m-2*n)];
     if (m < 1) m = 1;
-    Value out = Value::matrix(static_cast<std::size_t>(m), 3,
+    Value out = Value::matrix(static_cast<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     std::fill(od, od + 3 * m, 0.0);
@@ -1767,11 +1770,11 @@ Value hot_colormap(int m, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value cool_colormap(int m, std::pmr::memory_resource *mr)
+Value cool_colormap(int m, keel::Allocator *mr)
 {
     // From graphics/cool.m: r = (0:m-1)'/(m-1); g = 1-r; b = ones(m,1).
     if (m < 1) m = 1;
-    Value out = Value::matrix(static_cast<std::size_t>(m), 3,
+    Value out = Value::matrix(static_cast<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     for (int i = 0; i < m; ++i) {
@@ -1783,7 +1786,7 @@ Value cool_colormap(int m, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value bone_colormap(int m, std::pmr::memory_resource *mr)
+Value bone_colormap(int m, keel::Allocator *mr)
 {
     // bone(m) = (7*gray(m) + hsv-blue ramp)/8 in MATLAB. Specifically:
     //   bone = (7*gray(m) + [zeros(...); (1:n)'/n; ones(...); ones(...)])/8
@@ -1791,7 +1794,7 @@ Value bone_colormap(int m, std::pmr::memory_resource *mr)
     if (m < 1) m = 1;
     Value g = gray_colormap(m, mr);
     Value h = hot_colormap(m, mr);
-    Value out = Value::matrix(static_cast<std::size_t>(m), 3,
+    Value out = Value::matrix(static_cast<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     const double *gd = g.doubleData();
@@ -1812,7 +1815,7 @@ Value bone_colormap(int m, std::pmr::memory_resource *mr)
 // Dispatch a named MATLAB colormap. Throws for anything not in the
 // supported set.
 Value resolve_named_colormap(const std::string &name, int N,
-                             std::pmr::memory_resource *mr)
+                             keel::Allocator *mr)
 {
     std::string lo;
     for (char ch : name)
@@ -1838,9 +1841,9 @@ Value resolve_named_colormap(const std::string &name, int N,
 std::vector<int> matlab_default_randperm(int N)
 {
     ::numkit::ops::MatlabMT19937 rng;   // seed 0 → state[0] = 5489
-    std::vector<double> u(static_cast<std::size_t>(N));
+    std::vector<double> u(static_cast<keel::usize>(N));
     for (int i = 0; i < N; ++i) u[i] = rng.genRes53();
-    std::vector<int> p(static_cast<std::size_t>(N));
+    std::vector<int> p(static_cast<keel::usize>(N));
     for (int i = 0; i < N; ++i) p[i] = i;          // 0-based for sort
     std::stable_sort(p.begin(), p.end(),
                      [&](int a, int b) { return u[a] < u[b]; });
@@ -1850,14 +1853,14 @@ std::vector<int> matlab_default_randperm(int N)
 
 // Permute rows of an Nx3 cmap by `perm` (1-based).
 Value permute_cmap_rows(const Value &cmap, const std::vector<int> &perm,
-                        std::pmr::memory_resource *mr)
+                        keel::Allocator *mr)
 {
-    const std::size_t N = cmap.dims().rows();
+    const keel::usize N = cmap.dims().rows();
     Value out = Value::matrix(N, 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     const double *cd = cmap.doubleData();
-    for (std::size_t i = 0; i < N; ++i) {
-        const std::size_t src = static_cast<std::size_t>(perm[i] - 1);
+    for (keel::usize i = 0; i < N; ++i) {
+        const keel::usize src = static_cast<keel::usize>(perm[i] - 1);
         for (int ch = 0; ch < 3; ++ch)
             od[ch * N + i] = cd[ch * N + src];
     }
@@ -1879,15 +1882,15 @@ struct EdgeSet {
 EdgeSet build_8conn_edges(const Value &L)
 {
     EdgeSet s;
-    const std::size_t H = L.dims().rows();
-    const std::size_t W = L.dims().cols();
-    auto lab = [&](std::size_t r, std::size_t c) -> int {
+    const keel::usize H = L.dims().rows();
+    const keel::usize W = L.dims().cols();
+    auto lab = [&](keel::usize r, keel::usize c) -> int {
         return static_cast<int>(L.elemAsDouble(c * H + r));
     };
     // Dedup with set<pair>.
     std::set<std::pair<int, int>> uniq;
-    for (std::size_t r = 0; r < H; ++r)
-        for (std::size_t c = 0; c < W; ++c) {
+    for (keel::usize r = 0; r < H; ++r)
+        for (keel::usize c = 0; c < W; ++c) {
             const int a = lab(r, c);
             if (a > s.maxLabel) s.maxLabel = a;
             // 8-conn forward neighbours: (r+1,c), (r,c+1), (r+1,c+1), (r+1,c-1)
@@ -1895,11 +1898,11 @@ EdgeSet build_8conn_edges(const Value &L)
                 {1, 0}, {0, 1}, {1, 1}, {1, -1}
             }};
             for (auto [dr, dc] : off) {
-                const std::size_t rr = r + dr;
+                const keel::usize rr = r + dr;
                 const long cc = static_cast<long>(c) + dc;
-                if (rr >= H || cc < 0 || static_cast<std::size_t>(cc) >= W)
+                if (rr >= H || cc < 0 || static_cast<keel::usize>(cc) >= W)
                     continue;
-                const int b = lab(rr, static_cast<std::size_t>(cc));
+                const int b = lab(rr, static_cast<keel::usize>(cc));
                 if (a == b) continue;
                 int x = a, y = b;
                 if (x > y) std::swap(x, y);
@@ -1927,9 +1930,9 @@ int chromatic_upper_bound(const EdgeSet &s)
 // maximum sum of distances to already-selected. Distance is plain L2
 // in RGB. Returns K colours as the first K rows of cmap_out.
 Value select_maximally_distinct(const Value &cmap, int K,
-                                std::pmr::memory_resource *mr)
+                                keel::Allocator *mr)
 {
-    const std::size_t N = cmap.dims().rows();
+    const keel::usize N = cmap.dims().rows();
     if (K > static_cast<int>(N)) K = static_cast<int>(N);
     Value out = Value::matrix(K, 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
@@ -1942,7 +1945,7 @@ Value select_maximally_distinct(const Value &cmap, int K,
     od[0 * K + 0] = cd[0 * N + last];
     od[1 * K + 0] = cd[1 * N + last];
     od[2 * K + 0] = cd[2 * N + last];
-    for (std::size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         if (!picked[i]) {
             const double dr = cd[0 * N + i] - cd[0 * N + last];
             const double dg = cd[1 * N + i] - cd[1 * N + last];
@@ -1953,7 +1956,7 @@ Value select_maximally_distinct(const Value &cmap, int K,
         // Pick argmax of dist_sum among unpicked.
         int best = -1;
         double bv = -1.0;
-        for (std::size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             if (!picked[i] && dist_sum[i] > bv) {
                 bv = dist_sum[i];
                 best = static_cast<int>(i);
@@ -1964,7 +1967,7 @@ Value select_maximally_distinct(const Value &cmap, int K,
         od[1 * K + k] = cd[1 * N + best];
         od[2 * K + k] = cd[2 * N + best];
         // Update dist_sum.
-        for (std::size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             if (!picked[i]) {
                 const double dr = cd[0 * N + i] - cd[0 * N + best];
                 const double dg = cd[1 * N + i] - cd[1 * N + best];
@@ -1976,13 +1979,13 @@ Value select_maximally_distinct(const Value &cmap, int K,
 }
 
 Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
-                            std::pmr::memory_resource *mr)
+                            keel::Allocator *mr)
 {
     // Replicate MATLAB: add zero-color row if 0 present in L.
     bool tf_zero = false;
-    const std::size_t H = L_in.dims().rows();
-    const std::size_t W = L_in.dims().cols();
-    for (std::size_t i = 0; i < H * W; ++i)
+    const keel::usize H = L_in.dims().rows();
+    const keel::usize W = L_in.dims().cols();
+    for (keel::usize i = 0; i < H * W; ++i)
         if (L_in.elemAsDouble(i) == 0.0) { tf_zero = true; break; }
 
     Value L = L_in;
@@ -1990,18 +1993,18 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     if (tf_zero) {
         // L = L + 1
         Value Lshift = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        for (std::size_t i = 0; i < H * W; ++i)
+        for (keel::usize i = 0; i < H * W; ++i)
             Lshift.doubleDataMut()[i] = L_in.elemAsDouble(i) + 1.0;
         L = std::move(Lshift);
         // cmap = [cmap(1,:); cmap]   (use cmap row 1 as the zero
         // colour, since labeloverlay doesn't pass an explicit zero).
-        const std::size_t N = cmap.dims().rows();
+        const keel::usize N = cmap.dims().rows();
         Value c2 = Value::matrix(N + 1, 3, ValueType::DOUBLE, mr);
         const double *cd = cmap.doubleData();
         double *cd2 = c2.doubleDataMut();
         for (int ch = 0; ch < 3; ++ch) {
             cd2[ch * (N + 1) + 0] = cd[ch * N + 0];
-            for (std::size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 cd2[ch * (N + 1) + (i + 1)] = cd[ch * N + i];
         }
         cmap_used = std::move(c2);
@@ -2013,28 +2016,28 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
 
     // Build adjacency lists.
     const int numNodes = g.maxLabel;
-    std::vector<std::set<int>> adj(static_cast<std::size_t>(numNodes + 1));
+    std::vector<std::set<int>> adj(static_cast<keel::usize>(numNodes + 1));
     for (auto [a, b] : g.edges) { adj[a].insert(b); adj[b].insert(a); }
 
     Value palette = select_maximally_distinct(cmap_used, ub, mr);
-    const std::size_t paletteN = palette.dims().rows();
+    const keel::usize paletteN = palette.dims().rows();
     const double *pd = palette.doubleData();
 
     // BFS starting from min label in L.
     int firstNode = std::numeric_limits<int>::max();
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         int v = static_cast<int>(L.elemAsDouble(i));
         if (v > 0 && v < firstNode) firstNode = v;
     }
     if (firstNode == std::numeric_limits<int>::max()) return cmap_used;
 
-    std::vector<int> coloredIdx(static_cast<std::size_t>(numNodes + 1), 0);
-    std::vector<char> visited(static_cast<std::size_t>(numNodes + 1), 0);
+    std::vector<int> coloredIdx(static_cast<keel::usize>(numNodes + 1), 0);
+    std::vector<char> visited(static_cast<keel::usize>(numNodes + 1), 0);
     std::vector<int> queue;
-    queue.reserve(static_cast<std::size_t>(numNodes));
+    queue.reserve(static_cast<keel::usize>(numNodes));
     queue.push_back(firstNode);
     visited[firstNode] = 1;
-    std::size_t head = 0;
+    keel::usize head = 0;
 
     Value out = Value::matrix(cmap_used.dims().rows(), 3,
                               ValueType::DOUBLE, mr);
@@ -2067,15 +2070,15 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
                 newIdx = static_cast<int>(paletteN);
         }
         coloredIdx[cur] = newIdx;
-        const std::size_t N = cmap_used.dims().rows();
+        const keel::usize N = cmap_used.dims().rows();
         od[0 * N + (cur - 1)] = pd[0 * paletteN + (newIdx - 1)];
         od[1 * N + (cur - 1)] = pd[1 * paletteN + (newIdx - 1)];
         od[2 * N + (cur - 1)] = pd[2 * paletteN + (newIdx - 1)];
     }
     // Labels that didn't appear in any edge keep cmap_used's row as fallback.
-    const std::size_t N = cmap_used.dims().rows();
+    const keel::usize N = cmap_used.dims().rows();
     const double *cd = cmap_used.doubleData();
-    for (std::size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         // If the i-th label (i is row → label = i+1 wrt 1-based) was
         // never visited *and* it appears in L, leave the original colour.
         const int lab = static_cast<int>(i + 1);
@@ -2090,7 +2093,7 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
         Value strip = Value::matrix(N - 1, 3, ValueType::DOUBLE, mr);
         double *sd = strip.doubleDataMut();
         for (int ch = 0; ch < 3; ++ch)
-            for (std::size_t i = 1; i < N; ++i)
+            for (keel::usize i = 1; i < N; ++i)
                 sd[ch * (N - 1) + (i - 1)] = od[ch * N + i];
         return strip;
     }
@@ -2135,8 +2138,8 @@ void labeloverlay_argcheck(const Value &A_in, const Value &L_in,
                            double transparency)
 {
     const auto &dA = A_in.dims();
-    const std::size_t H = dA.rows();
-    const std::size_t W = dA.cols();
+    const keel::usize H = dA.rows();
+    const keel::usize W = dA.cols();
     if (H == 0 || W == 0)
         throw Error("labeloverlay: A must be nonempty",
                     0, 0, "labeloverlay", "", "numkit:labeloverlay:emptyA");
@@ -2167,13 +2170,13 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
                    const std::string &color_assignment,
                    const Value &included_labels,
                    double transparency,
-                   std::pmr::memory_resource *mr)
+                   keel::Allocator *mr)
 {
     labeloverlay_argcheck(A_in, L_in, transparency);
     // ── Validate A ────────────────────────────────────────────────
     const auto &dA = A_in.dims();
-    const std::size_t H = dA.rows();
-    const std::size_t W = dA.cols();
+    const keel::usize H = dA.rows();
+    const keel::usize W = dA.cols();
     if (H == 0 || W == 0)
         throw Error("labeloverlay: A must be nonempty",
                     0, 0, "labeloverlay", "", "numkit:labeloverlay:emptyA");
@@ -2194,9 +2197,9 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
 
     // Logical → 0/1 integer label matrix. Already a numeric label
     // matrix? Accept as-is, but validate non-negative integer.
-    const std::size_t plane = H * W;
+    const keel::usize plane = H * W;
     int maxLabel = 0;
-    for (std::size_t i = 0; i < plane; ++i) {
+    for (keel::usize i = 0; i < plane; ++i) {
         const double v = L_in.elemAsDouble(i);
         if (v < 0 || std::floor(v) != v || !std::isfinite(v))
             throw Error("labeloverlay: L must be non-negative integer-valued",
@@ -2233,7 +2236,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
         // user-supplied array IS the source of truth.
         cmap = Value::matrix(colormap.dims().rows(), 3,
                              ValueType::DOUBLE, mr);
-        for (std::size_t i = 0; i < cmap.numel(); ++i)
+        for (keel::usize i = 0; i < cmap.numel(); ++i)
             cmap.doubleDataMut()[i] = colormap.elemAsDouble(i);
     }
 
@@ -2263,9 +2266,9 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
     if (included_labels.isEmpty()) {
         for (int k = 1; k <= maxLabel; ++k) included.push_back(k);
     } else {
-        const std::size_t M = included_labels.numel();
+        const keel::usize M = included_labels.numel();
         included.reserve(M);
-        for (std::size_t i = 0; i < M; ++i) {
+        for (keel::usize i = 0; i < M; ++i) {
             const double v = included_labels.elemAsDouble(i);
             if (v < 0 || std::floor(v) != v || !std::isfinite(v))
                 throw Error("labeloverlay: IncludedLabels must be "
@@ -2308,13 +2311,13 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
                 alphamap[k - 1] = alphaVal;
         }
         // cmap = [cmap(1,:); cmap]; alphamap = [0, alphamap].
-        const std::size_t N = cmap.dims().rows();
+        const keel::usize N = cmap.dims().rows();
         Value c2 = Value::matrix(N + 1, 3, ValueType::DOUBLE, mr);
         const double *cd = cmap.doubleData();
         double *cd2 = c2.doubleDataMut();
         for (int ch = 0; ch < 3; ++ch) {
             cd2[ch * (N + 1) + 0] = cd[ch * N + 0];
-            for (std::size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 cd2[ch * (N + 1) + (i + 1)] = cd[ch * N + i];
         }
         cmap = std::move(c2);
@@ -2324,10 +2327,10 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
     // ── Convert A to single in [0, 1] via im2single equivalent ────
     // We promote integer/logical inputs by class range; double/single
     // values are taken at face value (no rescale).
-    auto a_pixel = [&](std::size_t r, std::size_t c, int ch) -> double {
-        std::size_t off;
+    auto a_pixel = [&](keel::usize r, keel::usize c, int ch) -> double {
+        keel::usize off;
         if (isRGB) {
-            off = static_cast<std::size_t>(ch) * H * W + c * H + r;
+            off = static_cast<keel::usize>(ch) * H * W + c * H + r;
         } else {
             off = c * H + r;     // gray: same value across ch
         }
@@ -2346,17 +2349,17 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
 
     // ── Pixel-wise blend → uint8 ──────────────────────────────────
     Value out = Value::matrix3d(H, W, 3, ValueType::UINT8, mr);
-    uint8_t *od = out.uint8DataMut();
+    keel::u8 *od = out.uint8DataMut();
     const double *cd = cmap.doubleData();
-    const std::size_t Nc = cmap.dims().rows();
-    auto sat = [](double v) -> uint8_t {
+    const keel::usize Nc = cmap.dims().rows();
+    auto sat = [](double v) -> keel::u8 {
         v = std::round(v * 255.0);
         if (v < 0)   v = 0;
         if (v > 255) v = 255;
-        return static_cast<uint8_t>(v);
+        return static_cast<keel::u8>(v);
     };
-    for (std::size_t c = 0; c < W; ++c)
-        for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r) {
             const int lab = static_cast<int>(L_in.elemAsDouble(c * H + r));
             // MATLAB picks `alphamap(lab+1)` and `cmap(lab+1, :)` (1-based)
             // in both branches:
@@ -2374,7 +2377,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
                 const double Apx = a_pixel(r, c, ch);
                 const double Cpx = cd[ch * Nc + aidx];
                 const double blended = (1.0 - a) * Apx + a * Cpx;
-                od[static_cast<std::size_t>(ch) * H * W + c * H + r] =
+                od[static_cast<keel::usize>(ch) * H * W + c * H + r] =
                     sat(blended);
             }
         }

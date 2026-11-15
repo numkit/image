@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/texture/texture.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -34,13 +36,13 @@ namespace detail {
 static bool eqIgnoreCase(const std::string &a, const char *b)
 {
     if (a.size() != std::strlen(b)) return false;
-    for (std::size_t i = 0; i < a.size(); ++i)
+    for (keel::usize i = 0; i < a.size(); ++i)
         if (std::tolower(a[i]) != std::tolower(b[i])) return false;
     return true;
 }
 
-void graycomatrix_reg(Span<const Value> args, std::size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "graycomatrix");
     // no max: name-value tail ('Offset' pairs)
@@ -54,7 +56,7 @@ void graycomatrix_reg(Span<const Value> args, std::size_t /*nargout*/,
     bool   limitsSet = false;
     bool   symmetric = false;
 
-    for (std::size_t i = 1; i + 1 < args.size(); i += 2) {
+    for (keel::usize i = 1; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar())
             throw Error("graycomatrix: NV-pair name must be a string",
                          0, 0, "graycomatrix", "",
@@ -100,14 +102,14 @@ void graycomatrix_reg(Span<const Value> args, std::size_t /*nargout*/,
     }
     if (!limitsSet) default_gray_limits(I, gLow, gHigh);
 
-    outs[0] = graycomatrix(I, numLevels, offR, offC, gLow, gHigh, symmetric, ctx.engine->resource());
+    outs[0] = graycomatrix(I, numLevels, offR, offC, gLow, gHigh, symmetric, ctx.engine->allocator());
 }
 
-void graycoprops_reg(Span<const Value> args, std::size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void graycoprops_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "graycoprops");
-    outs[0] = graycoprops(args[0], ctx.engine->resource());
+    outs[0] = graycoprops(args[0], ctx.engine->allocator());
 }
 
 } // namespace detail

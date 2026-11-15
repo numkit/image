@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -26,11 +28,11 @@ namespace numkit::image {
 
 namespace detail {
 
-void locallapfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, 10, "locallapfilt");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
 
     const Value &I = args[0];
     const double sigma = args[1].toScalar();
@@ -41,7 +43,7 @@ void locallapfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     int nlevels = -1;          // -1 = auto
     bool processLuminance = true;
 
-    std::size_t i = 3;
+    keel::usize i = 3;
     // Optional positional beta (if 4th arg is numeric scalar and not a string).
     if (i < args.size() && !is_string(args[i])) {
         if (args[i].numel() != 1)

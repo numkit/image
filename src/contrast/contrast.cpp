@@ -1,12 +1,17 @@
 // toolboxes/image/src/contrast/contrast.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/math.h>
 #include <numkit/image/contrast/contrast.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value_type.hpp>
 
@@ -26,7 +31,7 @@ namespace numkit::image {
 namespace {
 
 // Convert any image element to a unit-range double in [0, 1].
-inline double element_to_unit(const Value &x, size_t i) {
+inline double element_to_unit(const Value &x, keel::usize i) {
     const double v = x.elemAsDouble(i);
     switch (x.type()) {
         case ValueType::DOUBLE:
@@ -47,24 +52,24 @@ inline int default_nbins(const Value &I) {
     }
 }
 
-inline void store_classed(Value &out, size_t i, double v, ValueType t) {
+inline void store_classed(Value &out, keel::usize i, double v, ValueType t) {
     switch (t) {
         case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
         case ValueType::SINGLE: out.singleDataMut()[i] = (float)v; break;
         case ValueType::UINT8: {
             double w = std::round(v * 255.0);
             if (w < 0) w = 0; if (w > 255) w = 255;
-            out.uint8DataMut()[i] = (uint8_t)w; break;
+            out.uint8DataMut()[i] = (keel::u8)w; break;
         }
         case ValueType::UINT16: {
             double w = std::round(v * 65535.0);
             if (w < 0) w = 0; if (w > 65535) w = 65535;
-            out.uint16DataMut()[i] = (uint16_t)w; break;
+            out.uint16DataMut()[i] = (keel::u16)w; break;
         }
         case ValueType::INT16: {
             double w = std::round(v * 65535.0) - 32768.0;
             if (w < -32768) w = -32768; if (w > 32767) w = 32767;
-            out.int16DataMut()[i] = (int16_t)w; break;
+            out.int16DataMut()[i] = (keel::i16)w; break;
         }
         default:
             throw Error("contrast: unsupported class", 0, 0, "contrast", "",
@@ -174,8 +179,8 @@ void adaptthresh_argcheck(const Value &I, double sensitivity,
 void imflatfield_argcheck(const Value &I, const Value &mask)
 {
     const auto &d = I.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
     if (mask.numel() > 0 && (mask.dims().rows() != H || mask.dims().cols() != W))
         throw Error("imflatfield: mask must match spatial dims of I",
                     0, 0, "imflatfield", "", "numkit:imflatfield:masksize");
@@ -205,12 +210,12 @@ void grayslice_argcheck(int N)
 } // anonymous
 
 std::tuple<Value, Value>
-imhist(const Value &I, int n, std::pmr::memory_resource *mr)
+imhist(const Value &I, int n, keel::Allocator *mr)
 {
     if (n <= 0) n = default_nbins(I);
-    std::vector<int64_t> counts(n, 0);
-    const size_t N = I.numel();
-    for (size_t i = 0; i < N; ++i) {
+    std::vector<keel::i64> counts(n, 0);
+    const keel::usize N = I.numel();
+    for (keel::usize i = 0; i < N; ++i) {
         const double u = element_to_unit(I, i);
         // Map u (∈ [0, 1]) to bin index 0..n-1 with edges spaced 1/(n-1)
         // so bin centres are 0, 1/(n-1), ..., 1 (matches MATLAB).
@@ -243,7 +248,7 @@ imhist(const Value &I, int n, std::pmr::memory_resource *mr)
     return std::make_tuple(std::move(c), std::move(x));
 }
 
-Value stretchlim(const Value &I, double low_tol, double high_tol, std::pmr::memory_resource *mr)
+Value stretchlim(const Value &I, double low_tol, double high_tol, keel::Allocator *mr)
 {
     stretchlim_argcheck(I);
     internal::requireImageClass(I, "stretchlim", "I", 1,
@@ -255,7 +260,7 @@ Value stretchlim(const Value &I, double low_tol, double high_tol, std::pmr::memo
     // Separate per-channel for H×W×3 RGB; otherwise single column.
     const auto &d = I.dims();
     const bool is_rgb = d.is3D() && d.pages() == 3;
-    const size_t plane = d.is3D() ? d.rows() * d.cols() : I.numel();
+    const keel::usize plane = d.is3D() ? d.rows() * d.cols() : I.numel();
     const int channels = is_rgb ? 3 : 1;
 
     Value out = Value::matrix(2, channels, ValueType::DOUBLE, mr);
@@ -270,13 +275,13 @@ Value stretchlim(const Value &I, double low_tol, double high_tol, std::pmr::memo
     // stretchlim([0.1 0.2 0.9 0.95]) returned [26/255 242/255] instead of
     // [6554/65535 62258/65535].)
     const int NBINS = (I.type() == ValueType::UINT8) ? 256 : 65536;
-    std::vector<std::size_t> hist(NBINS, 0);
-    std::vector<std::size_t> cumhist(NBINS, 0);
+    std::vector<keel::usize> hist(NBINS, 0);
+    std::vector<keel::usize> cumhist(NBINS, 0);
     const double N = static_cast<double>(plane);
 
     for (int ch = 0; ch < channels; ++ch) {
         std::fill(hist.begin(), hist.end(), 0);
-        for (std::size_t i = 0; i < plane; ++i) {
+        for (keel::usize i = 0; i < plane; ++i) {
             const double u = element_to_unit(I, ch * plane + i);
             int bin = static_cast<int>(std::lround(u * (NBINS - 1)));
             if (bin < 0) bin = 0;
@@ -299,15 +304,15 @@ Value stretchlim(const Value &I, double low_tol, double high_tol, std::pmr::memo
         // Guard: if histogram is degenerate (all in one bin), spread by 1.
         if (high <= low) high = std::min(NBINS - 1, low + 1);
 
-        od[static_cast<std::size_t>(ch) * 2 + 0] =
+        od[static_cast<keel::usize>(ch) * 2 + 0] =
             static_cast<double>(low)  / static_cast<double>(NBINS - 1);
-        od[static_cast<std::size_t>(ch) * 2 + 1] =
+        od[static_cast<keel::usize>(ch) * 2 + 1] =
             static_cast<double>(high) / static_cast<double>(NBINS - 1);
     }
     return out;
 }
 
-Value imadjust(const Value &I, double low_in, double high_in, double low_out, double high_out, double gamma, std::pmr::memory_resource *mr)
+Value imadjust(const Value &I, double low_in, double high_in, double low_out, double high_out, double gamma, keel::Allocator *mr)
 {
     imadjust_argcheck(I);
     internal::requireImageClass(I, "imadjust", "I", 1,
@@ -322,7 +327,7 @@ Value imadjust(const Value &I, double low_in, double high_in, double low_out, do
     if (std::isnan(high_out)) high_out = 1.0;
     if (std::isnan(gamma) || gamma <= 0.0) gamma = 1.0;
 
-    const size_t N = I.numel();
+    const keel::usize N = I.numel();
     Value out;
     const auto &d = I.dims();
     if (I.isScalar()) out = Value::matrix(1, 1, I.type(), mr);
@@ -333,7 +338,7 @@ Value imadjust(const Value &I, double low_in, double high_in, double low_out, do
     const double inv_range = (range != 0.0) ? 1.0 / range : 0.0;
     const double out_span = high_out - low_out;
 
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double u = element_to_unit(I, i);
         double t = (u - low_in) * inv_range;
         if (t < 0.0) t = 0.0;
@@ -344,7 +349,7 @@ Value imadjust(const Value &I, double low_in, double high_in, double low_out, do
     return out;
 }
 
-Value histeq(const Value &I, int n, std::pmr::memory_resource *mr)
+Value histeq(const Value &I, int n, keel::Allocator *mr)
 {
     if (n <= 0) n = 64;
     auto [counts_v, bins_v] = imhist(I, n, mr);
@@ -360,14 +365,14 @@ Value histeq(const Value &I, int n, std::pmr::memory_resource *mr)
         cdf[i] = acc / total;
     }
 
-    const size_t N = I.numel();
+    const keel::usize N = I.numel();
     Value out;
     const auto &d = I.dims();
     if (I.isScalar()) out = Value::matrix(1, 1, I.type(), mr);
     else if (d.is3D())out = Value::matrix3d(d.rows(), d.cols(), d.pages(), I.type(), mr);
     else              out = Value::matrix(d.rows(), d.cols(), I.type(), mr);
 
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double u = element_to_unit(I, i);
         int bin = (int)std::round(u * (n - 1));
         if (bin < 0) bin = 0;
@@ -508,7 +513,7 @@ static double mapProbability(double p, int dist, double alpha,
 }  // namespace
 
 Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
-                  std::pmr::memory_resource *mr)
+                  keel::Allocator *mr)
 {
     adapthisteq_argcheck(I, opts);
     // ---- 1. validate options ------------------------------------
@@ -548,8 +553,8 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
         throw Error("adapthisteq: input must be a real numeric image",
                     0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
 
-    const size_t H = d.rows();
-    const size_t W = d.cols();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
     if (H == 0 || W == 0)
         throw Error("adapthisteq: input image is empty",
                     0, 0, "adapthisteq", "", "numkit:adapthisteq:unsupportedShape");
@@ -559,13 +564,13 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
     const int numTilesC = opts.numTilesC;
     const int nBins     = opts.nBins;
 
-    ScratchArena arena(mr);
+    keel::ArenaTemp arena = keel::get_scratch(mr);
 
     // ---- 3. read the image into a double work buffer ------------
     // (column-major, matching nk's storage convention).
-    ScratchVec<double> src(H * W, &arena);
-    for (size_t c = 0; c < W; ++c)
-        for (size_t r = 0; r < H; ++r)
+    keel::Array<double> src(H * W, arena.allocator());
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r)
             src[c * H + r] = I.elemAsDouble(c * H + r);
 
     // ---- 4. working intensity range -----------------------------
@@ -580,7 +585,7 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
         // [min(I), max(I)] of the real pixels.
         double mn =  std::numeric_limits<double>::infinity();
         double mx = -std::numeric_limits<double>::infinity();
-        for (size_t i = 0; i < H * W; ++i) {
+        for (keel::usize i = 0; i < H * W; ++i) {
             const double v = src[i];
             if (v < mn) mn = v;
             if (v > mx) mx = v;
@@ -601,30 +606,30 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
     // Pad each dimension up to the next multiple of the tile count.
     // Pad so each tile dimension is EVEN (a multiple of 2*numTiles): the
     // inter-tile interpolation uses half-tile (tileH/2) edge regions.
-    const size_t unitR = 2 * static_cast<size_t>(numTilesR);
-    const size_t unitC = 2 * static_cast<size_t>(numTilesC);
-    const size_t padBottom = (unitR - (H % unitR)) % unitR;
-    const size_t padRight  = (unitC - (W % unitC)) % unitC;
-    const size_t Hp = H + padBottom;
-    const size_t Wp = W + padRight;
-    const size_t tileH = Hp / static_cast<size_t>(numTilesR);
-    const size_t tileW = Wp / static_cast<size_t>(numTilesC);
+    const keel::usize unitR = 2 * static_cast<keel::usize>(numTilesR);
+    const keel::usize unitC = 2 * static_cast<keel::usize>(numTilesC);
+    const keel::usize padBottom = (unitR - (H % unitR)) % unitR;
+    const keel::usize padRight  = (unitC - (W % unitC)) % unitC;
+    const keel::usize Hp = H + padBottom;
+    const keel::usize Wp = W + padRight;
+    const keel::usize tileH = Hp / static_cast<keel::usize>(numTilesR);
+    const keel::usize tileW = Wp / static_cast<keel::usize>(numTilesC);
 
     // Padded work image (column-major). Mirror reflection without
     // repeating the edge sample: pad index p (p in [0,pad)) mirrors
     // to source index  H-2-p  (clamped to [0,H-1]).
-    ScratchVec<double> img(Hp * Wp, &arena);
-    auto mirrorIdx = [](size_t i, size_t n) -> size_t {
+    keel::Array<double> img(Hp * Wp, arena.allocator());
+    auto mirrorIdx = [](keel::usize i, keel::usize n) -> keel::usize {
         if (n == 1) return 0;
         if (i < n)  return i;
         // reflect past the edge
-        size_t k = (2 * n - 2) ? ((i) % (2 * n - 2)) : 0;
+        keel::usize k = (2 * n - 2) ? ((i) % (2 * n - 2)) : 0;
         return k < n ? k : (2 * n - 2 - k);
     };
-    for (size_t c = 0; c < Wp; ++c) {
-        const size_t sc = mirrorIdx(c, W);
-        for (size_t r = 0; r < Hp; ++r) {
-            const size_t sr = mirrorIdx(r, H);
+    for (keel::usize c = 0; c < Wp; ++c) {
+        const keel::usize sc = mirrorIdx(c, W);
+        for (keel::usize r = 0; r < Hp; ++r) {
+            const keel::usize sr = mirrorIdx(r, H);
             img[c * Hp + r] = src[sc * H + sr];
         }
     }
@@ -646,17 +651,17 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
     const double clipCount = minClipLimit
         + std::round(opts.clipLimit * (numPix - minClipLimit));
     // luts: nTiles consecutive LUTs of nBins entries each.
-    ScratchVec<double> luts(static_cast<size_t>(nTiles) * nBins, &arena);
-    ScratchVec<double> hist(static_cast<size_t>(nBins), &arena);
+    keel::Array<double> luts(static_cast<keel::usize>(nTiles) * nBins, arena.allocator());
+    keel::Array<double> hist(static_cast<keel::usize>(nBins), arena.allocator());
 
     for (int tr = 0; tr < numTilesR; ++tr) {
         for (int tc = 0; tc < numTilesC; ++tc) {
             // histogram this tile
             std::fill(hist.begin(), hist.end(), 0.0);
-            const size_t r0 = static_cast<size_t>(tr) * tileH;
-            const size_t c0 = static_cast<size_t>(tc) * tileW;
-            for (size_t cc = 0; cc < tileW; ++cc)
-                for (size_t rr = 0; rr < tileH; ++rr)
+            const keel::usize r0 = static_cast<keel::usize>(tr) * tileH;
+            const keel::usize c0 = static_cast<keel::usize>(tc) * tileW;
+            for (keel::usize cc = 0; cc < tileW; ++cc)
+                for (keel::usize rr = 0; rr < tileH; ++rr)
                     hist[binOf(img[(c0 + cc) * Hp + (r0 + rr)])] += 1.0;
 
             // contrast-limit (clip + redistribute), MATLAB clipHistogram
@@ -664,7 +669,7 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
 
             // CDF → mapping LUT, shaped by the target distribution
             double *lut = luts.data()
-                          + (static_cast<size_t>(tr) * numTilesC + tc) * nBins;
+                          + (static_cast<keel::usize>(tr) * numTilesC + tc) * nBins;
             double cum = 0.0;
             for (int b = 0; b < nBins; ++b) {
                 cum += hist[b];
@@ -681,22 +686,22 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
     // bracketing tile mappings with integer weights — rowRevW = regH..1,
     // rowW = 0..regH-1 (summing to regH), normalised by the region area.
     // Tiles are even (padding step), so tileH/2 is exact.
-    ScratchVec<double> outImg(Hp * Wp, &arena);
+    keel::Array<double> outImg(Hp * Wp, arena.allocator());
 
     auto lutAt = [&](int tr, int tc) -> const double * {
-        return luts.data() + (static_cast<size_t>(tr) * numTilesC + tc) * nBins;
+        return luts.data() + (static_cast<keel::usize>(tr) * numTilesC + tc) * nBins;
     };
 
-    size_t regRow0 = 0;
+    keel::usize regRow0 = 0;
     for (int kr = 0; kr <= numTilesR; ++kr) {
-        size_t regH; int trU, trL;
+        keel::usize regH; int trU, trL;
         if      (kr == 0)         { regH = tileH / 2; trU = 0;             trL = 0; }
         else if (kr == numTilesR) { regH = tileH / 2; trU = numTilesR - 1; trL = numTilesR - 1; }
         else                      { regH = tileH;     trU = kr - 1;        trL = kr; }
 
-        size_t regCol0 = 0;
+        keel::usize regCol0 = 0;
         for (int kc = 0; kc <= numTilesC; ++kc) {
-            size_t regW; int tcL, tcR;
+            keel::usize regW; int tcL, tcR;
             if      (kc == 0)         { regW = tileW / 2; tcL = 0;             tcR = 0; }
             else if (kc == numTilesC) { regW = tileW / 2; tcL = numTilesC - 1; tcR = numTilesC - 1; }
             else                      { regW = tileW;     tcL = kc - 1;        tcR = kc; }
@@ -708,12 +713,12 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
             const double normFactor =
                 static_cast<double>(regH) * static_cast<double>(regW);
 
-            for (size_t rr = 0; rr < regH; ++rr) {
-                const size_t r      = regRow0 + rr;
+            for (keel::usize rr = 0; rr < regH; ++rr) {
+                const keel::usize r      = regRow0 + rr;
                 const double rowW    = static_cast<double>(rr);
                 const double rowRevW = static_cast<double>(regH - rr);
-                for (size_t cc = 0; cc < regW; ++cc) {
-                    const size_t c       = regCol0 + cc;
+                for (keel::usize cc = 0; cc < regW; ++cc) {
+                    const keel::usize c       = regCol0 + cc;
                     const double colW    = static_cast<double>(cc);
                     const double colRevW = static_cast<double>(regW - cc);
                     const int bin = binOf(img[c * Hp + r]);
@@ -736,8 +741,8 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
     const double lo = std::min(outMin, outMax);
     const double hi = std::max(outMin, outMax);
 
-    for (size_t c = 0; c < W; ++c) {
-        for (size_t r = 0; r < H; ++r) {
+    for (keel::usize c = 0; c < W; ++c) {
+        for (keel::usize r = 0; r < H; ++r) {
             double v = outImg[c * Hp + r];
             // clamp into the output span
             if (v < lo) v = lo;
@@ -750,7 +755,7 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
                 if (stored < classLo) stored = classLo;
                 if (stored > classHi) stored = classHi;
             }
-            result.elemSet(c * H + r, Value::scalar(stored, &arena));
+            result.elemSet(c * H + r, Value::scalar(stored, arena.allocator()));
         }
     }
 
@@ -818,10 +823,10 @@ std::pair<double, double> otsu_one_level(const std::vector<double> &counts) {
 } // anonymous
 
 std::tuple<Value, Value>
-otsuthresh(const Value &counts_v, std::pmr::memory_resource *mr) {
-    const size_t L = counts_v.numel();
+otsuthresh(const Value &counts_v, keel::Allocator *mr) {
+    const keel::usize L = counts_v.numel();
     std::vector<double> c(L);
-    for (size_t i = 0; i < L; ++i) c[i] = counts_v.elemAsDouble(i);
+    for (keel::usize i = 0; i < L; ++i) c[i] = counts_v.elemAsDouble(i);
     auto [lvl, em] = otsu_one_level(c);
     // MATLAB graythresh / otsuthresh convention: thresh = lvl / (L - 1),
     // where lvl is the mean of all bin indices that achieve the maximum
@@ -832,7 +837,7 @@ otsuthresh(const Value &counts_v, std::pmr::memory_resource *mr) {
 }
 
 std::tuple<Value, Value>
-graythresh(const Value &I, std::pmr::memory_resource *mr) {
+graythresh(const Value &I, keel::Allocator *mr) {
     graythresh_argcheck(I);
     // Probed R2025b: the standard imadjust/imbinarize family class set
     // (logical rejected; the default-threshold imbinarize path routes
@@ -848,7 +853,7 @@ graythresh(const Value &I, std::pmr::memory_resource *mr) {
 }
 
 std::tuple<Value, Value>
-multithresh(const Value &I, int N, std::pmr::memory_resource *mr) {
+multithresh(const Value &I, int N, keel::Allocator *mr) {
     multithresh_argcheck(N);
     if (N < 1) N = 1;
     if (N > 5)
@@ -865,11 +870,11 @@ multithresh(const Value &I, int N, std::pmr::memory_resource *mr) {
     const bool isInt = (ty == ValueType::UINT8 || ty == ValueType::UINT16
                      || ty == ValueType::INT16 || ty == ValueType::INT8
                      || ty == ValueType::LOGICAL);
-    const size_t M = I.numel();
+    const keel::usize M = I.numel();
 
     double minA = 0.0, maxA = 0.0;
     bool anyFinite = false;
-    for (size_t i = 0; i < M; ++i) {
+    for (keel::usize i = 0; i < M; ++i) {
         const double x = I.elemAsDouble(i);
         if (std::isnan(x) || !std::isfinite(x)) continue;
         if (!anyFinite) { minA = maxA = x; anyFinite = true; }
@@ -900,7 +905,7 @@ multithresh(const Value &I, int N, std::pmr::memory_resource *mr) {
 
     std::vector<double> counts(B, 0.0);
     double total = 0.0;
-    for (size_t i = 0; i < M; ++i) {
+    for (keel::usize i = 0; i < M; ++i) {
         const int b = toBin(I.elemAsDouble(i));
         if (b >= 0) { counts[b] += 1.0; total += 1.0; }
     }
@@ -1043,11 +1048,11 @@ multithresh(const Value &I, int N, std::pmr::memory_resource *mr) {
     return std::make_tuple(std::move(t_out), Value::scalar(em, mr));
 }
 
-Value imbinarize(const Value &I, double thresh, std::pmr::memory_resource *mr) {
+Value imbinarize(const Value &I, double thresh, keel::Allocator *mr) {
     imbinarize_argcheck(I);
     internal::requireImageClass(I, "imbinarize", "I", 1,
                                 internal::ImgClasses::FloatInt);
-    const size_t N = I.numel();
+    const keel::usize N = I.numel();
     Value out;
     const auto &d = I.dims();
     if (I.isScalar()) out = Value::matrix(1, 1, ValueType::LOGICAL, mr);
@@ -1056,8 +1061,8 @@ Value imbinarize(const Value &I, double thresh, std::pmr::memory_resource *mr) {
     else              out = Value::matrix(d.rows(), d.cols(),
                                           ValueType::LOGICAL, mr);
     if (N == 0) return out;
-    uint8_t *od = out.logicalDataMut();
-    for (size_t i = 0; i < N; ++i) od[i] = (element_to_unit(I, i) > thresh) ? 1 : 0;
+    keel::u8 *od = out.logicalDataMut();
+    for (keel::usize i = 0; i < N; ++i) od[i] = (element_to_unit(I, i) > thresh) ? 1 : 0;
     return out;
 }
 
@@ -1066,7 +1071,7 @@ Value imbinarize(const Value &I, double thresh, std::pmr::memory_resource *mr) {
 // when I is a same-shape volume). T's element scale is interpreted
 // in the same `element_to_unit` space as I, so the raw element
 // values are directly comparable. Composes with `adaptthresh`.
-Value imbinarize(const Value &I, const Value &T, std::pmr::memory_resource *mr)
+Value imbinarize(const Value &I, const Value &T, keel::Allocator *mr)
 {
     imbinarize_argcheck(I, T);
     internal::requireImageClass(I, "imbinarize", "I", 1,
@@ -1075,7 +1080,7 @@ Value imbinarize(const Value &I, const Value &T, std::pmr::memory_resource *mr)
         throw Error("imbinarize: per-pixel T must have the same number "
                     "of elements as I",
                     0, 0, "imbinarize", "", "numkit:imbinarize:Tshape");
-    const size_t N = I.numel();
+    const keel::usize N = I.numel();
     Value out;
     const auto &d = I.dims();
     if (I.isScalar()) out = Value::matrix(1, 1, ValueType::LOGICAL, mr);
@@ -1084,26 +1089,26 @@ Value imbinarize(const Value &I, const Value &T, std::pmr::memory_resource *mr)
     else              out = Value::matrix(d.rows(), d.cols(),
                                           ValueType::LOGICAL, mr);
     if (N == 0) return out;
-    uint8_t *od = out.logicalDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    keel::u8 *od = out.logicalDataMut();
+    for (keel::usize i = 0; i < N; ++i) {
         const double t = T.elemAsDouble(i);
         od[i] = (element_to_unit(I, i) > t) ? 1 : 0;
     }
     return out;
 }
 
-Value imquantize(const Value &I, const Value &levels, std::pmr::memory_resource *mr) {
+Value imquantize(const Value &I, const Value &levels, keel::Allocator *mr) {
     imquantize_argcheck(I, levels);
     internal::requireImageClass(I, "imquantize", "I", 1,
                                 internal::ImgClasses::FloatInt);
     internal::requireImageClass(levels, "imquantize", "levels", 2,
                                 internal::ImgClasses::AnyNumericReal);
-    const size_t Lcount = levels.numel();
+    const keel::usize Lcount = levels.numel();
     std::vector<double> lv(Lcount);
-    for (size_t i = 0; i < Lcount; ++i) lv[i] = levels.elemAsDouble(i);
+    for (keel::usize i = 0; i < Lcount; ++i) lv[i] = levels.elemAsDouble(i);
     std::sort(lv.begin(), lv.end());
 
-    const size_t N = I.numel();
+    const keel::usize N = I.numel();
     Value out;
     const auto &d = I.dims();
     if (I.isScalar()) out = Value::matrix(1, 1, ValueType::DOUBLE, mr);
@@ -1113,11 +1118,11 @@ Value imquantize(const Value &I, const Value &levels, std::pmr::memory_resource 
     if (N == 0) return out;
 
     double *od = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double u = element_to_unit(I, i);
         // class index = first level we don't exceed; output is 1-indexed.
-        size_t cls = 1;
-        for (size_t k = 0; k < Lcount; ++k) {
+        keel::usize cls = 1;
+        for (keel::usize k = 0; k < Lcount; ++k) {
             if (u <= lv[k]) break;
             ++cls;
         }
@@ -1144,13 +1149,13 @@ Value imquantize(const Value &I, const Value &levels, std::pmr::memory_resource 
 //   6. apply T to each pixel by its NPTS-level, cast back to input class.
 
 Value imhistmatch(const Value &I, const Value &ref, int nbins,
-                  Value *hgramOut, std::pmr::memory_resource *mr)
+                  Value *hgramOut, keel::Allocator *mr)
 {
     if (nbins <= 0) nbins = 64;   // MATLAB imhistmatch default (all classes)
     if (nbins < 2) nbins = 2;
 
-    const size_t Ni = I.numel();
-    const size_t Nr = ref.numel();
+    const keel::usize Ni = I.numel();
+    const keel::usize Nr = ref.numel();
     if (Ni == 0 || Nr == 0) {
         if (hgramOut)
             *hgramOut = Value::matrix(1, nbins, ValueType::DOUBLE, mr);
@@ -1175,46 +1180,46 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
     };
 
     // 1. Reference histogram (raw counts) = imhist(ref, nbins); 2nd output.
-    std::vector<double> hgram((size_t)nbins, 0.0);
-    for (size_t i = 0; i < Nr; ++i)
-        hgram[(size_t)level_of(element_to_unit(ref, i), nbins)] += 1.0;
+    std::vector<double> hgram((keel::usize)nbins, 0.0);
+    for (keel::usize i = 0; i < Nr; ++i)
+        hgram[(keel::usize)level_of(element_to_unit(ref, i), nbins)] += 1.0;
 
     // 2. Normalise to sum == numel(I), then cumulate (cumd, length nbins).
     double sumH = 0.0;
-    for (int b = 0; b < nbins; ++b) sumH += hgram[(size_t)b];
+    for (int b = 0; b < nbins; ++b) sumH += hgram[(keel::usize)b];
     const double scale = (sumH > 0.0) ? (double)Ni / sumH : 0.0;
-    std::vector<double> cumd((size_t)nbins, 0.0);
+    std::vector<double> cumd((keel::usize)nbins, 0.0);
     {
         double acc = 0.0;
-        for (int b = 0; b < nbins; ++b) { acc += hgram[(size_t)b] * scale;
-                                          cumd[(size_t)b] = acc; }
+        for (int b = 0; b < nbins; ++b) { acc += hgram[(keel::usize)b] * scale;
+                                          cumd[(keel::usize)b] = acc; }
     }
 
     // 3. Input histogram at full resolution = imhist(I, NPTS), cumulated.
-    std::vector<double> nn((size_t)NPTS, 0.0);
-    for (size_t i = 0; i < Ni; ++i)
-        nn[(size_t)level_of(element_to_unit(I, i), NPTS)] += 1.0;
-    std::vector<double> cum((size_t)NPTS, 0.0);
+    std::vector<double> nn((keel::usize)NPTS, 0.0);
+    for (keel::usize i = 0; i < Ni; ++i)
+        nn[(keel::usize)level_of(element_to_unit(I, i), NPTS)] += 1.0;
+    std::vector<double> cum((keel::usize)NPTS, 0.0);
     { double acc = 0.0;
-      for (int j = 0; j < NPTS; ++j) { acc += nn[(size_t)j]; cum[(size_t)j] = acc; } }
+      for (int j = 0; j < NPTS; ++j) { acc += nn[(keel::usize)j]; cum[(keel::usize)j] = acc; } }
 
     // 5. Transform T (length NPTS), values in [0,1]. For each input level j
     // pick the target bin i minimising the matching error (first on ties,
     // matching MATLAB's min); large-negative errors are clamped to +Ni.
     const double clampThr = -(double)Ni * std::sqrt(2.2204460492503131e-16);
     const double denom = (nbins > 1) ? (double)(nbins - 1) : 1.0;
-    std::vector<double> T((size_t)NPTS, 0.0);
+    std::vector<double> T((keel::usize)NPTS, 0.0);
     for (int j = 0; j < NPTS; ++j) {
         const double tol = (j == 0 || j == NPTS - 1) ? 0.0
-                                                     : nn[(size_t)j] * 0.5;
-        const double base = tol - cum[(size_t)j];
+                                                     : nn[(keel::usize)j] * 0.5;
+        const double base = tol - cum[(keel::usize)j];
         double best = 0.0; int bi = 0; bool have = false;
         for (int i = 0; i < nbins; ++i) {
-            double e = cumd[(size_t)i] + base;
+            double e = cumd[(keel::usize)i] + base;
             if (e < clampThr) e = (double)Ni;
             if (!have || e < best) { best = e; bi = i; have = true; }
         }
-        T[(size_t)j] = (double)bi / denom;
+        T[(keel::usize)j] = (double)bi / denom;
     }
 
     // 6. Apply: map each pixel by its NPTS-level, cast back to input class.
@@ -1223,16 +1228,16 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
     if (d.is3D()) out = Value::matrix3d(d.rows(), d.cols(), d.pages(),
                                         I.type(), mr);
     else          out = Value::matrix(d.rows(), d.cols(), I.type(), mr);
-    for (size_t i = 0; i < Ni; ++i) {
+    for (keel::usize i = 0; i < Ni; ++i) {
         const int lvl = level_of(element_to_unit(I, i), NPTS);
-        store_classed(out, i, T[(size_t)lvl], I.type());
+        store_classed(out, i, T[(keel::usize)lvl], I.type());
     }
 
     // 2nd output: ref's histogram as a 1×nbins double row (= MATLAB hgram).
     if (hgramOut) {
         Value hg = Value::matrix(1, nbins, ValueType::DOUBLE, mr);
         double *hd = hg.doubleDataMut();
-        for (int b = 0; b < nbins; ++b) hd[b] = hgram[(size_t)b];
+        for (int b = 0; b < nbins; ++b) hd[b] = hgram[(keel::usize)b];
         *hgramOut = std::move(hg);
     }
     return out;
@@ -1250,7 +1255,7 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
 // after binarize), lower raises it. (Verified exactly against MATLAB on
 // constant images across s ∈ {0, .25, .5, .75, 1}.)
 
-Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const std::string &statistic, std::pmr::memory_resource *mr)
+Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const std::string &statistic, keel::Allocator *mr)
 {
     adaptthresh_argcheck(I, sensitivity, statistic);
     internal::requireImageClass(I, "adaptthresh", "I", 1,
@@ -1275,16 +1280,16 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const st
     // First, normalise input intensity to [0, 1] in a double buffer.
     // We replicate the scaling rule used elsewhere in nk:
     //   uint8/int8 / 255, uint16 / 65535, double passes through.
-    Value Inorm = Value::matrix(static_cast<size_t>(H),
-                                static_cast<size_t>(W),
+    Value Inorm = Value::matrix(static_cast<keel::usize>(H),
+                                static_cast<keel::usize>(W),
                                 ValueType::DOUBLE, mr);
     double *nd = Inorm.doubleDataMut();
     const ValueType srcT = I.type();
     for (int c = 0; c < W; ++c)
         for (int r = 0; r < H; ++r) {
-            const size_t i = static_cast<size_t>(c) *
-                                  static_cast<size_t>(H) +
-                              static_cast<size_t>(r);
+            const keel::usize i = static_cast<keel::usize>(c) *
+                                  static_cast<keel::usize>(H) +
+                              static_cast<keel::usize>(r);
             const double v = I.elemAsDouble(i);
             double w = v;
             switch (srcT) {
@@ -1313,13 +1318,13 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const st
     }
 
     // Apply the MATLAB sensitivity scale: T = clip(localStat·(1.6−s), 0, 1).
-    Value T = Value::matrix(static_cast<size_t>(H),
-                            static_cast<size_t>(W),
+    Value T = Value::matrix(static_cast<keel::usize>(H),
+                            static_cast<keel::usize>(W),
                             ValueType::DOUBLE, mr);
     double *Td = T.doubleDataMut();
     const double scale = 1.6 - sensitivity;
     for (int i = 0; i < H * W; ++i) {
-        double v = localStat.elemAsDouble(static_cast<size_t>(i)) * scale;
+        double v = localStat.elemAsDouble(static_cast<keel::usize>(i)) * scale;
         if (v < 0.0) v = 0.0;
         if (v > 1.0) v = 1.0;
         Td[i] = v;
@@ -1327,23 +1332,23 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const st
     return T;
 }
 
-Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::memory_resource *mr)
+Value imflatfield(const Value &I, double sigma, const Value &mask, keel::Allocator *mr)
 {
     imflatfield_argcheck(I, mask);
     const ValueType classin = I.type();
     const auto &d = I.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t pages = d.is3D() ? d.pages() : 1;
-    const size_t plane = H * W;
-    const size_t N = I.numel();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize pages = d.is3D() ? d.pages() : 1;
+    const keel::usize plane = H * W;
+    const keel::usize N = I.numel();
 
     // Convert source to double in [0, 1] (im2double-like).
     Value Idbl;
     if (d.is3D())  Idbl = Value::matrix3d(H, W, pages, ValueType::DOUBLE, mr);
     else           Idbl = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *idd = Idbl.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) idd[i] = element_to_unit(I, i);
+    for (keel::usize i = 0; i < N; ++i) idd[i] = element_to_unit(I, i);
 
     // Gaussian low-pass per plane. MATLAB R2025b imflatfield uses
     // symmetric padding internally — NOT the imgaussfilt default
@@ -1360,7 +1365,7 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::mem
     if (d.is3D())  F = Value::matrix3d(H, W, pages, ValueType::DOUBLE, mr);
     else           F = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *fd = F.doubleDataMut();
-    for (size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         Value plane2d;
         if (pages == 1) {
             plane2d = Idbl;
@@ -1382,17 +1387,17 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::mem
         throw Error("imflatfield: mask must match spatial dims of I",
                     0, 0, "imflatfield", "", "numkit:imflatfield:masksize");
     std::vector<double> meanA(pages, 0.0);
-    for (size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         const double *ap = idd + p * plane;
         if (have_mask) {
-            size_t cnt = 0;
+            keel::usize cnt = 0;
             double acc = 0.0;
-            for (size_t i = 0; i < plane; ++i)
+            for (keel::usize i = 0; i < plane; ++i)
                 if (mask.elemAsDouble(i) != 0.0) { acc += ap[i]; ++cnt; }
             meanA[p] = (cnt > 0) ? acc / static_cast<double>(cnt) : 0.0;
         } else if (plane > 0) {
             double acc = 0.0;
-            for (size_t i = 0; i < plane; ++i) acc += ap[i];
+            for (keel::usize i = 0; i < plane; ++i) acc += ap[i];
             meanA[p] = acc / static_cast<double>(plane);
         }
     }
@@ -1402,10 +1407,10 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::mem
     if (d.is3D())  out = Value::matrix3d(H, W, pages, classin, mr);
     else           out = Value::matrix(H, W, classin, mr);
     constexpr double EPS = 1e-12;
-    for (size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         const double mA = meanA[p];
-        for (size_t i = 0; i < plane; ++i) {
-            const size_t idx = p * plane + i;
+        for (keel::usize i = 0; i < plane; ++i) {
+            const keel::usize idx = p * plane + i;
             const double f = fd[idx];
             const double v = (f > EPS) ? idd[idx] * mA / f : idd[idx];
             store_classed(out, idx, v, classin);
@@ -1414,7 +1419,7 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, std::pmr::mem
     return out;
 }
 
-Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, std::pmr::memory_resource *mr)
+Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, keel::Allocator *mr)
 {
     wcodemat_argcheck(nb, opt);
     if (nb < 1)
@@ -1422,18 +1427,18 @@ Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, std::p
                     0, 0, "wcodemat", "", "numkit:wcodemat:nb");
 
     const auto &d = X.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
     Value out = d.is3D()
         ? Value::matrix3d(H, W, d.pages(), ValueType::DOUBLE, mr)
         : Value::matrix(H, W, ValueType::DOUBLE, mr);
-    const size_t N = X.numel();
+    const keel::usize N = X.numel();
     if (N == 0) return out;
     double *od = out.doubleDataMut();
 
-    auto vget = [&](size_t i) {
+    auto vget = [&](keel::usize i) {
         const double v = X.elemAsDouble(i);
-        return absol ? std::abs(v) : v;
+        return absol ? keel::abs(v) : v;
     };
 
     std::string lo;
@@ -1459,36 +1464,36 @@ Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, std::p
     if (lo == "mat") {
         double mn =  std::numeric_limits<double>::infinity();
         double mx = -std::numeric_limits<double>::infinity();
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = vget(i);
             if (v < mn) mn = v;
             if (v > mx) mx = v;
         }
-        for (size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             od[i] = encode(vget(i), mn, mx);
     } else if (lo == "row") {
         // Per-row scaling. col-major: row r elements at i = c*H + r.
-        for (size_t r = 0; r < H; ++r) {
+        for (keel::usize r = 0; r < H; ++r) {
             double mn =  std::numeric_limits<double>::infinity();
             double mx = -std::numeric_limits<double>::infinity();
-            for (size_t c = 0; c < W; ++c) {
+            for (keel::usize c = 0; c < W; ++c) {
                 const double v = vget(c * H + r);
                 if (v < mn) mn = v;
                 if (v > mx) mx = v;
             }
-            for (size_t c = 0; c < W; ++c)
+            for (keel::usize c = 0; c < W; ++c)
                 od[c * H + r] = encode(vget(c * H + r), mn, mx);
         }
     } else if (lo == "col") {
-        for (size_t c = 0; c < W; ++c) {
+        for (keel::usize c = 0; c < W; ++c) {
             double mn =  std::numeric_limits<double>::infinity();
             double mx = -std::numeric_limits<double>::infinity();
-            for (size_t r = 0; r < H; ++r) {
+            for (keel::usize r = 0; r < H; ++r) {
                 const double v = vget(c * H + r);
                 if (v < mn) mn = v;
                 if (v > mx) mx = v;
             }
-            for (size_t r = 0; r < H; ++r)
+            for (keel::usize r = 0; r < H; ++r)
                 od[c * H + r] = encode(vget(c * H + r), mn, mx);
         }
     } else {
@@ -1498,7 +1503,7 @@ Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, std::p
     return out;
 }
 
-Value entropy(const Value &I, int nbins, std::pmr::memory_resource *mr)
+Value entropy(const Value &I, int nbins, keel::Allocator *mr)
 {
     const ValueType ct = I.type();
     const bool isLogical = (ct == ValueType::LOGICAL);
@@ -1525,9 +1530,9 @@ namespace {
 // Common quantisation tail: given a sorted threshold vector and the
 // resulting level count, build the output indexed image.
 Value graysliceQuantize(const Value &I, const std::vector<double> &thresh,
-                        size_t n_levels, std::pmr::memory_resource *mr)
+                        keel::usize n_levels, keel::Allocator *mr)
 {
-    const size_t N = I.numel();
+    const keel::usize N = I.numel();
     const ValueType outT = (n_levels < 256) ? ValueType::UINT8
                                             : ValueType::DOUBLE;
     const auto &d = I.dims();
@@ -1537,16 +1542,16 @@ Value graysliceQuantize(const Value &I, const std::vector<double> &thresh,
     else          out = Value::matrix(d.rows(), d.cols(), outT, mr);
     if (N == 0) return out;
     const bool baseOne = (outT == ValueType::DOUBLE);
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double iv = I.elemAsDouble(i);
-        size_t cnt = 0;
-        for (size_t k = 0; k < thresh.size(); ++k) {
+        keel::usize cnt = 0;
+        for (keel::usize k = 0; k < thresh.size(); ++k) {
             if (thresh[k] <= iv) ++cnt;
             else                 break;
         }
         if (outT == ValueType::UINT8) {
-            const size_t v = cnt > 255 ? 255 : cnt;
-            out.uint8DataMut()[i] = static_cast<uint8_t>(v);
+            const keel::usize v = cnt > 255 ? 255 : cnt;
+            out.uint8DataMut()[i] = static_cast<keel::u8>(v);
         } else {
             out.doubleDataMut()[i] = static_cast<double>(cnt) +
                                      (baseOne ? 1.0 : 0.0);
@@ -1556,7 +1561,7 @@ Value graysliceQuantize(const Value &I, const std::vector<double> &thresh,
 }
 } // anon
 
-Value grayslice(const Value &I, int N, std::pmr::memory_resource *mr)
+Value grayslice(const Value &I, int N, keel::Allocator *mr)
 {
     grayslice_argcheck(N);
     if (N < 1)
@@ -1566,7 +1571,7 @@ Value grayslice(const Value &I, int N, std::pmr::memory_resource *mr)
     const bool isInt16 = (ct == ValueType::INT16);
     const bool isFloat = (ct == ValueType::DOUBLE || ct == ValueType::SINGLE);
     const double n_scalar = static_cast<double>(N);
-    const size_t k_max = static_cast<size_t>(N - 1);
+    const keel::usize k_max = static_cast<keel::usize>(N - 1);
     std::vector<double> thresh;
     thresh.reserve(k_max);
     const double scale =
@@ -1574,7 +1579,7 @@ Value grayslice(const Value &I, int N, std::pmr::memory_resource *mr)
         : (ct == ValueType::UINT16) ? 65535.0
         : isInt16                   ? 65535.0
         : 1.0;
-    for (size_t k = 1; k <= k_max; ++k) {
+    for (keel::usize k = 1; k <= k_max; ++k) {
         const double v_unit = static_cast<double>(k) / n_scalar;
         double v_class;
         if (isFloat) v_class = v_unit;
@@ -1587,24 +1592,24 @@ Value grayslice(const Value &I, int N, std::pmr::memory_resource *mr)
     return graysliceQuantize(I, thresh, k_max + 1, mr);
 }
 
-Value grayslice(const Value &I, Span<const double> levels,
-                std::pmr::memory_resource *mr)
+Value grayslice(const Value &I, keel::ArrayRef<double> levels,
+                keel::Allocator *mr)
 {
     const ValueType ct = I.type();
     const bool isFloat = (ct == ValueType::DOUBLE || ct == ValueType::SINGLE);
-    const size_t M = levels.size();
+    const keel::usize M = levels.size();
     std::vector<double> thresh(levels.begin(), levels.end());
     std::sort(thresh.begin(), thresh.end());
-    const size_t N = I.numel();
+    const keel::usize N = I.numel();
     if (isFloat && N > 0) {
         double imin =  std::numeric_limits<double>::infinity();
         double imax = -std::numeric_limits<double>::infinity();
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = I.elemAsDouble(i);
             if (v < imin) imin = v;
             if (v > imax) imax = v;
         }
-        for (size_t i = 0; i < M; ++i) {
+        for (keel::usize i = 0; i < M; ++i) {
             if (thresh[i] < imin) thresh[i] = imin;
             if (thresh[i] > imax) thresh[i] = imax;
         }

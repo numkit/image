@@ -1,5 +1,8 @@
 // toolboxes/image/src/type_convert/type_convert.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/array.h>
 #include <numkit/image/type_convert/type_convert.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -28,7 +31,7 @@ inline T satCast(double v) {
     return static_cast<T>(std::lround(v));
 }
 
-inline Value alloc_like(const Value &x, ValueType t, std::pmr::memory_resource *mr) {
+inline Value alloc_like(const Value &x, ValueType t, keel::Allocator *mr) {
     const auto &d = x.dims();
     if (x.isScalar()) return Value::scalar(0.0, mr);
     if (d.is3D()) return Value::matrix3d(d.rows(), d.cols(), d.pages(), t, mr);
@@ -36,7 +39,7 @@ inline Value alloc_like(const Value &x, ValueType t, std::pmr::memory_resource *
 }
 
 // Convert one element of source type to a value in [0, 1] (double).
-inline double element_to_unit(const Value &x, size_t i) {
+inline double element_to_unit(const Value &x, keel::usize i) {
     const double v = x.elemAsDouble(i);
     switch (x.type()) {
         case ValueType::DOUBLE:
@@ -51,8 +54,8 @@ inline double element_to_unit(const Value &x, size_t i) {
 
 // Generic float-output helper.
 template <typename Float>
-Value to_float_impl(const Value &x, ValueType target, std::pmr::memory_resource *mr) {
-    const size_t n = x.numel();
+Value to_float_impl(const Value &x, ValueType target, keel::Allocator *mr) {
+    const keel::usize n = x.numel();
     Value out;
     if (x.isScalar()) {
         out = Value::matrix(1, 1, target, mr);
@@ -73,39 +76,39 @@ Value to_float_impl(const Value &x, ValueType target, std::pmr::memory_resource 
         switch (x.type()) {
             case ValueType::DOUBLE: {
                 const double *s = x.doubleData();
-                for (size_t i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i]);
+                for (keel::usize i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i]);
                 return out;
             }
             case ValueType::SINGLE: {
                 const float *s = x.singleData();
-                for (size_t i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i]);
+                for (keel::usize i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i]);
                 return out;
             }
             case ValueType::UINT8: {
-                const uint8_t *s = x.uint8Data();
-                for (size_t i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i] / 255.0);
+                const keel::u8 *s = x.uint8Data();
+                for (keel::usize i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i] / 255.0);
                 return out;
             }
             case ValueType::UINT16: {
-                const uint16_t *s = x.uint16Data();
-                for (size_t i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i] / 65535.0);
+                const keel::u16 *s = x.uint16Data();
+                for (keel::usize i = 0; i < n; ++i) od[i] = static_cast<Float>(s[i] / 65535.0);
                 return out;
             }
             case ValueType::INT16: {
-                const int16_t *s = x.int16Data();
-                for (size_t i = 0; i < n; ++i)
+                const keel::i16 *s = x.int16Data();
+                for (keel::usize i = 0; i < n; ++i)
                     od[i] = static_cast<Float>((s[i] + 32768.0) / 65535.0);
                 return out;
             }
             case ValueType::LOGICAL: {
-                const uint8_t *s = x.logicalData();
-                for (size_t i = 0; i < n; ++i) od[i] = s[i] ? Float(1) : Float(0);
+                const keel::u8 *s = x.logicalData();
+                for (keel::usize i = 0; i < n; ++i) od[i] = s[i] ? Float(1) : Float(0);
                 return out;
             }
             default: break;
         }
     }
-    for (size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         od[i] = static_cast<Float>(element_to_unit(x, i));
     return out;
 }
@@ -116,17 +119,17 @@ Value to_float_impl(const Value &x, ValueType target, std::pmr::memory_resource 
 // → 32767.5; rounded gives 32768, then -32768 → 0; the alternative
 // rounds (32767.5 - 32768) = -0.5 → -1, which is wrong).
 template <typename Int>
-Value to_int_impl(const Value &x, ValueType target, double scale, double bias_after, std::pmr::memory_resource *mr) {
-    const size_t n = x.numel();
+Value to_int_impl(const Value &x, ValueType target, double scale, double bias_after, keel::Allocator *mr) {
+    const keel::usize n = x.numel();
     Value out;
     if (x.isScalar()) out = Value::matrix(1, 1, target, mr);
     else              out = alloc_like(x, target, mr);
     if (n == 0) return out;
 
     Int *od = nullptr;
-    if      constexpr (std::is_same_v<Int, uint8_t>)  od = out.uint8DataMut();
-    else if constexpr (std::is_same_v<Int, uint16_t>) od = out.uint16DataMut();
-    else if constexpr (std::is_same_v<Int, int16_t>)  od = out.int16DataMut();
+    if      constexpr (std::is_same_v<Int, keel::u8>)  od = out.uint8DataMut();
+    else if constexpr (std::is_same_v<Int, keel::u16>) od = out.uint16DataMut();
+    else if constexpr (std::is_same_v<Int, keel::i16>)  od = out.int16DataMut();
     else                                              od = nullptr;
 
     // Float → int: scale unit value by `scale` then round, plus optional bias.
@@ -159,60 +162,60 @@ Value to_int_impl(const Value &x, ValueType target, double scale, double bias_af
         case ValueType::LOGICAL: {
             if (x.type() == ValueType::DOUBLE && !x.isComplex()) {
                 const double *s = x.doubleData();
-                for (size_t i = 0; i < n; ++i) od[i] = convert(s[i]);
+                for (keel::usize i = 0; i < n; ++i) od[i] = convert(s[i]);
             } else if (x.type() == ValueType::SINGLE && !x.isComplex()) {
                 const float *s = x.singleData();
-                for (size_t i = 0; i < n; ++i)
+                for (keel::usize i = 0; i < n; ++i)
                     od[i] = convert(static_cast<double>(s[i]));
             } else if (x.type() == ValueType::LOGICAL) {
-                const uint8_t *s = x.logicalData();
-                for (size_t i = 0; i < n; ++i) od[i] = convert(s[i] ? 1.0 : 0.0);
+                const keel::u8 *s = x.logicalData();
+                for (keel::usize i = 0; i < n; ++i) od[i] = convert(s[i] ? 1.0 : 0.0);
             } else {  // complex DOUBLE/SINGLE — keep real-part dispatch
-                for (size_t i = 0; i < n; ++i)
+                for (keel::usize i = 0; i < n; ++i)
                     od[i] = convert(element_to_unit(x, i));
             }
             break;
         }
         case ValueType::UINT8: {
-            const uint8_t *src = x.uint8Data();
-            if constexpr (std::is_same_v<Int, uint8_t>) {
-                for (size_t i = 0; i < n; ++i) od[i] = src[i];
-            } else if constexpr (std::is_same_v<Int, uint16_t>) {
+            const keel::u8 *src = x.uint8Data();
+            if constexpr (std::is_same_v<Int, keel::u8>) {
+                for (keel::usize i = 0; i < n; ++i) od[i] = src[i];
+            } else if constexpr (std::is_same_v<Int, keel::u16>) {
                 // 0xAB → 0xABAB (bit-replication).
-                for (size_t i = 0; i < n; ++i) od[i] = (uint16_t)((src[i] << 8) | src[i]);
+                for (keel::usize i = 0; i < n; ++i) od[i] = (keel::u16)((src[i] << 8) | src[i]);
             } else { // int16
-                for (size_t i = 0; i < n; ++i) {
-                    const uint16_t u = (uint16_t)((src[i] << 8) | src[i]);
-                    od[i] = satCast<int16_t>((double)u - 32768.0);
+                for (keel::usize i = 0; i < n; ++i) {
+                    const keel::u16 u = (keel::u16)((src[i] << 8) | src[i]);
+                    od[i] = satCast<keel::i16>((double)u - 32768.0);
                 }
             }
             break;
         }
         case ValueType::UINT16: {
-            const uint16_t *src = x.uint16Data();
-            if constexpr (std::is_same_v<Int, uint16_t>) {
-                for (size_t i = 0; i < n; ++i) od[i] = src[i];
-            } else if constexpr (std::is_same_v<Int, uint8_t>) {
+            const keel::u16 *src = x.uint16Data();
+            if constexpr (std::is_same_v<Int, keel::u16>) {
+                for (keel::usize i = 0; i < n; ++i) od[i] = src[i];
+            } else if constexpr (std::is_same_v<Int, keel::u8>) {
                 // Round high byte: round(src/257).
-                for (size_t i = 0; i < n; ++i)
-                    od[i] = satCast<uint8_t>((double)src[i] / 257.0);
+                for (keel::usize i = 0; i < n; ++i)
+                    od[i] = satCast<keel::u8>((double)src[i] / 257.0);
             } else { // int16
-                for (size_t i = 0; i < n; ++i)
-                    od[i] = satCast<int16_t>((double)src[i] - 32768.0);
+                for (keel::usize i = 0; i < n; ++i)
+                    od[i] = satCast<keel::i16>((double)src[i] - 32768.0);
             }
             break;
         }
         case ValueType::INT16: {
-            const int16_t *src = x.int16Data();
-            if constexpr (std::is_same_v<Int, int16_t>) {
-                for (size_t i = 0; i < n; ++i) od[i] = src[i];
-            } else if constexpr (std::is_same_v<Int, uint16_t>) {
-                for (size_t i = 0; i < n; ++i)
-                    od[i] = satCast<uint16_t>((double)src[i] + 32768.0);
+            const keel::i16 *src = x.int16Data();
+            if constexpr (std::is_same_v<Int, keel::i16>) {
+                for (keel::usize i = 0; i < n; ++i) od[i] = src[i];
+            } else if constexpr (std::is_same_v<Int, keel::u16>) {
+                for (keel::usize i = 0; i < n; ++i)
+                    od[i] = satCast<keel::u16>((double)src[i] + 32768.0);
             } else { // uint8
-                for (size_t i = 0; i < n; ++i) {
+                for (keel::usize i = 0; i < n; ++i) {
                     const double u16 = (double)src[i] + 32768.0;
-                    od[i] = satCast<uint8_t>(u16 / 257.0);
+                    od[i] = satCast<keel::u8>(u16 / 257.0);
                 }
             }
             break;
@@ -234,40 +237,40 @@ void rgb2gray_argcheck(const Value &x)
 
 } // anonymous
 
-Value im2double(const Value &x, std::pmr::memory_resource *mr) {
+Value im2double(const Value &x, keel::Allocator *mr) {
     if (x.type() == ValueType::DOUBLE) return x;
     return to_float_impl<double>(x, ValueType::DOUBLE, mr);
 }
 
-Value im2single(const Value &x, std::pmr::memory_resource *mr) {
+Value im2single(const Value &x, keel::Allocator *mr) {
     if (x.type() == ValueType::SINGLE) return x;
     return to_float_impl<float>(x, ValueType::SINGLE, mr);
 }
 
-Value im2uint8(const Value &x, std::pmr::memory_resource *mr) {
+Value im2uint8(const Value &x, keel::Allocator *mr) {
     if (x.type() == ValueType::UINT8) return x;
-    return to_int_impl<uint8_t>(x, ValueType::UINT8, 255.0, 0.0, mr);
+    return to_int_impl<keel::u8>(x, ValueType::UINT8, 255.0, 0.0, mr);
 }
 
-Value im2uint16(const Value &x, std::pmr::memory_resource *mr) {
+Value im2uint16(const Value &x, keel::Allocator *mr) {
     if (x.type() == ValueType::UINT16) return x;
-    return to_int_impl<uint16_t>(x, ValueType::UINT16, 65535.0, 0.0, mr);
+    return to_int_impl<keel::u16>(x, ValueType::UINT16, 65535.0, 0.0, mr);
 }
 
-Value im2int16(const Value &x, std::pmr::memory_resource *mr) {
+Value im2int16(const Value &x, keel::Allocator *mr) {
     if (x.type() == ValueType::INT16) return x;
     // [0, 1] float → [-32768, 32767]: round(x*65535) - 32768.
-    return to_int_impl<int16_t>(x, ValueType::INT16, 65535.0, -32768.0, mr);
+    return to_int_impl<keel::i16>(x, ValueType::INT16, 65535.0, -32768.0, mr);
 }
 
-Value mat2gray(const Value &x, double lo, double hi, std::pmr::memory_resource *mr)
+Value mat2gray(const Value &x, double lo, double hi, keel::Allocator *mr)
 {
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     if (std::isnan(lo) || std::isnan(hi)) {
         // Auto-detect range, ignoring NaNs.
         lo =  std::numeric_limits<double>::infinity();
         hi = -std::numeric_limits<double>::infinity();
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = x.elemAsDouble(i);
             if (std::isnan(v)) continue;
             if (v < lo) lo = v;
@@ -284,11 +287,11 @@ Value mat2gray(const Value &x, double lo, double hi, std::pmr::memory_resource *
     if (lo == hi) {
         // MATLAB sets all entries ≤ lo to 0 and others to 1; for uniform
         // input that's all-0 unless any element exceeds hi (no element does).
-        for (size_t i = 0; i < n; ++i) od[i] = 0.0;
+        for (keel::usize i = 0; i < n; ++i) od[i] = 0.0;
         return out;
     }
     const double inv = 1.0 / (hi - lo);
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         double v = (x.elemAsDouble(i) - lo) * inv;
         if (v < 0.0) v = 0.0;
         if (v > 1.0) v = 1.0;
@@ -297,22 +300,22 @@ Value mat2gray(const Value &x, double lo, double hi, std::pmr::memory_resource *
     return out;
 }
 
-Value rgb2gray(const Value &x, std::pmr::memory_resource *mr)
+Value rgb2gray(const Value &x, keel::Allocator *mr)
 {
     rgb2gray_argcheck(x);
     const auto &d = x.dims();
-    const size_t H = d.rows(), W = d.cols();
-    const size_t plane = H * W;
+    const keel::usize H = d.rows(), W = d.cols();
+    const keel::usize plane = H * W;
     Value out = Value::matrix(H, W, x.type(), mr);
 
-    auto pix = [&](size_t i, size_t p){ return x.elemAsDouble(p * plane + i); };
-    auto store = [&](size_t i, double v) {
+    auto pix = [&](keel::usize i, keel::usize p){ return x.elemAsDouble(p * plane + i); };
+    auto store = [&](keel::usize i, double v) {
         switch (x.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] = (float)v; break;
-            case ValueType::UINT8:  out.uint8DataMut()[i]  = satCast<uint8_t>(v); break;
-            case ValueType::UINT16: out.uint16DataMut()[i] = satCast<uint16_t>(v); break;
-            case ValueType::INT16:  out.int16DataMut()[i]  = satCast<int16_t>(v); break;
+            case ValueType::UINT8:  out.uint8DataMut()[i]  = satCast<keel::u8>(v); break;
+            case ValueType::UINT16: out.uint16DataMut()[i] = satCast<keel::u16>(v); break;
+            case ValueType::INT16:  out.int16DataMut()[i]  = satCast<keel::i16>(v); break;
             default:
                 throw Error("rgb2gray: unsupported class", 0, 0, "rgb2gray", "",
                             "numkit:rgb2gray:badtype");
@@ -331,29 +334,29 @@ Value rgb2gray(const Value &x, std::pmr::memory_resource *mr)
     // Same coefficients, same accumulation order, same satCast → bit-exact;
     // the contiguous inner loop auto-vectorises.
     if (x.type() == ValueType::UINT8) {
-        const uint8_t *R = x.uint8Data(), *G = R + plane, *B = R + 2 * plane;
-        uint8_t *o = out.uint8DataMut();
-        for (size_t i = 0; i < plane; ++i)
-            o[i] = satCast<uint8_t>(Cr * R[i] + Cg * G[i] + Cb * B[i]);
+        const keel::u8 *R = x.uint8Data(), *G = R + plane, *B = R + 2 * plane;
+        keel::u8 *o = out.uint8DataMut();
+        for (keel::usize i = 0; i < plane; ++i)
+            o[i] = satCast<keel::u8>(Cr * R[i] + Cg * G[i] + Cb * B[i]);
         return out;
     }
     if (x.type() == ValueType::DOUBLE) {
         const double *R = x.doubleData(), *G = R + plane, *B = R + 2 * plane;
         double *o = out.doubleDataMut();
-        for (size_t i = 0; i < plane; ++i)
+        for (keel::usize i = 0; i < plane; ++i)
             o[i] = Cr * R[i] + Cg * G[i] + Cb * B[i];
         return out;
     }
 
     // Generic (single / uint16 / int16).
-    for (size_t i = 0; i < plane; ++i) {
+    for (keel::usize i = 0; i < plane; ++i) {
         const double y = Cr * pix(i, 0) + Cg * pix(i, 1) + Cb * pix(i, 2);
         store(i, y);
     }
     return out;
 }
 
-Value im2gray(const Value &x, std::pmr::memory_resource *mr) {
+Value im2gray(const Value &x, keel::Allocator *mr) {
     const auto &d = x.dims();
     if (d.is3D() && d.pages() == 3) return rgb2gray(x, mr);
     return x;  // already grayscale (or unsupported shape — pass through)
@@ -361,7 +364,7 @@ Value im2gray(const Value &x, std::pmr::memory_resource *mr) {
 
 namespace {
 
-bool spatial_pages_eq(const Value &x, size_t want) {
+bool spatial_pages_eq(const Value &x, keel::usize want) {
     const auto &d = x.dims();
     if (d.is3D()) return d.pages() == want;
     return want == 1;
@@ -375,9 +378,9 @@ bool is_int_image_class(ValueType t) {
 bool is_float_unit_image(const Value &x) {
     if (x.type() != ValueType::DOUBLE && x.type() != ValueType::SINGLE)
         return false;
-    const size_t N = x.numel();
+    const keel::usize N = x.numel();
     bool any_real = false;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = x.elemAsDouble(i);
         if (std::isnan(v)) continue;
         if (v < 0.0 || v > 1.0) return false;
@@ -389,9 +392,9 @@ bool is_float_unit_image(const Value &x) {
 bool is_pos_int_float(const Value &x) {
     if (x.type() != ValueType::DOUBLE && x.type() != ValueType::SINGLE)
         return false;
-    const size_t N = x.numel();
+    const keel::usize N = x.numel();
     if (N == 0) return false;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = x.elemAsDouble(i);
         if (!std::isfinite(v)) return false;
         if (v < 1.0 || v != std::floor(v)) return false;
@@ -400,8 +403,8 @@ bool is_pos_int_float(const Value &x) {
 }
 
 bool all_zero_or_one(const Value &x) {
-    const size_t N = x.numel();
-    for (size_t i = 0; i < N; ++i) {
+    const keel::usize N = x.numel();
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = x.elemAsDouble(i);
         if (std::isnan(v)) return false;
         if (v != 0.0 && v != 1.0) return false;
@@ -409,7 +412,7 @@ bool all_zero_or_one(const Value &x) {
     return true;
 }
 
-inline Value bool_scalar(bool b, std::pmr::memory_resource *mr) {
+inline Value bool_scalar(bool b, keel::Allocator *mr) {
     Value out = Value::matrix(1, 1, ValueType::LOGICAL, mr);
     out.logicalDataMut()[0] = b ? 1u : 0u;
     return out;
@@ -435,7 +438,7 @@ void imcast_argcheck(const std::string &type, std::string &lo)
 
 } // anonymous
 
-Value iptnum2ordinal(double n, std::pmr::memory_resource *mr)
+Value iptnum2ordinal(double n, keel::Allocator *mr)
 {
     iptnum2ordinal_argcheck(n);
 
@@ -464,7 +467,7 @@ Value iptnum2ordinal(double n, std::pmr::memory_resource *mr)
     return Value::fromString(s, mr);
 }
 
-Value imcast(const Value &I, const std::string &type, std::pmr::memory_resource *mr)
+Value imcast(const Value &I, const std::string &type, keel::Allocator *mr)
 {
     std::string lo;
     imcast_argcheck(type, lo);
@@ -494,9 +497,9 @@ Value imcast(const Value &I, const std::string &type, std::pmr::memory_resource 
             ? Value::matrix3d(d.rows(), d.cols(), d.pages(),
                               ValueType::LOGICAL, mr)
             : Value::matrix(d.rows(), d.cols(), ValueType::LOGICAL, mr);
-        const size_t N = I.numel();
-        std::uint8_t *od = out.logicalDataMut();
-        for (size_t i = 0; i < N; ++i) {
+        const keel::usize N = I.numel();
+        keel::u8 *od = out.logicalDataMut();
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = I.elemAsDouble(i);
             od[i] = (v != 0.0 && !std::isnan(v)) ? 1u : 0u;
         }
@@ -508,9 +511,9 @@ Value imcast(const Value &I, const std::string &type, std::pmr::memory_resource 
 
 namespace {
 
-Value gray_colormap(int n, std::pmr::memory_resource *mr)
+Value gray_colormap(int n, keel::Allocator *mr)
 {
-    Value map = Value::matrix(static_cast<size_t>(n), 3,
+    Value map = Value::matrix(static_cast<keel::usize>(n), 3,
                               ValueType::DOUBLE, mr);
     double *md = map.doubleDataMut();
     if (n <= 0) return map;
@@ -585,7 +588,7 @@ void getrangefromclass_argcheck(const Value &I)
     }
 }
 
-void intlut_argcheck(const Value &A, const Value &LUT, size_t &expectedLen)
+void intlut_argcheck(const Value &A, const Value &LUT, keel::usize &expectedLen)
 {
     const ValueType atype = A.type();
     const ValueType ltype = LUT.type();
@@ -609,15 +612,15 @@ void intlut_argcheck(const Value &A, const Value &LUT, size_t &expectedLen)
 } // anonymous
 
 std::tuple<Value, Value>
-gray2ind(const Value &I, int n, std::pmr::memory_resource *mr)
+gray2ind(const Value &I, int n, keel::Allocator *mr)
 {
     gray2ind_argcheck(n);
 
     const ValueType cls = I.type();
     const auto &d = I.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t N = I.numel();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize N = I.numel();
     const ValueType outT = (n <= 256) ? ValueType::UINT8
                                        : ValueType::UINT16;
     Value out = d.is3D()
@@ -640,7 +643,7 @@ gray2ind(const Value &I, int n, std::pmr::memory_resource *mr)
                         0, 0, "gray2ind", "", "numkit:gray2ind:cls");
     }
     if (isFloat) {
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = I.elemAsDouble(i);
             if (v < 0.0 || v > 1.0)
                 throw Error("gray2ind: float values must be in [0, 1]",
@@ -651,26 +654,26 @@ gray2ind(const Value &I, int n, std::pmr::memory_resource *mr)
     // MATLAB / Octave's integer cast rounds half-away-from-zero, not
     // truncates toward zero.
     if (outT == ValueType::UINT8) {
-        std::uint8_t *od = out.uint8DataMut();
-        for (size_t i = 0; i < N; ++i) {
+        keel::u8 *od = out.uint8DataMut();
+        for (keel::usize i = 0; i < N; ++i) {
             double v = std::lround((I.elemAsDouble(i) - low) * k);
             if (v < 0)   v = 0;
             if (v > 255) v = 255;
-            od[i] = static_cast<std::uint8_t>(v);
+            od[i] = static_cast<keel::u8>(v);
         }
     } else {
-        std::uint16_t *od = out.uint16DataMut();
-        for (size_t i = 0; i < N; ++i) {
+        keel::u16 *od = out.uint16DataMut();
+        for (keel::usize i = 0; i < N; ++i) {
             double v = std::lround((I.elemAsDouble(i) - low) * k);
             if (v < 0)     v = 0;
             if (v > 65535) v = 65535;
-            od[i] = static_cast<std::uint16_t>(v);
+            od[i] = static_cast<keel::u16>(v);
         }
     }
     return {std::move(out), std::move(map)};
 }
 
-Value ind2gray(const Value &idx, const Value &map, std::pmr::memory_resource *mr)
+Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
 {
     ind2gray_argcheck(idx, map);
     // Logical indices coerce to double 0/1 (ref returns a double
@@ -683,7 +686,7 @@ Value ind2gray(const Value &idx, const Value &map, std::pmr::memory_resource *mr
     constexpr double Cr = 0.298936021293775;
     constexpr double Cg = 0.587043074451121;
     constexpr double Cb = 0.114020904255103;
-    std::pmr::vector<double> graycm(M, mr);
+    keel::Array<double> graycm(M, mr);
     for (int k = 0; k < M; ++k) {
         // map is column-major M×3: map[r, c] = data[c*M + r].
         const double r = map.elemAsDouble(0 * M + k);
@@ -693,9 +696,9 @@ Value ind2gray(const Value &idx, const Value &map, std::pmr::memory_resource *mr
     }
 
     const auto &d = idxUsed.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t N = idxUsed.numel();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize N = idxUsed.numel();
     const ValueType outT = idxUsed.type();   // class-preserving
 
     Value out = d.is3D()
@@ -711,60 +714,60 @@ Value ind2gray(const Value &idx, const Value &map, std::pmr::memory_resource *mr
         long long k = static_cast<long long>(v);
         if (k < 1)  k = 1;
         if (k > M)  k = M;
-        return graycm[static_cast<std::size_t>(k - 1)];
+        return graycm[static_cast<keel::usize>(k - 1)];
     };
-    auto int_lookup_u8 = [&](unsigned v) -> uint8_t {
-        std::size_t k = v;
-        if (k >= static_cast<std::size_t>(M))
-            k = static_cast<std::size_t>(M - 1);
+    auto int_lookup_u8 = [&](unsigned v) -> keel::u8 {
+        keel::usize k = v;
+        if (k >= static_cast<keel::usize>(M))
+            k = static_cast<keel::usize>(M - 1);
         double scaled = graycm[k] * 255.0;
         if (scaled < 0.0)   scaled = 0.0;
         if (scaled > 255.0) scaled = 255.0;
-        return static_cast<uint8_t>(std::lround(scaled));
+        return static_cast<keel::u8>(std::lround(scaled));
     };
-    auto int_lookup_u16 = [&](unsigned v) -> uint16_t {
-        std::size_t k = v;
-        if (k >= static_cast<std::size_t>(M))
-            k = static_cast<std::size_t>(M - 1);
+    auto int_lookup_u16 = [&](unsigned v) -> keel::u16 {
+        keel::usize k = v;
+        if (k >= static_cast<keel::usize>(M))
+            k = static_cast<keel::usize>(M - 1);
         double scaled = graycm[k] * 65535.0;
         if (scaled < 0.0)     scaled = 0.0;
         if (scaled > 65535.0) scaled = 65535.0;
-        return static_cast<uint16_t>(std::lround(scaled));
+        return static_cast<keel::u16>(std::lround(scaled));
     };
 
     switch (outT) {
         case ValueType::DOUBLE: {
             double *od = out.doubleDataMut();
-            for (size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 od[i] = float_lookup(idxUsed.elemAsDouble(i));
             break;
         }
         case ValueType::SINGLE: {
             float *od = out.singleDataMut();
-            for (size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 od[i] = static_cast<float>(float_lookup(idxUsed.elemAsDouble(i)));
             break;
         }
         case ValueType::UINT8: {
-            uint8_t *od = out.uint8DataMut();
-            const uint8_t *src = idx.uint8Data();
-            for (size_t i = 0; i < N; ++i)
+            keel::u8 *od = out.uint8DataMut();
+            const keel::u8 *src = idx.uint8Data();
+            for (keel::usize i = 0; i < N; ++i)
                 od[i] = int_lookup_u8(src[i]);
             break;
         }
         case ValueType::UINT16: {
-            uint16_t *od = out.uint16DataMut();
-            const uint16_t *src = idx.uint16Data();
-            for (size_t i = 0; i < N; ++i)
+            keel::u16 *od = out.uint16DataMut();
+            const keel::u16 *src = idx.uint16Data();
+            for (keel::usize i = 0; i < N; ++i)
                 od[i] = int_lookup_u16(src[i]);
             break;
         }
         case ValueType::LOGICAL: {
             // MATLAB historical compat: logical → uint8-like 0/1 lookup
             // (the MATLAB source uses intlut with vs = 256 here too).
-            uint8_t *od = out.uint8DataMut();
-            const uint8_t *src = idx.logicalData();
-            for (size_t i = 0; i < N; ++i)
+            keel::u8 *od = out.uint8DataMut();
+            const keel::u8 *src = idx.logicalData();
+            for (keel::usize i = 0; i < N; ++i)
                 od[i] = int_lookup_u8(src[i] ? 1u : 0u);
             break;
         }
@@ -776,7 +779,7 @@ Value ind2gray(const Value &idx, const Value &map, std::pmr::memory_resource *mr
     return out;
 }
 
-Value ind2rgb(const Value &idx, const Value &map, std::pmr::memory_resource *mr)
+Value ind2rgb(const Value &idx, const Value &map, keel::Allocator *mr)
 {
     ind2rgb_argcheck(idx, map);
     Value rgbIdxC = (idx.type() == ValueType::CHAR)
@@ -787,19 +790,19 @@ Value ind2rgb(const Value &idx, const Value &map, std::pmr::memory_resource *mr)
         throw Error("ind2rgb: map must be N-by-3",
                     0, 0, "ind2rgb", "", "numkit:ind2rgb:map");
     const auto &d = rgbIdxC.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t N = rgbIdxC.numel();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize N = rgbIdxC.numel();
     const int M = static_cast<int>(rgbMapC.dims().rows());
 
     Value out = Value::matrix3d(H, W, 3, ValueType::DOUBLE, mr);
     if (N == 0) return out;
     double *od = out.doubleDataMut();
-    const size_t plane = H * W;
+    const keel::usize plane = H * W;
 
     const bool isFloatIdx = (idx.type() == ValueType::DOUBLE ||
                              idx.type() == ValueType::SINGLE);
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         long long k;
         const double v = rgbIdxC.elemAsDouble(i);
         if (std::isnan(v) || !std::isfinite(v)) {
@@ -819,7 +822,7 @@ Value ind2rgb(const Value &idx, const Value &map, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value getrangefromclass(const Value &I, std::pmr::memory_resource *mr)
+Value getrangefromclass(const Value &I, keel::Allocator *mr)
 {
     getrangefromclass_argcheck(I);
     Value r = Value::matrix(1, 2, ValueType::DOUBLE, mr);
@@ -839,7 +842,7 @@ Value getrangefromclass(const Value &I, std::pmr::memory_resource *mr)
     return r;
 }
 
-Value isbw(const Value &BW, const std::string &mode, std::pmr::memory_resource *mr)
+Value isbw(const Value &BW, const std::string &mode, keel::Allocator *mr)
 {
     if (!spatial_pages_eq(BW, 1)) return bool_scalar(false, mr);
     if (BW.numel() == 0)          return bool_scalar(false, mr);
@@ -855,7 +858,7 @@ Value isbw(const Value &BW, const std::string &mode, std::pmr::memory_resource *
     return bool_scalar(false, mr);
 }
 
-Value isgray(const Value &I, std::pmr::memory_resource *mr)
+Value isgray(const Value &I, keel::Allocator *mr)
 {
     if (!spatial_pages_eq(I, 1)) return bool_scalar(false, mr);
     if (I.numel() == 0)          return bool_scalar(false, mr);
@@ -863,7 +866,7 @@ Value isgray(const Value &I, std::pmr::memory_resource *mr)
     return bool_scalar(is_float_unit_image(I), mr);
 }
 
-Value isind(const Value &I, std::pmr::memory_resource *mr)
+Value isind(const Value &I, keel::Allocator *mr)
 {
     if (!spatial_pages_eq(I, 1)) return bool_scalar(false, mr);
     if (I.numel() == 0)          return bool_scalar(false, mr);
@@ -872,7 +875,7 @@ Value isind(const Value &I, std::pmr::memory_resource *mr)
     return bool_scalar(is_pos_int_float(I), mr);
 }
 
-Value isrgb(const Value &I, std::pmr::memory_resource *mr)
+Value isrgb(const Value &I, keel::Allocator *mr)
 {
     if (!spatial_pages_eq(I, 3)) return bool_scalar(false, mr);
     if (I.numel() == 0)          return bool_scalar(false, mr);
@@ -880,7 +883,7 @@ Value isrgb(const Value &I, std::pmr::memory_resource *mr)
     return bool_scalar(is_float_unit_image(I), mr);
 }
 
-Value iscolormap(const Value &cmap, std::pmr::memory_resource *mr)
+Value iscolormap(const Value &cmap, keel::Allocator *mr)
 {
     const auto &d = cmap.dims();
     if (d.is3D())                return bool_scalar(false, mr);
@@ -893,41 +896,41 @@ Value iscolormap(const Value &cmap, std::pmr::memory_resource *mr)
     return bool_scalar(true, mr);
 }
 
-Value intlut(const Value &A, const Value &LUT, std::pmr::memory_resource *mr)
+Value intlut(const Value &A, const Value &LUT, keel::Allocator *mr)
 {
-    size_t expectedLen = 0;
+    keel::usize expectedLen = 0;
     intlut_argcheck(A, LUT, expectedLen);
     const ValueType atype = A.type();
     const ValueType ltype = LUT.type();
 
     Value out = alloc_like(A, ltype, mr);
-    const size_t N = A.numel();
+    const keel::usize N = A.numel();
     if (N == 0) return out;
 
     const int shift = (atype == ValueType::INT16) ? 32768 : 0;
 
-    auto idx_at = [&](size_t i) -> size_t {
-        return static_cast<size_t>(static_cast<int64_t>(A.elemAsDouble(i))
+    auto idx_at = [&](keel::usize i) -> keel::usize {
+        return static_cast<keel::usize>(static_cast<keel::i64>(A.elemAsDouble(i))
                                    + shift);
     };
 
     switch (ltype) {
         case ValueType::UINT8: {
-            const uint8_t *lut = LUT.uint8Data();
-            uint8_t *od = out.uint8DataMut();
-            for (size_t i = 0; i < N; ++i) od[i] = lut[idx_at(i)];
+            const keel::u8 *lut = LUT.uint8Data();
+            keel::u8 *od = out.uint8DataMut();
+            for (keel::usize i = 0; i < N; ++i) od[i] = lut[idx_at(i)];
             break;
         }
         case ValueType::UINT16: {
-            const uint16_t *lut = LUT.uint16Data();
-            uint16_t *od = out.uint16DataMut();
-            for (size_t i = 0; i < N; ++i) od[i] = lut[idx_at(i)];
+            const keel::u16 *lut = LUT.uint16Data();
+            keel::u16 *od = out.uint16DataMut();
+            for (keel::usize i = 0; i < N; ++i) od[i] = lut[idx_at(i)];
             break;
         }
         case ValueType::INT16: {
-            const int16_t *lut = LUT.int16Data();
-            int16_t *od = out.int16DataMut();
-            for (size_t i = 0; i < N; ++i) od[i] = lut[idx_at(i)];
+            const keel::i16 *lut = LUT.int16Data();
+            keel::i16 *od = out.int16DataMut();
+            for (keel::usize i = 0; i < N; ++i) od[i] = lut[idx_at(i)];
             break;
         }
         default: break;

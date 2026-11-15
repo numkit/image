@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <string>
 #include <string_view>
 
@@ -247,7 +249,7 @@ inline void requireUint32Packed(const Value &v, std::string_view fn)
 /// matrix of the same shape. Complex and non-coercible classes pass
 /// through UNCHANGED so the caller's gate voices the rejection.
 inline Value coerceToDoubleImage(const Value &v,
-                                 std::pmr::memory_resource *mr = nullptr)
+                                 keel::Allocator *mr = nullptr)
 {
     const ValueType t = v.type();
     if (t == ValueType::DOUBLE || t == ValueType::COMPLEX)
@@ -259,9 +261,9 @@ inline Value coerceToDoubleImage(const Value &v,
             ? Value::matrix3d(d.rows(), d.cols(), d.pages(),
                               ValueType::DOUBLE, mr)
             : Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
-        const std::size_t n = v.numel();
-        double *od = out.doubleDataMut();
-        for (std::size_t i = 0; i < n; ++i)
+        const keel::usize n = v.numel();
+        keel::f64 *od = out.doubleDataMut();
+        for (keel::usize i = 0; i < n; ++i)
             od[i] = v.elemAsDouble(i);
         return out;
     }
@@ -271,7 +273,7 @@ inline Value coerceToDoubleImage(const Value &v,
 /// @brief Binarise any real image to logical (nonzero → true) — the
 /// bw* kernels' input view; used by the class-preserving wrappers.
 inline Value coerceToLogicalImage(const Value &v,
-                                  std::pmr::memory_resource *mr = nullptr)
+                                  keel::Allocator *mr = nullptr)
 {
     if (v.type() == ValueType::LOGICAL)
         return v;
@@ -280,9 +282,9 @@ inline Value coerceToLogicalImage(const Value &v,
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(),
                           ValueType::LOGICAL, mr)
         : Value::matrix(d.rows(), d.cols(), ValueType::LOGICAL, mr);
-    const std::size_t n = v.numel();
-    uint8_t *od = out.logicalDataMut();
-    for (std::size_t i = 0; i < n; ++i)
+    const keel::usize n = v.numel();
+    keel::u8 *od = out.logicalDataMut();
+    for (keel::usize i = 0; i < n; ++i)
         od[i] = v.elemAsDouble(i) != 0.0 ? 1 : 0;
     return out;
 }
@@ -293,12 +295,12 @@ inline Value coerceToLogicalImage(const Value &v,
 /// Saturating for integer classes (matches the reference's integer
 /// image arithmetic); logical maps nonzero → true.
 inline Value castResultToClass(const Value &result, ValueType target,
-                               std::pmr::memory_resource *mr = nullptr)
+                               keel::Allocator *mr = nullptr)
 {
     const ValueType rt = result.type();
     if (rt == target)
         return result;
-    const std::size_t n = result.numel();
+    const keel::usize n = result.numel();
     Value out;
     const Dims &d = result.dims();
     if (d.is3D())
@@ -310,44 +312,44 @@ inline Value castResultToClass(const Value &result, ValueType target,
             // The compute buffers are single in a few kernels; the
             // double-target copy must materialise (default would pass
             // the single result through unchanged).
-            double *od = out.doubleDataMut();
-            for (std::size_t i = 0; i < n; ++i)
+            keel::f64 *od = out.doubleDataMut();
+            for (keel::usize i = 0; i < n; ++i)
                 od[i] = result.elemAsDouble(i);
             break;
         }
         case ValueType::SINGLE: {
-            float *od = out.singleDataMut();
-            for (std::size_t i = 0; i < n; ++i)
-                od[i] = static_cast<float>(result.elemAsDouble(i));
+            keel::f32 *od = out.singleDataMut();
+            for (keel::usize i = 0; i < n; ++i)
+                od[i] = static_cast<keel::f32>(result.elemAsDouble(i));
             break;
         }
         case ValueType::LOGICAL: {
-            uint8_t *od = out.logicalDataMut();
-            for (std::size_t i = 0; i < n; ++i)
+            keel::u8 *od = out.logicalDataMut();
+            for (keel::usize i = 0; i < n; ++i)
                 od[i] = result.elemAsDouble(i) != 0.0 ? 1 : 0;
             break;
         }
         case ValueType::UINT8: {
-            uint8_t *od = out.uint8DataMut();
-            for (std::size_t i = 0; i < n; ++i) {
-                const double x = result.elemAsDouble(i);
-                od[i] = static_cast<uint8_t>(x < 0.0 ? 0.0 : (x > 255.0 ? 255.0 : x));
+            keel::u8 *od = out.uint8DataMut();
+            for (keel::usize i = 0; i < n; ++i) {
+                const keel::f64 x = result.elemAsDouble(i);
+                od[i] = static_cast<keel::u8>(x < 0.0 ? 0.0 : (x > 255.0 ? 255.0 : x));
             }
             break;
         }
         case ValueType::UINT16: {
-            uint16_t *od = out.uint16DataMut();
-            for (std::size_t i = 0; i < n; ++i) {
-                const double x = result.elemAsDouble(i);
-                od[i] = static_cast<uint16_t>(x < 0.0 ? 0.0 : (x > 65535.0 ? 65535.0 : x));
+            keel::u16 *od = out.uint16DataMut();
+            for (keel::usize i = 0; i < n; ++i) {
+                const keel::f64 x = result.elemAsDouble(i);
+                od[i] = static_cast<keel::u16>(x < 0.0 ? 0.0 : (x > 65535.0 ? 65535.0 : x));
             }
             break;
         }
         case ValueType::INT16: {
-            int16_t *od = out.int16DataMut();
-            for (std::size_t i = 0; i < n; ++i) {
-                const double x = result.elemAsDouble(i);
-                od[i] = static_cast<int16_t>(x < -32768.0 ? -32768.0 : (x > 32767.0 ? 32767.0 : x));
+            keel::i16 *od = out.int16DataMut();
+            for (keel::usize i = 0; i < n; ++i) {
+                const keel::f64 x = result.elemAsDouble(i);
+                od[i] = static_cast<keel::i16>(x < -32768.0 ? -32768.0 : (x > 32767.0 ? 32767.0 : x));
             }
             break;
         }

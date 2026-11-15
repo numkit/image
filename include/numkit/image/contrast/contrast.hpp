@@ -5,8 +5,9 @@
 
 #pragma once
 
-#include <memory_resource>
-#include <numkit/value/span.hpp>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
 #include <string>
@@ -28,7 +29,7 @@ namespace numkit::image {
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `(counts, centers)`.
 std::tuple<Value, Value>
-imhist(const Value &I, int n, std::pmr::memory_resource *mr = nullptr);
+imhist(const Value &I, int n, keel::Allocator *mr = nullptr);
 
 /// @brief Stretch limits from saturation tolerances
 /// (`lim = stretchlim(I, [low_tol, high_tol])`).
@@ -44,8 +45,8 @@ imhist(const Value &I, int n, std::pmr::memory_resource *mr = nullptr);
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          2-element column `[low, high]` (or 2×3 for RGB).
 /// @see imadjust
-Value stretchlim(const Value &I, double low_tol, double high_tol,
-                 std::pmr::memory_resource *mr = nullptr);
+Value stretchlim(const Value &I, keel::f64 low_tol, keel::f64 high_tol,
+                 keel::Allocator *mr = nullptr);
 
 /// Affine intensity remap with optional gamma (`J = imadjust(...)`).
 ///
@@ -65,10 +66,10 @@ Value stretchlim(const Value &I, double low_tol, double high_tol,
 ///
 /// @see histeq, adapthisteq
 Value imadjust(const Value &I,
-               double low_in, double high_in,
-               double low_out, double high_out,
-               double gamma,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::f64 low_in, keel::f64 high_in,
+               keel::f64 low_out, keel::f64 high_out,
+               keel::f64 gamma,
+               keel::Allocator *mr = nullptr);
 
 /// Locally adaptive threshold matrix (`T = adaptthresh(I, ...)`).
 ///
@@ -87,9 +88,9 @@ Value imadjust(const Value &I,
 /// @return              Threshold matrix in [0, 1].
 ///
 /// @see imbinarize, graythresh
-Value adaptthresh(const Value &I, double sensitivity, int neighborhood,
+Value adaptthresh(const Value &I, keel::f64 sensitivity, int neighborhood,
                   const std::string &statistic,
-                  std::pmr::memory_resource *mr = nullptr);
+                  keel::Allocator *mr = nullptr);
 
 /// @brief Histogram equalisation (`J = histeq(I, n)`).
 ///
@@ -101,7 +102,7 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood,
 /// @return    Equalised image, same class as `I`.
 /// @see adapthisteq, imadjust
 Value histeq(const Value &I, int n,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// Parameters for @ref adapthisteq.
 struct AdaptHistEqOptions {
@@ -114,7 +115,7 @@ struct AdaptHistEqOptions {
 
     /// Histogram clip fraction in [0, 1]; 0 disables clipping. Higher
     /// values produce more contrast.
-    double       clipLimit    = 0.01;
+    keel::f64       clipLimit    = 0.01;
 
     /// Histogram bin count.
     int          nBins        = 256;
@@ -126,7 +127,7 @@ struct AdaptHistEqOptions {
     std::string  distribution = "uniform";
 
     /// Shape parameter for the rayleigh / exponential distributions.
-    double       alpha        = 0.4;
+    keel::f64       alpha        = 0.4;
 
     /// Output intensity range:
     ///   - `"full"`     — full range of the image class (default)
@@ -166,7 +167,7 @@ struct AdaptHistEqOptions {
 /// @see histeq, imadjust
 Value adapthisteq(const Value &                I,
                   const AdaptHistEqOptions &   opts = {},
-                  std::pmr::memory_resource *  mr   = nullptr);
+                  keel::Allocator *  mr   = nullptr);
 
 // ── Thresholding ──────────────────────────────────────────────────────
 
@@ -180,7 +181,7 @@ Value adapthisteq(const Value &                I,
 /// @return    Tuple `(level, em)`.
 /// @see otsuthresh, multithresh, imbinarize
 std::tuple<Value, Value>
-graythresh(const Value &I, std::pmr::memory_resource *mr = nullptr);
+graythresh(const Value &I, keel::Allocator *mr = nullptr);
 
 /// @brief Otsu's threshold from a precomputed histogram
 /// (`[level, em] = otsuthresh(counts)`).
@@ -191,7 +192,7 @@ graythresh(const Value &I, std::pmr::memory_resource *mr = nullptr);
 /// @see graythresh
 std::tuple<Value, Value>
 otsuthresh(const Value &counts,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::Allocator *mr = nullptr);
 
 /// @brief N-level Otsu (`[thresh, em] = multithresh(I, N)`).
 ///
@@ -204,7 +205,7 @@ otsuthresh(const Value &counts,
 /// @see graythresh
 std::tuple<Value, Value>
 multithresh(const Value &I, int N,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 
 /// @brief Threshold an image (`BW = imbinarize(I, thresh)`).
 ///
@@ -216,8 +217,8 @@ multithresh(const Value &I, int N,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        LOGICAL mask, same shape as `I`.
 /// @see graythresh, adaptthresh
-Value imbinarize(const Value &I, double thresh,
-                 std::pmr::memory_resource *mr = nullptr);
+Value imbinarize(const Value &I, keel::f64 thresh,
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Per-pixel threshold (`BW = imbinarize(I, T)`).
 ///
@@ -230,7 +231,7 @@ Value imbinarize(const Value &I, double thresh,
 /// @return    LOGICAL mask, same shape as `I`.
 /// @see adaptthresh
 Value imbinarize(const Value &I, const Value &T,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Quantise into N+1 classes (`L = imquantize(I, levels)`).
 ///
@@ -243,7 +244,7 @@ Value imbinarize(const Value &I, const Value &T,
 /// @return        Integer class map (1-based, same shape as `I`).
 /// @see multithresh
 Value imquantize(const Value &I, const Value &levels,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Histogram matching to a reference image
 /// (`[J, hgram] = imhistmatch(I, ref, nbins)`).
@@ -266,7 +267,7 @@ Value imquantize(const Value &I, const Value &levels,
 /// @see histeq
 Value imhistmatch(const Value &I, const Value &ref, int nbins,
                   Value *hgramOut = nullptr,
-                  std::pmr::memory_resource *mr = nullptr);
+                  keel::Allocator *mr = nullptr);
 
 /// Flat-field correction (`J = imflatfield(I, sigma, mask)`).
 ///
@@ -282,8 +283,8 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
 /// @param mask   Optional logical mask (pass `Value::Empty` to skip).
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       Corrected image, same class as `I`.
-Value imflatfield(const Value &I, double sigma, const Value &mask,
-                  std::pmr::memory_resource *mr = nullptr);
+Value imflatfield(const Value &I, keel::f64 sigma, const Value &mask,
+                  keel::Allocator *mr = nullptr);
 
 /// @brief Wavelet-display quantisation
 /// (`Y = wcodemat(X, nb, opt, absol)`).
@@ -298,7 +299,7 @@ Value imflatfield(const Value &I, double sigma, const Value &mask,
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       DOUBLE matrix of integer codes in `[1, nb]`.
 Value wcodemat(const Value &X, int nb, const std::string &opt, int absol,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Shannon entropy of the image histogram
 /// (`H = entropy(I, nbins)`).
@@ -313,7 +314,7 @@ Value wcodemat(const Value &X, int nb, const std::string &opt, int absol,
 /// @return       Scalar entropy in bits.
 /// @see entropyfilt
 Value entropy(const Value &I, int nbins,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Multilevel thresholding into an indexed image, level-count
 /// form (`L = grayslice(I, N)`).
@@ -328,7 +329,7 @@ Value entropy(const Value &I, int nbins,
 /// @return    Indexed image (uint8 or double).
 /// @see imquantize, multithresh
 Value grayslice(const Value &I, int N,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Multilevel thresholding into an indexed image, explicit
 /// thresholds form (`L = grayslice(I, [t1, t2, …])`).
@@ -343,8 +344,8 @@ Value grayslice(const Value &I, int N,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Indexed image.
 /// @see imquantize, multithresh
-Value grayslice(const Value &I, Span<const double> levels,
-                std::pmr::memory_resource *mr = nullptr);
+Value grayslice(const Value &I, keel::ArrayRef<keel::f64> levels,
+                keel::Allocator *mr = nullptr);
 
 
 /// @}

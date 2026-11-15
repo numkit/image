@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::image {
@@ -30,7 +31,7 @@ namespace numkit::image {
 /// @return    Scalar in `[0, 1]`.
 /// @see jaccard
 Value dice(const Value &A, const Value &B,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::Allocator *mr = nullptr);
 
 /// @brief Intersection-over-union (`j = jaccard(BW1, BW2)`).
 ///
@@ -43,7 +44,7 @@ Value dice(const Value &A, const Value &B,
 /// @return    Scalar in `[0, 1]`.
 /// @see dice
 Value jaccard(const Value &A, const Value &B,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// Boundary mask of a labeled or binary image (`BW = boundarymask(L, conn)`).
 ///
@@ -58,7 +59,7 @@ Value jaccard(const Value &A, const Value &B,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         Logical boundary mask of the same H × W.
 Value boundarymask(const Value &L_or_BW, int conn,
-                   std::pmr::memory_resource *mr = nullptr);
+                   keel::Allocator *mr = nullptr);
 
 /// Group label-image pixels into per-label index lists
 /// (`idx = label2idx(L)`).
@@ -71,7 +72,7 @@ Value boundarymask(const Value &L_or_BW, int conn,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Cell array of length max(L), each entry a column of indices.
 Value label2idx(const Value &L,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// Flood-fill region from a seed pixel (`BW = grayconnected(I, row, col, tol)`).
 ///
@@ -87,8 +88,8 @@ Value label2idx(const Value &L,
 ///              range for other types).
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Logical mask of the connected region.
-Value grayconnected(const Value &I, int row, int col, double tol,
-                    std::pmr::memory_resource *mr = nullptr);
+Value grayconnected(const Value &I, int row, int col, keel::f64 tol,
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Pixel weights from grayscale intensity difference
 /// (`W = graydiffweight(I, refGrayVal [, NV...])`).
@@ -123,9 +124,9 @@ Value grayconnected(const Value &I, int row, int col, double tol,
 /// @param cutoff         `>= 0` or `+Inf` (no cutoff). Default `+Inf`.
 /// @param mr             Memory resource (nullptr → process default).
 /// @return               Weight array (same shape as `I`).
-Value graydiffweight(const Value &I, double ref_gray_val,
-                     double rolloff_factor, double cutoff,
-                     std::pmr::memory_resource *mr = nullptr);
+Value graydiffweight(const Value &I, keel::f64 ref_gray_val,
+                     keel::f64 rolloff_factor, keel::f64 cutoff,
+                     keel::Allocator *mr = nullptr);
 
 /// @brief Pixel weights from image gradient magnitude
 /// (`W = gradientweight(I [, sigma], 'RolloffFactor', P, 'WeightCutoff', K)`).
@@ -171,9 +172,9 @@ Value graydiffweight(const Value &I, double ref_gray_val,
 /// @param weight_cutoff  `∈ [1e-3, 1]`. Default 0.25. Threshold floor.
 /// @param mr             Memory resource (nullptr → process default).
 /// @return               Weight array, same H×W as `I`.
-Value gradientweight(const Value &I, double sigma_x, double sigma_y,
-                     double rolloff_factor, double weight_cutoff,
-                     std::pmr::memory_resource *mr = nullptr);
+Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
+                     keel::f64 rolloff_factor, keel::f64 weight_cutoff,
+                     keel::Allocator *mr = nullptr);
 
 /// @brief Fill image regions via inward Laplacian interpolation
 /// (`J = regionfill(I, MASK)`).
@@ -206,7 +207,7 @@ Value gradientweight(const Value &I, double sigma_x, double sigma_y,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Filled image, same class and shape as `I`.
 Value regionfill(const Value &I, const Value &mask,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Convert polygon to binary mask (`BW = poly2mask(X, Y, M, N)`).
 ///
@@ -239,8 +240,8 @@ Value regionfill(const Value &I, const Value &mask,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `M × N` logical mask.
 Value poly2mask(const Value &X, const Value &Y,
-                std::size_t M, std::size_t N,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::usize M, keel::usize N,
+                keel::Allocator *mr = nullptr);
 
 /// @brief Reduce point density of a polyline / polygon
 /// (`P_reduced = reducepoly(P, tolerance)`).
@@ -266,8 +267,8 @@ Value poly2mask(const Value &X, const Value &Y,
 /// @return           `m × 2` reduced point matrix, same class as `P`.
 /// @throws Error     `P` not `n × 2`, or `tolerance` outside `[0, 1]`.
 /// @see poly2mask, roipoly, bwboundaries
-Value reducepoly(const Value &P, double tolerance,
-                 std::pmr::memory_resource *mr = nullptr);
+Value reducepoly(const Value &P, keel::f64 tolerance,
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Polygonal region-of-interest mask
 /// (`BW = roipoly(A, xi, yi)`, world-coord variants).
@@ -301,11 +302,11 @@ Value reducepoly(const Value &P, double tolerance,
 /// @param yi        Polygon Y coordinates (world units).
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          `M × N` logical mask.
-Value roipoly(double xdata_lo, double xdata_hi,
-              double ydata_lo, double ydata_hi,
-              std::size_t M, std::size_t N,
+Value roipoly(keel::f64 xdata_lo, keel::f64 xdata_hi,
+              keel::f64 ydata_lo, keel::f64 ydata_hi,
+              keel::usize M, keel::usize N,
               const Value &xi, const Value &yi,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Gray-weighted geodesic distance transform
 /// (`T = graydist(I, seeds [, method])`).
@@ -334,7 +335,7 @@ Value roipoly(double xdata_lo, double xdata_hi,
 /// @return         Distance transform `T`, same shape as `I`.
 Value graydist(const Value &I, const Value &seeds,
                const std::string &method,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Geodesic distance transform of binary image
 /// (`D = bwdistgeodesic(BW, seeds [, method])`).
@@ -362,7 +363,7 @@ Value graydist(const Value &I, const Value &seeds,
 /// @return         SINGLE distance transform, same shape as `BW`.
 Value bwdistgeodesic(const Value &BW, const Value &seeds,
                      const std::string &method,
-                     std::pmr::memory_resource *mr = nullptr);
+                     keel::Allocator *mr = nullptr);
 
 /// Paint a binary mask onto an image with a colour
 /// (`J = imoverlay(I, BW, color)`).
@@ -378,7 +379,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       H × W × 3 uint8 image.
 Value imoverlay(const Value &I, const Value &BW, const Value &color,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Watershed transform (`L = watershed(A [, conn])`).
 ///
@@ -397,7 +398,7 @@ Value imoverlay(const Value &I, const Value &BW, const Value &color,
 /// @param mr    Memory resource (nullptr -> process default).
 /// @return      Label matrix `L` of the same shape as `A`.
 Value watershed(const Value &A, int conn = 8,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 
 /// @}

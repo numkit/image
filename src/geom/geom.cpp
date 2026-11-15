@@ -12,6 +12,10 @@
 //   bilinear for the resampling factors that show up in
 //   typical nk pipelines.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/image/geom/geom.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -21,7 +25,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -34,7 +37,7 @@ namespace numkit::image {
 
 namespace {
 
-struct Shape { size_t H, W, C; };
+struct Shape { keel::usize H, W, C; };
 
 // Pull (H, W, C) out of an image Value. Accepts both H×W (C=1) and
 // H×W×C 3-D arrays.
@@ -52,24 +55,24 @@ Shape shapeOf(const Value &A) {
     return s;
 }
 
-inline size_t idx3D(const Shape &s, size_t y, size_t x, size_t c) {
+inline keel::usize idx3D(const Shape &s, keel::usize y, keel::usize x, keel::usize c) {
     return c * s.H * s.W + x * s.H + y;
 }
 
 inline double sample(const Value &A, const Shape &s,
-                     int y, int x, size_t c) {
+                     int y, int x, keel::usize c) {
     if (y < 0 || x < 0 ||
         y >= static_cast<int>(s.H) ||
         x >= static_cast<int>(s.W))
         return 0.0;
-    return A.elemAsDouble(idx3D(s, static_cast<size_t>(y),
-                                static_cast<size_t>(x), c));
+    return A.elemAsDouble(idx3D(s, static_cast<keel::usize>(y),
+                                static_cast<keel::usize>(x), c));
 }
 
 // Bilinear lookup with floating source coordinates (0-based).
 // Out-of-bounds pixels evaluate to 0.
 double bilinear(const Value &A, const Shape &s,
-                double y, double x, size_t c) {
+                double y, double x, keel::usize c) {
     const int y0 = static_cast<int>(std::floor(y));
     const int x0 = static_cast<int>(std::floor(x));
     const double dy = y - y0;
@@ -85,13 +88,13 @@ double bilinear(const Value &A, const Shape &s,
 }
 
 void writePixel(Value &out, const Shape &s,
-                size_t y, size_t x, size_t c,
+                keel::usize y, keel::usize x, keel::usize c,
                 double v, ValueType srcType)
 {
     writeNative(out, idx3D(s, y, x, c), v, srcType);
 }
 
-Value makeOut(size_t H, size_t W, size_t C, ValueType t, std::pmr::memory_resource *mr) {
+Value makeOut(keel::usize H, keel::usize W, keel::usize C, ValueType t, keel::Allocator *mr) {
     if (C == 1) return Value::matrix(H, W, t, mr);
     return Value::matrix3d(H, W, C, t, mr);
 }
@@ -124,13 +127,13 @@ struct RkContrib { int first; std::vector<double> w; };  // first 0-indexed
 
 // Per-output-pixel taps: pixel-centre map u, kernel `k` (total support `kw`),
 // antialiasing stretch when `aa && scale<1`, normalised weights.
-std::vector<RkContrib> rkBuild(size_t outLen, double scale, double (*k)(double),
+std::vector<RkContrib> rkBuild(keel::usize outLen, double scale, double (*k)(double),
                                double kw, bool aa) {
     double scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = kw / scale; }
     const int P = static_cast<int>(std::ceil(kw)) + 2;
     std::vector<RkContrib> rows(outLen);
-    for (size_t o = 0; o < outLen; ++o) {
+    for (keel::usize o = 0; o < outLen; ++o) {
         const double u    = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
         const int    left = static_cast<int>(std::floor(u - kw / 2.0));
         RkContrib &  r    = rows[o];
@@ -145,9 +148,9 @@ std::vector<RkContrib> rkBuild(size_t outLen, double scale, double (*k)(double),
 
 // Separable kernel resize of an H×W×C image to outH×outW×C. `scaleY/scaleX` are
 // the per-axis scales (drives the centre mapping + antialias decision).
-Value imresizeKernel(const Value &A, const Shape &s, size_t outH, size_t outW,
+Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usize outW,
                      double scaleY, double scaleX, double (*k)(double), double kw,
-                     bool antialias, ValueType t, std::pmr::memory_resource *mr)
+                     bool antialias, ValueType t, keel::Allocator *mr)
 {
     const int  H = static_cast<int>(s.H), W = static_cast<int>(s.W);
     const auto cy = rkBuild(outH, scaleY, k, kw, antialias);
@@ -155,21 +158,21 @@ Value imresizeKernel(const Value &A, const Shape &s, size_t outH, size_t outW,
     Value B = makeOut(outH, outW, s.C, t, mr);
     Shape sd{outH, outW, s.C};
     std::vector<double> tmp(outH * s.W);   // outH × W intermediate (per channel)
-    for (size_t c = 0; c < s.C; ++c) {
+    for (keel::usize c = 0; c < s.C; ++c) {
         for (int x = 0; x < W; ++x)            // pass 1: rows  → tmp[outH × W]
-            for (size_t y = 0; y < outH; ++y) {
+            for (keel::usize y = 0; y < outH; ++y) {
                 const RkContrib &r = cy[y];
                 double v = 0.0;
-                for (size_t j = 0; j < r.w.size(); ++j)
+                for (keel::usize j = 0; j < r.w.size(); ++j)
                     v += r.w[j] * sample(A, s, rkMirror(r.first + int(j), H), x, c);
-                tmp[y + size_t(x) * outH] = v;
+                tmp[y + keel::usize(x) * outH] = v;
             }
-        for (size_t x = 0; x < outW; ++x) {    // pass 2: cols  → B[outH × outW]
+        for (keel::usize x = 0; x < outW; ++x) {    // pass 2: cols  → B[outH × outW]
             const RkContrib &r = cx[x];
-            for (size_t y = 0; y < outH; ++y) {
+            for (keel::usize y = 0; y < outH; ++y) {
                 double v = 0.0;
-                for (size_t j = 0; j < r.w.size(); ++j)
-                    v += r.w[j] * tmp[y + size_t(rkMirror(r.first + int(j), W)) * outH];
+                for (keel::usize j = 0; j < r.w.size(); ++j)
+                    v += r.w[j] * tmp[y + keel::usize(rkMirror(r.first + int(j), W)) * outH];
                 writePixel(B, sd, y, x, c, v, t);
             }
         }
@@ -231,7 +234,7 @@ void impyramid_argcheck(const std::string &type, bool &reduce_out)
 
 } // anonymous
 
-Value imresize(const Value &A, size_t outH, size_t outW, const std::string &method, std::pmr::memory_resource *mr)
+Value imresize(const Value &A, keel::usize outH, keel::usize outW, const std::string &method, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -244,10 +247,10 @@ Value imresize(const Value &A, size_t outH, size_t outW, const std::string &meth
         const double sy = double(s.H) / double(outH);
         Value B = makeOut(outH, outW, s.C, t, mr);
         Shape sd{outH, outW, s.C};
-        for (size_t c = 0; c < s.C; ++c)
-            for (size_t yo = 0; yo < outH; ++yo) {
+        for (keel::usize c = 0; c < s.C; ++c)
+            for (keel::usize yo = 0; yo < outH; ++yo) {
                 const double ys = (yo + 0.5) * sy - 0.5;
-                for (size_t xo = 0; xo < outW; ++xo) {
+                for (keel::usize xo = 0; xo < outW; ++xo) {
                     const double xs = (xo + 0.5) * sx - 0.5;
                     int yi = int(std::floor(ys + 0.5)), xi = int(std::floor(xs + 0.5));
                     if (yi < 0) yi = 0; if (xi < 0) xi = 0;
@@ -267,12 +270,12 @@ Value imresize(const Value &A, size_t outH, size_t outW, const std::string &meth
                           k, kw, /*antialias=*/true, t, mr);
 }
 
-Value imresize(const Value &A, double scale, const std::string &method, std::pmr::memory_resource *mr)
+Value imresize(const Value &A, double scale, const std::string &method, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     imresize_scale_argcheck(scale);
-    const size_t outH = static_cast<size_t>(std::round(scale * double(s.H)));
-    const size_t outW = static_cast<size_t>(std::round(scale * double(s.W)));
+    const keel::usize outH = static_cast<keel::usize>(std::round(scale * double(s.H)));
+    const keel::usize outW = static_cast<keel::usize>(std::round(scale * double(s.W)));
     if (methodIsNearest(method))
         return imresize(A, outH, outW, method, mr);
     // Scale form: the centre map uses the scalar `scale` (MATLAB's convention).
@@ -282,7 +285,7 @@ Value imresize(const Value &A, double scale, const std::string &method, std::pmr
                           A.type(), mr);
 }
 
-Value imcrop(const Value &A, double xmin, double ymin, double width, double height, std::pmr::memory_resource *mr)
+Value imcrop(const Value &A, double xmin, double ymin, double width, double height, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -298,14 +301,14 @@ Value imcrop(const Value &A, double xmin, double ymin, double width, double heig
     if (w <= 0 || h <= 0)
         return makeOut(0, 0, s.C, t, mr);
 
-    Value B = makeOut(size_t(h), size_t(w), s.C, t, mr);
-    Shape sd{size_t(h), size_t(w), s.C};
-    for (size_t c = 0; c < s.C; ++c)
+    Value B = makeOut(keel::usize(h), keel::usize(w), s.C, t, mr);
+    Shape sd{keel::usize(h), keel::usize(w), s.C};
+    for (keel::usize c = 0; c < s.C; ++c)
         for (int y = 0; y < h; ++y)
             for (int x = 0; x < w; ++x) {
                 const double v = A.elemAsDouble(
-                    idx3D(s, size_t(y0 + y), size_t(x0 + x), c));
-                writePixel(B, sd, size_t(y), size_t(x), c, v, t);
+                    idx3D(s, keel::usize(y0 + y), keel::usize(x0 + x), c));
+                writePixel(B, sd, keel::usize(y), keel::usize(x), c, v, t);
             }
     return B;
 }
@@ -319,20 +322,20 @@ Value imcrop(const Value &A, double xmin, double ymin, double width, double heig
 // (channels / time) passes through unchanged. Class-preserving.
 // Out-of-bounds cuboid throws (matches MATLAB's error message
 // `images:imcrop3:cropCuboidOutofBounds`).
-Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr)
+Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
 {
     imcrop3_argcheck(V, cuboid);
 
     // Resolve input shape: H × W × D × T  (T defaults to 1 for 3-D inputs).
     const auto &dV = V.dims();
     const int nd = dV.ndims();
-    const std::size_t H = dV.dim(0);
-    const std::size_t W = dV.dim(1);
-    const std::size_t D = dV.dim(2);
-    const std::size_t T = (nd >= 4) ? dV.dim(3) : 1;
+    const keel::usize H = dV.dim(0);
+    const keel::usize W = dV.dim(1);
+    const keel::usize D = dV.dim(2);
+    const keel::usize T = (nd >= 4) ? dV.dim(3) : 1;
 
     // Round limits per MATLAB source.
-    auto rd = [&](std::size_t k) {
+    auto rd = [&](keel::usize k) {
         return static_cast<long long>(std::lround(cuboid.elemAsDouble(k)));
     };
     const long long xmin = rd(0);
@@ -345,7 +348,7 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
     const long long zmax = static_cast<long long>(std::lround(
         cuboid.elemAsDouble(2) + cuboid.elemAsDouble(5)));
 
-    auto in_range = [](long long lo, long long hi, std::size_t N) {
+    auto in_range = [](long long lo, long long hi, keel::usize N) {
         return lo >= 1 && lo <= static_cast<long long>(N)
             && hi >= 1 && hi <= static_cast<long long>(N) && lo <= hi;
     };
@@ -357,9 +360,9 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
                     "bound must not exceed the image size",
                     0, 0, "imcrop3", "", "numkit:imcrop3:cropCuboidOutofBounds");
 
-    const std::size_t outH = static_cast<std::size_t>(ymax - ymin + 1);
-    const std::size_t outW = static_cast<std::size_t>(xmax - xmin + 1);
-    const std::size_t outD = static_cast<std::size_t>(zmax - zmin + 1);
+    const keel::usize outH = static_cast<keel::usize>(ymax - ymin + 1);
+    const keel::usize outW = static_cast<keel::usize>(xmax - xmin + 1);
+    const keel::usize outD = static_cast<keel::usize>(zmax - zmin + 1);
 
     // Allocate the output with class preserved. For 3-D inputs we
     // return a 3-D Value; for 4-D inputs we keep the 4th dim.
@@ -369,24 +372,24 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
         B = (outD == 1) ? Value::matrix(outH, outW, t, mr)
                          : Value::matrix3d(outH, outW, outD, t, mr);
     } else {
-        const std::size_t dims4[4] = { outH, outW, outD, T };
+        const keel::usize dims4[4] = { outH, outW, outD, T };
         B = Value::matrixND(dims4, 4, t, mr);
     }
 
     // Column-major linear index for the input (H, W, D, T):
     //   idx = r + H*c + H*W*p + H*W*D*tt
-    auto src_lin = [&](std::size_t r, std::size_t c, std::size_t p,
-                       std::size_t tt) {
+    auto src_lin = [&](keel::usize r, keel::usize c, keel::usize p,
+                       keel::usize tt) {
         return r + H * c + H * W * p + H * W * D * tt;
     };
-    auto dst_lin = [&](std::size_t r, std::size_t c, std::size_t p,
-                       std::size_t tt) {
+    auto dst_lin = [&](keel::usize r, keel::usize c, keel::usize p,
+                       keel::usize tt) {
         return r + outH * c + outH * outW * p + outH * outW * outD * tt;
     };
 
     // Per-class byte-copy avoids any quantisation. Use elemAs* / write
     // helpers to dispatch by element type.
-    auto write_one = [&](std::size_t di, std::size_t si) {
+    auto write_one = [&](keel::usize di, keel::usize si) {
         switch (t) {
             case ValueType::DOUBLE:  B.doubleDataMut()[di]  = V.doubleData()[si];  break;
             case ValueType::SINGLE:  B.singleDataMut()[di]  = V.singleData()[si];  break;
@@ -405,20 +408,20 @@ Value imcrop3(const Value &V, const Value &cuboid, std::pmr::memory_resource *mr
         }
     };
 
-    const std::size_t y0 = static_cast<std::size_t>(ymin - 1);
-    const std::size_t x0 = static_cast<std::size_t>(xmin - 1);
-    const std::size_t z0 = static_cast<std::size_t>(zmin - 1);
+    const keel::usize y0 = static_cast<keel::usize>(ymin - 1);
+    const keel::usize x0 = static_cast<keel::usize>(xmin - 1);
+    const keel::usize z0 = static_cast<keel::usize>(zmin - 1);
 
-    for (std::size_t tt = 0; tt < T; ++tt)
-        for (std::size_t p = 0; p < outD; ++p)
-            for (std::size_t c = 0; c < outW; ++c)
-                for (std::size_t r = 0; r < outH; ++r)
+    for (keel::usize tt = 0; tt < T; ++tt)
+        for (keel::usize p = 0; p < outD; ++p)
+            for (keel::usize c = 0; c < outW; ++c)
+                for (keel::usize r = 0; r < outH; ++r)
                     write_one(dst_lin(r, c, p, tt),
                               src_lin(y0 + r, x0 + c, z0 + p, tt));
     return B;
 }
 
-Value imrotate(const Value &A, double angle, const std::string &method, const std::string &bbox, std::pmr::memory_resource *mr)
+Value imrotate(const Value &A, double angle, const std::string &method, const std::string &bbox, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -433,12 +436,12 @@ Value imrotate(const Value &A, double angle, const std::string &method, const st
         double a = std::fmod(angle, 360.0);
         if (a < 0.0) a += 360.0;
         const long kk = std::lround(a / 90.0);
-        if (std::abs(a - double(kk) * 90.0) < 1e-9) {
+        if (keel::abs(a - double(kk) * 90.0) < 1e-9) {
             const int k = static_cast<int>(((kk % 4) + 4) % 4);
-            const size_t Hl = (k % 2 == 0) ? s.H : s.W;  // loose dims
-            const size_t Wl = (k % 2 == 0) ? s.W : s.H;
-            const size_t oH = isCrop ? s.H : Hl;
-            const size_t oW = isCrop ? s.W : Wl;
+            const keel::usize Hl = (k % 2 == 0) ? s.H : s.W;  // loose dims
+            const keel::usize Wl = (k % 2 == 0) ? s.W : s.H;
+            const keel::usize oH = isCrop ? s.H : Hl;
+            const keel::usize oW = isCrop ? s.W : Wl;
             long rowOff = 0, colOff = 0;
             if (isCrop) {
                 rowOff = static_cast<long>(std::floor((double(Hl) - double(s.H)) / 2.0));
@@ -452,9 +455,9 @@ Value imrotate(const Value &A, double angle, const std::string &method, const st
             Value B = makeOut(oH, oW, s.C, t, mr);
             Shape sd{oH, oW, s.C};
             const long H = static_cast<long>(s.H), W = static_cast<long>(s.W);
-            for (size_t c = 0; c < s.C; ++c)
-                for (size_t i = 0; i < oH; ++i)
-                    for (size_t j = 0; j < oW; ++j) {
+            for (keel::usize c = 0; c < s.C; ++c)
+                for (keel::usize i = 0; i < oH; ++i)
+                    for (keel::usize j = 0; j < oW; ++j) {
                         const long li = static_cast<long>(i) + rowOff;  // loose coords
                         const long lj = static_cast<long>(j) + colOff;
                         double v = 0.0;
@@ -480,21 +483,21 @@ Value imrotate(const Value &A, double angle, const std::string &method, const st
     const double si = std::sin(rad);
 
     // Output dims.
-    size_t outH = s.H, outW = s.W;
+    keel::usize outH = s.H, outW = s.W;
     if (bbox != "crop" && bbox != "Crop") {
         // Loose: bounding box of the rotated rectangle around its
         // centre. Snap near-integer results down before the ceil so a
         // sub-ULP overshoot from sin/cos (e.g. cos(90°) ≈ 6e-17)
         // doesn't bump 2.0 up to 3.
         const double Hd = double(s.H), Wd = double(s.W);
-        const double rawH = std::abs(Hd * co) + std::abs(Wd * si);
-        const double rawW = std::abs(Wd * co) + std::abs(Hd * si);
+        const double rawH = keel::abs(Hd * co) + keel::abs(Wd * si);
+        const double rawW = keel::abs(Wd * co) + keel::abs(Hd * si);
         auto snap = [](double v) {
             const double r = std::round(v);
-            return (std::abs(v - r) < 1e-9) ? r : v;
+            return (keel::abs(v - r) < 1e-9) ? r : v;
         };
-        outH = size_t(std::ceil(snap(rawH)));
-        outW = size_t(std::ceil(snap(rawW)));
+        outH = keel::usize(std::ceil(snap(rawH)));
+        outW = keel::usize(std::ceil(snap(rawW)));
         if (outH < 1) outH = 1;
         if (outW < 1) outW = 1;
     }
@@ -513,10 +516,10 @@ Value imrotate(const Value &A, double angle, const std::string &method, const st
     // imrotate output (verified against Octave 11.1).
     Value B = makeOut(outH, outW, s.C, t, mr);
     Shape sd{outH, outW, s.C};
-    for (size_t c = 0; c < s.C; ++c)
-        for (size_t y = 0; y < outH; ++y) {
+    for (keel::usize c = 0; c < s.C; ++c)
+        for (keel::usize y = 0; y < outH; ++y) {
             const double dy = double(y) - cyOut;
-            for (size_t x = 0; x < outW; ++x) {
+            for (keel::usize x = 0; x < outW; ++x) {
                 const double dx = double(x) - cxOut;
                 const double xs = co * dx - si * dy + cxIn;
                 const double ys = si * dx + co * dy + cyIn;
@@ -538,14 +541,14 @@ Value imrotate(const Value &A, double angle, const std::string &method, const st
     return B;
 }
 
-Value imtranslate(const Value &A, double dx, double dy, std::pmr::memory_resource *mr)
+Value imtranslate(const Value &A, double dx, double dy, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
     Value B = makeOut(s.H, s.W, s.C, t, mr);
-    for (size_t c = 0; c < s.C; ++c)
-        for (size_t y = 0; y < s.H; ++y)
-            for (size_t x = 0; x < s.W; ++x) {
+    for (keel::usize c = 0; c < s.C; ++c)
+        for (keel::usize y = 0; y < s.H; ++y)
+            for (keel::usize x = 0; x < s.W; ++x) {
                 const double xs = double(x) - dx;
                 const double ys = double(y) - dy;
                 const double v = bilinear(A, s, ys, xs, c);
@@ -554,7 +557,7 @@ Value imtranslate(const Value &A, double dx, double dy, std::pmr::memory_resourc
     return B;
 }
 
-Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::memory_resource *mr)
+Value axes2pix(double n, const Value &extent, const Value &axesCoord, keel::Allocator *mr)
 {
     Value extentCoerced;
     const Value *extP = &extent;
@@ -566,24 +569,24 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::
     axes2pix_argcheck(ext);
 
     const auto &d = axesCoord.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t N = axesCoord.numel();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize N = axesCoord.numel();
 
     if (ext.isComplex() || axesCoord.isComplex()) {
-        auto getC = [](const Value &v, size_t idx) -> std::complex<double> {
-            return v.isComplex() ? v.complexData()[idx] : std::complex<double>(v.elemAsDouble(idx), 0.0);
+        auto getC = [](const Value &v, keel::usize idx) -> keel::c64 {
+            return v.isComplex() ? v.complexData()[idx] : keel::c64(v.elemAsDouble(idx), 0.0);
         };
-        const std::complex<double> e0 = getC(ext, 0);
-        const std::complex<double> e1 = getC(ext, ext.numel() - 1);
+        const keel::c64 e0 = getC(ext, 0);
+        const keel::c64 e1 = getC(ext, ext.numel() - 1);
         const bool degenerate = (n == 1.0) || (e0 == e1);
-        const std::complex<double> pixelWidth = degenerate ? std::complex<double>(1.0, 0.0) : (e1 - e0) / (n - 1.0);
+        const keel::c64 pixelWidth = degenerate ? keel::c64(1.0, 0.0) : (e1 - e0) / (n - 1.0);
         Value out = d.is3D()
             ? Value::matrix3d(H, W, d.pages(), ValueType::COMPLEX, mr)
             : Value::matrix(H, W, ValueType::COMPLEX, mr);
-        std::complex<double> *od = out.complexDataMut();
-        for (size_t i = 0; i < N; ++i) {
-            const std::complex<double> a = getC(axesCoord, i);
+        keel::c64 *od = out.complexDataMut();
+        for (keel::usize i = 0; i < N; ++i) {
+            const keel::c64 a = getC(axesCoord, i);
             od[i] = degenerate ? (a - e0 + 1.0)
                                : ((a - e0) / pixelWidth + 1.0);
         }
@@ -604,7 +607,7 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::
         return internal::castResultToClass(out, ext.type(), mr);
 
     double *od = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double a = axesCoord.elemAsDouble(i);
         od[i] = degenerate ? (a - e0 + 1.0)
                            : ((a - e0) / pixelWidth + 1.0);
@@ -612,7 +615,7 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, std::pmr::
     return internal::castResultToClass(out, ext.type(), mr);
 }
 
-Value impyramid(const Value &A, const std::string &type, std::pmr::memory_resource *mr)
+Value impyramid(const Value &A, const std::string &type, keel::Allocator *mr)
 {
     // Binomial 5-tap kernel [1 4 6 4 1]/16 (MATLAB / Octave default).
     static constexpr double kBurt[5] = {1.0 / 16, 4.0 / 16, 6.0 / 16,
@@ -623,7 +626,7 @@ Value impyramid(const Value &A, const std::string &type, std::pmr::memory_resour
     const Shape s = shapeOf(A);
     const ValueType t = A.type();
 
-    size_t Hout, Wout;
+    keel::usize Hout, Wout;
     if (reduce) { Hout = (s.H + 1) / 2; Wout = (s.W + 1) / 2; }
     else        { Hout = s.H ? 2 * s.H - 1 : 0;
                   Wout = s.W ? 2 * s.W - 1 : 0; }
@@ -651,29 +654,29 @@ Value impyramid(const Value &A, const std::string &type, std::pmr::memory_resour
                     // kept around for potential future variants.
 
     if (reduce) {
-        for (size_t c = 0; c < s.C; ++c) {
+        for (keel::usize c = 0; c < s.C; ++c) {
             // Pass 1: horizontal filter at every (r, cc).
             std::vector<double> tmp(s.H * s.W);
-            for (size_t r = 0; r < s.H; ++r) {
-                for (size_t cc = 0; cc < s.W; ++cc) {
+            for (keel::usize r = 0; r < s.H; ++r) {
+                for (keel::usize cc = 0; cc < s.W; ++cc) {
                     double acc = 0;
                     for (int k = -2; k <= 2; ++k) {
                         const int cs = sym_i((int)cc + k, (int)s.W);
                         acc += kBurt[k + 2] *
-                               A.elemAsDouble(idx3D(s, r, (size_t)cs, c));
+                               A.elemAsDouble(idx3D(s, r, (keel::usize)cs, c));
                     }
                     tmp[cc * s.H + r] = acc;
                 }
             }
             // Pass 2: vertical filter at sample positions only.
-            for (size_t yo = 0; yo < Hout; ++yo) {
-                const size_t ys = 2 * yo;
-                for (size_t xo = 0; xo < Wout; ++xo) {
-                    const size_t xs = 2 * xo;
+            for (keel::usize yo = 0; yo < Hout; ++yo) {
+                const keel::usize ys = 2 * yo;
+                for (keel::usize xo = 0; xo < Wout; ++xo) {
+                    const keel::usize xs = 2 * xo;
                     double acc = 0;
                     for (int k = -2; k <= 2; ++k) {
                         const int rs = sym_i((int)ys + k, (int)s.H);
-                        acc += kBurt[k + 2] * tmp[xs * s.H + (size_t)rs];
+                        acc += kBurt[k + 2] * tmp[xs * s.H + (keel::usize)rs];
                     }
                     writePixel(B, sd, yo, xo, c, acc, t);
                 }
@@ -683,24 +686,24 @@ Value impyramid(const Value &A, const std::string &type, std::pmr::memory_resour
         // Octave-image (Burt-Adelson Laplacian-pyramid expand) uses
         // ZERO-pad boundary on the zero-stuffed grid, with separable
         // ×2 compensation per axis (×4 total).
-        for (size_t c = 0; c < s.C; ++c) {
+        for (keel::usize c = 0; c < s.C; ++c) {
             // Zero-stuff into Hout × Wout double buffer.
             std::vector<double> stuffed(Hout * Wout, 0.0);
-            for (size_t r = 0; r < s.H; ++r)
-                for (size_t cc = 0; cc < s.W; ++cc)
+            for (keel::usize r = 0; r < s.H; ++r)
+                for (keel::usize cc = 0; cc < s.W; ++cc)
                     stuffed[(2 * cc) * Hout + 2 * r] =
                         A.elemAsDouble(idx3D(s, r, cc, c));
 
             auto sample = [&](int r, int cc) -> double {
                 if (r < 0 || cc < 0 ||
                     r >= (int)Hout || cc >= (int)Wout) return 0.0;
-                return stuffed[(size_t)cc * Hout + (size_t)r];
+                return stuffed[(keel::usize)cc * Hout + (keel::usize)r];
             };
 
             // Horizontal filter (zero-pad boundary), ×2 compensation.
             std::vector<double> tmp(Hout * Wout);
-            for (size_t r = 0; r < Hout; ++r) {
-                for (size_t cc = 0; cc < Wout; ++cc) {
+            for (keel::usize r = 0; r < Hout; ++r) {
+                for (keel::usize cc = 0; cc < Wout; ++cc) {
                     double acc = 0;
                     for (int k = -2; k <= 2; ++k)
                         acc += kBurt[k + 2] * sample((int)r, (int)cc + k);
@@ -710,11 +713,11 @@ Value impyramid(const Value &A, const std::string &type, std::pmr::memory_resour
             auto sample_t = [&](int r, int cc) -> double {
                 if (r < 0 || cc < 0 ||
                     r >= (int)Hout || cc >= (int)Wout) return 0.0;
-                return tmp[(size_t)cc * Hout + (size_t)r];
+                return tmp[(keel::usize)cc * Hout + (keel::usize)r];
             };
             // Vertical filter (zero-pad boundary), ×2 compensation.
-            for (size_t cc = 0; cc < Wout; ++cc) {
-                for (size_t r = 0; r < Hout; ++r) {
+            for (keel::usize cc = 0; cc < Wout; ++cc) {
+                for (keel::usize r = 0; r < Hout; ++r) {
                     double acc = 0;
                     for (int k = -2; k <= 2; ++k)
                         acc += kBurt[k + 2] * sample_t((int)r + k, (int)cc);
@@ -804,7 +807,7 @@ R3Kernel parseR3Kernel(const std::string &m) {
 struct ContribRow { int firstIdx; std::vector<double> w; };  // firstIdx 0-indexed
 
 std::vector<ContribRow>
-buildContrib(size_t inLen, size_t outLen, double scale,
+buildContrib(keel::usize inLen, keel::usize outLen, double scale,
              const R3Kernel &k, bool aa)
 {
     // `scale` is the user-supplied scale (NOT outLen/inLen) — MATLAB
@@ -816,7 +819,7 @@ buildContrib(size_t inLen, size_t outLen, double scale,
     const int P = static_cast<int>(std::ceil(kw)) + 2;
 
     std::vector<ContribRow> rows(outLen);
-    for (size_t o = 0; o < outLen; ++o) {
+    for (keel::usize o = 0; o < outLen; ++o) {
         // MATLAB 1-indexed input center
         const double u = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
         const int left = static_cast<int>(std::floor(u - kw / 2.0));  // 1-indexed
@@ -850,9 +853,9 @@ void imresize3_argcheck(const Value &V)
     if (dims.ndims() < 2)
         throw Error("imresize3: V must be a 3-D volume",
                     0, 0, "imresize3", "", "numkit:imresize3:rank");
-    const size_t inR = dims.dim(0);
-    const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
-    const size_t inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
+    const keel::usize inR = dims.dim(0);
+    const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
+    const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     if (V.numel() != inR * inC * inD)
         throw Error("imresize3: V must be a 3-D numeric volume",
                     0, 0, "imresize3", "", "numkit:imresize3:shape");
@@ -870,16 +873,16 @@ void imresize3_scale_argcheck(double scale)
 // Lower-level entry: scale is the user-supplied (per-axis) scale.
 // Pass scale=outLen/inLen for the size-vector branch.
 Value imresize3_core(const Value &V,
-                     size_t outR, size_t outC, size_t outD,
+                     keel::usize outR, keel::usize outC, keel::usize outD,
                      double scaleY, double scaleX, double scaleZ,
                      const std::string &method, bool antialias,
-                     std::pmr::memory_resource *mr)
+                     keel::Allocator *mr)
 {
     imresize3_argcheck(V);
     const auto &dims = V.dims();
-    const size_t inR = dims.dim(0);
-    const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
-    const size_t inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
+    const keel::usize inR = dims.dim(0);
+    const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
+    const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
 
     const ValueType T = V.type();
     if (outR == 0 || outC == 0 || outD == 0)
@@ -894,20 +897,20 @@ Value imresize3_core(const Value &V,
         auto uCoord = [](double o1, double sc) {
             return (o1) / sc + 0.5 * (1.0 - 1.0 / sc);
         };
-        for (size_t z = 0; z < outD; ++z) {
+        for (keel::usize z = 0; z < outD; ++z) {
             const double uz = uCoord(double(z) + 1.0, scaleZ);
             int zi = static_cast<int>(std::floor(uz + 0.5)) - 1;
             zi = mirrorIdx(zi, static_cast<int>(inD));
-            for (size_t x = 0; x < outC; ++x) {
+            for (keel::usize x = 0; x < outC; ++x) {
                 const double ux = uCoord(double(x) + 1.0, scaleX);
                 int xi = static_cast<int>(std::floor(ux + 0.5)) - 1;
                 xi = mirrorIdx(xi, static_cast<int>(inC));
-                for (size_t y = 0; y < outR; ++y) {
+                for (keel::usize y = 0; y < outR; ++y) {
                     const double uy = uCoord(double(y) + 1.0, scaleY);
                     int yi = static_cast<int>(std::floor(uy + 0.5)) - 1;
                     yi = mirrorIdx(yi, static_cast<int>(inR));
                     const double v = V.elemAsDouble(
-                        size_t(yi) + size_t(xi) * inR + size_t(zi) * inR * inC);
+                        keel::usize(yi) + keel::usize(xi) * inR + keel::usize(zi) * inR * inC);
                     writeNative(B, y + x * outR + z * outR * outC, v, T);
                 }
             }
@@ -921,15 +924,15 @@ Value imresize3_core(const Value &V,
 
     // Pass 1: along rows.   tmp1[outR × inC × inD]
     std::vector<double> tmp1(outR * inC * inD);
-    for (size_t z = 0; z < inD; ++z) {
-        for (size_t x = 0; x < inC; ++x) {
-            for (size_t y = 0; y < outR; ++y) {
+    for (keel::usize z = 0; z < inD; ++z) {
+        for (keel::usize x = 0; x < inC; ++x) {
+            for (keel::usize y = 0; y < outR; ++y) {
                 const ContribRow &r = cy[y];
                 double s = 0.0;
-                for (size_t j = 0; j < r.w.size(); ++j) {
+                for (keel::usize j = 0; j < r.w.size(); ++j) {
                     const int yi = mirrorIdx(r.firstIdx + int(j), int(inR));
                     s += r.w[j] *
-                         V.elemAsDouble(size_t(yi) + x * inR + z * inR * inC);
+                         V.elemAsDouble(keel::usize(yi) + x * inR + z * inR * inC);
                 }
                 tmp1[y + x * outR + z * outR * inC] = s;
             }
@@ -938,14 +941,14 @@ Value imresize3_core(const Value &V,
 
     // Pass 2: along cols.   tmp2[outR × outC × inD]
     std::vector<double> tmp2(outR * outC * inD);
-    for (size_t z = 0; z < inD; ++z) {
-        for (size_t x = 0; x < outC; ++x) {
+    for (keel::usize z = 0; z < inD; ++z) {
+        for (keel::usize x = 0; x < outC; ++x) {
             const ContribRow &r = cx[x];
-            for (size_t y = 0; y < outR; ++y) {
+            for (keel::usize y = 0; y < outR; ++y) {
                 double s = 0.0;
-                for (size_t j = 0; j < r.w.size(); ++j) {
+                for (keel::usize j = 0; j < r.w.size(); ++j) {
                     const int xi = mirrorIdx(r.firstIdx + int(j), int(inC));
-                    s += r.w[j] * tmp1[y + size_t(xi) * outR + z * outR * inC];
+                    s += r.w[j] * tmp1[y + keel::usize(xi) * outR + z * outR * inC];
                 }
                 tmp2[y + x * outR + z * outR * outC] = s;
             }
@@ -954,15 +957,15 @@ Value imresize3_core(const Value &V,
 
     // Pass 3: along planes.  B [outR × outC × outD], with class clip.
     Value B = Value::matrix3d(outR, outC, outD, T, mr);
-    for (size_t z = 0; z < outD; ++z) {
+    for (keel::usize z = 0; z < outD; ++z) {
         const ContribRow &r = cz[z];
-        for (size_t x = 0; x < outC; ++x) {
-            for (size_t y = 0; y < outR; ++y) {
+        for (keel::usize x = 0; x < outC; ++x) {
+            for (keel::usize y = 0; y < outR; ++y) {
                 double s = 0.0;
-                for (size_t j = 0; j < r.w.size(); ++j) {
+                for (keel::usize j = 0; j < r.w.size(); ++j) {
                     const int zi = mirrorIdx(r.firstIdx + int(j), int(inD));
                     s += r.w[j] *
-                         tmp2[y + x * outR + size_t(zi) * outR * outC];
+                         tmp2[y + x * outR + keel::usize(zi) * outR * outC];
                 }
                 writeNative(B, y + x * outR + z * outR * outC, s, T);
             }
@@ -972,15 +975,15 @@ Value imresize3_core(const Value &V,
 }
 
 Value imresize3(const Value &V,
-                size_t outR, size_t outC, size_t outD,
+                keel::usize outR, keel::usize outC, keel::usize outD,
                 const std::string &method, bool antialias,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
     // Size-vector entry: use outLen/inLen as the per-axis scale.
     const auto &dims = V.dims();
-    const size_t inR = dims.dim(0);
-    const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
-    const size_t inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
+    const keel::usize inR = dims.dim(0);
+    const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
+    const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     return imresize3_core(V, outR, outC, outD,
         double(outR) / double(inR ? inR : 1),
         double(outC) / double(inC ? inC : 1),
@@ -990,17 +993,17 @@ Value imresize3(const Value &V,
 
 Value imresize3(const Value &V, double scale,
                 const std::string &method, bool antialias,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
     imresize3_scale_argcheck(scale);
     const auto &dims = V.dims();
-    const size_t inR = dims.dim(0);
-    const size_t inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
-    const size_t inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
+    const keel::usize inR = dims.dim(0);
+    const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
+    const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     return imresize3_core(V,
-        static_cast<size_t>(std::round(scale * double(inR))),
-        static_cast<size_t>(std::round(scale * double(inC))),
-        static_cast<size_t>(std::round(scale * double(inD))),
+        static_cast<keel::usize>(std::round(scale * double(inR))),
+        static_cast<keel::usize>(std::round(scale * double(inC))),
+        static_cast<keel::usize>(std::round(scale * double(inD))),
         scale, scale, scale,
         method, antialias, mr);
 }

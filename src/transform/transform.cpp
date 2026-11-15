@@ -6,6 +6,11 @@
 // versa). Storage is column-major throughout, matching the rest of
 // nk's Value layout.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/image/transform/transform.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/filter/filter.hpp>
@@ -16,8 +21,9 @@
 #include <numkit/signal/convolution/convolution.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
+#include <array>
+#include <cstring>
 #include <tuple>
 #include <cctype>
 
@@ -37,10 +43,10 @@ namespace {
 // signal::dct/idct on it, and copy the result back. Allocations come
 // from the engine arena (mr) so per-call cost stays bounded.
 template <typename Fn1D>
-Value apply_along_columns(const Value &A, Fn1D &&fn1d, std::pmr::memory_resource *mr)
+Value apply_along_columns(const Value &A, Fn1D &&fn1d, keel::Allocator *mr)
 {
-    const size_t M = A.dims().rows();
-    const size_t N = A.dims().cols();
+    const keel::usize M = A.dims().rows();
+    const keel::usize N = A.dims().cols();
     Value out = Value::matrix(M, N, ValueType::DOUBLE, mr);
     if (M == 0 || N == 0) return out;
     double *dst = out.doubleDataMut();
@@ -48,12 +54,12 @@ Value apply_along_columns(const Value &A, Fn1D &&fn1d, std::pmr::memory_resource
     auto col = Value::matrix(M, 1, ValueType::DOUBLE, mr);
     double *cd = col.doubleDataMut();
 
-    for (size_t c = 0; c < N; ++c) {
-        for (size_t r = 0; r < M; ++r)
+    for (keel::usize c = 0; c < N; ++c) {
+        for (keel::usize r = 0; r < M; ++r)
             cd[r] = A.elemAsDouble(c * M + r);
         Value Y = fn1d(col, mr);
         const double *yd = Y.doubleData();
-        for (size_t r = 0; r < M; ++r)
+        for (keel::usize r = 0; r < M; ++r)
             dst[c * M + r] = yd[r];
     }
     return out;
@@ -62,10 +68,10 @@ Value apply_along_columns(const Value &A, Fn1D &&fn1d, std::pmr::memory_resource
 // Apply 1-D DCT/IDCT to every row of A. Allocates a length-N row
 // buffer per row.
 template <typename Fn1D>
-Value apply_along_rows(const Value &A, Fn1D &&fn1d, std::pmr::memory_resource *mr)
+Value apply_along_rows(const Value &A, Fn1D &&fn1d, keel::Allocator *mr)
 {
-    const size_t M = A.dims().rows();
-    const size_t N = A.dims().cols();
+    const keel::usize M = A.dims().rows();
+    const keel::usize N = A.dims().cols();
     Value out = Value::matrix(M, N, ValueType::DOUBLE, mr);
     if (M == 0 || N == 0) return out;
     double *dst = out.doubleDataMut();
@@ -73,12 +79,12 @@ Value apply_along_rows(const Value &A, Fn1D &&fn1d, std::pmr::memory_resource *m
     auto row = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     double *rd = row.doubleDataMut();
 
-    for (size_t r = 0; r < M; ++r) {
-        for (size_t c = 0; c < N; ++c)
+    for (keel::usize r = 0; r < M; ++r) {
+        for (keel::usize c = 0; c < N; ++c)
             rd[c] = A.elemAsDouble(c * M + r);
         Value Y = fn1d(row, mr);
         const double *yd = Y.doubleData();
-        for (size_t c = 0; c < N; ++c)
+        for (keel::usize c = 0; c < N; ++c)
             dst[c * M + r] = yd[c];
     }
     return out;
@@ -93,26 +99,26 @@ void dctmtx_argcheck(double Nd)
 
 } // anonymous
 
-Value dct2(const Value &A, std::pmr::memory_resource *mr)
+Value dct2(const Value &A, keel::Allocator *mr)
 {
     // Two passes of orthonormal Type-II DCT (separable). Columns first,
     // then rows — output is identical either way.
     // Disambiguate the 1-D dct overload (a 4-arg matrix form also exists).
-    using Dct1D = Value (*)(const Value &, std::pmr::memory_resource *);
+    using Dct1D = Value (*)(const Value &, keel::Allocator *);
     Dct1D dct1 = &numkit::signal::dct;
     Value Y = apply_along_columns(A, dct1, mr);
     return apply_along_rows(Y, dct1, mr);
 }
 
-Value idct2(const Value &A, std::pmr::memory_resource *mr)
+Value idct2(const Value &A, keel::Allocator *mr)
 {
-    using Idct1D = Value (*)(const Value &, std::pmr::memory_resource *);
+    using Idct1D = Value (*)(const Value &, keel::Allocator *);
     Idct1D idct1 = &numkit::signal::idct;
     Value Y = apply_along_columns(A, idct1, mr);
     return apply_along_rows(Y, idct1, mr);
 }
 
-Value dctmtx(double Nd, std::pmr::memory_resource *mr)
+Value dctmtx(double Nd, keel::Allocator *mr)
 {
     // MATLAB's dctmtx(N) returns an N×N matrix D whose rows are the
     // DCT-II basis vectors:
@@ -120,15 +126,15 @@ Value dctmtx(double Nd, std::pmr::memory_resource *mr)
     //   w[0]    = sqrt(1/N),  w[k>0] = sqrt(2/N)
     // so D*x is the DCT-II of x.
     dctmtx_argcheck(Nd);
-    const size_t N = static_cast<size_t>(Nd);
+    const keel::usize N = static_cast<keel::usize>(Nd);
     Value D = Value::matrix(N, N, ValueType::DOUBLE, mr);
     if (N == 0) return D;
     double *d = D.doubleDataMut();
     const double w0 = std::sqrt(1.0 / static_cast<double>(N));
     const double wk = std::sqrt(2.0 / static_cast<double>(N));
     const double piOver2N = M_PI / (2.0 * static_cast<double>(N));
-    for (size_t n = 0; n < N; ++n) {
-        for (size_t k = 0; k < N; ++k) {
+    for (keel::usize n = 0; n < N; ++n) {
+        for (keel::usize k = 0; k < N; ++k) {
             const double phase = piOver2N * static_cast<double>(k)
                                  * static_cast<double>(2 * n + 1);
             const double w = (k == 0) ? w0 : wk;
@@ -139,21 +145,21 @@ Value dctmtx(double Nd, std::pmr::memory_resource *mr)
     return D;
 }
 
-Value integralImage(const Value &I, std::pmr::memory_resource *mr)
+Value integralImage(const Value &I, keel::Allocator *mr)
 {
     const auto &d = I.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t H1 = H + 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize H1 = H + 1;
     Value out = Value::matrix(H1, W + 1, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
     double *od = out.doubleDataMut();
     // out[r+1, c+1] = out[r, c+1] + out[r+1, c] - out[r, c] + I[r, c].
-    for (size_t c = 0; c < W; ++c) {
-        const size_t cb = (c + 1) * H1;
-        const size_t cl = c * H1;
-        for (size_t r = 0; r < H; ++r) {
-            const size_t r1 = r + 1;
+    for (keel::usize c = 0; c < W; ++c) {
+        const keel::usize cb = (c + 1) * H1;
+        const keel::usize cl = c * H1;
+        for (keel::usize r = 0; r < H; ++r) {
+            const keel::usize r1 = r + 1;
             od[cb + r1] = od[cl + r1] + od[cb + r] - od[cl + r]
                         + I.elemAsDouble(c * H + r);
         }
@@ -161,28 +167,28 @@ Value integralImage(const Value &I, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value integralImage3(const Value &V, std::pmr::memory_resource *mr)
+Value integralImage3(const Value &V, keel::Allocator *mr)
 {
     const auto &d = V.dims();
-    const size_t H = d.rows();
-    const size_t W = d.cols();
-    const size_t P = d.is3D() ? d.pages() : 1;
-    const size_t H1 = H + 1;
-    const size_t W1 = W + 1;
-    const size_t plane1 = H1 * W1;
-    const size_t planeIn = H * W;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
+    const keel::usize H1 = H + 1;
+    const keel::usize W1 = W + 1;
+    const keel::usize plane1 = H1 * W1;
+    const keel::usize planeIn = H * W;
     Value out = Value::matrix3d(H1, W1, P + 1, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0 || P == 0) return out;
     double *od = out.doubleDataMut();
-    auto idx = [&](size_t r, size_t c, size_t p) {
+    auto idx = [&](keel::usize r, keel::usize c, keel::usize p) {
         return p * plane1 + c * H1 + r;
     };
-    for (size_t p = 0; p < P; ++p) {
-        const size_t p1 = p + 1;
-        for (size_t c = 0; c < W; ++c) {
-            const size_t c1 = c + 1;
-            for (size_t r = 0; r < H; ++r) {
-                const size_t r1 = r + 1;
+    for (keel::usize p = 0; p < P; ++p) {
+        const keel::usize p1 = p + 1;
+        for (keel::usize c = 0; c < W; ++c) {
+            const keel::usize c1 = c + 1;
+            for (keel::usize r = 0; r < H; ++r) {
+                const keel::usize r1 = r + 1;
                 const double v = V.elemAsDouble(p * planeIn + c * H + r);
                 od[idx(r1, c1, p1)] =
                       od[idx(r,  c1, p1)]
@@ -231,18 +237,18 @@ constexpr double kSheppLogan[10][6] = {
     { 0.01,  0.023,  0.046,  0.06,  -0.605,     0.0},
 };
 
-Value make_ellipse_matrix(const double (*src)[6], size_t rows, std::pmr::memory_resource *mr)
+Value make_ellipse_matrix(const double (*src)[6], keel::usize rows, keel::Allocator *mr)
 {
     Value E = Value::matrix(rows, 6, ValueType::DOUBLE, mr);
     double *ed = E.doubleDataMut();
     // Column-major: ed[c * rows + r] = src[r][c].
-    for (size_t r = 0; r < rows; ++r)
-        for (size_t c = 0; c < 6; ++c)
+    for (keel::usize r = 0; r < rows; ++r)
+        for (keel::usize c = 0; c < 6; ++c)
             ed[c * rows + r] = src[r][c];
     return E;
 }
 
-Value phantom_argcheck(const Value &model_or_E, std::pmr::memory_resource *mr)
+Value phantom_argcheck(const Value &model_or_E, keel::Allocator *mr)
 {
     if (model_or_E.numel() == 0) {
         return make_ellipse_matrix(kModSheppLogan, 10, mr);
@@ -266,7 +272,7 @@ Value phantom_argcheck(const Value &model_or_E, std::pmr::memory_resource *mr)
     }
 }
 
-void bestblk_argcheck(const Value &IMS, double k, Value &IMSC, std::pmr::memory_resource *mr)
+void bestblk_argcheck(const Value &IMS, double k, Value &IMSC, keel::Allocator *mr)
 {
     internal::requireRealKernelImage(IMS, "bestblk", "IMS", 1);
     if (IMS.type() == ValueType::CHAR)
@@ -291,8 +297,8 @@ void fftconv2_argcheck(const Value &A, const Value &B)
                                 internal::ImgClasses::FloatIntLog);
 }
 
-void psf2otf_argcheck(const Value &PSF, Span<const size_t> outsize,
-                      size_t &inH, size_t &inW, size_t &outH, size_t &outW, bool &is1D)
+void psf2otf_argcheck(const Value &PSF, keel::ArrayRef<keel::usize> outsize,
+                      keel::usize &inH, keel::usize &inW, keel::usize &outH, keel::usize &outW, bool &is1D)
 {
     const auto &d = PSF.dims();
     inH = d.rows();
@@ -304,7 +310,7 @@ void psf2otf_argcheck(const Value &PSF, Span<const size_t> outsize,
         outH = outsize[0];
         outW = outsize[1];
     } else if (outsize.size() == 1) {
-        const size_t L = outsize[0];
+        const keel::usize L = outsize[0];
         if (is1D) {
             if (inH == 1) { outH = 1; outW = L; }
             else          { outH = L; outW = 1; }
@@ -315,8 +321,8 @@ void psf2otf_argcheck(const Value &PSF, Span<const size_t> outsize,
                     0, 0, "psf2otf", "", "numkit:psf2otf:outsize");
 }
 
-void otf2psf_argcheck(const Value &OTF, Span<const size_t> outsize,
-                      size_t &inH, size_t &inW, size_t &outH, size_t &outW, bool &is1D)
+void otf2psf_argcheck(const Value &OTF, keel::ArrayRef<keel::usize> outsize,
+                      keel::usize &inH, keel::usize &inW, keel::usize &outH, keel::usize &outW, bool &is1D)
 {
     const auto &d = OTF.dims();
     inH = d.rows();
@@ -325,7 +331,7 @@ void otf2psf_argcheck(const Value &OTF, Span<const size_t> outsize,
     outH = inH;
     outW = inW;
     if (outsize.size() == 1) {
-        const size_t L = outsize[0];
+        const keel::usize L = outsize[0];
         if (is1D) {
             if (inH == 1) { outH = 1; outW = L; }
             else          { outH = L; outW = 1; }
@@ -351,7 +357,7 @@ void normxcorr2_argcheck(const Value &templ, const Value &img)
 } // anonymous
 
 std::tuple<Value, Value>
-phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
+phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
 {
     Value E = phantom_argcheck(model_or_E, mr);
     if (n == 0) n = 256;
@@ -364,17 +370,17 @@ phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
     std::vector<double> xvals(n);
     if (n == 1) xvals[0] = -1.0;
     else
-        for (size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             xvals[i] = -1.0 + 2.0 * static_cast<double>(i)
                               / static_cast<double>(n - 1);
 
-    const size_t nE = E.dims().rows();
+    const keel::usize nE = E.dims().rows();
     const double *ed = E.doubleData();
-    auto Eat = [&](size_t r, size_t c) {
+    auto Eat = [&](keel::usize r, keel::usize c) {
         return ed[c * nE + r];
     };
 
-    for (size_t k = 0; k < nE; ++k) {
+    for (keel::usize k = 0; k < nE; ++k) {
         const double I  = Eat(k, 0);
         const double a  = Eat(k, 1);
         const double b  = Eat(k, 2);
@@ -387,11 +393,11 @@ phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
         const double sin_p = std::sin(phi);
 
         // xgrid[r, c] = xvals[c]; y = rot90(xgrid) → y[r, c] = xvals[n-1-r].
-        for (size_t c = 0; c < n; ++c) {
+        for (keel::usize c = 0; c < n; ++c) {
             const double xg_c = xvals[c];
             const double x = xg_c - x0;
-            const size_t col_off = c * n;
-            for (size_t r = 0; r < n; ++r) {
+            const keel::usize col_off = c * n;
+            for (keel::usize r = 0; r < n; ++r) {
                 const double y = xvals[n - 1 - r] - y0;
                 const double u = x * cos_p + y * sin_p;
                 const double v = y * cos_p - x * sin_p;
@@ -403,18 +409,18 @@ phantom(const Value &model_or_E, size_t n, std::pmr::memory_resource *mr)
     return {std::move(head), std::move(E)};
 }
 
-Value bestblk(const Value &IMS, double k, std::pmr::memory_resource *mr)
+Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
 {
     Value IMSC;
     bestblk_argcheck(IMS, k, IMSC, mr);
     const Value &IMSu = (IMS.type() == ValueType::CHAR) ? IMSC : IMS;
 
-    const size_t nd = IMSu.numel();
+    const keel::usize nd = IMSu.numel();
     const long long K = static_cast<long long>(std::floor(k));
     Value out = Value::matrix(1, nd, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
 
-    for (size_t d = 0; d < nd; ++d) {
+    for (keel::usize d = 0; d < nd; ++d) {
         const long long dim = static_cast<long long>(
             std::floor(IMSu.elemAsDouble(d)));
         if (dim < 1)
@@ -446,31 +452,31 @@ Value bestblk(const Value &IMS, double k, std::pmr::memory_resource *mr)
     return internal::castResultToClass(out, IMSu.type(), mr);
 }
 
-Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pmr::memory_resource *mr)
+Value fftconv2(const Value &A, const Value &B, const std::string &shape, keel::Allocator *mr)
 {
     // fftconv2 is reference-absent (Octave image package API) — the
     // nk-defined contract takes the standard image class set.
     fftconv2_argcheck(A, B);
-    const size_t ra = A.dims().rows(), ca = A.dims().cols();
-    const size_t rb = B.dims().rows(), cb = B.dims().cols();
+    const keel::usize ra = A.dims().rows(), ca = A.dims().cols();
+    const keel::usize rb = B.dims().rows(), cb = B.dims().cols();
     if (ra == 0 || ca == 0 || rb == 0 || cb == 0)
         return Value::matrix(0, 0, ValueType::COMPLEX, mr);
 
-    const size_t Hf = ra + rb - 1;
-    const size_t Wf = ca + cb - 1;
+    const keel::usize Hf = ra + rb - 1;
+    const keel::usize Wf = ca + cb - 1;
     // signal::fft only handles power-of-2 lengths reliably right now,
     // so round both axes up to the next power of 2 for the transform
     // and crop afterwards. Linear-convolution semantics are preserved
     // because the input is zero-padded.
-    auto next_pow2 = [](size_t n) {
-        size_t p = 1;
+    auto next_pow2 = [](keel::usize n) {
+        keel::usize p = 1;
         while (p < n) p <<= 1;
         return p ? p : 1;
     };
-    const size_t Hp = next_pow2(Hf);
-    const size_t Wp = next_pow2(Wf);
+    const keel::usize Hp = next_pow2(Hf);
+    const keel::usize Wp = next_pow2(Wf);
 
-    auto pad_post = [&](const Value &X, size_t Hpad, size_t Wpad) {
+    auto pad_post = [&](const Value &X, keel::usize Hpad, keel::usize Wpad) {
         return padarray(X, {(int)(Hpad - X.dims().rows()), (int)(Wpad - X.dims().cols())}, PadMode::Constant, 0.0, "post", mr);
     };
     Value Ap = pad_post(A, Hp, Wp);
@@ -481,11 +487,11 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pm
 
     Value FY = Value::matrix(Hp, Wp, ValueType::COMPLEX, mr);
     {
-        const Complex *a_ = FA.complexData();
-        const Complex *b_ = FB.complexData();
-        Complex *y_       = FY.complexDataMut();
-        const size_t N = Hp * Wp;
-        for (size_t i = 0; i < N; ++i) y_[i] = a_[i] * b_[i];
+        const keel::c64 *a_ = FA.complexData();
+        const keel::c64 *b_ = FB.complexData();
+        keel::c64 *y_       = FY.complexDataMut();
+        const keel::usize N = Hp * Wp;
+        for (keel::usize i = 0; i < N; ++i) y_[i] = a_[i] * b_[i];
     }
 
     Value Yfull = signal::ifft2(FY, -1, -1, mr);
@@ -493,16 +499,16 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pm
     // Crop back to the linear-convolution size Hf × Wf.
     Value Y = Value::matrix(Hf, Wf, Yfull.type(), mr);
     if (Yfull.type() == ValueType::COMPLEX) {
-        const Complex *src = Yfull.complexData();
-        Complex *dst       = Y.complexDataMut();
-        for (size_t c = 0; c < Wf; ++c)
-            for (size_t r = 0; r < Hf; ++r)
+        const keel::c64 *src = Yfull.complexData();
+        keel::c64 *dst       = Y.complexDataMut();
+        for (keel::usize c = 0; c < Wf; ++c)
+            for (keel::usize r = 0; r < Hf; ++r)
                 dst[c * Hf + r] = src[c * Hp + r];
     } else {
         const double *src = Yfull.doubleData();
         double *dst       = Y.doubleDataMut();
-        for (size_t c = 0; c < Wf; ++c)
-            for (size_t r = 0; r < Hf; ++r)
+        for (keel::usize c = 0; c < Wf; ++c)
+            for (keel::usize r = 0; r < Hf; ++r)
                 dst[c * Hf + r] = src[c * Hp + r];
     }
 
@@ -512,7 +518,7 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pm
     if (sh.empty()) sh = "full";
     if (sh == "full") return Y;
 
-    size_t r0 = 0, c0 = 0, outH = 0, outW = 0;
+    keel::usize r0 = 0, c0 = 0, outH = 0, outW = 0;
     if (sh == "same") {
         r0 = rb / 2;
         c0 = cb / 2;
@@ -535,24 +541,24 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, std::pm
 
     Value Ycrop = Value::matrix(outH, outW, Y.type(), mr);
     if (Y.type() == ValueType::COMPLEX) {
-        const Complex *src = Y.complexData();
-        Complex *dst       = Ycrop.complexDataMut();
-        for (size_t c = 0; c < outW; ++c)
-            for (size_t r = 0; r < outH; ++r)
+        const keel::c64 *src = Y.complexData();
+        keel::c64 *dst       = Ycrop.complexDataMut();
+        for (keel::usize c = 0; c < outW; ++c)
+            for (keel::usize r = 0; r < outH; ++r)
                 dst[c * outH + r] = src[(c + c0) * Hf + (r + r0)];
     } else {
         const double *src = Y.doubleData();
         double *dst       = Ycrop.doubleDataMut();
-        for (size_t c = 0; c < outW; ++c)
-            for (size_t r = 0; r < outH; ++r)
+        for (keel::usize c = 0; c < outW; ++c)
+            for (keel::usize r = 0; r < outH; ++r)
                 dst[c * outH + r] = src[(c + c0) * Hf + (r + r0)];
     }
     return Ycrop;
 }
 
-Value psf2otf(const Value &PSF, Span<const size_t> outsize, std::pmr::memory_resource *mr)
+Value psf2otf(const Value &PSF, keel::ArrayRef<keel::usize> outsize, keel::Allocator *mr)
 {
-    size_t inH = 0, inW = 0, outH = 0, outW = 0;
+    keel::usize inH = 0, inW = 0, outH = 0, outW = 0;
     bool is1D = false;
     psf2otf_argcheck(PSF, outsize, inH, inW, outH, outW, is1D);
 
@@ -565,8 +571,8 @@ Value psf2otf(const Value &PSF, Span<const size_t> outsize, std::pmr::memory_res
     }
 
     // Circular shift by -floor(insize / 2).
-    const int64_t shiftR = -static_cast<int64_t>(inH / 2);
-    const int64_t shiftC = -static_cast<int64_t>(inW / 2);
+    const keel::i64 shiftR = -static_cast<keel::i64>(inH / 2);
+    const keel::i64 shiftC = -static_cast<keel::i64>(inW / 2);
     Value shifted;
     if (is1D) {
         shifted = numkit::builtin::circshift(padded, (inH == 1) ? shiftC : shiftR, mr);
@@ -579,9 +585,9 @@ Value psf2otf(const Value &PSF, Span<const size_t> outsize, std::pmr::memory_res
                 : signal::fft2(shifted, -1, -1, mr);
 }
 
-Value otf2psf(const Value &OTF, Span<const size_t> outsize, std::pmr::memory_resource *mr)
+Value otf2psf(const Value &OTF, keel::ArrayRef<keel::usize> outsize, keel::Allocator *mr)
 {
-    size_t inH = 0, inW = 0, outH = 0, outW = 0;
+    keel::usize inH = 0, inW = 0, outH = 0, outW = 0;
     bool is1D = false;
     otf2psf_argcheck(OTF, outsize, inH, inW, outH, outW, is1D);
 
@@ -593,8 +599,8 @@ Value otf2psf(const Value &OTF, Span<const size_t> outsize, std::pmr::memory_res
     // otf2psf source (NOT floor(insize/2) — the shift amount depends
     // on the requested output size). With outsize == insize this
     // reduces to the standard "ifftshift" behaviour.
-    const int64_t shiftR = static_cast<int64_t>(outH / 2);
-    const int64_t shiftC = static_cast<int64_t>(outW / 2);
+    const keel::i64 shiftR = static_cast<keel::i64>(outH / 2);
+    const keel::i64 shiftC = static_cast<keel::i64>(outW / 2);
     Value shifted;
     if (is1D) {
         shifted = numkit::builtin::circshift(psf, (inH == 1) ? shiftC : shiftR, mr);
@@ -610,31 +616,31 @@ Value otf2psf(const Value &OTF, Span<const size_t> outsize, std::pmr::memory_res
     Value cropped = Value::matrix(outH, outW,
         is_complex ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
     if (is_complex) {
-        const Complex *src = shifted.complexData();
-        Complex *dst = cropped.complexDataMut();
-        for (size_t j = 0; j < outW; ++j)
-            for (size_t i = 0; i < outH; ++i)
+        const keel::c64 *src = shifted.complexData();
+        keel::c64 *dst = cropped.complexDataMut();
+        for (keel::usize j = 0; j < outW; ++j)
+            for (keel::usize i = 0; i < outH; ++i)
                 dst[j * outH + i] = src[j * inH + i];
     } else {
         const double *src = shifted.doubleData();
         double *dst = cropped.doubleDataMut();
-        for (size_t j = 0; j < outW; ++j)
-            for (size_t i = 0; i < outH; ++i)
+        for (keel::usize j = 0; j < outW; ++j)
+            for (keel::usize i = 0; i < outH; ++i)
                 dst[j * outH + i] = src[j * inH + i];
     }
     return cropped;
 }
 
-Value normxcorr2(const Value &templ, const Value &img, std::pmr::memory_resource *mr)
+Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
 {
     // Probed R2025b: logical templates are rejected (the reference
     // requires element-wise double arithmetic); complex is expectedReal.
     normxcorr2_argcheck(templ, img);
-    const size_t mH = templ.dims().rows();
-    const size_t mW = templ.dims().cols();
-    const size_t bH = img.dims().rows();
-    const size_t bW = img.dims().cols();
-    const size_t mN = mH * mW;
+    const keel::usize mH = templ.dims().rows();
+    const keel::usize mW = templ.dims().cols();
+    const keel::usize bH = img.dims().rows();
+    const keel::usize bW = img.dims().cols();
+    const keel::usize mN = mH * mW;
 
     // Build:
     //   a = templ - mean(templ)  (centered template)
@@ -656,16 +662,16 @@ Value normxcorr2(const Value &templ, const Value &img, std::pmr::memory_resource
     double *bd = b.doubleDataMut();
 
     long double sa = 0.0L;
-    for (size_t i = 0; i < mN; ++i) sa += templ.elemAsDouble(i);
+    for (keel::usize i = 0; i < mN; ++i) sa += templ.elemAsDouble(i);
     const double ma = (mN > 0) ? static_cast<double>(sa / static_cast<long double>(mN)) : 0.0;
-    for (size_t i = 0; i < mN; ++i)     ad[i] = templ.elemAsDouble(i) - ma;
-    for (size_t i = 0; i < bH * bW; ++i) bd[i] = img.elemAsDouble(i);
+    for (keel::usize i = 0; i < mN; ++i)     ad[i] = templ.elemAsDouble(i) - ma;
+    for (keel::usize i = 0; i < bH * bW; ++i) bd[i] = img.elemAsDouble(i);
 
     // Reversed template ar = rot180(a). Column-major: ar[(mW-1-c)*mH + (mH-1-r)] = a[c*mH + r].
     Value ar = Value::matrix(mH, mW, ValueType::DOUBLE, mr);
     double *ard = ar.doubleDataMut();
-    for (size_t c = 0; c < mW; ++c)
-        for (size_t r = 0; r < mH; ++r)
+    for (keel::usize c = 0; c < mW; ++c)
+        for (keel::usize r = 0; r < mH; ++r)
             ard[(mW - 1 - c) * mH + (mH - 1 - r)] = ad[c * mH + r];
 
     // Numerator: conv2(b, ar, 'full').
@@ -674,24 +680,24 @@ Value normxcorr2(const Value &templ, const Value &img, std::pmr::memory_resource
     // Denominator pieces use a1 = ones(size(a)).
     Value a1 = Value::matrix(mH, mW, ValueType::DOUBLE, mr);
     double *a1d = a1.doubleDataMut();
-    for (size_t i = 0; i < mN; ++i) a1d[i] = 1.0;
+    for (keel::usize i = 0; i < mN; ++i) a1d[i] = 1.0;
 
     // b_sq = b .^ 2.
     Value b_sq = Value::matrix(bH, bW, ValueType::DOUBLE, mr);
     double *bsd = b_sq.doubleDataMut();
-    for (size_t i = 0; i < bH * bW; ++i) bsd[i] = bd[i] * bd[i];
+    for (keel::usize i = 0; i < bH * bW; ++i) bsd[i] = bd[i] * bd[i];
 
     Value sum_b_sq = signal::conv2(b_sq, a1, "full", mr);
     Value sum_b    = signal::conv2(b, a1, "full", mr);
 
     // c_denom = sum_b_sq - sum_b.^2 / mN (clamped at 0).
-    const size_t outH = bH + mH - 1;
-    const size_t outW = bW + mW - 1;
+    const keel::usize outH = bH + mH - 1;
+    const keel::usize outW = bW + mW - 1;
     Value c_denom = Value::matrix(outH, outW, ValueType::DOUBLE, mr);
     double *cdd = c_denom.doubleDataMut();
     const double *sbsd = sum_b_sq.doubleData();
     const double *sbd  = sum_b.doubleData();
-    for (size_t i = 0; i < outH * outW; ++i) {
+    for (keel::usize i = 0; i < outH * outW; ++i) {
         double v = sbsd[i] - (sbd[i] * sbd[i]) /
                               static_cast<double>(mN > 0 ? mN : 1);
         if (v < 0.0) v = 0.0;
@@ -700,14 +706,14 @@ Value normxcorr2(const Value &templ, const Value &img, std::pmr::memory_resource
 
     // sumsq(a).
     long double sumsq_a = 0.0L;
-    for (size_t i = 0; i < mN; ++i) sumsq_a += static_cast<long double>(ad[i]) * ad[i];
+    for (keel::usize i = 0; i < mN; ++i) sumsq_a += static_cast<long double>(ad[i]) * ad[i];
     const double sa2 = static_cast<double>(sumsq_a);
 
     // c = c_num / sqrt(c_denom * sumsq_a); inf/nan → 0.
     Value c_out = Value::matrix(outH, outW, ValueType::DOUBLE, mr);
     double *cod = c_out.doubleDataMut();
     const double *cnd = c_num.doubleData();
-    for (size_t i = 0; i < outH * outW; ++i) {
+    for (keel::usize i = 0; i < outH * outW; ++i) {
         const double denom = std::sqrt(cdd[i] * sa2);
         double v = (denom > 0.0) ? cnd[i] / denom : 0.0;
         if (!std::isfinite(v)) v = 0.0;
@@ -716,10 +722,10 @@ Value normxcorr2(const Value &templ, const Value &img, std::pmr::memory_resource
     return c_out;
 }
 
-Value checkerboard(size_t side, size_t M, size_t N, std::pmr::memory_resource *mr)
+Value checkerboard(keel::usize side, keel::usize M, keel::usize N, keel::Allocator *mr)
 {
-    const size_t H = 2 * M * side;
-    const size_t W = 2 * N * side;
+    const keel::usize H = 2 * M * side;
+    const keel::usize W = 2 * N * side;
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0 || side == 0) return out;
     double *od = out.doubleDataMut();
@@ -727,20 +733,20 @@ Value checkerboard(size_t side, size_t M, size_t N, std::pmr::memory_resource *m
     // Tile pattern: 2*side × 2*side. Build via linspace(-1, 1, 2*side):
     //   x[i] = -1 + 2 * i / (2*side - 1)
     // tile(r, c) = (x[r] * x[c]) < 0  → 1.0 in opposite-sign quadrants.
-    const size_t S2 = 2 * side;
+    const keel::usize S2 = 2 * side;
     std::vector<double> x(S2);
     if (S2 == 1) x[0] = -1.0;
     else
-        for (size_t i = 0; i < S2; ++i)
+        for (keel::usize i = 0; i < S2; ++i)
             x[i] = -1.0 + 2.0 * static_cast<double>(i)
                           / static_cast<double>(S2 - 1);
 
     // Right half (cols ≥ W/2) is dimmed to 0.7.
-    const size_t halfW = W / 2;
-    for (size_t c = 0; c < W; ++c) {
+    const keel::usize halfW = W / 2;
+    for (keel::usize c = 0; c < W; ++c) {
         const double xc = x[c % S2];
         const double dim = (c >= halfW) ? 0.7 : 1.0;
-        for (size_t r = 0; r < H; ++r) {
+        for (keel::usize r = 0; r < H; ++r) {
             const double xr = x[r % S2];
             const double tile = (xr * xc < 0.0) ? 1.0 : 0.0;
             od[c * H + r] = tile * dim;
@@ -762,27 +768,27 @@ namespace {
 
 // Wide cast input I to DOUBLE, recording the source class for the
 // later quantisation cast on output.
-Value to_double_pmr(const Value &I, std::pmr::memory_resource *mr)
+Value to_double_pmr(const Value &I, keel::Allocator *mr)
 {
     const auto &d = I.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
     Value out = d.is3D()
         ? Value::matrix3d(H, W, d.pages(), ValueType::DOUBLE, mr)
         : Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    const std::size_t N = I.numel();
+    const keel::usize N = I.numel();
     switch (I.type()) {
         case ValueType::DOUBLE:
             std::memcpy(od, I.doubleData(), N * sizeof(double)); break;
         case ValueType::SINGLE:
-            for (std::size_t i = 0; i < N; ++i) od[i] = I.singleData()[i]; break;
+            for (keel::usize i = 0; i < N; ++i) od[i] = I.singleData()[i]; break;
         case ValueType::UINT8:
-            for (std::size_t i = 0; i < N; ++i) od[i] = I.uint8Data()[i] / 255.0; break;
+            for (keel::usize i = 0; i < N; ++i) od[i] = I.uint8Data()[i] / 255.0; break;
         case ValueType::UINT16:
-            for (std::size_t i = 0; i < N; ++i) od[i] = I.uint16Data()[i] / 65535.0; break;
+            for (keel::usize i = 0; i < N; ++i) od[i] = I.uint16Data()[i] / 65535.0; break;
         case ValueType::INT16:
-            for (std::size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 od[i] = (I.int16Data()[i] + 32768.0) / 65535.0; break;
         default:
             throw Error("deconvwnr: unsupported image class",
@@ -792,43 +798,43 @@ Value to_double_pmr(const Value &I, std::pmr::memory_resource *mr)
 }
 
 Value real_back_to_class(const Value &Jd, ValueType outT,
-                         std::pmr::memory_resource *mr)
+                         keel::Allocator *mr)
 {
     const auto &d = Jd.dims();
     Value out = d.is3D()
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(), outT, mr)
         : Value::matrix(d.rows(), d.cols(), outT, mr);
-    const std::size_t N = Jd.numel();
+    const keel::usize N = Jd.numel();
     const double *src = Jd.doubleData();
     auto sat_u8  = [](double v) {
-        if (v <= 0.0) return uint8_t{0};
-        if (v >= 1.0) return uint8_t{255};
-        return static_cast<uint8_t>(std::lround(v * 255.0));
+        if (v <= 0.0) return keel::u8{0};
+        if (v >= 1.0) return keel::u8{255};
+        return static_cast<keel::u8>(std::lround(v * 255.0));
     };
     auto sat_u16 = [](double v) {
-        if (v <= 0.0) return uint16_t{0};
-        if (v >= 1.0) return uint16_t{65535};
-        return static_cast<uint16_t>(std::lround(v * 65535.0));
+        if (v <= 0.0) return keel::u16{0};
+        if (v >= 1.0) return keel::u16{65535};
+        return static_cast<keel::u16>(std::lround(v * 65535.0));
     };
     auto sat_i16 = [](double v) {
-        if (v <= 0.0) return int16_t{-32768};
-        if (v >= 1.0) return int16_t{32767};
-        return static_cast<int16_t>(std::lround(v * 65535.0 - 32768.0));
+        if (v <= 0.0) return keel::i16{-32768};
+        if (v >= 1.0) return keel::i16{32767};
+        return static_cast<keel::i16>(std::lround(v * 65535.0 - 32768.0));
     };
     switch (outT) {
         case ValueType::DOUBLE:
             std::memcpy(out.doubleDataMut(), src, N * sizeof(double)); break;
         case ValueType::SINGLE:
-            for (std::size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 out.singleDataMut()[i] = static_cast<float>(src[i]); break;
         case ValueType::UINT8:
-            for (std::size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 out.uint8DataMut()[i] = sat_u8(src[i]); break;
         case ValueType::UINT16:
-            for (std::size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 out.uint16DataMut()[i] = sat_u16(src[i]); break;
         case ValueType::INT16:
-            for (std::size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 out.int16DataMut()[i] = sat_i16(src[i]); break;
         default:
             throw Error("deconvwnr: unsupported output class",
@@ -842,36 +848,36 @@ Value real_back_to_class(const Value &Jd, ValueType outT,
 // reduced via fftn-and-abs). Returns DOUBLE J of size(I).
 Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
                                  double S_u, double S_x,
-                                 std::pmr::memory_resource *mr)
+                                 keel::Allocator *mr)
 {
     const auto &dI = I.dims();
-    const std::size_t H = dI.rows();
-    const std::size_t W = dI.cols();
+    const keel::usize H = dI.rows();
+    const keel::usize W = dI.cols();
     const bool is3 = dI.is3D();
-    const std::size_t P = is3 ? dI.pages() : 1;
+    const keel::usize P = is3 ? dI.pages() : 1;
 
     // 2-D OTF for now (deconvwnr handles N-D in MATLAB; we cover
     // 2-D and 3-D via per-page processing — common in HDR / volumes).
-    std::array<std::size_t, 2> outsize{H, W};
-    Value Hf = psf2otf(PSF, Span<const std::size_t>(outsize.data(), 2), mr);
+    std::array<keel::usize, 2> outsize{H, W};
+    Value Hf = psf2otf(PSF, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
     // psf2otf may return DOUBLE for real-symmetric PSFs; normalise
     // to a COMPLEX buffer so the rest of this function can access
     // both real and imag uniformly.
-    const std::size_t plane = H * W;
-    std::pmr::vector<Complex> Hcplx(plane, Complex{0, 0}, mr);
+    const keel::usize plane = H * W;
+    keel::Array<keel::c64> Hcplx(plane, keel::c64{0, 0}, mr);
     if (Hf.isComplex()) {
-        const Complex *src = Hf.complexData();
-        for (std::size_t i = 0; i < plane; ++i) Hcplx[i] = src[i];
+        const keel::c64 *src = Hf.complexData();
+        for (keel::usize i = 0; i < plane; ++i) Hcplx[i] = src[i];
     } else {
-        for (std::size_t i = 0; i < plane; ++i)
-            Hcplx[i] = Complex{Hf.elemAsDouble(i), 0.0};
+        for (keel::usize i = 0; i < plane; ++i)
+            Hcplx[i] = keel::c64{Hf.elemAsDouble(i), 0.0};
     }
-    const Complex *Hd = Hcplx.data();
+    const keel::c64 *Hd = Hcplx.data();
     // denom = |H|^2 * S_x + S_u, clamped at sqrt(eps).
     Value denom = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *denomD = denom.doubleDataMut();
     const double sqrt_eps = std::sqrt(std::numeric_limits<double>::epsilon());
-    for (std::size_t i = 0; i < plane; ++i) {
+    for (keel::usize i = 0; i < plane; ++i) {
         const double m2 = Hd[i].real() * Hd[i].real() + Hd[i].imag() * Hd[i].imag();
         double d = m2 * S_x + S_u;
         if (d < sqrt_eps) d = sqrt_eps;
@@ -883,48 +889,48 @@ Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
         ? Value::matrix3d(H, W, P, ValueType::DOUBLE, mr)
         : Value::matrix(H, W, ValueType::DOUBLE, mr);
 
-    for (std::size_t pg = 0; pg < P; ++pg) {
+    for (keel::usize pg = 0; pg < P; ++pg) {
         Value Ip = is3 ? Value::matrix(H, W, ValueType::DOUBLE, mr) : I;
         if (is3) {
             double *ipd = Ip.doubleDataMut();
-            for (std::size_t i = 0; i < plane; ++i)
+            for (keel::usize i = 0; i < plane; ++i)
                 ipd[i] = I.doubleData()[pg * plane + i];
         }
         Value FI = signal::fft2(Ip, -1, -1, mr);
         // FFT2 may collapse to DOUBLE when input is real-symmetric.
-        std::pmr::vector<Complex> FIcplx(plane, Complex{0, 0}, mr);
+        keel::Array<keel::c64> FIcplx(plane, keel::c64{0, 0}, mr);
         if (FI.isComplex()) {
-            const Complex *src = FI.complexData();
-            for (std::size_t i = 0; i < plane; ++i) FIcplx[i] = src[i];
+            const keel::c64 *src = FI.complexData();
+            for (keel::usize i = 0; i < plane; ++i) FIcplx[i] = src[i];
         } else {
-            for (std::size_t i = 0; i < plane; ++i)
-                FIcplx[i] = Complex{FI.elemAsDouble(i), 0.0};
+            for (keel::usize i = 0; i < plane; ++i)
+                FIcplx[i] = keel::c64{FI.elemAsDouble(i), 0.0};
         }
         Value FG = Value::matrix(H, W, ValueType::COMPLEX, mr);
-        Complex *fg = FG.complexDataMut();
-        const Complex *fi = FIcplx.data();
-        for (std::size_t i = 0; i < plane; ++i) {
+        keel::c64 *fg = FG.complexDataMut();
+        const keel::c64 *fi = FIcplx.data();
+        for (keel::usize i = 0; i < plane; ++i) {
             // G(k) = conj(H(k)) * S_x / denom(k); multiply by FI(k).
-            const Complex Hk = Hd[i];
-            const Complex Hc{Hk.real(), -Hk.imag()};
+            const keel::c64 Hk = Hd[i];
+            const keel::c64 Hc{Hk.real(), -Hk.imag()};
             const double g_scale = S_x / denomD[i];
-            const Complex Gk{Hc.real() * g_scale, Hc.imag() * g_scale};
-            fg[i] = Complex{Gk.real() * fi[i].real() - Gk.imag() * fi[i].imag(),
+            const keel::c64 Gk{Hc.real() * g_scale, Hc.imag() * g_scale};
+            fg[i] = keel::c64{Gk.real() * fi[i].real() - Gk.imag() * fi[i].imag(),
                             Gk.real() * fi[i].imag() + Gk.imag() * fi[i].real()};
         }
         Value Jp = signal::ifft2(FG, -1, -1, mr);
         // IFFT2 may also collapse to DOUBLE for purely-real spectra.
-        auto jp_at = [&](std::size_t i) -> double {
+        auto jp_at = [&](keel::usize i) -> double {
             if (Jp.isComplex()) return Jp.complexData()[i].real();
             return Jp.elemAsDouble(i);
         };
         if (is3) {
             double *jod = J.doubleDataMut();
-            for (std::size_t i = 0; i < plane; ++i)
+            for (keel::usize i = 0; i < plane; ++i)
                 jod[pg * plane + i] = jp_at(i);
         } else {
             double *jod = J.doubleDataMut();
-            for (std::size_t i = 0; i < plane; ++i)
+            for (keel::usize i = 0; i < plane; ++i)
                 jod[i] = jp_at(i);
         }
     }
@@ -960,10 +966,10 @@ void edgetaper_argcheck(const Value &I, const Value &PSF)
     if (dPSF.is3D())
         throw Error("edgetaper: PSF must be 2-D",
                     0, 0, "edgetaper", "", "numkit:edgetaper:psfRank");
-    const std::size_t H  = dI.rows();
-    const std::size_t W  = dI.cols();
-    const std::size_t PH = dPSF.rows();
-    const std::size_t PW = dPSF.cols();
+    const keel::usize H  = dI.rows();
+    const keel::usize W  = dI.cols();
+    const keel::usize PH = dPSF.rows();
+    const keel::usize PW = dPSF.cols();
     if (H * W < 2)
         throw Error("edgetaper: I must have at least 2 elements",
                     0, 0, "edgetaper", "", "numkit:edgetaper:tooSmall");
@@ -979,7 +985,7 @@ void edgetaper_argcheck(const Value &I, const Value &PSF)
 } // anonymous
 
 Value deconvwnr(const Value &I, const Value &PSF, double nsr,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
     deconvwnr_nsr_argcheck(I, PSF);
     const ValueType inT = I.type();
@@ -992,7 +998,7 @@ Value deconvwnr(const Value &I, const Value &PSF, double nsr,
 
 Value deconvwnr(const Value &I, const Value &PSF,
                 const Value &ncorr, const Value &icorr,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
     deconvwnr_acf_argcheck(PSF);
     const ValueType inT = I.type();
@@ -1002,14 +1008,14 @@ Value deconvwnr(const Value &I, const Value &PSF,
     // Determine S_u and S_x — scalars or same-size power spectra
     // (we take |fftn(ACF, sizeI)| per MATLAB's powerSpectrumFromACF).
     const auto &dI = Id.dims();
-    const std::size_t H = dI.rows();
-    const std::size_t W = dI.cols();
-    const std::size_t plane = H * W;
+    const keel::usize H = dI.rows();
+    const keel::usize W = dI.cols();
+    const keel::usize plane = H * W;
 
-    auto build_S = [&](const Value &acf, const char *name) -> std::pair<bool, std::pmr::vector<double>> {
+    auto build_S = [&](const Value &acf, const char *name) -> std::pair<bool, keel::Array<double>> {
         if (acf.numel() == 1) {
             // Scalar: uniform spectrum equal to that value.
-            std::pmr::vector<double> v(mr);
+            keel::Array<double> v(mr);
             v.push_back(acf.toScalar());
             return {true, std::move(v)};
         }
@@ -1017,9 +1023,9 @@ Value deconvwnr(const Value &I, const Value &PSF,
             && !acf.dims().is3D()) {
             // Same-size ACF: |fft2(acf)|
             Value F = signal::fft2(acf, -1, -1, mr);
-            std::pmr::vector<double> S(plane, 0.0, mr);
-            const Complex *fc = F.complexData();
-            for (std::size_t i = 0; i < plane; ++i) {
+            keel::Array<double> S(plane, 0.0, mr);
+            const keel::c64 *fc = F.complexData();
+            for (keel::usize i = 0; i < plane; ++i) {
                 const double m = std::sqrt(fc[i].real() * fc[i].real()
                                          + fc[i].imag() * fc[i].imag());
                 S[i] = m;
@@ -1042,26 +1048,26 @@ Value deconvwnr(const Value &I, const Value &PSF,
         // Non-scalar spectra: apply per pixel inside the loop. Reuse
         // the scalar-core's H computation, then redo the denom build.
         const bool is3 = dI.is3D();
-        const std::size_t P = is3 ? dI.pages() : 1;
-        std::array<std::size_t, 2> outsize{H, W};
-        Value Hf = psf2otf(PSFd, Span<const std::size_t>(outsize.data(), 2), mr);
+        const keel::usize P = is3 ? dI.pages() : 1;
+        std::array<keel::usize, 2> outsize{H, W};
+        Value Hf = psf2otf(PSFd, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
         // Same DOUBLE-vs-COMPLEX normalisation as the scalar path.
-        std::pmr::vector<Complex> Hcplx(plane, Complex{0, 0}, mr);
+        keel::Array<keel::c64> Hcplx(plane, keel::c64{0, 0}, mr);
         if (Hf.isComplex()) {
-            const Complex *src = Hf.complexData();
-            for (std::size_t i = 0; i < plane; ++i) Hcplx[i] = src[i];
+            const keel::c64 *src = Hf.complexData();
+            for (keel::usize i = 0; i < plane; ++i) Hcplx[i] = src[i];
         } else {
-            for (std::size_t i = 0; i < plane; ++i)
-                Hcplx[i] = Complex{Hf.elemAsDouble(i), 0.0};
+            for (keel::usize i = 0; i < plane; ++i)
+                Hcplx[i] = keel::c64{Hf.elemAsDouble(i), 0.0};
         }
-        const Complex *Hd = Hcplx.data();
+        const keel::c64 *Hd = Hcplx.data();
         Value denom = Value::matrix(H, W, ValueType::DOUBLE, mr);
         double *denomD = denom.doubleDataMut();
         const double sqrt_eps = std::sqrt(std::numeric_limits<double>::epsilon());
-        auto get_S = [&](const std::pmr::vector<double> &S, std::size_t i, bool scalar) {
+        auto get_S = [&](const keel::Array<double> &S, keel::usize i, bool scalar) {
             return scalar ? S[0] : S[i];
         };
-        for (std::size_t i = 0; i < plane; ++i) {
+        for (keel::usize i = 0; i < plane; ++i) {
             const double m2 = Hd[i].real() * Hd[i].real()
                             + Hd[i].imag() * Hd[i].imag();
             double d = m2 * get_S(S_x, i, sx_scalar) + get_S(S_u, i, su_scalar);
@@ -1071,46 +1077,46 @@ Value deconvwnr(const Value &I, const Value &PSF,
 
         J = is3 ? Value::matrix3d(H, W, P, ValueType::DOUBLE, mr)
                  : Value::matrix(H, W, ValueType::DOUBLE, mr);
-        for (std::size_t pg = 0; pg < P; ++pg) {
+        for (keel::usize pg = 0; pg < P; ++pg) {
             Value Ip = is3 ? Value::matrix(H, W, ValueType::DOUBLE, mr) : Id;
             if (is3) {
                 double *ipd = Ip.doubleDataMut();
-                for (std::size_t i = 0; i < plane; ++i)
+                for (keel::usize i = 0; i < plane; ++i)
                     ipd[i] = Id.doubleData()[pg * plane + i];
             }
             Value FI = signal::fft2(Ip, -1, -1, mr);
-            std::pmr::vector<Complex> FIcplx(plane, Complex{0, 0}, mr);
+            keel::Array<keel::c64> FIcplx(plane, keel::c64{0, 0}, mr);
             if (FI.isComplex()) {
-                const Complex *src = FI.complexData();
-                for (std::size_t i = 0; i < plane; ++i) FIcplx[i] = src[i];
+                const keel::c64 *src = FI.complexData();
+                for (keel::usize i = 0; i < plane; ++i) FIcplx[i] = src[i];
             } else {
-                for (std::size_t i = 0; i < plane; ++i)
-                    FIcplx[i] = Complex{FI.elemAsDouble(i), 0.0};
+                for (keel::usize i = 0; i < plane; ++i)
+                    FIcplx[i] = keel::c64{FI.elemAsDouble(i), 0.0};
             }
             Value FG = Value::matrix(H, W, ValueType::COMPLEX, mr);
-            Complex *fg = FG.complexDataMut();
-            const Complex *fi = FIcplx.data();
-            for (std::size_t i = 0; i < plane; ++i) {
-                const Complex Hk = Hd[i];
-                const Complex Hc{Hk.real(), -Hk.imag()};
+            keel::c64 *fg = FG.complexDataMut();
+            const keel::c64 *fi = FIcplx.data();
+            for (keel::usize i = 0; i < plane; ++i) {
+                const keel::c64 Hk = Hd[i];
+                const keel::c64 Hc{Hk.real(), -Hk.imag()};
                 const double sx_i = get_S(S_x, i, sx_scalar);
                 const double g_scale = sx_i / denomD[i];
-                const Complex Gk{Hc.real() * g_scale, Hc.imag() * g_scale};
-                fg[i] = Complex{Gk.real() * fi[i].real() - Gk.imag() * fi[i].imag(),
+                const keel::c64 Gk{Hc.real() * g_scale, Hc.imag() * g_scale};
+                fg[i] = keel::c64{Gk.real() * fi[i].real() - Gk.imag() * fi[i].imag(),
                                 Gk.real() * fi[i].imag() + Gk.imag() * fi[i].real()};
             }
             Value Jp = signal::ifft2(FG, -1, -1, mr);
-            auto jp_at = [&](std::size_t i) -> double {
+            auto jp_at = [&](keel::usize i) -> double {
                 if (Jp.isComplex()) return Jp.complexData()[i].real();
                 return Jp.elemAsDouble(i);
             };
             if (is3) {
                 double *jod = J.doubleDataMut();
-                for (std::size_t i = 0; i < plane; ++i)
+                for (keel::usize i = 0; i < plane; ++i)
                     jod[pg * plane + i] = jp_at(i);
             } else {
                 double *jod = J.doubleDataMut();
-                for (std::size_t i = 0; i < plane; ++i) jod[i] = jp_at(i);
+                for (keel::usize i = 0; i < plane; ++i) jod[i] = jp_at(i);
             }
         }
     }
@@ -1134,15 +1140,15 @@ Value deconvwnr(const Value &I, const Value &PSF,
 // We restrict to 2-D inputs (the most common case); MATLAB extends
 // the same algorithm to N-D, but the 3-D-and-up form is rarely
 // used. A 3-D input throws a clear "use slice + loop" error.
-Value edgetaper(const Value &I, const Value &PSF, std::pmr::memory_resource *mr)
+Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
 {
     edgetaper_argcheck(I, PSF);
     const auto &dI   = I.dims();
     const auto &dPSF = PSF.dims();
-    const std::size_t H  = dI.rows();
-    const std::size_t W  = dI.cols();
-    const std::size_t PH = dPSF.rows();
-    const std::size_t PW = dPSF.cols();
+    const keel::usize H  = dI.rows();
+    const keel::usize W  = dI.cols();
+    const keel::usize PH = dPSF.rows();
+    const keel::usize PW = dPSF.cols();
 
     // Promote to DOUBLE for the math (we round back to class at the end).
     const ValueType inT = I.type();
@@ -1154,60 +1160,60 @@ Value edgetaper(const Value &I, const Value &PSF, std::pmr::memory_resource *mr)
     double Imin =  std::numeric_limits<double>::infinity();
     double Imax = -std::numeric_limits<double>::infinity();
     {
-        const std::size_t N = Id.numel();
+        const keel::usize N = Id.numel();
         const double *id = Id.doubleData();
-        for (std::size_t k = 0; k < N; ++k) {
+        for (keel::usize k = 0; k < N; ++k) {
             if (id[k] < Imin) Imin = id[k];
             if (id[k] > Imax) Imax = id[k];
         }
     }
 
-    auto compute_beta = [&](std::size_t dim, std::size_t sizeI_n) {
+    auto compute_beta = [&](keel::usize dim, keel::usize sizeI_n) {
         // proj over the OTHER dim of PSF.
-        std::pmr::vector<double> proj(mr);
+        keel::Array<double> proj(mr);
         if (dim == 0) {
             // sum along columns (per row).
             proj.resize(PH, 0.0);
-            for (std::size_t c = 0; c < PW; ++c)
-                for (std::size_t r = 0; r < PH; ++r)
+            for (keel::usize c = 0; c < PW; ++c)
+                for (keel::usize r = 0; r < PH; ++r)
                     proj[r] += psfd[c * PH + r];
         } else {
             // dim == 1: sum along rows (per col).
             proj.resize(PW, 0.0);
-            for (std::size_t c = 0; c < PW; ++c)
-                for (std::size_t r = 0; r < PH; ++r)
+            for (keel::usize c = 0; c < PW; ++c)
+                for (keel::usize r = 0; r < PH; ++r)
                     proj[c] += psfd[c * PH + r];
         }
         // fft length = sizeI(n) - 1.
-        const std::size_t L = sizeI_n - 1;
+        const keel::usize L = sizeI_n - 1;
         Value vec = Value::matrix(1, L, ValueType::DOUBLE, mr);
         double *vd = vec.doubleDataMut();
-        for (std::size_t k = 0; k < L; ++k)
+        for (keel::usize k = 0; k < L; ++k)
             vd[k] = (k < proj.size()) ? proj[k] : 0.0;
         // F = fft(proj_padded) — dim=0 → first non-singleton (cols of 1×L row).
         Value F = signal::fft(vec, -1, 0, mr);
-        std::pmr::vector<double> Zsq(L, 0.0, mr);
+        keel::Array<double> Zsq(L, 0.0, mr);
         if (F.isComplex()) {
-            const Complex *fc = F.complexData();
-            for (std::size_t k = 0; k < L; ++k)
+            const keel::c64 *fc = F.complexData();
+            for (keel::usize k = 0; k < L; ++k)
                 Zsq[k] = fc[k].real() * fc[k].real()
                        + fc[k].imag() * fc[k].imag();
         } else {
-            for (std::size_t k = 0; k < L; ++k) {
+            for (keel::usize k = 0; k < L; ++k) {
                 const double v = F.elemAsDouble(k);
                 Zsq[k] = v * v;
             }
         }
         // ifft(|F|^2) — real autocorrelation.
         Value Zv = Value::matrix(1, L, ValueType::DOUBLE, mr);
-        for (std::size_t k = 0; k < L; ++k) Zv.doubleDataMut()[k] = Zsq[k];
+        for (keel::usize k = 0; k < L; ++k) Zv.doubleDataMut()[k] = Zsq[k];
         Value Z = signal::ifft(Zv, -1, 0, mr);
-        std::pmr::vector<double> zr(L, 0.0, mr);
+        keel::Array<double> zr(L, 0.0, mr);
         if (Z.isComplex()) {
-            const Complex *zc = Z.complexData();
-            for (std::size_t k = 0; k < L; ++k) zr[k] = zc[k].real();
+            const keel::c64 *zc = Z.complexData();
+            for (keel::usize k = 0; k < L; ++k) zr[k] = zc[k].real();
         } else {
-            for (std::size_t k = 0; k < L; ++k) zr[k] = Z.elemAsDouble(k);
+            for (keel::usize k = 0; k < L; ++k) zr[k] = Z.elemAsDouble(k);
         }
         // Make symmetric: append first element.
         zr.push_back(zr.front());
@@ -1218,44 +1224,44 @@ Value edgetaper(const Value &I, const Value &PSF, std::pmr::memory_resource *mr)
         return zr;       // length sizeI_n
     };
 
-    std::pmr::vector<double> beta_r = compute_beta(0, H);
-    std::pmr::vector<double> beta_c = compute_beta(1, W);
+    keel::Array<double> beta_r = compute_beta(0, H);
+    keel::Array<double> beta_c = compute_beta(1, W);
 
     // alpha = (1 - beta_r) * (1 - beta_c)'  — H × W outer product.
     Value alpha = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *ad = alpha.doubleDataMut();
-    for (std::size_t c = 0; c < W; ++c)
-        for (std::size_t r = 0; r < H; ++r)
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r)
             ad[c * H + r] = (1.0 - beta_r[r]) * (1.0 - beta_c[c]);
 
     // blurredI = real(ifft2(fft2(I) .* psf2otf(PSF, sizeI))).
-    std::array<std::size_t, 2> outsize{H, W};
-    Value Hotf = psf2otf(PSFd, Span<const std::size_t>(outsize.data(), 2), mr);
-    const std::size_t plane = H * W;
-    std::pmr::vector<Complex> Hc(plane, Complex{0, 0}, mr);
+    std::array<keel::usize, 2> outsize{H, W};
+    Value Hotf = psf2otf(PSFd, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
+    const keel::usize plane = H * W;
+    keel::Array<keel::c64> Hc(plane, keel::c64{0, 0}, mr);
     if (Hotf.isComplex()) {
-        const Complex *src = Hotf.complexData();
-        for (std::size_t i = 0; i < plane; ++i) Hc[i] = src[i];
+        const keel::c64 *src = Hotf.complexData();
+        for (keel::usize i = 0; i < plane; ++i) Hc[i] = src[i];
     } else {
-        for (std::size_t i = 0; i < plane; ++i)
-            Hc[i] = Complex{Hotf.elemAsDouble(i), 0.0};
+        for (keel::usize i = 0; i < plane; ++i)
+            Hc[i] = keel::c64{Hotf.elemAsDouble(i), 0.0};
     }
     Value FI = signal::fft2(Id, -1, -1, mr);
-    std::pmr::vector<Complex> Fic(plane, Complex{0, 0}, mr);
+    keel::Array<keel::c64> Fic(plane, keel::c64{0, 0}, mr);
     if (FI.isComplex()) {
-        const Complex *src = FI.complexData();
-        for (std::size_t i = 0; i < plane; ++i) Fic[i] = src[i];
+        const keel::c64 *src = FI.complexData();
+        for (keel::usize i = 0; i < plane; ++i) Fic[i] = src[i];
     } else {
-        for (std::size_t i = 0; i < plane; ++i)
-            Fic[i] = Complex{FI.elemAsDouble(i), 0.0};
+        for (keel::usize i = 0; i < plane; ++i)
+            Fic[i] = keel::c64{FI.elemAsDouble(i), 0.0};
     }
     Value FG = Value::matrix(H, W, ValueType::COMPLEX, mr);
-    Complex *fg = FG.complexDataMut();
-    for (std::size_t i = 0; i < plane; ++i)
-        fg[i] = Complex{Fic[i].real() * Hc[i].real() - Fic[i].imag() * Hc[i].imag(),
+    keel::c64 *fg = FG.complexDataMut();
+    for (keel::usize i = 0; i < plane; ++i)
+        fg[i] = keel::c64{Fic[i].real() * Hc[i].real() - Fic[i].imag() * Hc[i].imag(),
                         Fic[i].real() * Hc[i].imag() + Fic[i].imag() * Hc[i].real()};
     Value Blur = signal::ifft2(FG, -1, -1, mr);
-    auto blur_at = [&](std::size_t i) -> double {
+    auto blur_at = [&](keel::usize i) -> double {
         if (Blur.isComplex()) return Blur.complexData()[i].real();
         return Blur.elemAsDouble(i);
     };
@@ -1264,7 +1270,7 @@ Value edgetaper(const Value &I, const Value &PSF, std::pmr::memory_resource *mr)
     Value Jd = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *jd = Jd.doubleDataMut();
     const double *id = Id.doubleData();
-    for (std::size_t i = 0; i < plane; ++i) {
+    for (keel::usize i = 0; i < plane; ++i) {
         const double a = ad[i];
         double v = a * id[i] + (1.0 - a) * blur_at(i);
         if (v < Imin) v = Imin;
@@ -1276,7 +1282,7 @@ Value edgetaper(const Value &I, const Value &PSF, std::pmr::memory_resource *mr)
         if (inT == ValueType::DOUBLE) return Jd;
         // SINGLE: cast back.
         Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
-        for (std::size_t i = 0; i < plane; ++i)
+        for (keel::usize i = 0; i < plane; ++i)
             out.singleDataMut()[i] = static_cast<float>(jd[i]);
         return out;
     }
@@ -1409,7 +1415,7 @@ void deconvreg_argcheck(const Value &PSF, double np, double lo, double hi)
 DeconvregResult deconvreg(const Value &I, const Value &PSF,
                           double np, double lo, double hi,
                           const Value &regop,
-                          std::pmr::memory_resource *mr)
+                          keel::Allocator *mr)
 {
     deconvreg_argcheck(PSF, np, lo, hi);
 
@@ -1418,8 +1424,8 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     Value PSFd = to_double_pmr(PSF, mr);
 
     const auto &dI = Id.dims();
-    const std::size_t H = dI.rows();
-    const std::size_t W = dI.cols();
+    const keel::usize H = dI.rows();
+    const keel::usize W = dI.cols();
     if (H < 3 || W < 3)
         throw Error("deconvreg: image too small (min 3x3)",
                     0, 0, "deconvreg", "", "numkit:deconvreg:tooSmall");
@@ -1427,25 +1433,25 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     // PSF must not be all zeros.
     {
         bool allzero = true;
-        for (std::size_t i = 0; i < PSFd.numel(); ++i)
+        for (keel::usize i = 0; i < PSFd.numel(); ++i)
             if (PSFd.elemAsDouble(i) != 0.0) { allzero = false; break; }
         if (allzero)
             throw Error("deconvreg: PSF cannot be all zeros",
                         0, 0, "deconvreg", "", "numkit:deconvreg:psfAllZero");
     }
 
-    const std::size_t plane = H * W;
-    std::array<std::size_t, 2> outsize{H, W};
+    const keel::usize plane = H * W;
+    std::array<keel::usize, 2> outsize{H, W};
 
     // OTF of PSF.
-    Value Hf = psf2otf(PSFd, Span<const std::size_t>(outsize.data(), 2), mr);
-    std::pmr::vector<Complex> Hcplx(plane, Complex{0, 0}, mr);
+    Value Hf = psf2otf(PSFd, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
+    keel::Array<keel::c64> Hcplx(plane, keel::c64{0, 0}, mr);
     if (Hf.isComplex()) {
-        const Complex *src = Hf.complexData();
-        for (std::size_t i = 0; i < plane; ++i) Hcplx[i] = src[i];
+        const keel::c64 *src = Hf.complexData();
+        for (keel::usize i = 0; i < plane; ++i) Hcplx[i] = src[i];
     } else {
-        for (std::size_t i = 0; i < plane; ++i)
-            Hcplx[i] = Complex{Hf.elemAsDouble(i), 0.0};
+        for (keel::usize i = 0; i < plane; ++i)
+            Hcplx[i] = keel::c64{Hf.elemAsDouble(i), 0.0};
     }
 
     // Build REGOP (default Laplacian if none provided).
@@ -1469,20 +1475,20 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
         REGOP_in = to_double_pmr(regop, mr);
     }
     Value REGOPft = psf2otf(REGOP_in,
-                            Span<const std::size_t>(outsize.data(), 2), mr);
-    std::pmr::vector<Complex> Rcplx(plane, Complex{0, 0}, mr);
+                            keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
+    keel::Array<keel::c64> Rcplx(plane, keel::c64{0, 0}, mr);
     if (REGOPft.isComplex()) {
-        const Complex *src = REGOPft.complexData();
-        for (std::size_t i = 0; i < plane; ++i) Rcplx[i] = src[i];
+        const keel::c64 *src = REGOPft.complexData();
+        for (keel::usize i = 0; i < plane; ++i) Rcplx[i] = src[i];
     } else {
-        for (std::size_t i = 0; i < plane; ++i)
-            Rcplx[i] = Complex{REGOPft.elemAsDouble(i), 0.0};
+        for (keel::usize i = 0; i < plane; ++i)
+            Rcplx[i] = keel::c64{REGOPft.elemAsDouble(i), 0.0};
     }
 
     // Pre-compute spectral magnitudes.
-    std::pmr::vector<double> H2(plane, 0.0, mr);
-    std::pmr::vector<double> R2(plane, 0.0, mr);
-    for (std::size_t i = 0; i < plane; ++i) {
+    keel::Array<double> H2(plane, 0.0, mr);
+    keel::Array<double> R2(plane, 0.0, mr);
+    for (keel::usize i = 0; i < plane; ++i) {
         H2[i] = Hcplx[i].real() * Hcplx[i].real()
               + Hcplx[i].imag() * Hcplx[i].imag();
         R2[i] = Rcplx[i].real() * Rcplx[i].real()
@@ -1496,19 +1502,19 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     } else {
         // FFT of image, magnitudes for ResOffset.
         Value FI = signal::fft2(Id, -1, -1, mr);
-        std::pmr::vector<Complex> FIcplx(plane, Complex{0, 0}, mr);
+        keel::Array<keel::c64> FIcplx(plane, keel::c64{0, 0}, mr);
         if (FI.isComplex()) {
-            const Complex *src = FI.complexData();
-            for (std::size_t i = 0; i < plane; ++i) FIcplx[i] = src[i];
+            const keel::c64 *src = FI.complexData();
+            for (keel::usize i = 0; i < plane; ++i) FIcplx[i] = src[i];
         } else {
-            for (std::size_t i = 0; i < plane; ++i)
-                FIcplx[i] = Complex{FI.elemAsDouble(i), 0.0};
+            for (keel::usize i = 0; i < plane; ++i)
+                FIcplx[i] = keel::c64{FI.elemAsDouble(i), 0.0};
         }
-        std::pmr::vector<double> R4G2(plane, 0.0, mr);
-        std::pmr::vector<double> H4  (plane, 0.0, mr);
-        std::pmr::vector<double> R4  (plane, 0.0, mr);
-        std::pmr::vector<double> H2R22(plane, 0.0, mr);
-        for (std::size_t i = 0; i < plane; ++i) {
+        keel::Array<double> R4G2(plane, 0.0, mr);
+        keel::Array<double> H4  (plane, 0.0, mr);
+        keel::Array<double> R4  (plane, 0.0, mr);
+        keel::Array<double> H2R22(plane, 0.0, mr);
+        for (keel::usize i = 0; i < plane; ++i) {
             const double absFI = std::sqrt(FIcplx[i].real() * FIcplx[i].real()
                                          + FIcplx[i].imag() * FIcplx[i].imag());
             const double r4g2  = R2[i] * absFI;
@@ -1522,7 +1528,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
 
         auto ResOffset = [&](double L) -> double {
             double s = 0.0;
-            for (std::size_t i = 0; i < plane; ++i) {
+            for (keel::usize i = 0; i < plane; ++i) {
                 const double denom = H4[i] + L * H2R22[i]
                                    + L * L * R4[i] + seps;
                 s += R4G2[i] / denom;
@@ -1534,36 +1540,36 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
 
     // Reconstruct: J = real(ifft2(conj(otf) * fI / Denom)).
     Value FI = signal::fft2(Id, -1, -1, mr);
-    std::pmr::vector<Complex> FIcplx(plane, Complex{0, 0}, mr);
+    keel::Array<keel::c64> FIcplx(plane, keel::c64{0, 0}, mr);
     if (FI.isComplex()) {
-        const Complex *src = FI.complexData();
-        for (std::size_t i = 0; i < plane; ++i) FIcplx[i] = src[i];
+        const keel::c64 *src = FI.complexData();
+        for (keel::usize i = 0; i < plane; ++i) FIcplx[i] = src[i];
     } else {
-        for (std::size_t i = 0; i < plane; ++i)
-            FIcplx[i] = Complex{FI.elemAsDouble(i), 0.0};
+        for (keel::usize i = 0; i < plane; ++i)
+            FIcplx[i] = keel::c64{FI.elemAsDouble(i), 0.0};
     }
     const double seps = std::sqrt(std::numeric_limits<double>::epsilon());
 
     Value FG = Value::matrix(H, W, ValueType::COMPLEX, mr);
-    Complex *fg = FG.complexDataMut();
-    for (std::size_t i = 0; i < plane; ++i) {
+    keel::c64 *fg = FG.complexDataMut();
+    for (keel::usize i = 0; i < plane; ++i) {
         double denom = H2[i] + lagra * R2[i];
         if (denom < seps) denom = seps;
-        const Complex Hc{Hcplx[i].real(), -Hcplx[i].imag()};
+        const keel::c64 Hc{Hcplx[i].real(), -Hcplx[i].imag()};
         // (conj(H) / denom) * FI
         const double inv = 1.0 / denom;
-        const Complex G{Hc.real() * inv, Hc.imag() * inv};
-        fg[i] = Complex{G.real() * FIcplx[i].real() - G.imag() * FIcplx[i].imag(),
+        const keel::c64 G{Hc.real() * inv, Hc.imag() * inv};
+        fg[i] = keel::c64{G.real() * FIcplx[i].real() - G.imag() * FIcplx[i].imag(),
                         G.real() * FIcplx[i].imag() + G.imag() * FIcplx[i].real()};
     }
     Value Jc = signal::ifft2(FG, -1, -1, mr);
     Value Jd = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *jd = Jd.doubleDataMut();
-    auto jc_at = [&](std::size_t i) -> double {
+    auto jc_at = [&](keel::usize i) -> double {
         if (Jc.isComplex()) return Jc.complexData()[i].real();
         return Jc.elemAsDouble(i);
     };
-    for (std::size_t i = 0; i < plane; ++i) jd[i] = jc_at(i);
+    for (keel::usize i = 0; i < plane; ++i) jd[i] = jc_at(i);
 
     Value Jout = (inT == ValueType::DOUBLE)
                    ? Jd

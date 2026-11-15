@@ -9,6 +9,9 @@
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <cmath>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -46,19 +49,19 @@ static std::string argString(const Value &v) {
     return v.toString();
 }
 
-void imresize_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void imresize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                   CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imresize");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     std::string method = "bicubic";   // MATLAB default
     if (args.size() >= 3 && !args[2].isEmpty()) method = argString(args[2]);
     if (args[1].numel() == 1) {
         outs[0] = imresize(args[0], args[1].toScalar(), method, mr);
     } else if (args[1].numel() == 2) {
-        const size_t outH = size_t(args[1].elemAsDouble(0));
-        const size_t outW = size_t(args[1].elemAsDouble(1));
+        const keel::usize outH = keel::usize(args[1].elemAsDouble(0));
+        const keel::usize outW = keel::usize(args[1].elemAsDouble(1));
         outs[0] = imresize(args[0], outH, outW, method, mr);
     } else {
         throw Error("imresize: 2nd arg must be a scalar scale "
@@ -67,24 +70,24 @@ void imresize_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
     }
 }
 
-void imcrop_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void imcrop_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                 CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "imcrop");
     if (args[1].numel() < 4)
         throw Error("imcrop: rect must have 4 elements",
                     0, 0, "imcrop", "", "numkit:imcrop:rect");
-    outs[0] = imcrop(args[0], args[1].elemAsDouble(0), args[1].elemAsDouble(1), args[1].elemAsDouble(2), args[1].elemAsDouble(3), ctx.engine->resource());
+    outs[0] = imcrop(args[0], args[1].elemAsDouble(0), args[1].elemAsDouble(1), args[1].elemAsDouble(2), args[1].elemAsDouble(3), ctx.engine->allocator());
 }
 
-void imcrop3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void imcrop3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                  CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "imcrop3");
-    outs[0] = imcrop3(args[0], args[1], ctx.engine->resource());
+    outs[0] = imcrop3(args[0], args[1], ctx.engine->allocator());
 }
 
-void imrotate_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void imrotate_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                   CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 4, "imrotate");
@@ -105,10 +108,10 @@ void imrotate_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
             if (args.size() >= 4 && !args[3].isEmpty()) bbox = argString(args[3]);
         }
     }
-    outs[0] = imrotate(args[0], args[1].toScalar(), method, bbox, ctx.engine->resource());
+    outs[0] = imrotate(args[0], args[1].toScalar(), method, bbox, ctx.engine->allocator());
 }
 
-void imtranslate_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void imtranslate_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                      CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imtranslate");
@@ -116,23 +119,23 @@ void imtranslate_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> out
     if (args[1].numel() < 2)
         throw Error("imtranslate: vector must have 2 elements",
                     0, 0, "imtranslate", "", "numkit:imtranslate:vec");
-    outs[0] = imtranslate(args[0], args[1].elemAsDouble(0), args[1].elemAsDouble(1), ctx.engine->resource());
+    outs[0] = imtranslate(args[0], args[1].elemAsDouble(0), args[1].elemAsDouble(1), ctx.engine->allocator());
 }
 
-void axes2pix_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void axes2pix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, 3, "axes2pix");
     const double n = args[0].toScalar();
-    outs[0] = axes2pix(n, args[1], args[2], ctx.engine->resource());
+    outs[0] = axes2pix(n, args[1], args[2], ctx.engine->allocator());
 }
 
-void impyramid_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void impyramid_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                    CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "impyramid");
     const std::string type = argString(args[1]);
-    outs[0] = impyramid(args[0], type, ctx.engine->resource());
+    outs[0] = impyramid(args[0], type, ctx.engine->allocator());
 }
 
 // ── imrotate3 (3-D volume rotation, MATLAB R2025b imrotate3.m) ───────
@@ -183,19 +186,19 @@ inline double cubic_keys(double x)
     return 0.0;
 }
 
-inline double getV3(const Value &V, size_t H, size_t W, size_t D,
+inline double getV3(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                     int xi, int yi, int zi, double fill)
 {
     // 1-indexed spatial (xi, yi, zi). Out-of-bounds → fill.
     if (xi < 1 || xi > int(W) || yi < 1 || yi > int(H) ||
         zi < 1 || zi > int(D))
         return fill;
-    return V.elemAsDouble(size_t(yi - 1)
-                        + size_t(xi - 1) * H
-                        + size_t(zi - 1) * H * W);
+    return V.elemAsDouble(keel::usize(yi - 1)
+                        + keel::usize(xi - 1) * H
+                        + keel::usize(zi - 1) * H * W);
 }
 
-double samp_nearest3(const Value &V, size_t H, size_t W, size_t D,
+double samp_nearest3(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      double xs, double ys, double zs, double fill)
 {
     const int xi = static_cast<int>(std::floor(xs + 0.5));
@@ -204,7 +207,7 @@ double samp_nearest3(const Value &V, size_t H, size_t W, size_t D,
     return getV3(V, H, W, D, xi, yi, zi, fill);
 }
 
-double samp_trilinear(const Value &V, size_t H, size_t W, size_t D,
+double samp_trilinear(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                       double xs, double ys, double zs, double fill)
 {
     const int x0 = static_cast<int>(std::floor(xs));
@@ -230,7 +233,7 @@ double samp_trilinear(const Value &V, size_t H, size_t W, size_t D,
     return c0 * (1 - fz) + c1 * fz;
 }
 
-double samp_tricubic(const Value &V, size_t H, size_t W, size_t D,
+double samp_tricubic(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      double xs, double ys, double zs, double fill)
 {
     const int x0 = static_cast<int>(std::floor(xs));
@@ -262,15 +265,15 @@ Value imrotate3(const Value &V, double angle_deg,
                 double Wx, double Wy, double Wz,
                 const std::string &method, const std::string &bbox,
                 double fill,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
     const auto &dims = V.dims();
     if (dims.ndims() < 2)
         throw Error("imrotate3: V must be a 3-D volume",
                     0, 0, "imrotate3", "", "numkit:imrotate3:rank");
-    const size_t H = dims.dim(0);
-    const size_t W = dims.dim(1);
-    const size_t D = (dims.ndims() >= 3) ? dims.dim(2) : 1;
+    const keel::usize H = dims.dim(0);
+    const keel::usize W = dims.dim(1);
+    const keel::usize D = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     if (V.numel() != H * W * D)
         throw Error("imrotate3: V must be a 3-D numeric volume",
                     0, 0, "imrotate3", "", "numkit:imrotate3:shape");
@@ -284,7 +287,7 @@ Value imrotate3(const Value &V, double angle_deg,
         return (std::fabs(v - r) < 1e-9) ? r : v;
     };
 
-    size_t outH, outW, outD;
+    keel::usize outH, outW, outD;
     if (bbox == "crop" || bbox == "Crop") {
         outH = H; outW = W; outD = D;
     } else if (bbox == "loose" || bbox == "Loose" || bbox.empty()) {
@@ -293,9 +296,9 @@ Value imrotate3(const Value &V, double angle_deg,
         const double xe = Wd*std::fabs(R.r[0]) + Hd*std::fabs(R.r[1]) + Dd*std::fabs(R.r[2]);
         const double ye = Wd*std::fabs(R.r[3]) + Hd*std::fabs(R.r[4]) + Dd*std::fabs(R.r[5]);
         const double ze = Wd*std::fabs(R.r[6]) + Hd*std::fabs(R.r[7]) + Dd*std::fabs(R.r[8]);
-        outW = std::max(size_t(1), size_t(std::ceil(snap(xe))));
-        outH = std::max(size_t(1), size_t(std::ceil(snap(ye))));
-        outD = std::max(size_t(1), size_t(std::ceil(snap(ze))));
+        outW = std::max(keel::usize(1), keel::usize(std::ceil(snap(xe))));
+        outH = std::max(keel::usize(1), keel::usize(std::ceil(snap(ye))));
+        outD = std::max(keel::usize(1), keel::usize(std::ceil(snap(ze))));
     } else {
         throw Error("imrotate3: bbox must be 'loose' or 'crop'",
                     0, 0, "imrotate3", "", "numkit:imrotate3:bbox");
@@ -320,11 +323,11 @@ Value imrotate3(const Value &V, double angle_deg,
         throw Error("imrotate3: method must be 'nearest', 'linear', or 'cubic'",
                     0, 0, "imrotate3", "", "numkit:imrotate3:method");
 
-    for (size_t p = 1; p <= outD; ++p) {
+    for (keel::usize p = 1; p <= outD; ++p) {
         const double dzo = double(p) - czOut;
-        for (size_t c = 1; c <= outW; ++c) {
+        for (keel::usize c = 1; c <= outW; ++c) {
             const double dxo = double(c) - cxOut;
-            for (size_t r = 1; r <= outH; ++r) {
+            for (keel::usize r = 1; r <= outH; ++r) {
                 const double dyo = double(r) - cyOut;
                 const double dxi = R.r[0]*dxo + R.r[1]*dyo + R.r[2]*dzo;
                 const double dyi = R.r[3]*dxo + R.r[4]*dyo + R.r[5]*dzo;
@@ -350,12 +353,12 @@ Value imrotate3(const Value &V, double angle_deg,
 //   B = imresize3(V, [r c d])
 //   B = imresize3(___, method)
 //   B = imresize3(___, Name=Value)         Method / Antialiasing / Scale / OutputSize
-void imresize3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                    CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imresize3");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const Value &V = args[0];
 
     // Defaults
@@ -366,10 +369,10 @@ void imresize3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
     double scaleScalar = 1.0;
     std::vector<double> scaleVec3;    // length 3 if 3-vec scale provided
     bool haveSize3     = false;
-    size_t outRows = 0, outCols = 0, outDeps = 0;
+    keel::usize outRows = 0, outCols = 0, outDeps = 0;
 
     // Positional: scale/size, then optional method (string).
-    size_t i = 1;
+    keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
         const Value &s = args[1];
@@ -377,9 +380,9 @@ void imresize3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
             haveScaleNum = true; scaleScalar = s.toScalar();
         } else if (s.numel() == 3) {
             haveSize3 = true;
-            outRows = static_cast<size_t>(s.elemAsDouble(0));
-            outCols = static_cast<size_t>(s.elemAsDouble(1));
-            outDeps = static_cast<size_t>(s.elemAsDouble(2));
+            outRows = static_cast<keel::usize>(s.elemAsDouble(0));
+            outCols = static_cast<keel::usize>(s.elemAsDouble(1));
+            outDeps = static_cast<keel::usize>(s.elemAsDouble(2));
         } else {
             throw Error("imresize3: 2nd arg must be scalar scale or "
                         "[numrows numcols numplanes]",
@@ -414,9 +417,9 @@ void imresize3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
                 throw Error("imresize3: OutputSize must be a 3-element vector",
                             0, 0, "imresize3", "", "numkit:imresize3:size");
             haveSize3 = true;
-            outRows = static_cast<size_t>(val.elemAsDouble(0));
-            outCols = static_cast<size_t>(val.elemAsDouble(1));
-            outDeps = static_cast<size_t>(val.elemAsDouble(2));
+            outRows = static_cast<keel::usize>(val.elemAsDouble(0));
+            outCols = static_cast<keel::usize>(val.elemAsDouble(1));
+            outDeps = static_cast<keel::usize>(val.elemAsDouble(2));
         } else if (name == "Scale" || name == "scale") {
             if (val.numel() == 1) {
                 haveScaleNum = true; scaleScalar = val.toScalar();
@@ -439,9 +442,9 @@ void imresize3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
 
     // Resolve output dims.
     const auto &d = V.dims();
-    const size_t inR = d.dim(0);
-    const size_t inC = (d.ndims() >= 2) ? d.dim(1) : 1;
-    const size_t inD = (d.ndims() >= 3) ? d.dim(2) : 1;
+    const keel::usize inR = d.dim(0);
+    const keel::usize inC = (d.ndims() >= 2) ? d.dim(1) : 1;
+    const keel::usize inD = (d.ndims() >= 3) ? d.dim(2) : 1;
     if (!haveSize3) {
         double sR, sC, sD;
         if (!scaleVec3.empty()) {
@@ -456,9 +459,9 @@ void imresize3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
         if (!(sR > 0 && sC > 0 && sD > 0))
             throw Error("imresize3: scale factors must be > 0",
                         0, 0, "imresize3", "", "numkit:imresize3:scale");
-        outRows = static_cast<size_t>(std::round(sR * double(inR)));
-        outCols = static_cast<size_t>(std::round(sC * double(inC)));
-        outDeps = static_cast<size_t>(std::round(sD * double(inD)));
+        outRows = static_cast<keel::usize>(std::round(sR * double(inR)));
+        outCols = static_cast<keel::usize>(std::round(sC * double(inC)));
+        outDeps = static_cast<keel::usize>(std::round(sD * double(inD)));
     }
 
     // Per-axis scale that drives the u formula. MATLAB uses the
@@ -490,11 +493,11 @@ void imresize3_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
 //   B = imrotate3(V, angle, W, method)
 //   B = imrotate3(V, angle, W, method, bbox)
 //   B = imrotate3(___, "FillValues", v)
-void imrotate3_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void imrotate3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, 7, "imrotate3");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const double angle = args[1].toScalar();
     if (args[2].numel() != 3)
         throw Error("imrotate3: axis W must be a 3-element vector",
@@ -506,7 +509,7 @@ void imrotate3_reg(Span<const Value> args, size_t /*nargout*/,
     std::string method = "linear";
     std::string bbox   = "loose";
     double fill        = 0.0;
-    size_t i = 3;
+    keel::usize i = 3;
     if (i < args.size() && (args[i].isChar() || args[i].isString())) {
         const std::string s = argString(args[i]);
         if (s != "FillValues" && s != "fillvalues") { method = s; ++i; }

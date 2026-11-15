@@ -4,8 +4,9 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <limits>
-#include <memory_resource>
 #include <string>
 #include <tuple>
 #include <numkit/value/value.hpp>
@@ -39,7 +40,7 @@ namespace numkit::image {
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    DOUBLE image in `[0, 1]`.
 /// @see im2single, im2uint8, im2uint16, im2int16, mat2gray
-Value im2double(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value im2double(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Convert to SINGLE in `[0, 1]` (`B = im2single(A)`).
 ///
@@ -49,7 +50,7 @@ Value im2double(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    SINGLE image in `[0, 1]`.
 /// @see im2double
-Value im2single(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value im2single(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Convert to UINT8 (`B = im2uint8(A)`).
 ///
@@ -59,7 +60,7 @@ Value im2single(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    UINT8 image.
 /// @see im2uint16, im2double
-Value im2uint8(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value im2uint8(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Convert to UINT16 (`B = im2uint16(A)`).
 ///
@@ -67,7 +68,7 @@ Value im2uint8(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    UINT16 image.
 /// @see im2uint8, im2double
-Value im2uint16(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value im2uint16(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Convert to INT16 (`B = im2int16(A)`).
 ///
@@ -75,7 +76,7 @@ Value im2uint16(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    INT16 image.
 /// @see im2uint16, im2double
-Value im2int16(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value im2int16(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Linear rescale to `[0, 1]` DOUBLE (`B = mat2gray(A, lo, hi)`).
 ///
@@ -90,9 +91,9 @@ Value im2int16(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @return    DOUBLE image in `[0, 1]`.
 /// @see im2double
 Value mat2gray(const Value &x,
-               double lo = std::numeric_limits<double>::quiet_NaN(),
-               double hi = std::numeric_limits<double>::quiet_NaN(),
-               std::pmr::memory_resource *mr = nullptr);
+               keel::f64 lo = std::numeric_limits<keel::f64>::quiet_NaN(),
+               keel::f64 hi = std::numeric_limits<keel::f64>::quiet_NaN(),
+               keel::Allocator *mr = nullptr);
 
 /// @brief RGB → grayscale dispatcher (`Y = im2gray(X)`).
 ///
@@ -103,7 +104,7 @@ Value mat2gray(const Value &x,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Grayscale image.
 /// @see rgb2gray
-Value im2gray(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value im2gray(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Rec. 601 luminance (`Y = rgb2gray(X)`).
 ///
@@ -114,7 +115,7 @@ Value im2gray(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Grayscale image, same class as `x`.
 /// @see im2gray
-Value rgb2gray(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value rgb2gray(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Class display range (`r = getrangefromclass(I)`).
 ///
@@ -125,7 +126,7 @@ Value rgb2gray(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param I   Input image.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `1 × 2` DOUBLE row.
-Value getrangefromclass(const Value &I, std::pmr::memory_resource *mr = nullptr);
+Value getrangefromclass(const Value &I, keel::Allocator *mr = nullptr);
 
 /// @brief Grayscale → indexed (`[ind, map] = gray2ind(I, n)`).
 ///
@@ -140,7 +141,7 @@ Value getrangefromclass(const Value &I, std::pmr::memory_resource *mr = nullptr)
 /// @return    `(ind, map)` pair.
 /// @see ind2gray, ind2rgb
 std::tuple<Value, Value>
-gray2ind(const Value &I, int n, std::pmr::memory_resource *mr = nullptr);
+gray2ind(const Value &I, int n, keel::Allocator *mr = nullptr);
 
 /// @brief Indexed → grayscale (`I = ind2gray(idx, map)`).
 ///
@@ -153,7 +154,7 @@ gray2ind(const Value &I, int n, std::pmr::memory_resource *mr = nullptr);
 /// @return     Grayscale image.
 /// @see gray2ind
 Value ind2gray(const Value &idx, const Value &map,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Indexed → RGB (`RGB = ind2rgb(idx, map)`).
 ///
@@ -166,7 +167,7 @@ Value ind2gray(const Value &idx, const Value &map,
 /// @return     `M × N × 3` DOUBLE image.
 /// @see gray2ind, ind2gray
 Value ind2rgb(const Value &idx, const Value &map,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief English ordinal-form string (`s = iptnum2ordinal(n)`).
 ///
@@ -177,7 +178,7 @@ Value ind2rgb(const Value &idx, const Value &map,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    CHAR Value.
 /// @throws Error  Non-integer or non-positive `n`.
-Value iptnum2ordinal(double n, std::pmr::memory_resource *mr = nullptr);
+Value iptnum2ordinal(keel::f64 n, keel::Allocator *mr = nullptr);
 
 /// @brief Generic class converter (`B = imcast(I, type)`).
 ///
@@ -193,7 +194,7 @@ Value iptnum2ordinal(double n, std::pmr::memory_resource *mr = nullptr);
 /// @return      Image cast to `type`.
 /// @throws Error  Unknown / unsupported type name.
 Value imcast(const Value &I, const std::string &type,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// @brief Binary-image predicate (`tf = isbw(BW, mode)`).
 ///
@@ -209,7 +210,7 @@ Value imcast(const Value &I, const std::string &type,
 /// @return      LOGICAL scalar.
 /// @see isgray, isind, isrgb
 Value isbw(const Value &BW, const std::string &mode,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::Allocator *mr = nullptr);
 
 /// @brief Grayscale-image predicate (`tf = isgray(I)`).
 ///
@@ -221,7 +222,7 @@ Value isbw(const Value &BW, const std::string &mode,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    LOGICAL scalar.
 /// @see isbw, isrgb
-Value isgray(const Value &I, std::pmr::memory_resource *mr = nullptr);
+Value isgray(const Value &I, keel::Allocator *mr = nullptr);
 
 /// @brief Indexed-image predicate (`tf = isind(I)`).
 ///
@@ -232,7 +233,7 @@ Value isgray(const Value &I, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    LOGICAL scalar.
 /// @see isgray, gray2ind
-Value isind(const Value &I, std::pmr::memory_resource *mr = nullptr);
+Value isind(const Value &I, keel::Allocator *mr = nullptr);
 
 /// @brief RGB-image predicate (`tf = isrgb(I)`).
 ///
@@ -244,7 +245,7 @@ Value isind(const Value &I, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    LOGICAL scalar.
 /// @see isgray
-Value isrgb(const Value &I, std::pmr::memory_resource *mr = nullptr);
+Value isrgb(const Value &I, keel::Allocator *mr = nullptr);
 
 /// @brief Colormap-shape predicate (`tf = iscolormap(cmap)`).
 ///
@@ -255,7 +256,7 @@ Value isrgb(const Value &I, std::pmr::memory_resource *mr = nullptr);
 /// @param cmap  Candidate colormap.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL scalar.
-Value iscolormap(const Value &cmap, std::pmr::memory_resource *mr = nullptr);
+Value iscolormap(const Value &cmap, keel::Allocator *mr = nullptr);
 
 /// @brief Apply a look-up table to an integer image
 /// (`B = intlut(A, LUT)`).
@@ -273,7 +274,7 @@ Value iscolormap(const Value &cmap, std::pmr::memory_resource *mr = nullptr);
 /// @return     Image with LUT applied.
 /// @throws Error  Wrong LUT length or non-integer input.
 Value intlut(const Value &A, const Value &LUT,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 
 /// @}

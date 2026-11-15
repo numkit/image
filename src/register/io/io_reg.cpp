@@ -6,6 +6,9 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/image/io/io.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -21,7 +24,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -39,14 +41,14 @@ inline std::string lowerExt(const std::string &path) {
 }
 
 bool isTiffBytes(const std::string &b);
-Value imreadFromBytes(const std::string &bytes, std::pmr::memory_resource *mr);
+Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr);
 std::pair<Value, Value>
-readPngWithMap(const std::uint8_t *data, std::size_t len,
-               std::pmr::memory_resource *mr = nullptr);
+readPngWithMap(const keel::u8 *data, keel::usize len,
+               keel::Allocator *mr = nullptr);
 
 namespace detail {
 
-void imread_reg(Span<const Value> args, size_t nargout, Span<Value> outs,
+void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayRef<Value> outs,
                 CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imread");
@@ -85,43 +87,43 @@ void imread_reg(Span<const Value> args, size_t nargout, Span<Value> outs,
     const bool tiff = isTiffBytes(bytes);
 
     // Optional 2nd numeric arg = page index (TIFF multi-page).
-    std::uint32_t page = 1;
+    keel::u32 page = 1;
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
-        page = static_cast<std::uint32_t>(args[1].toScalar());
+        page = static_cast<keel::u32>(args[1].toScalar());
         if (!tiff)
             throw Error("imread: page index only supported for TIFF files",
                         0, 0, "imread", "", "numkit:imread:notTiff");
     }
 
     if (tiff) {
-        std::vector<std::uint8_t> buf(bytes.begin(), bytes.end());
+        std::vector<keel::u8> buf(bytes.begin(), bytes.end());
         // Two-output form `[A, map] = imread(file)` — palette TIFFs.
         if (nargout >= 2) {
-            auto pair = readTiffWithMap(std::move(buf), page, ctx.engine->resource());
+            auto pair = readTiffWithMap(std::move(buf), page, ctx.engine->allocator());
             outs[0] = std::move(pair.first);
             outs[1] = std::move(pair.second);
         } else {
-            outs[0] = readTiff(std::move(buf), page, ctx.engine->resource());
+            outs[0] = readTiff(std::move(buf), page, ctx.engine->allocator());
         }
         return;
     }
 
-    const auto *data = reinterpret_cast<const std::uint8_t *>(bytes.data());
-    const std::size_t len = bytes.size();
+    const auto *data = reinterpret_cast<const keel::u8 *>(bytes.data());
+    const keel::usize len = bytes.size();
     if (len >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G') {
         if (nargout >= 2) {
-            auto pair = readPngWithMap(data, len, ctx.engine->resource());
+            auto pair = readPngWithMap(data, len, ctx.engine->allocator());
             outs[0] = std::move(pair.first);
             outs[1] = std::move(pair.second);
             return;
         }
     }
 
-    outs[0] = imreadFromBytes(bytes, ctx.engine->resource());
+    outs[0] = imreadFromBytes(bytes, ctx.engine->allocator());
 }
 
-void imwrite_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> /*outs*/,
+void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> /*outs*/,
                  CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imwrite");
@@ -142,7 +144,7 @@ void imwrite_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> /*outs*
         // Optional 3rd positional 'tif'/'tiff' format keyword (MATLAB
         // syntax `imwrite(A, path, 'tif', ...)`). Skip it as NV-pair start
         // and tolerate.
-        size_t nvStart = 2;
+        keel::usize nvStart = 2;
         if (args.size() >= 3 && (args[2].isChar() || args[2].isString())) {
             std::string s = args[2].toString();
             std::string lo;
@@ -150,7 +152,7 @@ void imwrite_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> /*outs*
             for (char c : s) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
             if (lo == "tif" || lo == "tiff") nvStart = 3;
         }
-        for (size_t i = nvStart; i + 1 < args.size(); i += 2) {
+        for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
             if (!args[i].isChar() && !args[i].isString())
                 throw Error("imwrite TIFF: NV name must be a string",
                             0, 0, "imwrite", "", "numkit:imwrite:badNVName");
@@ -180,14 +182,14 @@ void imwrite_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> /*outs*
         if (!rp.fs)
             throw Error("imwrite: no filesystem for '" + path + "'",
                         0, 0, "imwrite", "", "numkit:imwrite:write");
-        std::vector<std::uint8_t> existing;
-        const std::vector<std::uint8_t> *exptr = nullptr;
+        std::vector<keel::u8> existing;
+        const std::vector<keel::u8> *exptr = nullptr;
         if (appendMode && rp.fs->exists(rp.path)) {
             const std::string eb = rp.fs->readFileBytes(rp.path);
             existing.assign(eb.begin(), eb.end());
             exptr = &existing;
         }
-        const std::vector<std::uint8_t> buf =
+        const std::vector<keel::u8> buf =
             writeTiffToBytes(args[0], compression, exptr);
         rp.fs->writeFileBytes(rp.path, std::string(buf.begin(), buf.end()));
         return;
@@ -198,11 +200,11 @@ void imwrite_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> /*outs*
     if (!rp.fs)
         throw Error("imwrite: no filesystem for '" + path + "'",
                     0, 0, "imwrite", "", "numkit:imwrite:write");
-    const std::string bytes = imwriteToBytes(args[0], ext, ctx.engine->resource());
+    const std::string bytes = imwriteToBytes(args[0], ext, ctx.engine->allocator());
     rp.fs->writeFileBytes(rp.path, bytes);
 }
 
-void imfinfo_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void imfinfo_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                  CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imfinfo");
@@ -218,7 +220,7 @@ void imfinfo_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
         throw Error("imfinfo: failed to read '" + path + "' — file not found",
                     0, 0, "imfinfo", "", "numkit:imfinfo:read");
     const std::string bytes = rp.fs->readFileBytes(rp.path);
-    outs[0] = imfinfoFromBytes(bytes, path, ctx.engine->resource());
+    outs[0] = imfinfoFromBytes(bytes, path, ctx.engine->allocator());
 }
 
 } // namespace detail

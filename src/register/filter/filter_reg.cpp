@@ -9,6 +9,10 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/array.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 
@@ -17,8 +21,6 @@
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
 #include "filter/filter_detail.hpp"
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <array>
@@ -55,9 +57,9 @@ namespace numkit::image {
 // pattern adopted in toolboxes/ode/ode45 (function_ref couldn't carry
 // func-handle semantics through the round-trip).
 Value nlfilter(const Value &A,
-               std::size_t m, std::size_t n, FnHandle fun,
+               keel::usize m, keel::usize n, FnHandle fun,
                bool indexed,
-               std::pmr::memory_resource *mr)
+               keel::Allocator *mr)
 {
     if (m < 1 || n < 1)
         throw Error("nlfilter: neighbourhood size must be positive",
@@ -67,15 +69,15 @@ Value nlfilter(const Value &A,
     if (dA.is3D())
         throw Error("nlfilter: A must be a 2-D image",
                     0, 0, "nlfilter", "", "numkit:nlfilter:rank");
-    const std::size_t H = dA.rows();
-    const std::size_t W = dA.cols();
+    const keel::usize H = dA.rows();
+    const keel::usize W = dA.cols();
     const ValueType inT = A.type();
 
     // Invoke the user callback on one input (core-free via FnHandle;
     // the bundle adapter binds it to Engine::callFunctionHandle).
     auto callFun = [&](const Value &arg) -> Value {
         std::array<Value, 1> o;
-        fun(Span<const Value>(&arg, 1), Span<Value>(o.data(), 1), mr);
+        fun(keel::ArrayRef<Value>(&arg, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
         return std::move(o[0]);
     };
 
@@ -90,16 +92,16 @@ Value nlfilter(const Value &A,
     // left by floor((n-1)/2), right by ceil((n-1)/2). (MATLAB:
     // mkconstarray(class(a), padval, size(a)+nhood-1) — then drops
     // the original A into the offset block.)
-    const std::size_t pad_top  = (m - 1) / 2;
-    const std::size_t pad_left = (n - 1) / 2;
-    const std::size_t Hpad     = H + m - 1;
-    const std::size_t Wpad     = W + n - 1;
+    const keel::usize pad_top  = (m - 1) / 2;
+    const keel::usize pad_left = (n - 1) / 2;
+    const keel::usize Hpad     = H + m - 1;
+    const keel::usize Wpad     = W + n - 1;
 
     // Build padded array in DOUBLE (we always read out via
     // elemAsDouble; this saves a class-specific dispatch).
-    std::pmr::vector<double> aa(Hpad * Wpad, padval, mr);
-    for (std::size_t j = 0; j < W; ++j)
-        for (std::size_t i = 0; i < H; ++i)
+    keel::Array<double> aa(Hpad * Wpad, padval, mr);
+    for (keel::usize j = 0; j < W; ++j)
+        for (keel::usize i = 0; i < H; ++i)
             aa[(j + pad_left) * Hpad + (i + pad_top)] = A.elemAsDouble(j * H + i);
 
     // Allocate scratch window (DOUBLE — the class for `fun` is what
@@ -110,9 +112,9 @@ Value nlfilter(const Value &A,
     double *wd = window.doubleDataMut();
 
     // First-call invocation determines output class.
-    auto fill_window = [&](std::size_t i, std::size_t j) {
-        for (std::size_t c = 0; c < n; ++c)
-            for (std::size_t r = 0; r < m; ++r)
+    auto fill_window = [&](keel::usize i, keel::usize j) {
+        for (keel::usize c = 0; c < n; ++c)
+            for (keel::usize r = 0; r < m; ++r)
                 wd[c * m + r] = aa[(j + c) * Hpad + (i + r)];
     };
 
@@ -124,20 +126,20 @@ Value nlfilter(const Value &A,
     const ValueType outT = first.type();
     Value B = Value::matrix(H, W, outT, mr);
 
-    auto store = [&](std::size_t r, std::size_t c, const Value &v) {
-        const std::size_t idx = c * H + r;
+    auto store = [&](keel::usize r, keel::usize c, const Value &v) {
+        const keel::usize idx = c * H + r;
         const double d = v.toScalar();
         switch (outT) {
             case ValueType::DOUBLE:  B.doubleDataMut()[idx]  = d; break;
             case ValueType::SINGLE:  B.singleDataMut()[idx]  = static_cast<float>(d); break;
-            case ValueType::UINT8:   B.uint8DataMut()[idx]   = static_cast<uint8_t>(d); break;
-            case ValueType::UINT16:  B.uint16DataMut()[idx]  = static_cast<uint16_t>(d); break;
-            case ValueType::UINT32:  B.uint32DataMut()[idx]  = static_cast<uint32_t>(d); break;
-            case ValueType::UINT64:  B.uint64DataMut()[idx]  = static_cast<uint64_t>(d); break;
-            case ValueType::INT8:    B.int8DataMut()[idx]    = static_cast<int8_t>(d); break;
-            case ValueType::INT16:   B.int16DataMut()[idx]   = static_cast<int16_t>(d); break;
-            case ValueType::INT32:   B.int32DataMut()[idx]   = static_cast<int32_t>(d); break;
-            case ValueType::INT64:   B.int64DataMut()[idx]   = static_cast<int64_t>(d); break;
+            case ValueType::UINT8:   B.uint8DataMut()[idx]   = static_cast<keel::u8>(d); break;
+            case ValueType::UINT16:  B.uint16DataMut()[idx]  = static_cast<keel::u16>(d); break;
+            case ValueType::UINT32:  B.uint32DataMut()[idx]  = static_cast<keel::u32>(d); break;
+            case ValueType::UINT64:  B.uint64DataMut()[idx]  = static_cast<keel::u64>(d); break;
+            case ValueType::INT8:    B.int8DataMut()[idx]    = static_cast<keel::i8>(d); break;
+            case ValueType::INT16:   B.int16DataMut()[idx]   = static_cast<keel::i16>(d); break;
+            case ValueType::INT32:   B.int32DataMut()[idx]   = static_cast<keel::i32>(d); break;
+            case ValueType::INT64:   B.int64DataMut()[idx]   = static_cast<keel::i64>(d); break;
             case ValueType::LOGICAL: B.logicalDataMut()[idx] = d != 0.0 ? 1 : 0; break;
             default:
                 throw Error("nlfilter: unsupported fun output class",
@@ -147,8 +149,8 @@ Value nlfilter(const Value &A,
 
     store(0, 0, first);
 
-    for (std::size_t i = 0; i < H; ++i) {
-        for (std::size_t j = 0; j < W; ++j) {
+    for (keel::usize i = 0; i < H; ++i) {
+        for (keel::usize j = 0; j < W; ++j) {
             if (i == 0 && j == 0) continue;  // already filled
             fill_window(i, j);
             Value r = callFun(window);
@@ -189,10 +191,10 @@ Value nlfilter(const Value &A,
 //
 // Output class equals the class of fun()'s return value.
 Value colfilt(const Value &A,
-              std::size_t m, std::size_t n,
+              keel::usize m, keel::usize n,
               const std::string &block_type, FnHandle fun,
               bool indexed,
-              std::pmr::memory_resource *mr)
+              keel::Allocator *mr)
 {
     if (m < 1 || n < 1)
         throw Error("colfilt: block size must be positive",
@@ -202,15 +204,15 @@ Value colfilt(const Value &A,
     if (dA.is3D())
         throw Error("colfilt: A must be a 2-D image",
                     0, 0, "colfilt", "", "numkit:colfilt:rank");
-    const std::size_t H = dA.rows();
-    const std::size_t W = dA.cols();
+    const keel::usize H = dA.rows();
+    const keel::usize W = dA.cols();
     const ValueType inT = A.type();
 
     // Invoke the user callback on one input (core-free via FnHandle;
     // the bundle adapter binds it to Engine::callFunctionHandle).
     auto callFun = [&](const Value &arg) -> Value {
         std::array<Value, 1> o;
-        fun(Span<const Value>(&arg, 1), Span<Value>(o.data(), 1), mr);
+        fun(keel::ArrayRef<Value>(&arg, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
         return std::move(o[0]);
     };
 
@@ -232,33 +234,33 @@ Value colfilt(const Value &A,
 
     if (first == 's') {
         // ── Sliding ─────────────────────────────────────────────
-        const std::size_t pad_top  = (m - 1) / 2;
-        const std::size_t pad_left = (n - 1) / 2;
-        const std::size_t Hpad = H + m - 1;
-        const std::size_t Wpad = W + n - 1;
-        const std::size_t Ncol = H * W;
+        const keel::usize pad_top  = (m - 1) / 2;
+        const keel::usize pad_left = (n - 1) / 2;
+        const keel::usize Hpad = H + m - 1;
+        const keel::usize Wpad = W + n - 1;
+        const keel::usize Ncol = H * W;
 
         // Build X = m*n × Ncol in DOUBLE.
         Value X = Value::matrix(m * n, Ncol, ValueType::DOUBLE, mr);
         double *xd = X.doubleDataMut();
 
         // Pad row-by-col into a temporary scratch.
-        std::pmr::vector<double> aa(Hpad * Wpad, padval, mr);
-        for (std::size_t j = 0; j < W; ++j)
-            for (std::size_t i = 0; i < H; ++i)
+        keel::Array<double> aa(Hpad * Wpad, padval, mr);
+        for (keel::usize j = 0; j < W; ++j)
+            for (keel::usize i = 0; i < H; ++i)
                 aa[(j + pad_left) * Hpad + (i + pad_top)] =
                     A.elemAsDouble(j * H + i);
 
         // For each centre (i, j), gather m*n window values into
         // column k = j*H + i.
-        for (std::size_t j = 0; j < W; ++j) {
-            for (std::size_t i = 0; i < H; ++i) {
-                const std::size_t k = j * H + i;
-                std::size_t r = 0;
+        for (keel::usize j = 0; j < W; ++j) {
+            for (keel::usize i = 0; i < H; ++i) {
+                const keel::usize k = j * H + i;
+                keel::usize r = 0;
                 // im2col 'sliding' iteration order: column-major
                 // within each window, i.e. (col-major) flatten.
-                for (std::size_t wc = 0; wc < n; ++wc)
-                    for (std::size_t wr = 0; wr < m; ++wr)
+                for (keel::usize wc = 0; wc < n; ++wc)
+                    for (keel::usize wr = 0; wr < m; ++wr)
                         xd[k * (m * n) + (r++)]
                             = aa[(j + wc) * Hpad + (i + wr)];
             }
@@ -273,16 +275,16 @@ Value colfilt(const Value &A,
         // Reshape result (regardless of [1, Ncol] or [Ncol, 1]) into H × W.
         Value B = Value::matrix(H, W, result.type(), mr);
         const auto outT = result.type();
-        for (std::size_t k = 0; k < Ncol; ++k) {
+        for (keel::usize k = 0; k < Ncol; ++k) {
             const double v = result.elemAsDouble(k);
-            const std::size_t idx = k;
+            const keel::usize idx = k;
             switch (outT) {
                 case ValueType::DOUBLE: B.doubleDataMut()[idx]  = v; break;
                 case ValueType::SINGLE: B.singleDataMut()[idx]  = static_cast<float>(v); break;
-                case ValueType::UINT8:  B.uint8DataMut()[idx]   = static_cast<uint8_t>(v); break;
-                case ValueType::UINT16: B.uint16DataMut()[idx]  = static_cast<uint16_t>(v); break;
-                case ValueType::INT16:  B.int16DataMut()[idx]   = static_cast<int16_t>(v); break;
-                case ValueType::INT32:  B.int32DataMut()[idx]   = static_cast<int32_t>(v); break;
+                case ValueType::UINT8:  B.uint8DataMut()[idx]   = static_cast<keel::u8>(v); break;
+                case ValueType::UINT16: B.uint16DataMut()[idx]  = static_cast<keel::u16>(v); break;
+                case ValueType::INT16:  B.int16DataMut()[idx]   = static_cast<keel::i16>(v); break;
+                case ValueType::INT32:  B.int32DataMut()[idx]   = static_cast<keel::i32>(v); break;
                 case ValueType::LOGICAL: B.logicalDataMut()[idx] = v != 0 ? 1 : 0; break;
                 default:
                     throw Error("colfilt: unsupported fun output class",
@@ -293,29 +295,29 @@ Value colfilt(const Value &A,
     }
 
     // ── Distinct ────────────────────────────────────────────────────
-    const std::size_t mpad = (H % m) ? (m - H % m) : 0;
-    const std::size_t npad = (W % n) ? (n - W % n) : 0;
-    const std::size_t Hpad = H + mpad;
-    const std::size_t Wpad = W + npad;
-    const std::size_t mblocks = Hpad / m;
-    const std::size_t nblocks = Wpad / n;
-    const std::size_t Ncol    = mblocks * nblocks;
+    const keel::usize mpad = (H % m) ? (m - H % m) : 0;
+    const keel::usize npad = (W % n) ? (n - W % n) : 0;
+    const keel::usize Hpad = H + mpad;
+    const keel::usize Wpad = W + npad;
+    const keel::usize mblocks = Hpad / m;
+    const keel::usize nblocks = Wpad / n;
+    const keel::usize Ncol    = mblocks * nblocks;
 
     // Pad to multiple of (m, n).
-    std::pmr::vector<double> aa(Hpad * Wpad, padval, mr);
-    for (std::size_t j = 0; j < W; ++j)
-        for (std::size_t i = 0; i < H; ++i)
+    keel::Array<double> aa(Hpad * Wpad, padval, mr);
+    for (keel::usize j = 0; j < W; ++j)
+        for (keel::usize i = 0; i < H; ++i)
             aa[j * Hpad + i] = A.elemAsDouble(j * H + i);
 
     // Build X = m*n × Ncol; column index k = bj * mblocks + bi.
     Value X = Value::matrix(m * n, Ncol, ValueType::DOUBLE, mr);
     double *xd = X.doubleDataMut();
-    for (std::size_t bj = 0; bj < nblocks; ++bj) {
-        for (std::size_t bi = 0; bi < mblocks; ++bi) {
-            const std::size_t k = bj * mblocks + bi;
-            std::size_t r = 0;
-            for (std::size_t wc = 0; wc < n; ++wc)
-                for (std::size_t wr = 0; wr < m; ++wr)
+    for (keel::usize bj = 0; bj < nblocks; ++bj) {
+        for (keel::usize bi = 0; bi < mblocks; ++bi) {
+            const keel::usize k = bj * mblocks + bi;
+            keel::usize r = 0;
+            for (keel::usize wc = 0; wc < n; ++wc)
+                for (keel::usize wr = 0; wr < m; ++wr)
                     xd[k * (m * n) + (r++)]
                         = aa[(bj * n + wc) * Hpad + (bi * m + wr)];
         }
@@ -329,13 +331,13 @@ Value colfilt(const Value &A,
 
     // Reassemble padded image, then crop.
     const auto outT = result.type();
-    std::pmr::vector<double> bb(Hpad * Wpad, 0.0, mr);
-    for (std::size_t bj = 0; bj < nblocks; ++bj) {
-        for (std::size_t bi = 0; bi < mblocks; ++bi) {
-            const std::size_t k = bj * mblocks + bi;
-            std::size_t r = 0;
-            for (std::size_t wc = 0; wc < n; ++wc)
-                for (std::size_t wr = 0; wr < m; ++wr) {
+    keel::Array<double> bb(Hpad * Wpad, 0.0, mr);
+    for (keel::usize bj = 0; bj < nblocks; ++bj) {
+        for (keel::usize bi = 0; bi < mblocks; ++bi) {
+            const keel::usize k = bj * mblocks + bi;
+            keel::usize r = 0;
+            for (keel::usize wc = 0; wc < n; ++wc)
+                for (keel::usize wr = 0; wr < m; ++wr) {
                     const double v = result.elemAsDouble(k * (m * n) + (r++));
                     bb[(bj * n + wc) * Hpad + (bi * m + wr)] = v;
                 }
@@ -343,17 +345,17 @@ Value colfilt(const Value &A,
     }
 
     Value B = Value::matrix(H, W, outT, mr);
-    for (std::size_t j = 0; j < W; ++j) {
-        for (std::size_t i = 0; i < H; ++i) {
+    for (keel::usize j = 0; j < W; ++j) {
+        for (keel::usize i = 0; i < H; ++i) {
             const double v = bb[j * Hpad + i];
-            const std::size_t idx = j * H + i;
+            const keel::usize idx = j * H + i;
             switch (outT) {
                 case ValueType::DOUBLE: B.doubleDataMut()[idx]  = v; break;
                 case ValueType::SINGLE: B.singleDataMut()[idx]  = static_cast<float>(v); break;
-                case ValueType::UINT8:  B.uint8DataMut()[idx]   = static_cast<uint8_t>(v); break;
-                case ValueType::UINT16: B.uint16DataMut()[idx]  = static_cast<uint16_t>(v); break;
-                case ValueType::INT16:  B.int16DataMut()[idx]   = static_cast<int16_t>(v); break;
-                case ValueType::INT32:  B.int32DataMut()[idx]   = static_cast<int32_t>(v); break;
+                case ValueType::UINT8:  B.uint8DataMut()[idx]   = static_cast<keel::u8>(v); break;
+                case ValueType::UINT16: B.uint16DataMut()[idx]  = static_cast<keel::u16>(v); break;
+                case ValueType::INT16:  B.int16DataMut()[idx]   = static_cast<keel::i16>(v); break;
+                case ValueType::INT32:  B.int32DataMut()[idx]   = static_cast<keel::i32>(v); break;
                 case ValueType::LOGICAL: B.logicalDataMut()[idx] = v != 0 ? 1 : 0; break;
                 default:
                     throw Error("colfilt: unsupported fun output class",
@@ -385,16 +387,16 @@ PadMode parse_pad_mode(const Value &v, double &pad_value, bool &is_value) {
 }
 } // anonymous
 
-void padarray_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void padarray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 4, "padarray");
     std::vector<int> padsize;
     {
         const Value &p = args[1];
-        const size_t n = p.numel();
+        const keel::usize n = p.numel();
         padsize.resize(n);
-        for (size_t i = 0; i < n; ++i) padsize[i] = int(p.elemAsDouble(i));
+        for (keel::usize i = 0; i < n; ++i) padsize[i] = int(p.elemAsDouble(i));
     }
 
     PadMode mode = PadMode::Constant;
@@ -402,7 +404,7 @@ void padarray_reg(Span<const Value> args, size_t /*nargout*/,
     std::string direction = "both";
 
     // Parse optional trailing args: pad_value-or-mode (one) and/or direction.
-    for (size_t i = 2; i < args.size(); ++i) {
+    for (keel::usize i = 2; i < args.size(); ++i) {
         const Value &a = args[i];
         if (a.isChar() || a.isString()) {
             auto s = a.toString();
@@ -419,11 +421,11 @@ void padarray_reg(Span<const Value> args, size_t /*nargout*/,
         }
     }
 
-    outs[0] = padarray(args[0], padsize, mode, pad_value, direction, ctx.engine->resource());
+    outs[0] = padarray(args[0], padsize, mode, pad_value, direction, ctx.engine->allocator());
 }
 
-void fspecial_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void fspecial_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "fspecial");
     std::string type = "gaussian";
@@ -451,7 +453,7 @@ void fspecial_reg(Span<const Value> args, size_t /*nargout*/,
                 params.push_back(v.elemAsDouble(0));
                 params.push_back(v.elemAsDouble(1));
             } else if (v.numel() > 0) {
-                for (size_t i = 0; i < v.numel(); ++i)
+                for (keel::usize i = 0; i < v.numel(); ++i)
                     params.push_back(v.elemAsDouble(i));
             }
         }
@@ -460,18 +462,18 @@ void fspecial_reg(Span<const Value> args, size_t /*nargout*/,
             params.push_back(args[2].toScalar());
     }
 
-    outs[0] = fspecial(type, params, ctx.engine->resource());
+    outs[0] = fspecial(type, params, ctx.engine->allocator());
 }
 
-void imfilter_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void imfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "imfilter");
     PadMode boundary = PadMode::Constant;
     double pad_value = 0.0;
     bool full = false;
     bool flip_kernel = false;  // 'corr' default
-    for (size_t i = 2; i < args.size(); ++i) {
+    for (keel::usize i = 2; i < args.size(); ++i) {
         const Value &a = args[i];
         if (a.isChar() || a.isString()) {
             auto s = a.toString();
@@ -488,38 +490,38 @@ void imfilter_reg(Span<const Value> args, size_t /*nargout*/,
             boundary = PadMode::Constant;
         }
     }
-    outs[0] = imfilter(args[0], args[1], boundary, pad_value, full, flip_kernel, ctx.engine->resource());
+    outs[0] = imfilter(args[0], args[1], boundary, pad_value, full, flip_kernel, ctx.engine->allocator());
 }
 
-void imgaussfilt_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void imgaussfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imgaussfilt");
     // no max: name-value tail in the reference
     double sigma = (args.size() >= 2 && !args[1].isEmpty()) ? args[1].toScalar() : 0.5;
     int fs = 0;  // auto
     // Look for 'FilterSize' name-value pair.
-    for (size_t i = 2; i + 1 < args.size(); ++i) {
+    for (keel::usize i = 2; i + 1 < args.size(); ++i) {
         if ((args[i].isChar() || args[i].isString())
             && args[i].toString() == "FilterSize") {
             fs = (int)args[i + 1].toScalar();
             break;
         }
     }
-    outs[0] = imgaussfilt(args[0], sigma, fs, ctx.engine->resource());
+    outs[0] = imgaussfilt(args[0], sigma, fs, ctx.engine->allocator());
 }
 
-void imboxfilt_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void imboxfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imboxfilt");
     // no max: name-value tail in the reference
     int fs = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 3;
-    outs[0] = imboxfilt(args[0], fs, ctx.engine->resource());
+    outs[0] = imboxfilt(args[0], fs, ctx.engine->allocator());
 }
 
-void modefilt_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void modefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "modefilt");
     // Defaults adapt to input rank — MATLAB picks [3 3] for 2-D, [3 3 3] for 3-D.
@@ -553,18 +555,18 @@ void modefilt_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "modefilt", "", "numkit:modefilt:badPad");
     }
     if (input3D)
-        outs[0] = modefilt3D(args[0], fH, fW, fD, padopt, ctx.engine->resource());
+        outs[0] = modefilt3D(args[0], fH, fW, fD, padopt, ctx.engine->allocator());
     else
-        outs[0] = modefilt(args[0], fH, fW, padopt, ctx.engine->resource());
+        outs[0] = modefilt(args[0], fH, fW, padopt, ctx.engine->allocator());
 }
 
-void integralBoxFilter_reg(Span<const Value> args, size_t /*nargout*/,
-                            Span<Value> outs, CallContext &ctx)
+void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                            keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "integralBoxFilter");
     // no max: name-value tail in the reference// Defaults match MATLAB: 3-by-3 box.
     int fH = 3, fW = 3;
-    size_t nvStart = 1;
+    keel::usize nvStart = 1;
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
         const Value &fsArg = args[1];
@@ -585,7 +587,7 @@ void integralBoxFilter_reg(Span<const Value> args, size_t /*nargout*/,
     // multiplier applied to the box sum, NOT a divisor.
     double normFactor = 1.0 / (static_cast<double>(fH) * static_cast<double>(fW));
     // NV-pair: NormalizationFactor.
-    for (size_t i = nvStart; i + 1 < args.size(); i += 2) {
+    for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter: name-value name must be a string",
                         0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badNVName");
@@ -599,16 +601,16 @@ void integralBoxFilter_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badNVKey");
         }
     }
-    outs[0] = integralBoxFilter(args[0], fH, fW, normFactor, ctx.engine->resource());
+    outs[0] = integralBoxFilter(args[0], fH, fW, normFactor, ctx.engine->allocator());
 }
 
-void integralBoxFilter3_reg(Span<const Value> args, size_t /*nargout*/,
-                            Span<Value> outs, CallContext &ctx)
+void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                            keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "integralBoxFilter3");
     // no max: name-value tail in the reference// Default: 3×3×3 box.
     int fH = 3, fW = 3, fP = 3;
-    size_t nvStart = 1;
+    keel::usize nvStart = 1;
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
         const Value &fsArg = args[1];
@@ -629,7 +631,7 @@ void integralBoxFilter3_reg(Span<const Value> args, size_t /*nargout*/,
     // MATLAB default NormalizationFactor = 1/prod(filterSize) (mean).
     double normFactor = 1.0 / (static_cast<double>(fH) * static_cast<double>(fW)
                                * static_cast<double>(fP));
-    for (size_t i = nvStart; i + 1 < args.size(); i += 2) {
+    for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter3: name-value name must be a string",
                         0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badNVName");
@@ -642,11 +644,11 @@ void integralBoxFilter3_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badNVKey");
         }
     }
-    outs[0] = integralBoxFilter3(args[0], fH, fW, fP, normFactor, ctx.engine->resource());
+    outs[0] = integralBoxFilter3(args[0], fH, fW, fP, normFactor, ctx.engine->allocator());
 }
 
-void medfilt3_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void medfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "medfilt3");
     // no max: name-value tail in the reference
@@ -662,11 +664,11 @@ void medfilt3_reg(Span<const Value> args, size_t /*nargout*/,
             P = static_cast<int>(v.elemAsDouble(2));
         }
     }
-    outs[0] = medfilt3(args[0], M, N, P, ctx.engine->resource());
+    outs[0] = medfilt3(args[0], M, N, P, ctx.engine->allocator());
 }
 
-void imgaussfilt3_reg(Span<const Value> args, size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void imgaussfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imgaussfilt3");
     // no max: name-value tail in the reference
@@ -681,11 +683,11 @@ void imgaussfilt3_reg(Span<const Value> args, size_t /*nargout*/,
             sigP = v.elemAsDouble(2);
         }
     }
-    outs[0] = imgaussfilt3(args[0], sigH, sigW, sigP, ctx.engine->resource());
+    outs[0] = imgaussfilt3(args[0], sigH, sigW, sigP, ctx.engine->allocator());
 }
 
-void convmtx2_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void convmtx2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "convmtx2");
     int m = 0, n = 0;
@@ -702,11 +704,11 @@ void convmtx2_reg(Span<const Value> args, size_t /*nargout*/,
         m = static_cast<int>(v.elemAsDouble(0));
         n = static_cast<int>(v.elemAsDouble(1));
     }
-    outs[0] = convmtx2(args[0], m, n, ctx.engine->resource());
+    outs[0] = convmtx2(args[0], m, n, ctx.engine->allocator());
 }
 
-void imboxfilt3_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void imboxfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imboxfilt3");
     // no max: name-value tail in the reference
@@ -721,35 +723,35 @@ void imboxfilt3_reg(Span<const Value> args, size_t /*nargout*/,
             fP = (int)v.elemAsDouble(2);
         }
     }
-    outs[0] = imboxfilt3(args[0], fH, fW, fP, ctx.engine->resource());
+    outs[0] = imboxfilt3(args[0], fH, fW, fP, ctx.engine->allocator());
 }
 
-void freqz2_reg(Span<const Value> args, size_t nargout,
-                Span<Value> outs, CallContext &ctx)
+void freqz2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "freqz2");
-    size_t M = 64, N = 64;
+    keel::usize M = 64, N = 64;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1) {
-            M = N = static_cast<size_t>(argcheck::expectedPositiveInteger(
+            M = N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(v, 2, "n", "freqz2"), 2, "n", "freqz2"));
         } else if (v.numel() >= 2) {
-            M = static_cast<size_t>(v.elemAsDouble(0));
-            N = static_cast<size_t>(v.elemAsDouble(1));
+            M = static_cast<keel::usize>(v.elemAsDouble(0));
+            N = static_cast<keel::usize>(v.elemAsDouble(1));
         }
     }
     if (args.size() >= 3 && !args[2].isEmpty())
-        N = static_cast<size_t>(argcheck::expectedPositiveInteger(
+        N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[2], 3, "n", "freqz2"), 3, "n", "freqz2"));
-    auto [H, f1, f2] = freqz2(args[0], M, N, ctx.engine->resource());
+    auto [H, f1, f2] = freqz2(args[0], M, N, ctx.engine->allocator());
     outs[0] = std::move(H);
     if (nargout > 1) outs[1] = std::move(f1);
     if (nargout > 2) outs[2] = std::move(f2);
 }
 
-void medfilt2_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void medfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "medfilt2");
     int rows = 3, cols = 3;
@@ -762,11 +764,11 @@ void medfilt2_reg(Span<const Value> args, size_t /*nargout*/,
             cols = (int)v.elemAsDouble(1);
         }
     }
-    outs[0] = medfilt2(args[0], rows, cols, ctx.engine->resource());
+    outs[0] = medfilt2(args[0], rows, cols, ctx.engine->allocator());
 }
 
-void im2col_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void im2col_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 4, "im2col");
     int m = 0, n = 0;
@@ -783,11 +785,11 @@ void im2col_reg(Span<const Value> args, size_t /*nargout*/,
     std::string mode = "sliding";
     if (args.size() >= 3 && (args[2].isChar() || args[2].isString()))
         mode = args[2].toString();
-    outs[0] = im2col(args[0], m, n, mode, ctx.engine->resource());
+    outs[0] = im2col(args[0], m, n, mode, ctx.engine->allocator());
 }
 
-void imbilatfilt_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void imbilatfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imbilatfilt");
     // no max: name-value tail in the reference// Default DegreeOfSmoothing depends on input class range — MATLAB
@@ -815,11 +817,11 @@ void imbilatfilt_reg(Span<const Value> args, size_t /*nargout*/,
                     ? args[1].toScalar() : dos_default;
     double sigma  = (args.size() >= 3 && !args[2].isEmpty())
                     ? args[2].toScalar() : 1.0;
-    outs[0] = imbilatfilt(I, dos, sigma, ctx.engine->resource());
+    outs[0] = imbilatfilt(I, dos, sigma, ctx.engine->allocator());
 }
 
-void col2im_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void col2im_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, "col2im");
     // no max: variadic trailing block sizes by design
@@ -843,11 +845,11 @@ void col2im_reg(Span<const Value> args, size_t /*nargout*/,
     std::string mode = "sliding";
     if (args.size() >= 4 && (args[3].isChar() || args[3].isString()))
         mode = args[3].toString();
-    outs[0] = col2im(args[0], m, n, mm, nn, mode, ctx.engine->resource());
+    outs[0] = col2im(args[0], m, n, mm, nn, mode, ctx.engine->allocator());
 }
 
-void imnoise_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void imnoise_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "imnoise");
     std::string mode = "gaussian";
@@ -860,17 +862,17 @@ void imnoise_reg(Span<const Value> args, size_t /*nargout*/,
     Value p1, p2;
     if (args.size() >= 3) p1 = args[2];
     if (args.size() >= 4) p2 = args[3];
-    outs[0] = imnoise(ctx.engine->rng(), args[0], mode, p1, p2, ctx.engine->resource());
+    outs[0] = imnoise(ctx.engine->rng(), args[0], mode, p1, p2, ctx.engine->allocator());
 }
 
-void imsharpen_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void imsharpen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 7, "imsharpen");
     double radius = 1.0, amount = 0.8, threshold = 0.0;
     // Accept either positional (I, radius, amount, threshold) or
     // name-value pairs ('Radius', r, 'Amount', a, 'Threshold', t).
-    size_t i = 1;
+    keel::usize i = 1;
     bool sawNV = false;
     while (i < args.size()) {
         if (args[i].isChar() || args[i].isString()) {
@@ -897,33 +899,33 @@ void imsharpen_reg(Span<const Value> args, size_t /*nargout*/,
             ++i;
         }
     }
-    outs[0] = imsharpen(args[0], radius, amount, threshold, ctx.engine->resource());
+    outs[0] = imsharpen(args[0], radius, amount, threshold, ctx.engine->allocator());
 }
 
-void stdfilt_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void stdfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "stdfilt");
     Value dom;
     if (args.size() >= 2 && !args[1].isEmpty()) dom = args[1];
-    outs[0] = stdfilt(args[0], dom, ctx.engine->resource());
+    outs[0] = stdfilt(args[0], dom, ctx.engine->allocator());
 }
 
-void rangefilt_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void rangefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "rangefilt");
     Value dom;
     if (args.size() >= 2 && !args[1].isEmpty()) dom = args[1];
-    outs[0] = rangefilt(args[0], dom, ctx.engine->resource());
+    outs[0] = rangefilt(args[0], dom, ctx.engine->allocator());
 }
 
-void imsmooth_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void imsmooth_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imsmooth");
     // no max: absent from the R2025b reference build
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     std::string name = "Gaussian";
     double sigma = 0.5;
     // imsmooth(I, scalar) — Octave shorthand: scalar is sigma, name=Gaussian.
@@ -939,20 +941,20 @@ void imsmooth_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = imsmooth(args[0], name, sigma, mr);
 }
 
-void entropyfilt_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void entropyfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "entropyfilt");
     Value dom;
     if (args.size() >= 2 && !args[1].isEmpty()) dom = args[1];
-    outs[0] = entropyfilt(args[0], dom, ctx.engine->resource());
+    outs[0] = entropyfilt(args[0], dom, ctx.engine->allocator());
 }
 
-void ordfilt2_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void ordfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, 5, "ordfilt2");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const int nth = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "order", "ordfilt2"), 2, "order", "ordfilt2");
     Value domain = args[2];
@@ -960,14 +962,14 @@ void ordfilt2_reg(Span<const Value> args, size_t /*nargout*/,
         // Scalar domain → square true(N).
         const int n = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(domain, 3, "domain", "ordfilt2"), 3, "domain", "ordfilt2");
-        domain = Value::matrix((size_t)n, (size_t)n, ValueType::LOGICAL, mr);
-        std::uint8_t *dd = domain.logicalDataMut();
-        for (size_t i = 0; i < (size_t)n * (size_t)n; ++i) dd[i] = 1;
+        domain = Value::matrix((keel::usize)n, (keel::usize)n, ValueType::LOGICAL, mr);
+        keel::u8 *dd = domain.logicalDataMut();
+        for (keel::usize i = 0; i < (keel::usize)n * (keel::usize)n; ++i) dd[i] = 1;
     }
     Value S;
     PadMode pad = PadMode::Constant;
     double pad_value = 0.0;
-    for (size_t i = 3; i < args.size(); ++i) {
+    for (keel::usize i = 3; i < args.size(); ++i) {
         const Value &a = args[i];
         if (a.isEmpty()) continue;
         if (a.isChar() || a.isString()) {
@@ -991,25 +993,25 @@ void ordfilt2_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = ordfilt2(args[0], nth, domain, S, pad, pad_value, mr);
 }
 
-void wiener2_reg(Span<const Value> args, size_t nargout,
-                 Span<Value> outs, CallContext &ctx)
+void wiener2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "wiener2");
-    size_t nh = 3, nw = 3;
+    keel::usize nh = 3, nw = 3;
     double noise = std::nan("");
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].numel() == 1) {
             // Single scalar = noise (Octave convention when no nhood).
             noise = args[1].toScalar();
         } else if (args[1].numel() >= 2) {
-            nh = static_cast<size_t>(args[1].elemAsDouble(0));
-            nw = static_cast<size_t>(args[1].elemAsDouble(1));
+            nh = static_cast<keel::usize>(args[1].elemAsDouble(0));
+            nw = static_cast<keel::usize>(args[1].elemAsDouble(1));
         }
     }
     if (args.size() >= 3 && !args[2].isEmpty())
         noise = args[2].toScalar();
     auto [denoised, n] =
-        wiener2(args[0], nh, nw, noise, ctx.engine->resource());
+        wiener2(args[0], nh, nw, noise, ctx.engine->allocator());
     outs[0] = std::move(denoised);
     if (nargout > 1) outs[1] = std::move(n);
 }
@@ -1018,12 +1020,12 @@ void wiener2_reg(Span<const Value> args, size_t nargout,
 
 namespace detail {
 
-void roifilt2_reg(Span<const Value> args, std::size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void roifilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, "roifilt2");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     // Function-handle form: J = roifilt2(I, BW, fun).
     if (args[2].isFuncHandle() || args[2].isChar() || args[2].isString()) {
         const Value &I = args[0];
@@ -1032,7 +1034,7 @@ void roifilt2_reg(Span<const Value> args, std::size_t /*nargout*/,
             throw Error("roifilt2: I must be a 2-D image",
                         0, 0, "roifilt2", "", "numkit:roifilt2:imageMustBe2D");
         Value filtRes = ctx.engine->callFunctionHandle(
-            args[2], Span<const Value>(&I, 1));
+            args[2], keel::ArrayRef<Value>(&I, 1));
         outs[0] = roifilt2_combine(I, filtRes, BW, mr);
         return;
     }
@@ -1040,15 +1042,15 @@ void roifilt2_reg(Span<const Value> args, std::size_t /*nargout*/,
     outs[0] = roifilt2(args[0], args[1], args[2], mr);
 }
 
-void nlfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void nlfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, "nlfilter");
     // no max: variadic passthrough to the callback
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
 
     bool indexed = false;
-    std::size_t k = 1;
+    keel::usize k = 1;
     if (args[1].isChar() || args[1].isString()) {
         std::string s = args[1].toString();
         for (auto &c : s) c = static_cast<char>(
@@ -1069,29 +1071,29 @@ void nlfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
     if (nh.numel() != 2)
         throw Error("nlfilter: neighbourhood must be a 2-element vector",
                     0, 0, "nlfilter", "", "numkit:nlfilter:nhood");
-    const std::size_t m = static_cast<std::size_t>(nh.elemAsDouble(0));
-    const std::size_t n = static_cast<std::size_t>(nh.elemAsDouble(1));
+    const keel::usize m = static_cast<keel::usize>(nh.elemAsDouble(0));
+    const keel::usize n = static_cast<keel::usize>(nh.elemAsDouble(1));
     if (!fn.isFuncHandle())
         throw Error("nlfilter: 3rd argument must be a function handle",
                     0, 0, "nlfilter", "", "numkit:nlfilter:fun");
-    auto cb = [&ctx, &fn](Span<const Value> a, Span<Value> o,
-                          std::pmr::memory_resource * /*mr*/) {
+    auto cb = [&ctx, &fn](keel::ArrayRef<Value> a, keel::MutArrayRef<Value> o,
+                          keel::Allocator * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(fn, a, o.size());
-        for (size_t i = 0; i < o.size() && i < r.size(); ++i)
+        for (keel::usize i = 0; i < o.size() && i < r.size(); ++i)
             o[i] = std::move(r[i]);
     };
     outs[0] = nlfilter(args[0], m, n, cb, indexed, mr);
 }
 
-void colfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 4, "colfilt");
     // no max: variadic passthrough to the callback
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
 
     bool indexed = false;
-    std::size_t k = 1;
+    keel::usize k = 1;
     if (args[1].isChar() || args[1].isString()) {
         std::string s = args[1].toString();
         for (auto &c : s) c = static_cast<char>(
@@ -1110,13 +1112,13 @@ void colfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     if (nh.numel() != 2)
         throw Error("colfilt: neighbourhood must be a 2-element vector",
                     0, 0, "colfilt", "", "numkit:colfilt:nhood");
-    const std::size_t m = static_cast<std::size_t>(nh.elemAsDouble(0));
-    const std::size_t n = static_cast<std::size_t>(nh.elemAsDouble(1));
+    const keel::usize m = static_cast<keel::usize>(nh.elemAsDouble(0));
+    const keel::usize n = static_cast<keel::usize>(nh.elemAsDouble(1));
 
     // Detect optional [mblock nblock] — present iff arg[k+1] is a
     // 2-element numeric vector AND arg[k+2] is a string AND arg[k+3]
     // exists (the function handle).
-    std::size_t bi = k + 1;
+    keel::usize bi = k + 1;
     if (!args[bi].isChar() && !args[bi].isString()
         && args[bi].numel() == 2
         && (bi + 2) < args.size()
@@ -1136,26 +1138,26 @@ void colfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     if (!fn.isFuncHandle())
         throw Error("colfilt: fun must be a function handle",
                     0, 0, "colfilt", "", "numkit:colfilt:fun");
-    auto cb = [&ctx, &fn](Span<const Value> a, Span<Value> o,
-                          std::pmr::memory_resource * /*mr*/) {
+    auto cb = [&ctx, &fn](keel::ArrayRef<Value> a, keel::MutArrayRef<Value> o,
+                          keel::Allocator * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(fn, a, o.size());
-        for (size_t i = 0; i < o.size() && i < r.size(); ++i)
+        for (keel::usize i = 0; i < o.size() && i < r.size(); ++i)
             o[i] = std::move(r[i]);
     };
     outs[0] = colfilt(args[0], m, n, kind, cb, indexed, mr);
 }
 
-void imnlmfilt_reg(Span<const Value> args, std::size_t nargout,
-                   Span<Value> outs, CallContext &ctx)
+void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 7, "imnlmfilt");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     double dos = -1.0;
     int swsize = 21;
     int cwsize = 5;
-    std::size_t i = 1;
+    keel::usize i = 1;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("imnlmfilt: expected NV-pair name",
@@ -1192,12 +1194,12 @@ void imnlmfilt_reg(Span<const Value> args, std::size_t nargout,
     if (nargout >= 2) outs[1] = Value::scalar(est, mr);
 }
 
-void imgaborfilt_reg(Span<const Value> args, std::size_t nargout,
-                     Span<Value> outs, CallContext &ctx)
+void imgaborfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, "imgaborfilt");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     const Value &A = args[0];
@@ -1206,7 +1208,7 @@ void imgaborfilt_reg(Span<const Value> args, std::size_t nargout,
     double sfb = 1.0;
     double aspect = 0.5;
 
-    std::size_t i = 3;
+    keel::usize i = 3;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("imgaborfilt: expected NV-pair name",
@@ -1232,20 +1234,20 @@ void imgaborfilt_reg(Span<const Value> args, std::size_t nargout,
     if (nargout >= 2) outs[1] = std::move(phase);
 }
 
-void imdiffusefilt_reg(Span<const Value> args, std::size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imdiffusefilt");
     // no max: inputParser name-value tail
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     Value thresh;
-    std::size_t N = 0;
+    keel::usize N = 0;
     std::string connectivity = "maximal";
     std::string conduction = "exponential";
 
-    std::size_t i = 1;
+    keel::usize i = 1;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("imdiffusefilt: expected NV-pair name",
@@ -1265,7 +1267,7 @@ void imdiffusefilt_reg(Span<const Value> args, std::size_t /*nargout*/,
                             "positive integer",
                             0, 0, "imdiffusefilt", "",
                             "numkit:imdiffusefilt:n");
-            N = static_cast<std::size_t>(v);
+            N = static_cast<keel::usize>(v);
         } else if (nlo == "connectivity") {
             connectivity = args[i + 1].toString();
             std::string lo;
@@ -1290,11 +1292,11 @@ void imdiffusefilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     outs[0] = imdiffusefilt(args[0], thresh, N, connectivity, conduction, mr);
 }
 
-void imguidedfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
-                        Span<Value> outs, CallContext &ctx)
+void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 6, "imguidedfilter");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     Value A = args[0];
@@ -1302,7 +1304,7 @@ void imguidedfilter_reg(Span<const Value> args, std::size_t /*nargout*/,
     int nhood = 5;
     double eps = -1.0;  // sentinel → class-based default
 
-    std::size_t i = 1;
+    keel::usize i = 1;
     if (i < args.size() && !is_string(args[i])) {
         G = args[i];
         ++i;

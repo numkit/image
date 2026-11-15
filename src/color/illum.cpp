@@ -43,6 +43,8 @@
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <cmath>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -53,7 +55,6 @@
 #include "illum_detail.hpp"
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
@@ -67,14 +68,14 @@ namespace numkit::image {
 
 namespace {
 
-inline double pixel_at(const Value &A, std::size_t H, std::size_t W,
-                       std::size_t i, std::size_t j, std::size_t c)
+inline double pixel_at(const Value &A, keel::usize H, keel::usize W,
+                       keel::usize i, keel::usize j, keel::usize c)
 {
     return A.elemAsDouble(c * H * W + j * H + i);
 }
 
 void validate_image_and_mask(const Value &A, const Value &mask,
-                             std::size_t &H, std::size_t &W,
+                             keel::usize &H, keel::usize &W,
                              std::vector<unsigned char> &maskFlat,
                              const char *fn)
 {
@@ -92,26 +93,26 @@ void validate_image_and_mask(const Value &A, const Value &mask,
         throw Error(std::string(fn) + ": Mask must be H×W matching the image",
                     0, 0, fn, "", "numkit:image:maskShape");
     maskFlat.resize(H * W);
-    for (std::size_t k = 0; k < H * W; ++k)
+    for (keel::usize k = 0; k < H * W; ++k)
         maskFlat[k] = (mask.elemAsDouble(k) != 0.0) ? 1 : 0;
 }
 
-void collect_channel(const Value &A, std::size_t H, std::size_t W,
-                     std::size_t c, const std::vector<unsigned char> &mask,
+void collect_channel(const Value &A, keel::usize H, keel::usize W,
+                     keel::usize c, const std::vector<unsigned char> &mask,
                      std::vector<double> &out)
 {
     out.clear();
     out.reserve(H * W);
-    for (std::size_t j = 0; j < W; ++j) {
-        for (std::size_t i = 0; i < H; ++i) {
-            const std::size_t k = j * H + i;
+    for (keel::usize j = 0; j < W; ++j) {
+        for (keel::usize i = 0; i < H; ++i) {
+            const keel::usize k = j * H + i;
             if (!mask[k]) continue;
             out.push_back(pixel_at(A, H, W, i, j, c));
         }
     }
 }
 
-Value make_row3(double r, double g, double b, std::pmr::memory_resource *mr)
+Value make_row3(double r, double g, double b, keel::Allocator *mr)
 {
     Value out = Value::matrix(1, 3, ValueType::DOUBLE, mr);
     out.doubleDataMut()[0] = r;
@@ -125,7 +126,7 @@ void illumwhite_argcheck(const Value &A, double P, const Value &mask)
     if (P < 0.0 || P >= 100.0)
         throw Error("illumwhite: percentile must satisfy 0 <= P < 100",
                     0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
-    std::size_t H = 0, W = 0;
+    keel::usize H = 0, W = 0;
     std::vector<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumwhite");
     if (H == 0 || W == 0)
@@ -153,7 +154,7 @@ void illumgray_argcheck(const Value &A, const std::vector<double> &P,
     if (!(norm_exp > 0.0))
         throw Error("illumgray: Norm must be a positive scalar",
                     0, 0, "illumgray", "", "numkit:illumgray:norm");
-    std::size_t H = 0, W = 0;
+    keel::usize H = 0, W = 0;
     std::vector<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumgray");
     if (H == 0 || W == 0)
@@ -166,7 +167,7 @@ void illumpca_argcheck(const Value &A, double P, const Value &mask)
     if (!(P > 0.0) || P > 50.0)
         throw Error("illumpca: percentage must satisfy 0 < P <= 50",
                     0, 0, "illumpca", "", "numkit:illumpca:percentage");
-    std::size_t H = 0, W = 0;
+    keel::usize H = 0, W = 0;
     std::vector<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumpca");
     if (H == 0 || W == 0)
@@ -211,14 +212,14 @@ void imcolordiff_argcheck(const Value &I1, const Value &I2,
 
 // ── illumwhite ─────────────────────────────────────────────────────
 Value illumwhite(const Value &A, double P, const Value &mask,
-                 std::pmr::memory_resource *mr)
+                 keel::Allocator *mr)
 {
     illumwhite_argcheck(A, P, mask);
     if (P < 0.0 || P >= 100.0)
         throw Error("illumwhite: percentile must satisfy 0 <= P < 100",
                     0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
 
-    std::size_t H = 0, W = 0;
+    keel::usize H = 0, W = 0;
     std::vector<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumwhite");
     if (H == 0 || W == 0)
@@ -227,19 +228,19 @@ Value illumwhite(const Value &A, double P, const Value &mask,
 
     double out[3] = {0.0, 0.0, 0.0};
     std::vector<double> plane;
-    for (std::size_t c = 0; c < 3; ++c) {
+    for (keel::usize c = 0; c < 3; ++c) {
         collect_channel(A, H, W, c, maskFlat, plane);
         if (plane.empty())
             throw Error("illumwhite: no pixels selected by Mask",
                         0, 0, "illumwhite", "", "numkit:illumwhite:emptyMask");
         std::sort(plane.begin(), plane.end());
-        const std::size_t N = plane.size();
+        const keel::usize N = plane.size();
         // K = floor(N · P / 100). We want the largest value such that
         // strictly more than K pixels lie at-or-above it. After sorting
         // ascending, that is element at index (N - K - 1). For K = 0
         // this is the max (index N-1). For K = N this clamps to index 0
         // (lowest), but P < 100 guarantees K < N so we never hit that.
-        std::size_t K = static_cast<std::size_t>(
+        keel::usize K = static_cast<keel::usize>(
             std::floor(P * 0.01 * static_cast<double>(N)));
         if (K >= N) K = N - 1;
         out[c] = plane[N - K - 1];
@@ -255,7 +256,7 @@ Value illumwhite(const Value &A, double P, const Value &mask,
 // `norm_exp = 1` (the default).
 Value illumgray_impl(const Value &A, const std::vector<double> &P,
                             const Value &mask, double norm_exp,
-                            std::pmr::memory_resource *mr)
+                            keel::Allocator *mr)
 {
     illumgray_argcheck(A, P, mask, norm_exp);
     double p_lo = 1.0, p_hi = 1.0;   // MATLAB defaults
@@ -276,7 +277,7 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
         throw Error("illumgray: Norm must be a positive scalar",
                     0, 0, "illumgray", "", "numkit:illumgray:norm");
 
-    std::size_t H = 0, W = 0;
+    keel::usize H = 0, W = 0;
     std::vector<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumgray");
     if (H == 0 || W == 0)
@@ -285,16 +286,16 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
 
     double out[3] = {0.0, 0.0, 0.0};
     std::vector<double> plane;
-    for (std::size_t c = 0; c < 3; ++c) {
+    for (keel::usize c = 0; c < 3; ++c) {
         collect_channel(A, H, W, c, maskFlat, plane);
         if (plane.empty())
             throw Error("illumgray: no pixels selected by Mask",
                         0, 0, "illumgray", "", "numkit:illumgray:emptyMask");
         std::sort(plane.begin(), plane.end());
-        const std::size_t N = plane.size();
-        const std::size_t K_lo = static_cast<std::size_t>(
+        const keel::usize N = plane.size();
+        const keel::usize K_lo = static_cast<keel::usize>(
             std::floor(p_lo * 0.01 * static_cast<double>(N)));
-        const std::size_t K_hi = static_cast<std::size_t>(
+        const keel::usize K_hi = static_cast<keel::usize>(
             std::floor(p_hi * 0.01 * static_cast<double>(N)));
         if (K_lo + K_hi >= N)
             throw Error("illumgray: percentiles trim all pixels",
@@ -303,15 +304,15 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
         // masks `plane >= minVal-eps & plane <= maxVal+eps`. For
         // strictly-ascending unique values that is equivalent to
         // trimming `K_lo` from the bottom and `K_hi` from the top.
-        const std::size_t lo = K_lo;
-        const std::size_t hi = N - K_hi;          // exclusive
+        const keel::usize lo = K_lo;
+        const keel::usize hi = N - K_hi;          // exclusive
         long double sum = 0.0L;
-        for (std::size_t k = lo; k < hi; ++k) {
+        for (keel::usize k = lo; k < hi; ++k) {
             const double v = plane[k];
             if (norm_exp == 1.0)       sum += std::fabs(v);
             else                       sum += std::pow(std::fabs(v), norm_exp);
         }
-        const std::size_t cnt = hi - lo;
+        const keel::usize cnt = hi - lo;
         long double mean;
         if (norm_exp == 1.0) mean = sum / static_cast<long double>(cnt);
         else                 mean = std::pow(static_cast<double>(sum), 1.0 / norm_exp)
@@ -322,7 +323,7 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
 }
 
 Value illumgray(const Value &A, const std::vector<double> &P,
-                const Value &mask, std::pmr::memory_resource *mr)
+                const Value &mask, keel::Allocator *mr)
 {
     illumgray_argcheck(A, P, mask, 1.0);
     return illumgray_impl(A, P, mask, 1.0, mr);
@@ -427,14 +428,14 @@ void jacobi_eigen_3x3(const Sym3 &M, double evals[3], double evecs[9])
 } // anonymous
 
 Value illumpca(const Value &A, double P, const Value &mask,
-               std::pmr::memory_resource *mr)
+               keel::Allocator *mr)
 {
     illumpca_argcheck(A, P, mask);
     if (!(P > 0.0) || P > 50.0)
         throw Error("illumpca: percentage must satisfy 0 < P <= 50",
                     0, 0, "illumpca", "", "numkit:illumpca:percentage");
 
-    std::size_t H = 0, W = 0;
+    keel::usize H = 0, W = 0;
     std::vector<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumpca");
     if (H == 0 || W == 0)
@@ -444,23 +445,23 @@ Value illumpca(const Value &A, double P, const Value &mask,
     // Step 1: gather masked rows as Mx3 (column-major flat).
     std::vector<double> rows; // length = 3 * M
     rows.reserve(3 * H * W);
-    for (std::size_t j = 0; j < W; ++j) {
-        for (std::size_t i = 0; i < H; ++i) {
-            const std::size_t k = j * H + i;
+    for (keel::usize j = 0; j < W; ++j) {
+        for (keel::usize i = 0; i < H; ++i) {
+            const keel::usize k = j * H + i;
             if (!maskFlat[k]) continue;
             rows.push_back(pixel_at(A, H, W, i, j, 0));
             rows.push_back(pixel_at(A, H, W, i, j, 1));
             rows.push_back(pixel_at(A, H, W, i, j, 2));
         }
     }
-    const std::size_t M = rows.size() / 3;
+    const keel::usize M = rows.size() / 3;
     if (M == 0)
         throw Error("illumpca: no pixels selected by Mask",
                     0, 0, "illumpca", "", "numkit:illumpca:emptyMask");
 
     // Step 2: mean colour.
     double A0[3] = {0.0, 0.0, 0.0};
-    for (std::size_t k = 0; k < M; ++k) {
+    for (keel::usize k = 0; k < M; ++k) {
         A0[0] += rows[3 * k + 0];
         A0[1] += rows[3 * k + 1];
         A0[2] += rows[3 * k + 2];
@@ -474,20 +475,20 @@ Value illumpca(const Value &A, double P, const Value &mask,
                     0, 0, "illumpca", "", "numkit:illumpca:nonfinite");
 
     // Step 3: projection magnitude.
-    std::vector<std::size_t> idx(M);
+    std::vector<keel::usize> idx(M);
     std::vector<double> proj(M);
     if (normA02 > 0.0) {
-        for (std::size_t k = 0; k < M; ++k) {
+        for (keel::usize k = 0; k < M; ++k) {
             proj[k] = (rows[3*k+0]*A0[0] + rows[3*k+1]*A0[1]
                      + rows[3*k+2]*A0[2]) / normA02;
             idx[k] = k;
         }
     } else {
         // All-zero mean direction — keep original order.
-        for (std::size_t k = 0; k < M; ++k) { proj[k] = 0.0; idx[k] = k; }
+        for (keel::usize k = 0; k < M; ++k) { proj[k] = 0.0; idx[k] = k; }
     }
     std::sort(idx.begin(), idx.end(),
-        [&](std::size_t a, std::size_t b) { return proj[a] < proj[b]; });
+        [&](keel::usize a, keel::usize b) { return proj[a] < proj[b]; });
 
     // Step 4-5: select tail rows. The MATLAB code uses:
     //   if p>=50 || M==1 → keep all
@@ -497,21 +498,21 @@ Value illumpca(const Value &A, double P, const Value &mask,
     std::vector<double> selected; // 3 * Msel
     if (P >= 50.0 || M == 1) {
         selected.reserve(3 * M);
-        for (std::size_t k = 0; k < M; ++k) {
-            const std::size_t r = idx[k];
+        for (keel::usize k = 0; k < M; ++k) {
+            const keel::usize r = idx[k];
             selected.push_back(rows[3*r+0]);
             selected.push_back(rows[3*r+1]);
             selected.push_back(rows[3*r+2]);
         }
     } else {
-        std::size_t lo = static_cast<std::size_t>(
+        keel::usize lo = static_cast<keel::usize>(
             std::floor(P * 0.01 * static_cast<double>(M)));
         if (lo < 1) lo = 1;
         if (2 * lo > M) lo = M / 2;
         // Bottom `lo` darkest.
         selected.reserve(6 * lo);
-        for (std::size_t k = 0; k < lo; ++k) {
-            const std::size_t r = idx[k];
+        for (keel::usize k = 0; k < lo; ++k) {
+            const keel::usize r = idx[k];
             selected.push_back(rows[3*r+0]);
             selected.push_back(rows[3*r+1]);
             selected.push_back(rows[3*r+2]);
@@ -520,18 +521,18 @@ Value illumpca(const Value &A, double P, const Value &mask,
         // highIdx = M-lo+1 (1-based) gives exactly the last `lo` rows
         // when 2*lo <= M (the typical case). When 2*lo == M, the slice
         // is exactly the top half — no overlap with the bottom slice.
-        for (std::size_t k = M - lo; k < M; ++k) {
-            const std::size_t r = idx[k];
+        for (keel::usize k = M - lo; k < M; ++k) {
+            const keel::usize r = idx[k];
             selected.push_back(rows[3*r+0]);
             selected.push_back(rows[3*r+1]);
             selected.push_back(rows[3*r+2]);
         }
     }
-    const std::size_t Msel = selected.size() / 3;
+    const keel::usize Msel = selected.size() / 3;
 
     // Step 6: 3×3 Cᵀ · C  (Cᵀ Cᵢⱼ = Σₖ Cₖᵢ Cₖⱼ).
     Sym3 C{0, 0, 0, 0, 0, 0};
-    for (std::size_t k = 0; k < Msel; ++k) {
+    for (keel::usize k = 0; k < Msel; ++k) {
         const double r = selected[3*k+0];
         const double g = selected[3*k+1];
         const double b = selected[3*k+2];
@@ -546,7 +547,7 @@ Value illumpca(const Value &A, double P, const Value &mask,
     // Step 7: degenerate?
     auto mean_selected = [&]() {
         double r = 0, g = 0, b = 0;
-        for (std::size_t k = 0; k < Msel; ++k) {
+        for (keel::usize k = 0; k < Msel; ++k) {
             r += selected[3*k+0];
             g += selected[3*k+1];
             b += selected[3*k+2];
@@ -558,7 +559,7 @@ Value illumpca(const Value &A, double P, const Value &mask,
     if (Msel < 2) return mean_selected();
 
     // Sort indices by eigenvalue DESCENDING.
-    std::size_t order[3] = {0, 1, 2};
+    keel::usize order[3] = {0, 1, 2};
     if (evals[order[0]] < evals[order[1]]) std::swap(order[0], order[1]);
     if (evals[order[1]] < evals[order[2]]) std::swap(order[1], order[2]);
     if (evals[order[0]] < evals[order[1]]) std::swap(order[0], order[1]);
@@ -593,7 +594,7 @@ Value illumpca(const Value &A, double P, const Value &mask,
         return mean_selected();
 
     // Principal component = eigenvector of the largest eigenvalue.
-    const std::size_t col = order[0];
+    const keel::usize col = order[0];
     return make_row3(std::fabs(evecs[0 + 3 * col]),
                      std::fabs(evecs[1 + 3 * col]),
                      std::fabs(evecs[2 + 3 * col]), mr);
@@ -625,10 +626,10 @@ namespace {
 constexpr double DEG2RAD = 0.017453292519943295769;
 
 struct Triplet { double L, a, b; };
-Triplet lab_at(const Value &I, std::size_t H, std::size_t W,
-               std::size_t k_flat)
+Triplet lab_at(const Value &I, keel::usize H, keel::usize W,
+               keel::usize k_flat)
 {
-    const std::size_t plane = H * W;
+    const keel::usize plane = H * W;
     return {I.elemAsDouble(0 * plane + k_flat),
             I.elemAsDouble(1 * plane + k_flat),
             I.elemAsDouble(2 * plane + k_flat)};
@@ -730,7 +731,7 @@ double delta_e_2000(const Triplet &p1, const Triplet &p2,
 Value imcolordiff(const Value &I1, const Value &I2,
                   const std::string &standard, bool is_input_lab,
                   double kL, double kC, double kH, double K1, double K2,
-                  std::pmr::memory_resource *mr)
+                  keel::Allocator *mr)
 {
     imcolordiff_argcheck(I1, I2, standard, kL, kC, kH, K1, K2);
     // Normalise the Standard string.
@@ -753,7 +754,7 @@ Value imcolordiff(const Value &I1, const Value &I2,
     //   * c-by-3 list  → c-by-1 output (column vector).
     //   * H-by-W-by-3  → H-by-W output.
     enum Shape { COLORMAP, IMAGE } shape;
-    std::size_t out_h, out_w;
+    keel::usize out_h, out_w;
     if (!d1.is3D() && !d2.is3D()) {
         if (d1.cols() != 3 || d2.cols() != 3 || d1.rows() != d2.rows())
             throw Error("imcolordiff: c-by-3 inputs must have matching rows",
@@ -788,15 +789,15 @@ Value imcolordiff(const Value &I1, const Value &I2,
     // For the c-by-3 shape we still treat the data as a "pseudo image"
     // of width-1 page-stride for indexing — pack into the same shape
     // rgb2lab returned (which preserves c-by-3 layout).
-    const std::size_t H = (shape == COLORMAP) ? out_h : out_h;
-    const std::size_t W = (shape == COLORMAP) ? 1     : out_w;
-    const std::size_t N = H * W;
+    const keel::usize H = (shape == COLORMAP) ? out_h : out_h;
+    const keel::usize W = (shape == COLORMAP) ? 1     : out_w;
+    const keel::usize N = H * W;
 
     Value out = Value::matrix(out_h, out_w,
                               to_double ? ValueType::DOUBLE : ValueType::SINGLE,
                               mr);
 
-    for (std::size_t k = 0; k < N; ++k) {
+    for (keel::usize k = 0; k < N; ++k) {
         Triplet p1 = lab_at(A, H, W, k);
         Triplet p2 = lab_at(B, H, W, k);
         double v;

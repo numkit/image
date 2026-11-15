@@ -19,6 +19,8 @@
 // the mirrored neighbourhood preserves the Bayer pattern — this is
 // what MATLAB R2025b does, NOT imfilter's standard `symmetric`.
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/value/value.hpp>
@@ -82,13 +84,13 @@ inline int mirror1(int k, int N) {
     return k;
 }
 
-inline double sampleI(const Value &I, int r, int c, size_t M, size_t N) {
+inline double sampleI(const Value &I, int r, int c, keel::usize M, keel::usize N) {
     const int rp = mirror1(r, int(M));
     const int cp = mirror1(c, int(N));
-    return I.elemAsDouble(size_t(rp) + size_t(cp) * M);
+    return I.elemAsDouble(keel::usize(rp) + keel::usize(cp) * M);
 }
 
-inline double conv5(const Value &I, int r, int c, size_t M, size_t N,
+inline double conv5(const Value &I, int r, int c, keel::usize M, keel::usize N,
                     const double *K)
 {
     double acc = 0.0;
@@ -101,21 +103,21 @@ inline double conv5(const Value &I, int r, int c, size_t M, size_t N,
     return acc / 8.0;
 }
 
-inline void writeNativeInt(Value &out, size_t idx, double v, ValueType T)
+inline void writeNativeInt(Value &out, keel::usize idx, double v, ValueType T)
 {
     if (v < 0.0) v = 0.0;
     switch (T) {
         case ValueType::UINT8:
             if (v > 255.0) v = 255.0;
-            out.uint8DataMut()[idx] = static_cast<std::uint8_t>(std::lround(v));
+            out.uint8DataMut()[idx] = static_cast<keel::u8>(std::lround(v));
             break;
         case ValueType::UINT16:
             if (v > 65535.0) v = 65535.0;
-            out.uint16DataMut()[idx] = static_cast<std::uint16_t>(std::lround(v));
+            out.uint16DataMut()[idx] = static_cast<keel::u16>(std::lround(v));
             break;
         case ValueType::UINT32:
             if (v > 4294967295.0) v = 4294967295.0;
-            out.uint32DataMut()[idx] = static_cast<std::uint32_t>(std::llround(v));
+            out.uint32DataMut()[idx] = static_cast<keel::u32>(std::llround(v));
             break;
         default:
             // Unreachable — adapter validates type.
@@ -129,8 +131,8 @@ void demosaic_argcheck(const Value &I, const std::string &sensorAlignment)
     if (dims.ndims() < 2)
         throw Error("demosaic: I must be a 2-D matrix",
                     0, 0, "demosaic", "", "numkit:demosaic:rank");
-    const size_t M = dims.dim(0);
-    const size_t N = dims.dim(1);
+    const keel::usize M = dims.dim(0);
+    const keel::usize N = dims.dim(1);
     if (M < 2 || N < 2 || (M % 2) != 0 || (N % 2) != 0)
         throw Error("demosaic: image dims must both be even and ≥ 2",
                     0, 0, "demosaic", "", "numkit:demosaic:invalidImageSize");
@@ -154,15 +156,15 @@ void demosaic_argcheck(const Value &I, const std::string &sensorAlignment)
 } // anonymous
 
 Value demosaic(const Value &I, const std::string &sensorAlignment,
-               int bitsPerSample, std::pmr::memory_resource *mr)
+               int bitsPerSample, keel::Allocator *mr)
 {
     demosaic_argcheck(I, sensorAlignment);
     const auto &dims = I.dims();
     if (dims.ndims() < 2)
         throw Error("demosaic: I must be a 2-D matrix",
                     0, 0, "demosaic", "", "numkit:demosaic:rank");
-    const size_t M = dims.dim(0);
-    const size_t N = dims.dim(1);
+    const keel::usize M = dims.dim(0);
+    const keel::usize N = dims.dim(1);
     if (M < 2 || N < 2 || (M % 2) != 0 || (N % 2) != 0)
         throw Error("demosaic: image dims must both be even and ≥ 2",
                     0, 0, "demosaic", "", "numkit:demosaic:invalidImageSize");
@@ -240,7 +242,7 @@ Value demosaic(const Value &I, const std::string &sensorAlignment,
                 if (v > maxVal)   v = maxVal;
                 return v;
             };
-            const size_t base = size_t(r) + size_t(c) * M;
+            const keel::usize base = keel::usize(r) + keel::usize(c) * M;
             writeNativeInt(RGB, base + 0 * M * N, clamp(R_v), T);
             writeNativeInt(RGB, base + 1 * M * N, clamp(G_v), T);
             writeNativeInt(RGB, base + 2 * M * N, clamp(B_v), T);

@@ -6,14 +6,16 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/image/transform/transform.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
 #include <numkit/value/value.hpp>
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -32,49 +34,49 @@ namespace numkit::image {
 
 namespace detail {
 
-void integralImage_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void integralImage_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "integralImage");
-    outs[0] = integralImage(args[0], ctx.engine->resource());
+    outs[0] = integralImage(args[0], ctx.engine->allocator());
 }
 
-void integralImage3_reg(Span<const Value> args, size_t /*nargout*/,
-                        Span<Value> outs, CallContext &ctx)
+void integralImage3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "integralImage3");
     // no max: name-value tail in the reference
-    outs[0] = integralImage3(args[0], ctx.engine->resource());
+    outs[0] = integralImage3(args[0], ctx.engine->allocator());
 }
 
-void dct2_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void dct2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
               CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "dct2");
-    outs[0] = dct2(args[0], ctx.engine->resource());
+    outs[0] = dct2(args[0], ctx.engine->allocator());
 }
 
-void idct2_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void idct2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "idct2");
-    outs[0] = idct2(args[0], ctx.engine->resource());
+    outs[0] = idct2(args[0], ctx.engine->allocator());
 }
 
-void dctmtx_reg(Span<const Value> args, size_t /*nargout*/, Span<Value> outs,
+void dctmtx_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
                 CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "dctmtx");
-    outs[0] = dctmtx(args[0].toScalar(), ctx.engine->resource());
+    outs[0] = dctmtx(args[0].toScalar(), ctx.engine->allocator());
 }
 
-void phantom_reg(Span<const Value> args, size_t nargout,
-                 Span<Value> outs, CallContext &ctx)
+void phantom_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, "phantom");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     Value model_or_E;
-    size_t n = 0;
+    keel::usize n = 0;
     // Argument forms:
     //   phantom()                            -> defaults
     //   phantom(model_str | E)               -> single arg
@@ -95,48 +97,48 @@ void phantom_reg(Span<const Value> args, size_t nargout,
     if (nargout > 1) outs[1] = std::move(E);
 }
 
-void normxcorr2_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void normxcorr2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "normxcorr2");
-    outs[0] = normxcorr2(args[0], args[1], ctx.engine->resource());
+    outs[0] = normxcorr2(args[0], args[1], ctx.engine->allocator());
 }
 
-void psf2otf_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void psf2otf_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "psf2otf");
-    auto *mr = ctx.engine->resource();
-    ScratchArena scratch(mr);
-    ScratchVec<size_t> outsizeBuf(&scratch);
+    auto *mr = ctx.engine->allocator();
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::usize> outsizeBuf(scratch.allocator());
     if (args.size() >= 2 && !args[1].isEmpty()) {
-        const size_t n = args[1].numel();
+        const keel::usize n = args[1].numel();
         outsizeBuf.reserve(n);
-        for (size_t i = 0; i < n; ++i)
-            outsizeBuf.push_back(static_cast<size_t>(args[1].elemAsDouble(i)));
+        for (keel::usize i = 0; i < n; ++i)
+            outsizeBuf.push_back(static_cast<keel::usize>(args[1].elemAsDouble(i)));
     }
-    outs[0] = psf2otf(args[0], Span<const size_t>(outsizeBuf.data(), outsizeBuf.size()), mr);
+    outs[0] = psf2otf(args[0], keel::ArrayRef<keel::usize>(outsizeBuf.data(), outsizeBuf.size()), mr);
 }
 
-void bestblk_reg(Span<const Value> args, size_t nargout,
-                 Span<Value> outs, CallContext &ctx)
+void bestblk_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bestblk");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const double k = (args.size() >= 2 && !args[1].isEmpty())
                        ? args[1].toScalar() : 100.0;
     Value v = bestblk(args[0], k, mr);
     if (nargout <= 1) { outs[0] = std::move(v); return; }
     // Multi-output form: split row vector into scalars.
-    const size_t nd = v.numel();
-    const size_t M = std::min<size_t>(nargout, nd);
-    for (size_t i = 0; i < M; ++i) {
+    const keel::usize nd = v.numel();
+    const keel::usize M = std::min<keel::usize>(nargout, nd);
+    for (keel::usize i = 0; i < M; ++i) {
         outs[i] = Value::scalar(v.elemAsDouble(i), mr);
     }
 }
 
-void fftconv2_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void fftconv2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "fftconv2");
     // no max: absent from the R2025b reference build
@@ -147,21 +149,21 @@ void fftconv2_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "fftconv2", "", "numkit:fftconv2:shape");
         shape = args[2].toString();
     }
-    outs[0] = fftconv2(args[0], args[1], shape, ctx.engine->resource());
+    outs[0] = fftconv2(args[0], args[1], shape, ctx.engine->allocator());
 }
 
-void edgetaper_reg(Span<const Value> args, std::size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void edgetaper_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "edgetaper");
-    outs[0] = edgetaper(args[0], args[1], ctx.engine->resource());
+    outs[0] = edgetaper(args[0], args[1], ctx.engine->allocator());
 }
 
-void deconvreg_reg(Span<const Value> args, std::size_t nargout,
-                   Span<Value> outs, CallContext &ctx)
+void deconvreg_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "deconvreg");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     double np = 0.0;
     double lo = 1e-9, hi = 1e9;
     Value regop = Value::Empty;
@@ -193,11 +195,11 @@ void deconvreg_reg(Span<const Value> args, std::size_t nargout,
     if (nargout > 1) outs[1] = Value::scalar(r.lagra, mr);
 }
 
-void deconvwnr_reg(Span<const Value> args, std::size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void deconvwnr_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 4, "deconvwnr");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     if (args.size() == 2) {
         outs[0] = deconvwnr(args[0], args[1], 0.0, mr);
     } else if (args.size() == 3) {
@@ -212,48 +214,48 @@ void deconvwnr_reg(Span<const Value> args, std::size_t /*nargout*/,
     }
 }
 
-void otf2psf_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void otf2psf_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "otf2psf");
-    auto *mr = ctx.engine->resource();
-    ScratchArena scratch(mr);
-    ScratchVec<size_t> outsizeBuf(&scratch);
+    auto *mr = ctx.engine->allocator();
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::usize> outsizeBuf(scratch.allocator());
     if (args.size() >= 2 && !args[1].isEmpty()) {
-        const size_t n = args[1].numel();
+        const keel::usize n = args[1].numel();
         outsizeBuf.reserve(n);
-        for (size_t i = 0; i < n; ++i)
-            outsizeBuf.push_back(static_cast<size_t>(args[1].elemAsDouble(i)));
+        for (keel::usize i = 0; i < n; ++i)
+            outsizeBuf.push_back(static_cast<keel::usize>(args[1].elemAsDouble(i)));
     }
-    outs[0] = otf2psf(args[0], Span<const size_t>(outsizeBuf.data(), outsizeBuf.size()), mr);
+    outs[0] = otf2psf(args[0], keel::ArrayRef<keel::usize>(outsizeBuf.data(), outsizeBuf.size()), mr);
 }
 
-void checkerboard_reg(Span<const Value> args, size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void checkerboard_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 3, "checkerboard");
-    size_t side = 10, M = 4, N = 4;
+    keel::usize side = 10, M = 4, N = 4;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const double s = args[0].toScalar();
         if (s < 0.0 || s != std::floor(s))
             throw Error("checkerboard: SIDE must be a non-negative integer",
                         0, 0, "checkerboard", "", "numkit:checkerboard:side");
-        side = static_cast<size_t>(s);
+        side = static_cast<keel::usize>(s);
     }
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1)
-            M = N = static_cast<size_t>(argcheck::expectedPositiveInteger(
+            M = N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(v, 2, "M", "checkerboard"), 2, "M", "checkerboard"));
         else if (v.numel() >= 2) {
-            M = static_cast<size_t>(v.elemAsDouble(0));
-            N = static_cast<size_t>(v.elemAsDouble(1));
+            M = static_cast<keel::usize>(v.elemAsDouble(0));
+            N = static_cast<keel::usize>(v.elemAsDouble(1));
         }
     }
     if (args.size() >= 3 && !args[2].isEmpty())
-        N = static_cast<size_t>(argcheck::expectedPositiveInteger(
+        N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[2], 3, "N", "checkerboard"), 3, "N", "checkerboard"));
-    outs[0] = checkerboard(side, M, N, ctx.engine->resource());
+    outs[0] = checkerboard(side, M, N, ctx.engine->allocator());
 }
 
 } // namespace detail

@@ -9,14 +9,15 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/image/morph/morph.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
 #include <numkit/value/value.hpp>
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -35,13 +36,13 @@ namespace numkit::image {
 // (diamond_cross) and the synchronous Engine-driven makelut. The VM-pausable
 // path is MakelutCallbackBuiltin below.
 namespace {
-Value diamond_cross(std::pmr::memory_resource *mr) {
+Value diamond_cross(keel::Allocator *mr) {
     Value se = Value::matrix(3, 3, ValueType::LOGICAL, mr);
-    std::uint8_t *d = se.logicalDataMut();
+    keel::u8 *d = se.logicalDataMut();
     // Column-major fill: cols [c0(r0..2), c1(r0..2), c2(r0..2)].
     // Pattern: [0 1 0; 1 1 1; 0 1 0] — center cross.
-    static constexpr std::uint8_t pat[9] = {0,1,0, 1,1,1, 0,1,0};
-    for (size_t i = 0; i < 9; ++i) d[i] = pat[i];
+    static constexpr keel::u8 pat[9] = {0,1,0, 1,1,1, 0,1,0};
+    for (keel::usize i = 0; i < 9; ++i) d[i] = pat[i];
     return se;
 }
 } // anonymous
@@ -53,34 +54,34 @@ Value diamond_cross(std::pmr::memory_resource *mr) {
 
 namespace detail {
 
-void strel_reg(Span<const Value> args, size_t /*nargout*/,
-               Span<Value> outs, CallContext &ctx)
+void strel_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 4, "strel");
     if (args.empty()) {
-        outs[0] = strel("square", {3.0}, Value(), ctx.engine->resource());
+        outs[0] = strel("square", {3.0}, Value(), ctx.engine->allocator());
         return;
     }
     std::string shape = "square";
     if (args[0].isChar() || args[0].isString()) shape = args[0].toString();
     std::vector<double> params;
     Value arbitrary;
-    for (size_t i = 1; i < args.size(); ++i) {
+    for (keel::usize i = 1; i < args.size(); ++i) {
         if (!(args[i].isChar() || args[i].isString())) {
             if (shape == "arbitrary") { arbitrary = args[i]; continue; }
-            for (size_t j = 0; j < args[i].numel(); ++j)
+            for (keel::usize j = 0; j < args[i].numel(); ++j)
                 params.push_back(args[i].elemAsDouble(j));
         }
     }
-    outs[0] = strel(shape, params, arbitrary, ctx.engine->resource());
+    outs[0] = strel(shape, params, arbitrary, ctx.engine->allocator());
 }
 
 #define NUMKIT_MORPH_REG(name, mxArgs)                                               \
-    void name##_reg(Span<const Value> args, size_t /*nargout*/,                 \
-                    Span<Value> outs, CallContext &ctx)                         \
+    void name##_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,                 \
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)                         \
     {                                                                             \
     argcheck::checkNargin(args.size(), 2, mxArgs, #name);                   \
-        outs[0] = name(args[0], args[1], ctx.engine->resource());                \
+        outs[0] = name(args[0], args[1], ctx.engine->allocator());                \
     }
 
 NUMKIT_MORPH_REG(imerode, 5)
@@ -90,22 +91,22 @@ NUMKIT_MORPH_REG(imclose, 2)
 
 #undef NUMKIT_MORPH_REG
 
-void imreconstruct_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imreconstruct_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imreconstruct");
     const int conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imreconstruct"),
             {4, 8}, 3, "conn", "imreconstruct") : 8;
-    outs[0] = imreconstruct(args[0], args[1], conn, ctx.engine->resource());
+    outs[0] = imreconstruct(args[0], args[1], conn, ctx.engine->allocator());
 }
 
-void imfill_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void imfill_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imfill");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     // Currently we support `imfill(BW, 'holes' [, conn])` only.
     if (args.size() < 2 ||
         !(args[1].isChar() || args[1].isString()))
@@ -127,30 +128,30 @@ void imfill_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = imfill_holes(args[0], conn, mr);
 }
 
-void imregionalmax_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imregionalmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imregionalmax");
     const int conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imregionalmax"),
             {4, 8}, 2, "conn", "imregionalmax") : 8;
-    outs[0] = imregionalmax(args[0], conn, ctx.engine->resource());
+    outs[0] = imregionalmax(args[0], conn, ctx.engine->allocator());
 }
 
-void imregionalmin_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imregionalmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imregionalmin");
     const int conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imregionalmin"),
             {4, 8}, 2, "conn", "imregionalmin") : 8;
-    outs[0] = imregionalmin(args[0], conn, ctx.engine->resource());
+    outs[0] = imregionalmin(args[0], conn, ctx.engine->allocator());
 }
 
-void imhmax_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void imhmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imhmax");
     const double h = args[1].toScalar();
@@ -158,11 +159,11 @@ void imhmax_reg(Span<const Value> args, size_t /*nargout*/,
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imhmax"),
             {4, 8}, 3, "conn", "imhmax") : 8;
-    outs[0] = imhmax(args[0], h, conn, ctx.engine->resource());
+    outs[0] = imhmax(args[0], h, conn, ctx.engine->allocator());
 }
 
-void imhmin_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void imhmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imhmin");
     // no max: name-value tail in the reference
@@ -171,11 +172,11 @@ void imhmin_reg(Span<const Value> args, size_t /*nargout*/,
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imhmin"),
             {4, 8}, 3, "conn", "imhmin") : 8;
-    outs[0] = imhmin(args[0], h, conn, ctx.engine->resource());
+    outs[0] = imhmin(args[0], h, conn, ctx.engine->allocator());
 }
 
-void imextendedmax_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imextendedmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imextendedmax");
     const double h = args[1].toScalar();
@@ -183,11 +184,11 @@ void imextendedmax_reg(Span<const Value> args, size_t /*nargout*/,
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imextendedmax"),
             {4, 8}, 3, "conn", "imextendedmax") : 8;
-    outs[0] = imextendedmax(args[0], h, conn, ctx.engine->resource());
+    outs[0] = imextendedmax(args[0], h, conn, ctx.engine->allocator());
 }
 
-void imextendedmin_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imextendedmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imextendedmin");
     const double h = args[1].toScalar();
@@ -195,33 +196,33 @@ void imextendedmin_reg(Span<const Value> args, size_t /*nargout*/,
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imextendedmin"),
             {4, 8}, 3, "conn", "imextendedmin") : 8;
-    outs[0] = imextendedmin(args[0], h, conn, ctx.engine->resource());
+    outs[0] = imextendedmin(args[0], h, conn, ctx.engine->allocator());
 }
 
-void imimposemin_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void imimposemin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imimposemin");
     const int conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imimposemin"),
             {4, 8}, 3, "conn", "imimposemin") : 8;
-    outs[0] = imimposemin(args[0], args[1], conn, ctx.engine->resource());
+    outs[0] = imimposemin(args[0], args[1], conn, ctx.engine->allocator());
 }
 
-void imclearborder_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imclearborder_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imclearborder");
     const int conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imclearborder"),
             {4, 8}, 2, "conn", "imclearborder") : 8;
-    outs[0] = imclearborder(args[0], conn, ctx.engine->resource());
+    outs[0] = imclearborder(args[0], conn, ctx.engine->allocator());
 }
 
-void imkeepborder_reg(Span<const Value> args, size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void imkeepborder_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imkeepborder");
     // no max: name-value tail in the reference
@@ -229,29 +230,29 @@ void imkeepborder_reg(Span<const Value> args, size_t /*nargout*/,
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imkeepborder"),
             {4, 8}, 2, "conn", "imkeepborder") : 8;
-    outs[0] = imkeepborder(args[0], conn, ctx.engine->resource());
+    outs[0] = imkeepborder(args[0], conn, ctx.engine->allocator());
 }
 
-void imtophat_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void imtophat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "imtophat");
-    outs[0] = imtophat(args[0], args[1], ctx.engine->resource());
+    outs[0] = imtophat(args[0], args[1], ctx.engine->allocator());
 }
 
-void imbothat_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void imbothat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "imbothat");
-    outs[0] = imbothat(args[0], args[1], ctx.engine->resource());
+    outs[0] = imbothat(args[0], args[1], ctx.engine->allocator());
 }
 
-void mmgradm_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void mmgradm_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "mmgradm");
     // no max: absent from the R2025b reference build
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     // Defaults: arg omitted → elementary cross. Arg explicitly empty
     // means half-gradient (the C++ function reads .numel() == 0).
     Value sed = (args.size() >= 2) ? args[1] : diamond_cross(mr);
@@ -259,40 +260,40 @@ void mmgradm_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = mmgradm(args[0], sed, see, mr);
 }
 
-void bwpack_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void bwpack_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "bwpack");
-    outs[0] = bwpack(args[0], ctx.engine->resource());
+    outs[0] = bwpack(args[0], ctx.engine->allocator());
 }
 
-void bwunpack_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void bwunpack_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bwunpack");
-    size_t M = static_cast<size_t>(-1);
+    keel::usize M = static_cast<keel::usize>(-1);
     if (args.size() >= 2 && !args[1].isEmpty())
-        M = static_cast<size_t>(argcheck::expectedPositiveInteger(
+        M = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "M", "bwunpack"), 2, "M", "bwunpack"));
-    outs[0] = bwunpack(args[0], M, ctx.engine->resource());
+    outs[0] = bwunpack(args[0], M, ctx.engine->allocator());
 }
 
-void applylut_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void applylut_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "applylut");
-    outs[0] = applylut(args[0], args[1], ctx.engine->resource());
+    outs[0] = applylut(args[0], args[1], ctx.engine->allocator());
 }
 
-void bwlookup_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void bwlookup_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "bwlookup");
-    outs[0] = bwlookup(args[0], args[1], ctx.engine->resource());
+    outs[0] = bwlookup(args[0], args[1], ctx.engine->allocator());
 }
 
-void makelut_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void makelut_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "makelut");
     // no max: variadic passthrough to the callback
@@ -302,43 +303,43 @@ void makelut_reg(Span<const Value> args, size_t /*nargout*/,
     const Value &handle = args[0];
     // Bind the user/builtin function handle into a core-free FnHandle for the
     // toolbox compute (the VM-pausable user-code path is MakelutCallbackBuiltin).
-    auto cb = [&ctx, &handle](Span<const Value> a, Span<Value> o,
-                              std::pmr::memory_resource * /*mr*/) {
+    auto cb = [&ctx, &handle](keel::ArrayRef<Value> a, keel::MutArrayRef<Value> o,
+                              keel::Allocator * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(handle, a, o.size());
-        for (size_t i = 0; i < o.size() && i < r.size(); ++i)
+        for (keel::usize i = 0; i < o.size() && i < r.size(); ++i)
             o[i] = std::move(r[i]);
     };
-    outs[0] = makelut(cb, n, ctx.engine->resource());
+    outs[0] = makelut(cb, n, ctx.engine->allocator());
 }
 
-void bwmorph3_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void bwmorph3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "bwmorph3");
     // no max: strel-object + option tail
     if (!(args[1].isChar() || args[1].isString()))
         throw Error("bwmorph3: requires (V, operation)",
                     0, 0, "bwmorph3", "", "numkit:bwmorph3:nargin");
-    outs[0] = bwmorph3(args[0], args[1].toString(), ctx.engine->resource());
+    outs[0] = bwmorph3(args[0], args[1].toString(), ctx.engine->allocator());
 }
 
-void bwhitmiss_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void bwhitmiss_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "bwhitmiss");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     Value se1, se2;
     if (args.size() == 2) {
         // Single interval matrix with values in {-1, 0, 1}.
         const Value &iv = args[1];
-        const size_t H = iv.dims().rows();
-        const size_t W = iv.dims().cols();
-        const size_t N = iv.numel();
+        const keel::usize H = iv.dims().rows();
+        const keel::usize W = iv.dims().cols();
+        const keel::usize N = iv.numel();
         se1 = Value::matrix(H, W, ValueType::LOGICAL, mr);
         se2 = Value::matrix(H, W, ValueType::LOGICAL, mr);
-        std::uint8_t *s1 = se1.logicalDataMut();
-        std::uint8_t *s2 = se2.logicalDataMut();
-        for (size_t i = 0; i < N; ++i) {
+        keel::u8 *s1 = se1.logicalDataMut();
+        keel::u8 *s2 = se2.logicalDataMut();
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = iv.elemAsDouble(i);
             s1[i] = (v ==  1.0) ? 1u : 0u;
             s2[i] = (v == -1.0) ? 1u : 0u;
@@ -354,8 +355,8 @@ void bwhitmiss_reg(Span<const Value> args, size_t /*nargout*/,
 
 namespace detail {
 
-void bwmorph_reg(Span<const Value> args, std::size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "bwmorph");
     if (!args[1].isChar())
@@ -373,14 +374,14 @@ void bwmorph_reg(Span<const Value> args, std::size_t /*nargout*/,
         if (std::isinf(v)) n = -1;
         else               n = static_cast<int>(v);
     }
-    outs[0] = bwmorph(args[0], op, n, ctx.engine->resource());
+    outs[0] = bwmorph(args[0], op, n, ctx.engine->allocator());
 }
 
-void bwtraceboundary_reg(Span<const Value> args, std::size_t /*nargout*/,
-                         Span<Value> outs, CallContext &ctx)
+void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                         keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, 6, "bwtraceboundary");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     if (!args[2].isChar() && !args[2].isString())
         throw Error("bwtraceboundary: FSTEP must be a string",
                     0, 0, "bwtraceboundary", "",
@@ -392,7 +393,7 @@ void bwtraceboundary_reg(Span<const Value> args, std::size_t /*nargout*/,
             static_cast<unsigned char>(ch)));
 
     int conn = 8;
-    std::size_t m_max = std::numeric_limits<std::size_t>::max();
+    keel::usize m_max = std::numeric_limits<keel::usize>::max();
     std::string dir = "clockwise";
     if (args.size() >= 4 && !args[3].isEmpty())
         conn = argcheck::expectedOneOf(
@@ -405,7 +406,7 @@ void bwtraceboundary_reg(Span<const Value> args, std::size_t /*nargout*/,
                 throw Error("bwtraceboundary: N must be positive or Inf",
                             0, 0, "bwtraceboundary", "",
                             "numkit:bwtraceboundary:n");
-            m_max = static_cast<std::size_t>(v);
+            m_max = static_cast<keel::usize>(v);
         }
     }
     if (args.size() >= 6 && !args[5].isEmpty()) {

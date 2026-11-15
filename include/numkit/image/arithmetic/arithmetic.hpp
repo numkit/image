@@ -11,7 +11,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <vector>
@@ -39,7 +40,7 @@ namespace numkit::image {
 ///
 /// @see imsubtract, immultiply, imdivide
 Value imadd(const Value &x, const Value &y,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 
 /// @brief Saturating image subtraction (`Z = imsubtract(X, Y)`).
 ///
@@ -51,7 +52,7 @@ Value imadd(const Value &x, const Value &y,
 /// @return    Image of the same class and shape as `X`.
 /// @see imadd, imabsdiff
 Value imsubtract(const Value &x, const Value &y,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Saturating element-wise multiplication
 /// (`Z = immultiply(X, Y)`).
@@ -62,7 +63,7 @@ Value imsubtract(const Value &x, const Value &y,
 /// @return    Image of the same class and shape as `X`.
 /// @see imadd, imdivide
 Value immultiply(const Value &x, const Value &y,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Saturating element-wise division
 /// (`Z = imdivide(X, Y)`).
@@ -76,7 +77,7 @@ Value immultiply(const Value &x, const Value &y,
 /// @return    Image of the same class and shape as `X`.
 /// @see imadd, immultiply
 Value imdivide(const Value &x, const Value &y,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Saturating absolute difference (`Z = imabsdiff(X, Y)`).
 ///
@@ -88,7 +89,7 @@ Value imdivide(const Value &x, const Value &y,
 /// @return    Image of the same class and shape as `X`.
 /// @see imsubtract
 Value imabsdiff(const Value &x, const Value &y,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// Image complement (`Y = imcomplement(X)`).
 ///
@@ -99,7 +100,7 @@ Value imabsdiff(const Value &x, const Value &y,
 /// @param x   Input image.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Complemented image of the same class.
-Value imcomplement(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value imcomplement(const Value &x, keel::Allocator *mr = nullptr);
 
 /// Linear combination of images (`Z = imlincomb(coefs, images, class)`).
 ///
@@ -113,10 +114,10 @@ Value imcomplement(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr            Memory resource (nullptr → process default).
 /// @return              Linear combination cast to `output_class`.
 /// @throws              Error if sizes disagree or the vectors are empty.
-Value imlincomb(const std::vector<double> &coefs,
+Value imlincomb(const std::vector<keel::f64> &coefs,
                 const std::vector<Value> &images,
                 ValueType output_class,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// Apply a colour-space transform matrix (`Y = imapplymatrix(M, X)`).
 ///
@@ -132,7 +133,7 @@ Value imlincomb(const std::vector<double> &coefs,
 /// @throws              Error if M cols ≠ X pages.
 Value imapplymatrix(const Value &M, const Value &x,
                     ValueType output_class,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 
 /// @}

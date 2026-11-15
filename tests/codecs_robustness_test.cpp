@@ -2,6 +2,7 @@
 //
 // Stress tests, corrupt buffer handling, and edge cases for in-tree codecs.
 
+#include <keel/core.h>
 #include <gtest/gtest.h>
 #include "deflate.hpp"
 #include "bmp_codec.hpp"
@@ -25,8 +26,8 @@ using namespace numkit::image;
 // ============================================================================
 
 TEST(CodecsRobustnessTest, EmptyAndTinyBuffersThrowCleanly) {
-    std::vector<uint8_t> empty;
-    std::vector<uint8_t> tiny = { 0x89, 'P', 'N' };
+    std::vector<keel::u8> empty;
+    std::vector<keel::u8> tiny = { 0x89, 'P', 'N' };
 
     EXPECT_THROW(readPng(empty.data(), empty.size()), Error);
     EXPECT_THROW(readPng(tiny.data(), tiny.size()), Error);
@@ -46,24 +47,24 @@ TEST(CodecsRobustnessTest, EmptyAndTinyBuffersThrowCleanly) {
 
 TEST(CodecsRobustnessTest, TruncatedPngAndBadCrc) {
     Value img = Value::matrix(10, 10, ValueType::UINT8);
-    for (size_t i = 0; i < 100; ++i) img.uint8DataMut()[i] = static_cast<uint8_t>(i);
+    for (keel::usize i = 0; i < 100; ++i) img.uint8DataMut()[i] = static_cast<keel::u8>(i);
 
     std::string pngBytes = writePngToBytes(img);
     ASSERT_GT(pngBytes.size(), 20u);
 
     // 1. Truncated PNG (cut off in the middle of IDAT)
-    EXPECT_THROW(readPng(reinterpret_cast<const uint8_t*>(pngBytes.data()), pngBytes.size() / 2), Error);
+    EXPECT_THROW(readPng(reinterpret_cast<const keel::u8*>(pngBytes.data()), pngBytes.size() / 2), Error);
 
     // 2. Corrupt IDAT chunk CRC (modify a byte inside the IDAT payload)
     std::string corrupt = pngBytes;
     corrupt[corrupt.size() - 20] ^= 0xFF;
     // Inflate or chunk validation must detect corruption cleanly
-    EXPECT_THROW(readPng(reinterpret_cast<const uint8_t*>(corrupt.data()), corrupt.size()), Error);
+    EXPECT_THROW(readPng(reinterpret_cast<const keel::u8*>(corrupt.data()), corrupt.size()), Error);
 }
 
 TEST(CodecsRobustnessTest, DeflateCorruptedAdler32) {
-    std::vector<uint8_t> data = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-    std::vector<uint8_t> compressed = zlibCompress(data.data(), data.size());
+    std::vector<keel::u8> data = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    std::vector<keel::u8> compressed = zlibCompress(data.data(), data.size());
 
     ASSERT_GE(compressed.size(), 6u);
     // Corrupt Adler-32 checksum (last 4 bytes of zlib stream)
@@ -77,7 +78,7 @@ TEST(CodecsRobustnessTest, DeflateCorruptedAdler32) {
 // ============================================================================
 
 TEST(CodecsRobustnessTest, ExtremeDimensionsRoundTrip) {
-    std::vector<std::pair<size_t, size_t>> shapes = {
+    std::vector<std::pair<keel::usize, keel::usize>> shapes = {
         {1, 1},
         {1, 17},
         {19, 1},
@@ -89,39 +90,39 @@ TEST(CodecsRobustnessTest, ExtremeDimensionsRoundTrip) {
     for (const auto &[H, W] : shapes) {
         // Grayscale
         Value gray = Value::matrix(H, W, ValueType::UINT8);
-        for (size_t y = 0; y < H; ++y) {
-            for (size_t x = 0; x < W; ++x) {
-                gray.uint8DataMut()[x * H + y] = static_cast<uint8_t>((x * 17 + y * 31) % 256);
+        for (keel::usize y = 0; y < H; ++y) {
+            for (keel::usize x = 0; x < W; ++x) {
+                gray.uint8DataMut()[x * H + y] = static_cast<keel::u8>((x * 17 + y * 31) % 256);
             }
         }
 
         // PNG
         std::string pngData = writePngToBytes(gray);
-        Value pngBack = readPng(reinterpret_cast<const uint8_t*>(pngData.data()), pngData.size());
+        Value pngBack = readPng(reinterpret_cast<const keel::u8*>(pngData.data()), pngData.size());
         EXPECT_EQ(pngBack.dims().rows(), H);
         EXPECT_EQ(pngBack.dims().cols(), W);
-        for (size_t i = 0; i < H * W; ++i) EXPECT_EQ(pngBack.uint8Data()[i], gray.uint8Data()[i]);
+        for (keel::usize i = 0; i < H * W; ++i) EXPECT_EQ(pngBack.uint8Data()[i], gray.uint8Data()[i]);
 
         // BMP (tests 4-byte row padding on odd strides)
         std::string bmpData = writeBmpToBytes(gray);
-        Value bmpBack = readBmp(reinterpret_cast<const uint8_t*>(bmpData.data()), bmpData.size());
+        Value bmpBack = readBmp(reinterpret_cast<const keel::u8*>(bmpData.data()), bmpData.size());
         EXPECT_EQ(bmpBack.dims().rows(), H);
         EXPECT_EQ(bmpBack.dims().cols(), W);
-        for (size_t i = 0; i < H * W; ++i) EXPECT_EQ(bmpBack.uint8Data()[i], gray.uint8Data()[i]);
+        for (keel::usize i = 0; i < H * W; ++i) EXPECT_EQ(bmpBack.uint8Data()[i], gray.uint8Data()[i]);
 
         // TGA
         std::string tgaData = writeTgaToBytes(gray);
-        Value tgaBack = readTga(reinterpret_cast<const uint8_t*>(tgaData.data()), tgaData.size());
+        Value tgaBack = readTga(reinterpret_cast<const keel::u8*>(tgaData.data()), tgaData.size());
         EXPECT_EQ(tgaBack.dims().rows(), H);
         EXPECT_EQ(tgaBack.dims().cols(), W);
-        for (size_t i = 0; i < H * W; ++i) EXPECT_EQ(tgaBack.uint8Data()[i], gray.uint8Data()[i]);
+        for (keel::usize i = 0; i < H * W; ++i) EXPECT_EQ(tgaBack.uint8Data()[i], gray.uint8Data()[i]);
 
         // PNM PGM
         std::string pnmData = writePnmToBytes(gray);
-        Value pnmBack = readPnm(reinterpret_cast<const uint8_t*>(pnmData.data()), pnmData.size());
+        Value pnmBack = readPnm(reinterpret_cast<const keel::u8*>(pnmData.data()), pnmData.size());
         EXPECT_EQ(pnmBack.dims().rows(), H);
         EXPECT_EQ(pnmBack.dims().cols(), W);
-        for (size_t i = 0; i < H * W; ++i) EXPECT_EQ(pnmBack.uint8Data()[i], gray.uint8Data()[i]);
+        for (keel::usize i = 0; i < H * W; ++i) EXPECT_EQ(pnmBack.uint8Data()[i], gray.uint8Data()[i]);
     }
 }
 
@@ -130,10 +131,10 @@ TEST(CodecsRobustnessTest, ExtremeDimensionsRoundTrip) {
 // ============================================================================
 
 TEST(CodecsRobustnessTest, PngAllFiveFilterTypes) {
-    const size_t H = 5, W = 4;
+    const keel::usize H = 5, W = 4;
     // Build a 5-row image where each row exercises a different filter
     // Construct uncompressed scanline buffer: [filter_byte, 4 raw pixel bytes] * 5
-    std::vector<uint8_t> scanlines;
+    std::vector<keel::u8> scanlines;
     scanlines.reserve(5 * 5);
 
     // Row 0: None (filter 0)
@@ -156,30 +157,30 @@ TEST(CodecsRobustnessTest, PngAllFiveFilterTypes) {
     scanlines.push_back(4);
     scanlines.push_back(2); scanlines.push_back(2); scanlines.push_back(2); scanlines.push_back(2);
 
-    std::vector<uint8_t> compressedIdat = zlibCompress(scanlines.data(), scanlines.size());
+    std::vector<keel::u8> compressedIdat = zlibCompress(scanlines.data(), scanlines.size());
 
     // Assemble valid PNG container
-    std::vector<uint8_t> png;
-    const uint8_t sig[8] = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+    std::vector<keel::u8> png;
+    const keel::u8 sig[8] = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
     png.insert(png.end(), sig, sig + 8);
 
-    auto appendChunk = [&](const char type[4], const uint8_t *payload, size_t len) {
-        uint32_t l = static_cast<uint32_t>(len);
+    auto appendChunk = [&](const char type[4], const keel::u8 *payload, keel::usize len) {
+        keel::u32 l = static_cast<keel::u32>(len);
         png.push_back((l >> 24) & 0xFF);
         png.push_back((l >> 16) & 0xFF);
         png.push_back((l >> 8) & 0xFF);
         png.push_back(l & 0xFF);
-        size_t typePos = png.size();
+        keel::usize typePos = png.size();
         png.push_back(type[0]); png.push_back(type[1]); png.push_back(type[2]); png.push_back(type[3]);
         if (len > 0 && payload) png.insert(png.end(), payload, payload + len);
-        uint32_t c = crc32(png.data() + typePos, 4 + len);
+        keel::u32 c = crc32(png.data() + typePos, 4 + len);
         png.push_back((c >> 24) & 0xFF);
         png.push_back((c >> 16) & 0xFF);
         png.push_back((c >> 8) & 0xFF);
         png.push_back(c & 0xFF);
     };
 
-    uint8_t ihdr[13] = {
+    keel::u8 ihdr[13] = {
         0, 0, 0, 4, // W = 4
         0, 0, 0, 5, // H = 5
         8,          // 8-bit
@@ -229,7 +230,7 @@ TEST(CodecsRobustnessTest, PnmAsciiWithCommentsAndWhitespace) {
         "# row 2\n"
         "40   50   60\n";
 
-    Value pgm = readPnm(reinterpret_cast<const uint8_t*>(pgmAscii.data()), pgmAscii.size());
+    Value pgm = readPnm(reinterpret_cast<const keel::u8*>(pgmAscii.data()), pgmAscii.size());
     EXPECT_EQ(pgm.dims().rows(), 2u);
     EXPECT_EQ(pgm.dims().cols(), 3u);
     EXPECT_EQ(pgm.uint8Data()[0 * 2 + 0], 10);
@@ -248,11 +249,11 @@ TEST(CodecsRobustnessTest, PnmAsciiWithCommentsAndWhitespace) {
         "255 0 0 # Red\n"
         "0 255 0 # Green\n";
 
-    Value ppm = readPnm(reinterpret_cast<const uint8_t*>(ppmAscii.data()), ppmAscii.size());
+    Value ppm = readPnm(reinterpret_cast<const keel::u8*>(ppmAscii.data()), ppmAscii.size());
     EXPECT_EQ(ppm.dims().rows(), 1u);
     EXPECT_EQ(ppm.dims().cols(), 2u);
     EXPECT_EQ(ppm.dims().pages(), 3u);
-    const size_t plane = 2;
+    const keel::usize plane = 2;
     // Pixel 0 (Red)
     EXPECT_EQ(ppm.uint8Data()[0 * 1 + 0], 255);
     EXPECT_EQ(ppm.uint8Data()[plane + 0 * 1 + 0], 0);

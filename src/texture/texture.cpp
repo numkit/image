@@ -2,10 +2,13 @@
 //
 // Texture Analysis — graycomatrix + graycoprops.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/image/texture/texture.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 #include "texture_detail.hpp"
 
@@ -13,14 +16,13 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <memory_resource>
 
 namespace numkit::image {
 
 namespace {
 
 // Map an arbitrary numeric Value element to its double representation.
-inline double elem_as_double(const Value &v, std::size_t i)
+inline double elem_as_double(const Value &v, keel::usize i)
 {
     return v.elemAsDouble(i);
 }
@@ -51,21 +53,21 @@ void graycoprops_argcheck(const Value &G)
 
 } // anonymous namespace
 
-Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLow, double gHigh, bool symmetric, std::pmr::memory_resource *mr)
+Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLow, double gHigh, bool symmetric, keel::Allocator *mr)
 {
     graycomatrix_argcheck(I, numLevels, gLow, gHigh);
 
     const auto &d = I.dims();
-    const std::size_t R = d.rows();
-    const std::size_t C = d.cols();
+    const keel::usize R = d.rows();
+    const keel::usize C = d.cols();
 
     // Pre-quantise the image into level indices in [0, numLevels-1].
     // MATLAB clamps out-of-range to the closest end-bin.
-    ScratchArena scratch(mr);
-    ScratchVec<int> q(R * C, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<int> q(R * C, scratch.allocator());
     const double span = gHigh - gLow;
     const double scale = static_cast<double>(numLevels) / span;
-    for (std::size_t i = 0; i < R * C; ++i) {
+    for (keel::usize i = 0; i < R * C; ++i) {
         const double v = elem_as_double(I, i);
         if (std::isnan(v)) {
             q[i] = -1;    // NaN — skip when forming pairs
@@ -78,19 +80,19 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLo
     }
 
     // Allocate output (numLevels × numLevels, column-major).
-    Value G = Value::matrix(static_cast<std::size_t>(numLevels),
-                             static_cast<std::size_t>(numLevels),
+    Value G = Value::matrix(static_cast<keel::usize>(numLevels),
+                             static_cast<keel::usize>(numLevels),
                              ValueType::DOUBLE, mr);
     double *Gd = G.doubleDataMut();
     std::memset(Gd, 0,
-                sizeof(double) * static_cast<std::size_t>(numLevels) *
-                                  static_cast<std::size_t>(numLevels));
+                sizeof(double) * static_cast<keel::usize>(numLevels) *
+                                  static_cast<keel::usize>(numLevels));
 
     // Walk every pair (p, p+offset) that lies inside the image.
-    for (std::size_t c = 0; c < C; ++c) {
+    for (keel::usize c = 0; c < C; ++c) {
         const long long c2 = static_cast<long long>(c) + offC;
         if (c2 < 0 || c2 >= static_cast<long long>(C)) continue;
-        for (std::size_t r = 0; r < R; ++r) {
+        for (keel::usize r = 0; r < R; ++r) {
             const long long r2 = static_cast<long long>(r) + offR;
             if (r2 < 0 || r2 >= static_cast<long long>(R)) continue;
             const int i_lvl = q[r + c * R];                // first pixel
@@ -104,15 +106,15 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLo
     return G;
 }
 
-Value graycoprops(const Value &G, std::pmr::memory_resource *mr)
+Value graycoprops(const Value &G, keel::Allocator *mr)
 {
     graycoprops_argcheck(G);
     const auto &d = G.dims();
-    const std::size_t L = d.rows();
+    const keel::usize L = d.rows();
 
     // Normalise to a joint probability.
     double total = 0.0;
-    for (std::size_t i = 0; i < L * L; ++i) total += G.elemAsDouble(i);
+    for (keel::usize i = 0; i < L * L; ++i) total += G.elemAsDouble(i);
     if (total <= 0.0)
         throw Error("graycoprops: GLCM has zero total mass",
                     0, 0, "graycoprops", "", "numkit:graycoprops:zeroSum");
@@ -121,15 +123,15 @@ Value graycoprops(const Value &G, std::pmr::memory_resource *mr)
     // Compute marginal means / variances (1-based "intensity values"
     // matching MATLAB's convention: rows / cols treated as 1..L).
     double mu_i = 0.0, mu_j = 0.0;
-    for (std::size_t j = 0; j < L; ++j)
-        for (std::size_t i = 0; i < L; ++i) {
+    for (keel::usize j = 0; j < L; ++j)
+        for (keel::usize i = 0; i < L; ++i) {
             const double p = G.elemAsDouble(i + j * L) / total;
             mu_i += static_cast<double>(i + 1) * p;
             mu_j += static_cast<double>(j + 1) * p;
         }
     double var_i = 0.0, var_j = 0.0;
-    for (std::size_t j = 0; j < L; ++j)
-        for (std::size_t i = 0; i < L; ++i) {
+    for (keel::usize j = 0; j < L; ++j)
+        for (keel::usize i = 0; i < L; ++i) {
             const double p = G.elemAsDouble(i + j * L) / total;
             const double di = (i + 1) - mu_i;
             const double dj = (j + 1) - mu_j;
@@ -140,8 +142,8 @@ Value graycoprops(const Value &G, std::pmr::memory_resource *mr)
     const double sigma_j = std::sqrt(var_j);
 
     double contrast = 0.0, energy = 0.0, homogeneity = 0.0, correlation = 0.0;
-    for (std::size_t j = 0; j < L; ++j)
-        for (std::size_t i = 0; i < L; ++i) {
+    for (keel::usize j = 0; j < L; ++j)
+        for (keel::usize i = 0; i < L; ++i) {
             const double p = G.elemAsDouble(i + j * L) / total;
             const double di = static_cast<double>(i) - static_cast<double>(j);
             contrast    += di * di * p;

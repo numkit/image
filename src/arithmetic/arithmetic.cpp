@@ -3,6 +3,9 @@
 // Image arithmetic. Saturating element-wise operations for integer
 // classes; pass-through for floating types. Output class = X's class.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/image/arithmetic/arithmetic.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -33,7 +36,7 @@ template <> inline double satCast<double>(double v) { return v; }
 template <> inline float  satCast<float>(double v)  { return static_cast<float>(v); }
 
 // Allocate an output Value matching X's shape and class.
-inline Value makeOutLike(const Value &x, std::pmr::memory_resource *mr) {
+inline Value makeOutLike(const Value &x, keel::Allocator *mr) {
     const auto &d = x.dims();
     if (x.isScalar()) return Value::scalar(0.0, mr);  // overwritten by caller
     if (d.is3D()) return Value::matrix3d(d.rows(), d.cols(), d.pages(), x.type(), mr);
@@ -42,8 +45,8 @@ inline Value makeOutLike(const Value &x, std::pmr::memory_resource *mr) {
 
 // Dispatch a binary op on element pairs (xi, yi) producing xi.class.
 template <typename Op>
-Value binop(const Value &x, const Value &y, Op op, std::pmr::memory_resource *mr) {
-    const size_t n = std::max(x.numel(), y.numel());
+Value binop(const Value &x, const Value &y, Op op, keel::Allocator *mr) {
+    const keel::usize n = std::max(x.numel(), y.numel());
     if (n == 0) return makeOutLike(x, mr);
     Value out;
     if (x.isScalar() && !y.isScalar()) {
@@ -55,38 +58,38 @@ Value binop(const Value &x, const Value &y, Op op, std::pmr::memory_resource *mr
         out = makeOutLike(x, mr);
     }
 
-    auto getX = [&](size_t i){ return x.elemAsDouble(x.isScalar() ? 0 : i); };
-    auto getY = [&](size_t i){ return y.elemAsDouble(y.isScalar() ? 0 : i); };
+    auto getX = [&](keel::usize i){ return x.elemAsDouble(x.isScalar() ? 0 : i); };
+    auto getY = [&](keel::usize i){ return y.elemAsDouble(y.isScalar() ? 0 : i); };
 
     switch (x.type()) {
         case ValueType::DOUBLE: {
             double *od = out.doubleDataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<double>(op(getX(i), getY(i)));
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<double>(op(getX(i), getY(i)));
             break;
         }
         case ValueType::SINGLE: {
             float *od = out.singleDataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<float>(op(getX(i), getY(i)));
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<float>(op(getX(i), getY(i)));
             break;
         }
         case ValueType::UINT8: {
-            uint8_t *od = out.uint8DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint8_t>(op(getX(i), getY(i)));
+            keel::u8 *od = out.uint8DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u8>(op(getX(i), getY(i)));
             break;
         }
         case ValueType::UINT16: {
-            uint16_t *od = out.uint16DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint16_t>(op(getX(i), getY(i)));
+            keel::u16 *od = out.uint16DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u16>(op(getX(i), getY(i)));
             break;
         }
         case ValueType::INT16: {
-            int16_t *od = out.int16DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<int16_t>(op(getX(i), getY(i)));
+            keel::i16 *od = out.int16DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::i16>(op(getX(i), getY(i)));
             break;
         }
         case ValueType::LOGICAL: {
-            uint8_t *od = out.logicalDataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint8_t>(op(getX(i), getY(i))) ? 1 : 0;
+            keel::u8 *od = out.logicalDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u8>(op(getX(i), getY(i))) ? 1 : 0;
             break;
         }
         default:
@@ -98,40 +101,40 @@ Value binop(const Value &x, const Value &y, Op op, std::pmr::memory_resource *mr
 
 // Unary variant.
 template <typename Op>
-Value unop(const Value &x, Op op, std::pmr::memory_resource *mr) {
-    const size_t n = x.numel();
+Value unop(const Value &x, Op op, keel::Allocator *mr) {
+    const keel::usize n = x.numel();
     Value out = makeOutLike(x, mr);
     if (n == 0) return out;
-    auto getX = [&](size_t i){ return x.elemAsDouble(i); };
+    auto getX = [&](keel::usize i){ return x.elemAsDouble(i); };
     switch (x.type()) {
         case ValueType::DOUBLE: {
             double *od = out.doubleDataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<double>(op(getX(i)));
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<double>(op(getX(i)));
             break;
         }
         case ValueType::SINGLE: {
             float *od = out.singleDataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<float>(op(getX(i)));
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<float>(op(getX(i)));
             break;
         }
         case ValueType::UINT8: {
-            uint8_t *od = out.uint8DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint8_t>(op(getX(i)));
+            keel::u8 *od = out.uint8DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u8>(op(getX(i)));
             break;
         }
         case ValueType::UINT16: {
-            uint16_t *od = out.uint16DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint16_t>(op(getX(i)));
+            keel::u16 *od = out.uint16DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u16>(op(getX(i)));
             break;
         }
         case ValueType::INT16: {
-            int16_t *od = out.int16DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<int16_t>(op(getX(i)));
+            keel::i16 *od = out.int16DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::i16>(op(getX(i)));
             break;
         }
         case ValueType::LOGICAL: {
-            uint8_t *od = out.logicalDataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint8_t>(op(getX(i))) ? 1 : 0;
+            keel::u8 *od = out.logicalDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u8>(op(getX(i))) ? 1 : 0;
             break;
         }
         default:
@@ -179,8 +182,8 @@ void imlincomb_argcheck(const std::vector<double> &coefs,
                     "(optional one extra for the additive constant)",
                     0, 0, "imlincomb", "", "numkit:imlincomb:nargin");
     if (images.empty()) return;
-    const size_t n = images[0].numel();
-    for (size_t k = 0; k < images.size(); ++k) {
+    const keel::usize n = images[0].numel();
+    for (keel::usize k = 0; k < images.size(); ++k) {
         if (images[k].numel() != n)
             throw Error("imlincomb: all images must have the same size",
                         0, 0, "imlincomb", "", "numkit:imlincomb:size");
@@ -205,8 +208,8 @@ void imapplymatrix_argcheck(const Value &M, const Value &x, ValueType output_cla
     internal::requireImageClassAllowComplex(x, "imapplymatrix", "X", 2,
                                 internal::ImgClasses::FloatInt);
     const auto &dx = x.dims();
-    const size_t pages = dx.is3D() ? dx.pages() : 1;
-    const size_t Mcols = M.dims().cols();
+    const keel::usize pages = dx.is3D() ? dx.pages() : 1;
+    const keel::usize Mcols = M.dims().cols();
     if (Mcols != pages)
         throw Error("imapplymatrix: matrix columns must match the third dimension of X",
                     0, 0, "imapplymatrix", "", "numkit:imapplymatrix:size");
@@ -221,22 +224,22 @@ void imapplymatrix_argcheck(const Value &M, const Value &x, ValueType output_cla
 
 } // anonymous
 
-Value imadd(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+Value imadd(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return a + b; }, mr);
 }
 
-Value imsubtract(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+Value imsubtract(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return a - b; }, mr);
 }
 
-Value immultiply(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+Value immultiply(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return a * b; }, mr);
 }
 
-Value imdivide(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+Value imdivide(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
     return binop(x, y, [](double a, double b){
         if (b == 0.0) {
@@ -248,18 +251,18 @@ Value imdivide(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
     }, mr);
 }
 
-Value imabsdiff(const Value &x, const Value &y, std::pmr::memory_resource *mr) {
+Value imabsdiff(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
     return binop(x, y, [](double a, double b){ return std::fabs(a - b); }, mr);
 }
 
-Value imcomplement(const Value &x, std::pmr::memory_resource *mr) {
+Value imcomplement(const Value &x, keel::Allocator *mr) {
     imarith_argcheck(x);
     const double cmax = classMax(x.type());
     return unop(x, [=](double v){ return cmax - v; }, mr);
 }
 
-Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &images, ValueType output_class, std::pmr::memory_resource *mr)
+Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &images, ValueType output_class, keel::Allocator *mr)
 {
     imlincomb_argcheck(coefs, images, output_class);
     if (coefs.size() != images.size() && coefs.size() != images.size() + 1)
@@ -270,7 +273,7 @@ Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &imag
 
     const Value &x0 = images[0];
     const auto &d = x0.dims();
-    const size_t n = x0.numel();
+    const keel::usize n = x0.numel();
     Value out;
     if (d.is3D()) out = Value::matrix3d(d.rows(), d.cols(), d.pages(), output_class, mr);
     else          out = Value::matrix(d.rows(), d.cols(), output_class, mr);
@@ -278,15 +281,15 @@ Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &imag
     // Accumulate in double, then cast at the end.
     std::vector<double> acc(n, 0.0);
     const double bias = (coefs.size() == images.size() + 1) ? coefs.back() : 0.0;
-    for (size_t k = 0; k < images.size(); ++k) {
+    for (keel::usize k = 0; k < images.size(); ++k) {
         const Value &xk = images[k];
         const double ck = coefs[k];
         if (xk.numel() != n)
             throw Error("imlincomb: all images must have the same size",
                         0, 0, "imlincomb", "", "numkit:imlincomb:size");
-        for (size_t i = 0; i < n; ++i) acc[i] += ck * xk.elemAsDouble(i);
+        for (keel::usize i = 0; i < n; ++i) acc[i] += ck * xk.elemAsDouble(i);
     }
-    for (size_t i = 0; i < n; ++i) acc[i] += bias;
+    for (keel::usize i = 0; i < n; ++i) acc[i] += bias;
 
     // Cast acc into output_class with saturation.
     switch (output_class) {
@@ -294,22 +297,22 @@ Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &imag
             std::copy(acc.begin(), acc.end(), out.doubleDataMut()); break;
         case ValueType::SINGLE: {
             float *od = out.singleDataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<float>(acc[i]);
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<float>(acc[i]);
             break;
         }
         case ValueType::UINT8: {
-            uint8_t *od = out.uint8DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint8_t>(acc[i]);
+            keel::u8 *od = out.uint8DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u8>(acc[i]);
             break;
         }
         case ValueType::UINT16: {
-            uint16_t *od = out.uint16DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<uint16_t>(acc[i]);
+            keel::u16 *od = out.uint16DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::u16>(acc[i]);
             break;
         }
         case ValueType::INT16: {
-            int16_t *od = out.int16DataMut();
-            for (size_t i = 0; i < n; ++i) od[i] = satCast<int16_t>(acc[i]);
+            keel::i16 *od = out.int16DataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::i16>(acc[i]);
             break;
         }
         default:
@@ -319,7 +322,7 @@ Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &imag
     return out;
 }
 
-Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, std::pmr::memory_resource *mr)
+Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, keel::Allocator *mr)
 {
     imapplymatrix_argcheck(M, x, output_class);
     // Probed R2025b: M coerces every numeric class (logical X dies at
@@ -330,16 +333,16 @@ Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, std:
     internal::requireImageClassAllowComplex(x, "imapplymatrix", "X", 2,
                                 internal::ImgClasses::FloatInt);
     const auto &dx = x.dims();
-    const size_t pages = dx.is3D() ? dx.pages() : 1;
-    const size_t Mrows = M.dims().rows();
-    const size_t Mcols = M.dims().cols();
+    const keel::usize pages = dx.is3D() ? dx.pages() : 1;
+    const keel::usize Mrows = M.dims().rows();
+    const keel::usize Mcols = M.dims().cols();
     if (Mcols != pages)
         throw Error("imapplymatrix: matrix columns must match the third dimension of X",
                     0, 0, "imapplymatrix", "", "numkit:imapplymatrix:size");
 
-    const size_t H = dx.rows();
-    const size_t W = dx.cols();
-    const size_t plane = H * W;
+    const keel::usize H = dx.rows();
+    const keel::usize W = dx.cols();
+    const keel::usize plane = H * W;
 
     if (M.isComplex() || x.isComplex()) {
         if (output_class != ValueType::DOUBLE && output_class != ValueType::SINGLE &&
@@ -350,21 +353,21 @@ Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, std:
         Value out = (Mrows == 1)
             ? Value::matrix(H, W, ValueType::COMPLEX, mr)
             : Value::matrix3d(H, W, Mrows, ValueType::COMPLEX, mr);
-        auto Mc = [&](size_t r, size_t c) -> std::complex<double> {
-            const size_t idx = c * Mrows + r;
+        auto Mc = [&](keel::usize r, keel::usize c) -> keel::c64 {
+            const keel::usize idx = c * Mrows + r;
             return M.isComplex() ? M.complexData()[idx]
-                                 : std::complex<double>(M.elemAsDouble(idx), 0.0);
+                                 : keel::c64(M.elemAsDouble(idx), 0.0);
         };
-        auto Xc = [&](size_t i, size_t p) -> std::complex<double> {
-            const size_t idx = p * plane + i;
+        auto Xc = [&](keel::usize i, keel::usize p) -> keel::c64 {
+            const keel::usize idx = p * plane + i;
             return x.isComplex() ? x.complexData()[idx]
-                                 : std::complex<double>(x.elemAsDouble(idx), 0.0);
+                                 : keel::c64(x.elemAsDouble(idx), 0.0);
         };
-        std::complex<double> *od = out.complexDataMut();
-        for (size_t r = 0; r < Mrows; ++r) {
-            for (size_t i = 0; i < plane; ++i) {
-                std::complex<double> acc(0.0, 0.0);
-                for (size_t c = 0; c < pages; ++c) acc += Mc(r, c) * Xc(i, c);
+        keel::c64 *od = out.complexDataMut();
+        for (keel::usize r = 0; r < Mrows; ++r) {
+            for (keel::usize i = 0; i < plane; ++i) {
+                keel::c64 acc(0.0, 0.0);
+                for (keel::usize c = 0; c < pages; ++c) acc += Mc(r, c) * Xc(i, c);
                 od[r * plane + i] = acc;
             }
         }
@@ -376,26 +379,26 @@ Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, std:
     else            out = Value::matrix3d(H, W, Mrows, output_class, mr);
 
     // Accumulate per output pixel in double.
-    auto Md = [&](size_t r, size_t c){ return M.elemAsDouble(c * Mrows + r); };
-    auto Xd = [&](size_t i, size_t p){ return x.elemAsDouble(p * plane + i); };
+    auto Md = [&](keel::usize r, keel::usize c){ return M.elemAsDouble(c * Mrows + r); };
+    auto Xd = [&](keel::usize i, keel::usize p){ return x.elemAsDouble(p * plane + i); };
 
-    auto store = [&](size_t outIdx, double v) {
+    auto store = [&](keel::usize outIdx, double v) {
         switch (output_class) {
             case ValueType::DOUBLE:  out.doubleDataMut()[outIdx]  = satCast<double>(v); break;
             case ValueType::SINGLE:  out.singleDataMut()[outIdx]  = satCast<float>(v); break;
-            case ValueType::UINT8:   out.uint8DataMut()[outIdx]   = satCast<uint8_t>(v); break;
-            case ValueType::UINT16:  out.uint16DataMut()[outIdx]  = satCast<uint16_t>(v); break;
-            case ValueType::INT16:   out.int16DataMut()[outIdx]   = satCast<int16_t>(v); break;
+            case ValueType::UINT8:   out.uint8DataMut()[outIdx]   = satCast<keel::u8>(v); break;
+            case ValueType::UINT16:  out.uint16DataMut()[outIdx]  = satCast<keel::u16>(v); break;
+            case ValueType::INT16:   out.int16DataMut()[outIdx]   = satCast<keel::i16>(v); break;
             default:
                 throw Error("imapplymatrix: unsupported output class",
                             0, 0, "imapplymatrix", "", "numkit:imapplymatrix:badtype");
         }
     };
 
-    for (size_t r = 0; r < Mrows; ++r) {
-        for (size_t i = 0; i < plane; ++i) {
+    for (keel::usize r = 0; r < Mrows; ++r) {
+        for (keel::usize i = 0; i < plane; ++i) {
             double acc = 0.0;
-            for (size_t c = 0; c < pages; ++c) acc += Md(r, c) * Xd(i, c);
+            for (keel::usize c = 0; c < pages; ++c) acc += Md(r, c) * Xd(i, c);
             store(r * plane + i, acc);
         }
     }

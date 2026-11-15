@@ -9,14 +9,14 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
-#include <memory_resource>
 
 namespace numkit::image {
 
 // out = cast(I, class(filtRes)); out(BW) = filtRes(BW).
 Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
-                       std::pmr::memory_resource *mr);
+                       keel::Allocator *mr);
 
 } // namespace numkit::image

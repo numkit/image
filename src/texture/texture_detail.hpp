@@ -8,6 +8,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
 #include <numkit/value/value.hpp>
 
 #include <cstddef>
@@ -27,11 +28,11 @@ inline void default_gray_limits(const Value &I, double &lo, double &hi)
         default: break;
     }
     // single / double: scan for min/max.
-    const std::size_t N = I.numel();
+    const keel::usize N = I.numel();
     if (N == 0) { lo = 0.0; hi = 1.0; return; }
     double mn = I.elemAsDouble(0);
     double mx = mn;
-    for (std::size_t i = 1; i < N; ++i) {
+    for (keel::usize i = 1; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         if (v < mn) mn = v;
         if (v > mx) mx = v;
@@ -43,11 +44,11 @@ inline void default_gray_limits(const Value &I, double &lo, double &hi)
 // regardless of class. What MATLAB's graycomatrix uses for 'GrayLimits', [].
 inline void data_gray_limits(const Value &I, double &lo, double &hi)
 {
-    const std::size_t N = I.numel();
+    const keel::usize N = I.numel();
     if (N == 0) { lo = 0.0; hi = 1.0; return; }
     double mn = I.elemAsDouble(0);
     double mx = mn;
-    for (std::size_t i = 1; i < N; ++i) {
+    for (keel::usize i = 1; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         if (v < mn) mn = v;
         if (v > mx) mx = v;

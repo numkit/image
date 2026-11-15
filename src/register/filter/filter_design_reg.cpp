@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -26,8 +28,8 @@ namespace numkit::image {
 
 namespace detail {
 
-void fspecial3_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void fspecial3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "fspecial3");
     if (!args[0].isChar() && !args[0].isString())
@@ -43,15 +45,15 @@ void fspecial3_reg(Span<const Value> args, size_t /*nargout*/,
     //   gaussian/log:   a1 = hsize, a2 = sigma
     Value a1 = (args.size() >= 2) ? args[1] : empty;
     Value a2 = (args.size() >= 3) ? args[2] : empty;
-    outs[0] = fspecial3(type, a1, a2, ctx.engine->resource());
+    outs[0] = fspecial3(type, a1, a2, ctx.engine->allocator());
 }
 
 // fsamp2_reg / ftrans2_reg / fwind1_reg / fwind2_reg now live in
 // fir2d.cpp (cycle 65 — full implementations replacing the previous
 // KNOWN-GAP stubs and the basic fwind2 stub).
 
-void gabor_reg(Span<const Value> /*args*/, size_t /*nargout*/,
-               Span<Value> /*outs*/, CallContext &)
+void gabor_reg(keel::ArrayRef<Value> /*args*/, keel::usize /*nargout*/,
+               keel::MutArrayRef<Value> /*outs*/, CallContext &)
 {
     // Arity note (probed): min 2, no count wall (option tail) — the stub
     // rejects every call before arity matters; revisit when implemented.

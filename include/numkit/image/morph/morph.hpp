@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
@@ -46,9 +47,9 @@ namespace numkit::image {
 /// @return                 LOGICAL matrix (1 = neighbourhood pixel).
 /// @throws Error           Unknown shape (`m:strel:badShape`).
 /// @see imerode, imdilate
-Value strel(const std::string &shape, const std::vector<double> &params,
+Value strel(const std::string &shape, const std::vector<keel::f64> &params,
             const Value &arbitrary_nhood,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 
 /// @brief Grayscale erosion (`J = imerode(I, SE)`).
 ///
@@ -62,7 +63,7 @@ Value strel(const std::string &shape, const std::vector<double> &params,
 /// @return    Eroded image, same shape as `I`.
 /// @see imdilate, imopen, strel
 Value imerode(const Value &I, const Value &SE,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Grayscale dilation (`J = imdilate(I, SE)`).
 ///
@@ -75,7 +76,7 @@ Value imerode(const Value &I, const Value &SE,
 /// @return    Dilated image.
 /// @see imerode, imclose
 Value imdilate(const Value &I, const Value &SE,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Morphological opening
 /// (`J = imopen(I, SE) = imdilate(imerode(I, SE), SE)`).
@@ -83,7 +84,7 @@ Value imdilate(const Value &I, const Value &SE,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Opened image. @see imclose
 Value imopen(const Value &I, const Value &SE,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// @brief Morphological closing
 /// (`J = imclose(I, SE) = imerode(imdilate(I, SE), SE)`).
@@ -91,7 +92,7 @@ Value imopen(const Value &I, const Value &SE,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Closed image. @see imopen
 Value imclose(const Value &I, const Value &SE,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Morphological reconstruction by dilation
 /// (`J = imreconstruct(marker, mask, conn)`).
@@ -110,7 +111,7 @@ Value imclose(const Value &I, const Value &SE,
 /// @return        Reconstructed image, same shape as `marker`.
 /// @see imfill_holes, imhmax, imclearborder
 Value imreconstruct(const Value &marker, const Value &mask, int conn,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Fill holes in a binary image (`J = imfill(BW, 'holes', conn)`).
 ///
@@ -124,7 +125,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn,
 /// @return      Hole-filled binary image.
 /// @see imreconstruct
 Value imfill_holes(const Value &BW, int conn,
-                   std::pmr::memory_resource *mr = nullptr);
+                   keel::Allocator *mr = nullptr);
 
 /// @brief Regional maxima mask (`J = imregionalmax(I, conn)`).
 ///
@@ -138,7 +139,7 @@ Value imfill_holes(const Value &BW, int conn,
 /// @return      LOGICAL maxima mask, same shape as `I`.
 /// @see imregionalmin, imextendedmax
 Value imregionalmax(const Value &I, int conn,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Regional minima mask (`J = imregionalmin(I, conn)`).
 ///
@@ -151,7 +152,7 @@ Value imregionalmax(const Value &I, int conn,
 /// @return      LOGICAL minima mask.
 /// @see imregionalmax
 Value imregionalmin(const Value &I, int conn,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief H-maxima transform (`J = imhmax(I, h, conn)`).
 ///
@@ -164,8 +165,8 @@ Value imregionalmin(const Value &I, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      H-maxima image.
 /// @see imhmin, imextendedmax
-Value imhmax(const Value &I, double h, int conn,
-             std::pmr::memory_resource *mr = nullptr);
+Value imhmax(const Value &I, keel::f64 h, int conn,
+             keel::Allocator *mr = nullptr);
 
 /// @brief H-minima transform (`J = imhmin(I, h, conn)`) — dual of @ref imhmax.
 ///
@@ -175,8 +176,8 @@ Value imhmax(const Value &I, double h, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      H-minima image.
 /// @see imhmax
-Value imhmin(const Value &I, double h, int conn,
-             std::pmr::memory_resource *mr = nullptr);
+Value imhmin(const Value &I, keel::f64 h, int conn,
+             keel::Allocator *mr = nullptr);
 
 /// @brief Extended-maxima transform (`J = imextendedmax(I, h, conn)`).
 ///
@@ -189,8 +190,8 @@ Value imhmin(const Value &I, double h, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL extended-maxima mask.
 /// @see imhmax, imextendedmin
-Value imextendedmax(const Value &I, double h, int conn,
-                    std::pmr::memory_resource *mr = nullptr);
+Value imextendedmax(const Value &I, keel::f64 h, int conn,
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Extended-minima transform (`J = imextendedmin(I, h, conn)`).
 ///
@@ -202,8 +203,8 @@ Value imextendedmax(const Value &I, double h, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL extended-minima mask.
 /// @see imextendedmax
-Value imextendedmin(const Value &I, double h, int conn,
-                    std::pmr::memory_resource *mr = nullptr);
+Value imextendedmin(const Value &I, keel::f64 h, int conn,
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Minima imposition (`J = imimposemin(I, BW, conn)`).
 ///
@@ -218,7 +219,7 @@ Value imextendedmin(const Value &I, double h, int conn,
 /// @return      Image with imposed minima.
 /// @see imregionalmin, imreconstruct
 Value imimposemin(const Value &I, const Value &BW, int conn,
-                  std::pmr::memory_resource *mr = nullptr);
+                  keel::Allocator *mr = nullptr);
 
 /// @brief Remove border-touching components
 /// (`J = imclearborder(BW, conn)`).
@@ -232,7 +233,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn,
 /// @return      Binary image with rim components removed.
 /// @see imkeepborder
 Value imclearborder(const Value &BW, int conn,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Keep only border-touching components
 /// (`J = imkeepborder(BW, conn)`) — dual of @ref imclearborder.
@@ -242,7 +243,7 @@ Value imclearborder(const Value &BW, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Binary image with only rim-connected components.
 Value imkeepborder(const Value &BW, int conn,
-                   std::pmr::memory_resource *mr = nullptr);
+                   keel::Allocator *mr = nullptr);
 
 /// @brief White top-hat (`J = imtophat(I, SE) = I - imopen(I, SE)`).
 ///
@@ -255,7 +256,7 @@ Value imkeepborder(const Value &BW, int conn,
 /// @return    Top-hat image.
 /// @see imbothat, imopen
 Value imtophat(const Value &I, const Value &SE,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Black top-hat (`J = imbothat(I, SE) = imclose(I, SE) - I`).
 ///
@@ -267,7 +268,7 @@ Value imtophat(const Value &I, const Value &SE,
 /// @return    Bottom-hat image.
 /// @see imtophat, imclose
 Value imbothat(const Value &I, const Value &SE,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Morphological gradient (`G = mmgradm(I, se_dil, se_ero)`).
 ///
@@ -285,7 +286,7 @@ Value imbothat(const Value &I, const Value &SE,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Gradient image.
 Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Pack a binary image into UINT32 columns (`BWP = bwpack(BW)`).
 ///
@@ -297,7 +298,7 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    UINT32 packed image.
 /// @see bwunpack
-Value bwpack(const Value &BW, std::pmr::memory_resource *mr = nullptr);
+Value bwpack(const Value &BW, keel::Allocator *mr = nullptr);
 
 /// @brief Unpack a UINT32 binary image (`BW = bwunpack(BWP, M)`).
 ///
@@ -309,8 +310,8 @@ Value bwpack(const Value &BW, std::pmr::memory_resource *mr = nullptr);
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     LOGICAL image.
 /// @see bwpack
-Value bwunpack(const Value &BWP, size_t M,
-               std::pmr::memory_resource *mr = nullptr);
+Value bwunpack(const Value &BWP, keel::usize M,
+               keel::Allocator *mr = nullptr);
 
 /// @brief Neighbourhood-LUT filter (`A = applylut(BW, LUT)`).
 ///
@@ -326,7 +327,7 @@ Value bwunpack(const Value &BWP, size_t M,
 /// @return     Filtered image, same shape as `BW`.
 /// @see bwmorph
 Value applylut(const Value &BW, const Value &LUT,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Nonlinear neighbourhood filter via lookup table
 /// (`A = bwlookup(BW, lut)`).
@@ -345,7 +346,7 @@ Value applylut(const Value &BW, const Value &LUT,
 /// @throws Error  `lut` not 16 or 512 elements.
 /// @see makelut, applylut
 Value bwlookup(const Value &BW, const Value &lut,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Build a lookup table for @ref bwlookup
 /// (`lut = makelut(fun, n)`).
@@ -372,7 +373,7 @@ Value bwlookup(const Value &BW, const Value &lut,
 /// @throws Error  `n` not 2 or 3, or `fun` returns a non-scalar.
 /// @see bwlookup, applylut
 Value makelut(FnHandle fun, int n,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Morphological operations on a binary volume
 /// (`J = bwmorph3(V, operation)`).
@@ -403,7 +404,7 @@ Value makelut(FnHandle fun, int n,
 /// @throws Error  Unknown operation, or rank > 3.
 /// @see bwmorph, bwskel, imerode, imdilate
 Value bwmorph3(const Value &V, const std::string &op,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Binary hit-or-miss transform (`J = bwhitmiss(BW, se1, se2)`).
 ///
@@ -418,7 +419,7 @@ Value bwmorph3(const Value &V, const std::string &op,
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Binary hit-or-miss output.
 Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Composite binary morphological operations
 /// (`J = bwmorph(BW, op, n)`).
@@ -444,7 +445,7 @@ Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2,
 /// @return    Processed binary image.
 /// @throws Error  Unknown `op` (`m:bwmorph:badOp`).
 Value bwmorph(const Value &BW, const std::string &op, int n,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Trace object boundary in a binary image
 /// (`B = bwtraceboundary(BW, P, fstep, conn, m, dir)`).
@@ -482,8 +483,8 @@ Value bwmorph(const Value &BW, const std::string &op, int n,
 /// @return         `Q × 2` DOUBLE matrix of `[row, col]` pixels.
 Value bwtraceboundary(const Value &BW, const Value &P,
                       const std::string &fstep, int conn,
-                      std::size_t m, const std::string &dir,
-                      std::pmr::memory_resource *mr = nullptr);
+                      keel::usize m, const std::string &dir,
+                      keel::Allocator *mr = nullptr);
 
 
 /// @}

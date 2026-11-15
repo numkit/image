@@ -36,6 +36,8 @@
 // PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
 
 #define _USE_MATH_DEFINES
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/value/value.hpp>
@@ -59,11 +61,11 @@ constexpr double kFrangiBeta = 0.5;     // 2-D and 3-D blobness param
 constexpr double kFrangiAlpha = 0.5;    // 3-D plate-vs-line param
 
 // Replicate-boundary clamp.
-inline std::size_t clamp_idx(long i, std::size_t n)
+inline keel::usize clamp_idx(long i, keel::usize n)
 {
     if (i < 0) return 0;
     if (i >= static_cast<long>(n)) return n - 1;
-    return static_cast<std::size_t>(i);
+    return static_cast<keel::usize>(i);
 }
 
 double class_range(ValueType t)
@@ -81,13 +83,13 @@ double class_range(ValueType t)
 
 // ── Convert input to working buffer (vector of double) ────────────
 struct Buf {
-    std::size_t H = 0, W = 0, D = 1;
+    keel::usize H = 0, W = 0, D = 1;
     std::vector<double> v;
     bool is3d() const { return D > 1; }
-    double &at(std::size_t r, std::size_t c, std::size_t z = 0) {
+    double &at(keel::usize r, keel::usize c, keel::usize z = 0) {
         return v[z * H * W + c * H + r];
     }
-    double at(std::size_t r, std::size_t c, std::size_t z = 0) const {
+    double at(keel::usize r, keel::usize c, keel::usize z = 0) const {
         return v[z * H * W + c * H + r];
     }
 };
@@ -99,8 +101,8 @@ Buf to_double_buf(const Value &V)
     b.W = V.dims().cols();
     b.D = V.dims().is3D() ? V.dims().pages() : 1;
     b.v.resize(b.H * b.W * b.D);
-    const std::size_t N = b.v.size();
-    for (std::size_t i = 0; i < N; ++i)
+    const keel::usize N = b.v.size();
+    for (keel::usize i = 0; i < N; ++i)
         b.v[i] = V.elemAsDouble(i);
     return b;
 }
@@ -109,13 +111,13 @@ Buf to_double_buf(const Value &V)
 std::vector<double> gauss1d(double sigma, int radius)
 {
     const int n = 2 * radius + 1;
-    std::vector<double> k(static_cast<std::size_t>(n));
+    std::vector<double> k(static_cast<keel::usize>(n));
     double s = 0.0;
     for (int i = 0; i < n; ++i) {
         const double x = i - radius;
-        k[static_cast<std::size_t>(i)] =
+        k[static_cast<keel::usize>(i)] =
             std::exp(-0.5 * (x / sigma) * (x / sigma));
-        s += k[static_cast<std::size_t>(i)];
+        s += k[static_cast<keel::usize>(i)];
     }
     for (double &v : k) v /= s;
     return k;
@@ -126,28 +128,28 @@ Buf gauss2d(const Buf &In, double sigma)
 {
     const int rad = static_cast<int>(std::ceil(3.0 * sigma));
     std::vector<double> k = gauss1d(sigma, rad);
-    const std::size_t H = In.H, W = In.W;
+    const keel::usize H = In.H, W = In.W;
     Buf tmp; tmp.H = H; tmp.W = W; tmp.D = 1; tmp.v.assign(H * W, 0.0);
     Buf out = tmp;
     // Rows pass.
-    for (std::size_t c = 0; c < W; ++c)
-        for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r) {
             double s = 0.0;
             for (int j = -rad; j <= rad; ++j) {
-                const std::size_t rr = clamp_idx(
+                const keel::usize rr = clamp_idx(
                     static_cast<long>(r) + j, H);
-                s += k[static_cast<std::size_t>(j + rad)] * In.at(rr, c);
+                s += k[static_cast<keel::usize>(j + rad)] * In.at(rr, c);
             }
             tmp.at(r, c) = s;
         }
     // Cols pass.
-    for (std::size_t c = 0; c < W; ++c)
-        for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r) {
             double s = 0.0;
             for (int j = -rad; j <= rad; ++j) {
-                const std::size_t cc = clamp_idx(
+                const keel::usize cc = clamp_idx(
                     static_cast<long>(c) + j, W);
-                s += k[static_cast<std::size_t>(j + rad)] * tmp.at(r, cc);
+                s += k[static_cast<keel::usize>(j + rad)] * tmp.at(r, cc);
             }
             out.at(r, c) = s;
         }
@@ -159,42 +161,42 @@ Buf gauss3d(const Buf &In, double sigma)
 {
     const int rad = static_cast<int>(std::ceil(3.0 * sigma));
     std::vector<double> k = gauss1d(sigma, rad);
-    const std::size_t H = In.H, W = In.W, D = In.D;
+    const keel::usize H = In.H, W = In.W, D = In.D;
     Buf tmp; tmp.H = H; tmp.W = W; tmp.D = D; tmp.v.assign(H * W * D, 0.0);
     Buf tmp2 = tmp, out = tmp;
     // Rows.
-    for (std::size_t z = 0; z < D; ++z)
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize z = 0; z < D; ++z)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < H; ++r) {
                 double s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
-                    const std::size_t rr = clamp_idx(
+                    const keel::usize rr = clamp_idx(
                         static_cast<long>(r) + j, H);
-                    s += k[static_cast<std::size_t>(j + rad)] * In.at(rr, c, z);
+                    s += k[static_cast<keel::usize>(j + rad)] * In.at(rr, c, z);
                 }
                 tmp.at(r, c, z) = s;
             }
     // Cols.
-    for (std::size_t z = 0; z < D; ++z)
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize z = 0; z < D; ++z)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < H; ++r) {
                 double s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
-                    const std::size_t cc = clamp_idx(
+                    const keel::usize cc = clamp_idx(
                         static_cast<long>(c) + j, W);
-                    s += k[static_cast<std::size_t>(j + rad)] * tmp.at(r, cc, z);
+                    s += k[static_cast<keel::usize>(j + rad)] * tmp.at(r, cc, z);
                 }
                 tmp2.at(r, c, z) = s;
             }
     // Slices.
-    for (std::size_t z = 0; z < D; ++z)
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize z = 0; z < D; ++z)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < H; ++r) {
                 double s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
-                    const std::size_t zz = clamp_idx(
+                    const keel::usize zz = clamp_idx(
                         static_cast<long>(z) + j, D);
-                    s += k[static_cast<std::size_t>(j + rad)] * tmp2.at(r, c, zz);
+                    s += k[static_cast<keel::usize>(j + rad)] * tmp2.at(r, c, zz);
                 }
                 out.at(r, c, z) = s;
             }
@@ -206,17 +208,17 @@ Buf gauss3d(const Buf &In, double sigma)
 // vessel enhancement filtering", Eq. before Eq. 7: γ = 2 for vessels).
 Buf frangi2d(const Buf &Ig, double c, bool bright, double sigma)
 {
-    const std::size_t H = Ig.H, W = Ig.W;
+    const keel::usize H = Ig.H, W = Ig.W;
     Buf out; out.H = H; out.W = W; out.D = 1; out.v.assign(H * W, 0.0);
     const double beta_sq2 = 2.0 * kFrangiBeta * kFrangiBeta;
     const double c_sq2    = 2.0 * c * c;
     const double sigma2   = sigma * sigma;
-    for (std::size_t cc = 0; cc < W; ++cc) {
-        for (std::size_t r = 0; r < H; ++r) {
-            const std::size_t rm = clamp_idx(static_cast<long>(r) - 1, H);
-            const std::size_t rp = clamp_idx(static_cast<long>(r) + 1, H);
-            const std::size_t cm = clamp_idx(static_cast<long>(cc) - 1, W);
-            const std::size_t cp = clamp_idx(static_cast<long>(cc) + 1, W);
+    for (keel::usize cc = 0; cc < W; ++cc) {
+        for (keel::usize r = 0; r < H; ++r) {
+            const keel::usize rm = clamp_idx(static_cast<long>(r) - 1, H);
+            const keel::usize rp = clamp_idx(static_cast<long>(r) + 1, H);
+            const keel::usize cm = clamp_idx(static_cast<long>(cc) - 1, W);
+            const keel::usize cp = clamp_idx(static_cast<long>(cc) + 1, W);
             const double v   = Ig.at(r,  cc);
             const double Ixx = sigma2 * (Ig.at(r,  cp) - 2.0 * v + Ig.at(r,  cm));
             const double Iyy = sigma2 * (Ig.at(rp, cc) - 2.0 * v + Ig.at(rm, cc));
@@ -291,21 +293,21 @@ void eigvals_3x3(double a11, double a22, double a33,
 
 Buf frangi3d(const Buf &Ig, double c, bool bright, double sigma)
 {
-    const std::size_t H = Ig.H, W = Ig.W, D = Ig.D;
+    const keel::usize H = Ig.H, W = Ig.W, D = Ig.D;
     Buf out; out.H = H; out.W = W; out.D = D; out.v.assign(H * W * D, 0.0);
     const double alpha_sq2 = 2.0 * kFrangiAlpha * kFrangiAlpha;
     const double beta_sq2  = 2.0 * kFrangiBeta  * kFrangiBeta;
     const double c_sq2     = 2.0 * c * c;
     const double sigma2    = sigma * sigma;
-    for (std::size_t z = 0; z < D; ++z) {
-        const std::size_t zm = clamp_idx(static_cast<long>(z) - 1, D);
-        const std::size_t zp = clamp_idx(static_cast<long>(z) + 1, D);
-        for (std::size_t cc = 0; cc < W; ++cc) {
-            const std::size_t cm = clamp_idx(static_cast<long>(cc) - 1, W);
-            const std::size_t cp = clamp_idx(static_cast<long>(cc) + 1, W);
-            for (std::size_t r = 0; r < H; ++r) {
-                const std::size_t rm = clamp_idx(static_cast<long>(r) - 1, H);
-                const std::size_t rp = clamp_idx(static_cast<long>(r) + 1, H);
+    for (keel::usize z = 0; z < D; ++z) {
+        const keel::usize zm = clamp_idx(static_cast<long>(z) - 1, D);
+        const keel::usize zp = clamp_idx(static_cast<long>(z) + 1, D);
+        for (keel::usize cc = 0; cc < W; ++cc) {
+            const keel::usize cm = clamp_idx(static_cast<long>(cc) - 1, W);
+            const keel::usize cp = clamp_idx(static_cast<long>(cc) + 1, W);
+            for (keel::usize r = 0; r < H; ++r) {
+                const keel::usize rm = clamp_idx(static_cast<long>(r) - 1, H);
+                const keel::usize rp = clamp_idx(static_cast<long>(r) + 1, H);
                 const double v   = Ig.at(r, cc, z);
                 const double Ixx = sigma2 * (Ig.at(r,  cp, z) - 2.0 * v + Ig.at(r,  cm, z));
                 const double Iyy = sigma2 * (Ig.at(rp, cc, z) - 2.0 * v + Ig.at(rm, cc, z));
@@ -346,9 +348,9 @@ Buf frangi3d(const Buf &Ig, double c, bool bright, double sigma)
 // Cast result buffer to output Value (single for non-double inputs,
 // double for double).
 Value buf_to_value(const Buf &B, ValueType targetClass,
-                   std::pmr::memory_resource *mr)
+                   keel::Allocator *mr)
 {
-    const std::size_t N = B.v.size();
+    const keel::usize N = B.v.size();
     Value out;
     if (B.is3d())
         out = Value::matrix3d(B.H, B.W, B.D, targetClass, mr);
@@ -359,7 +361,7 @@ Value buf_to_value(const Buf &B, ValueType targetClass,
     } else {
         // SINGLE
         float *od = out.singleDataMut();
-        for (std::size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             od[i] = static_cast<float>(B.v[i]);
     }
     return out;
@@ -396,7 +398,7 @@ void fibermetric_argcheck(const Value &I, const std::vector<double> &thickness_i
 
 Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
                   double structure_sensitivity, bool bright_polarity,
-                  std::pmr::memory_resource *mr)
+                  keel::Allocator *mr)
 {
     fibermetric_argcheck(I, thickness_in, structure_sensitivity);
     const auto &d = I.dims();
@@ -439,7 +441,7 @@ Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
         Buf G = is3d ? gauss3d(In, sigma) : gauss2d(In, sigma);
         Buf V = is3d ? frangi3d(G, c, bright_polarity, sigma)
                      : frangi2d(G, c, bright_polarity, sigma);
-        for (std::size_t i = 0; i < Out.v.size(); ++i)
+        for (keel::usize i = 0; i < Out.v.size(); ++i)
             if (V.v[i] > Out.v[i]) Out.v[i] = V.v[i];
     }
     return buf_to_value(Out, outClass, mr);

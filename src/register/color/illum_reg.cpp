@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/color/color.hpp>
 #include "color/illum_detail.hpp"
 
@@ -26,7 +28,7 @@ namespace detail {
 // Name-value parser shared by illumwhite/illumgray; supports the
 // two MATLAB options 'Mask' and 'Norm' (the latter is illumgray-only,
 // caller passes `allow_norm = false` for illumwhite).
-static void parse_nv_pairs(Span<const Value> args, std::size_t start_idx,
+static void parse_nv_pairs(keel::ArrayRef<Value> args, keel::usize start_idx,
                            bool allow_norm, Value &mask, double &norm_exp,
                            const char *fn)
 {
@@ -52,13 +54,13 @@ static void parse_nv_pairs(Span<const Value> args, std::size_t start_idx,
                     0, 0, fn, "", "numkit:image:unpairedNv");
 }
 
-void illumwhite_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void illumwhite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "illumwhite");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     double P = 1.0;       // MATLAB default percentile = 1%.
-    std::size_t i = 1;
+    keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
         P = args[1].toScalar();
         i = 2;
@@ -70,15 +72,15 @@ void illumwhite_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = illumwhite(args[0], P, mask, mr);
 }
 
-void imcolordiff_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void imcolordiff_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imcolordiff");  // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     std::string standard = "CIE94";
     bool is_input_lab = false;
     double kL = 1.0, kC = 1.0, kH = 1.0, K1 = 0.045, K2 = 0.015;
-    std::size_t i = 2;
+    keel::usize i = 2;
     while (i + 1 < args.size()) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("imcolordiff: expected option name string",
@@ -106,13 +108,13 @@ void imcolordiff_reg(Span<const Value> args, size_t /*nargout*/,
                           kL, kC, kH, K1, K2, mr);
 }
 
-void illumpca_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void illumpca_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "illumpca");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     double P = 3.5;       // MATLAB default percentage.
-    std::size_t i = 1;
+    keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
         P = args[1].toScalar();
         i = 2;
@@ -124,15 +126,15 @@ void illumpca_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = illumpca(args[0], P, mask, mr);
 }
 
-void illumgray_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void illumgray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 6, "illumgray");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     std::vector<double> P;
-    std::size_t i = 1;
+    keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
-        const std::size_t n = args[1].numel();
+        const keel::usize n = args[1].numel();
         if (n == 1) P.push_back(args[1].toScalar());
         else if (n == 2) {
             P.push_back(args[1].elemAsDouble(0));

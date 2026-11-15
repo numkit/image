@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <string>
@@ -42,7 +43,7 @@ namespace numkit::image {
 /// @param planes  Output vector (resized in-place).
 /// @param mr      Memory resource (nullptr → process default).
 void imsplit(const Value &I, std::vector<Value> &planes,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 // ── RGB ↔ HSV / YCbCr / NTSC / XYZ / Lab ─────────────────────────────
 
@@ -55,25 +56,25 @@ void imsplit(const Value &I, std::vector<Value> &planes,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    HSV image / colormap (DOUBLE).
 /// @see hsv2rgb
-Value rgb2hsv(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value rgb2hsv(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief HSV → RGB (inverse of @ref rgb2hsv).
 /// @param x   HSV image / colormap.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    RGB image / colormap (DOUBLE).
-Value hsv2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value hsv2rgb(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief RGB → YCbCr (BT.601) (`ycbcr = rgb2ycbcr(rgb)`).
 /// @param x   RGB image / colormap.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    YCbCr image / colormap (DOUBLE).
 /// @see ycbcr2rgb
-Value rgb2ycbcr(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value rgb2ycbcr(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief YCbCr → RGB (inverse of @ref rgb2ycbcr).
 /// @param x   YCbCr image / colormap. @param mr  Memory resource.
 /// @return    RGB image / colormap (DOUBLE).
-Value ycbcr2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value ycbcr2rgb(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief RGB → NTSC YIQ (`yiq = rgb2ntsc(rgb)`).
 ///
@@ -83,12 +84,12 @@ Value ycbcr2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    YIQ image / colormap.
 /// @see ntsc2rgb
-Value rgb2ntsc(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value rgb2ntsc(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief NTSC YIQ → RGB (inverse of @ref rgb2ntsc).
 /// @param x   YIQ image / colormap. @param mr  Memory resource.
 /// @return    RGB image / colormap.
-Value ntsc2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value ntsc2rgb(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief sRGB → CIE XYZ (D65) (`xyz = rgb2xyz(rgb)`).
 ///
@@ -98,12 +99,12 @@ Value ntsc2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    XYZ image / colormap (DOUBLE).
 /// @see xyz2rgb, rgb2lin
-Value rgb2xyz(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value rgb2xyz(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief CIE XYZ → sRGB (inverse of @ref rgb2xyz).
 /// @param x   XYZ image / colormap. @param mr  Memory resource.
 /// @return    sRGB image / colormap (DOUBLE).
-Value xyz2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value xyz2rgb(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief sRGB → CIE L\*a\*b\* (D65) (`lab = rgb2lab(rgb)`).
 ///
@@ -115,12 +116,12 @@ Value xyz2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Lab image / colormap.
 /// @see lab2rgb, rgb2lightness
-Value rgb2lab(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value rgb2lab(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief CIE L\*a\*b\* → sRGB (inverse of @ref rgb2lab).
 /// @param x   Lab image / colormap. @param mr  Memory resource.
 /// @return    sRGB image / colormap.
-Value lab2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value lab2rgb(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Lightness L\* (`L = rgb2lightness(RGB)`).
 ///
@@ -130,7 +131,7 @@ Value lab2rgb(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param RGB  sRGB image.
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Lightness image.
-Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr = nullptr);
+Value rgb2lightness(const Value &RGB, keel::Allocator *mr = nullptr);
 
 /// @brief Eliminate duplicate colors in colormap; convert
 /// grayscale or RGB to indexed (`[Y, newmap] = cmunique(...)`).
@@ -154,13 +155,13 @@ Value rgb2lightness(const Value &RGB, std::pmr::memory_resource *mr = nullptr);
 ///             colormap.
 std::pair<Value, Value>
 cmunique_xm(const Value &X, const Value &MAP,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 std::pair<Value, Value>
 cmunique_rgb(const Value &RGB,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 std::pair<Value, Value>
 cmunique_i(const Value &I,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::Allocator *mr = nullptr);
 
 /// @brief RGB → indexed image with a fixed colormap
 /// (`[ind, cmap] = rgb2ind(RGB, cmap)`).
@@ -175,17 +176,17 @@ cmunique_i(const Value &I,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `(ind, cmap)` pair.
 std::pair<Value, Value>
-rgb2ind_inmap(const Value &RGB, const Value &cmap, std::pmr::memory_resource *mr = nullptr);
+rgb2ind_inmap(const Value &RGB, const Value &cmap, keel::Allocator *mr = nullptr);
 
 /// @brief CIE XYZ → CIE L\*a\*b\* (D50 ICC reference white).
 /// @param x   XYZ image / colormap. @param mr  Memory resource.
 /// @return    Lab image / colormap. @see lab2xyz, rgb2lab
-Value xyz2lab(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value xyz2lab(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief CIE L\*a\*b\* → CIE XYZ (inverse of @ref xyz2lab).
 /// @param x   Lab image / colormap. @param mr  Memory resource.
 /// @return    XYZ image / colormap.
-Value lab2xyz(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value lab2xyz(const Value &x, keel::Allocator *mr = nullptr);
 
 // ── Lab class conversions ───────────────────────────────────────────
 //
@@ -198,22 +199,22 @@ Value lab2xyz(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param lab  Input Lab.  @param mr  Memory resource.
 /// @return     DOUBLE Lab in canonical scale.
 /// @see lab2single, lab2uint8, lab2uint16
-Value lab2double(const Value &lab, std::pmr::memory_resource *mr = nullptr);
+Value lab2double(const Value &lab, keel::Allocator *mr = nullptr);
 
 /// @brief Cast Lab image to SINGLE (`labs = lab2single(lab)`).
 /// @param lab  Input Lab.  @param mr  Memory resource.
 /// @return     SINGLE Lab in canonical scale.
-Value lab2single(const Value &lab, std::pmr::memory_resource *mr = nullptr);
+Value lab2single(const Value &lab, keel::Allocator *mr = nullptr);
 
 /// @brief Cast Lab image to UINT8 (`labu = lab2uint8(lab)`).
 /// @param lab  Input Lab.  @param mr  Memory resource.
 /// @return     UINT8 Lab with offset 128.
-Value lab2uint8(const Value &lab, std::pmr::memory_resource *mr = nullptr);
+Value lab2uint8(const Value &lab, keel::Allocator *mr = nullptr);
 
 /// @brief Cast Lab image to UINT16 (`labu = lab2uint16(lab)`).
 /// @param lab  Input Lab.  @param mr  Memory resource.
 /// @return     UINT16 Lab with offset 32768.
-Value lab2uint16(const Value &lab, std::pmr::memory_resource *mr = nullptr);
+Value lab2uint16(const Value &lab, keel::Allocator *mr = nullptr);
 
 // ── Colormap synthesis ──────────────────────────────────────────────
 
@@ -230,7 +231,7 @@ Value lab2uint16(const Value &lab, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `N × 3` colormap.
 Value colorgradient(const Value &C, const Value &w, int n,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Wavelength → RGB (Bruton 1996)
 /// (`RGB = wavelength2rgb(wavelength, class, gamma)`).
@@ -244,7 +245,7 @@ Value colorgradient(const Value &C, const Value &w, int n,
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            RGB image / colormap of the requested class.
 Value wavelength2rgb(const Value &wavelength, const std::string &out_class,
-                     double gamma, std::pmr::memory_resource *mr = nullptr);
+                     keel::f64 gamma, keel::Allocator *mr = nullptr);
 
 /// @brief Angle between two RGB colours
 /// (`theta = colorangle(rgb1, rgb2)`).
@@ -259,7 +260,7 @@ Value wavelength2rgb(const Value &wavelength, const std::string &out_class,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Angle(s) in degrees.
 Value colorangle(const Value &rgb1, const Value &rgb2,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 // ── Standard colormaps ───────────────────────────────────────
 //
@@ -273,93 +274,93 @@ Value colorangle(const Value &rgb1, const Value &rgb2,
 /// `gr = (0:n-1)/(n-1)` repeated across all 3 channels.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value gray_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value gray_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Black-red-yellow-white colormap (`map = hot(n)`).
 /// Piecewise R-then-G-then-B ramps with `idx = floor(3/8 · n)`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value hot_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value hot_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Cyan → magenta colormap (`map = cool(n)`).
 /// `r = (0:n-1)/(n-1)`, `g = 1 - r`, `b = 1`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value cool_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value cool_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Magenta → yellow colormap (`map = spring(n)`).
 /// `r = 1`, `g = (0:n-1)/(n-1)`, `b = 1 - g`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value spring_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value spring_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Green → yellow colormap (`map = summer(n)`).
 /// `r = (0:n-1)/(n-1)`, `g = 0.5 + r/2`, `b = 0.4`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value summer_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value summer_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Red → yellow colormap (`map = autumn(n)`).
 /// `r = 1`, `g = (0:n-1)/(n-1)`, `b = 0`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value autumn_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value autumn_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Blue → cyan-ish colormap (`map = winter(n)`).
 /// `r = 0`, `g = (0:n-1)/(n-1)`, `b = 1 - g/2`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value winter_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value winter_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Copper-tinted colormap (`map = copper(n)`).
 /// `x = (0:n-1)/(n-1)`; `r = min(5/4·x, 1)`, `g = 0.7812·x`,
 /// `b = 0.4975·x`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value copper_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value copper_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Pastel-pink colormap (`map = pink(n)`).
 /// Piecewise linspace ramps for R/G/B then elementwise `sqrt` for
 /// saturation lift.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value pink_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value pink_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Hue-rotation colormap (`map = hsv(n)`).
 /// Equivalent to `hsv2rgb([(0:n-1)'/n, 1, 1])`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value hsv_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value hsv_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Cyclic red/white/blue/black colormap (`map = flag(n)`).
 /// Cycles `[1 0 0; 1 1 1; 0 0 1; 0 0 0]`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value flag_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value flag_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Cyclic 6-row rainbow palette (`map = prism(n)`).
 /// `[red, orange, yellow, green, blue, violet]`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value prism_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value prism_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Axes-color-order palette (`map = lines(n)`).
 /// Cycles the 7-row default colour order. `n == 1 → [0 0 1]`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value lines_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value lines_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief Grayscale-with-blue-tint colormap (`map = bone(n)`).
 /// Per-channel piecewise ramps with `idx_R = floor(3/4 · n)`,
 /// `idx_G = floor(3/8 · n)`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value bone_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value bone_cmap(int n, keel::Allocator *mr = nullptr);
 
 /// @brief All-ones colormap (`map = white(n)`).
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` all-ones colormap.
-Value white_cmap(int n, std::pmr::memory_resource *mr = nullptr);
+Value white_cmap(int n, keel::Allocator *mr = nullptr);
 
 // ── Gamma helpers / XYZ class conversion / brighten / contrast ──────
 
@@ -374,7 +375,7 @@ Value white_cmap(int n, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Linearised image / colormap.
 /// @see lin2rgb
-Value rgb2lin(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value rgb2lin(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Linear RGB → sRGB gamma forward (`B = lin2rgb(A)`).
 ///
@@ -386,7 +387,7 @@ Value rgb2lin(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Gamma-encoded image / colormap.
 /// @see rgb2lin
-Value lin2rgb(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value lin2rgb(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief XYZ → DOUBLE (`xyzd = xyz2double(xyz)`).
 ///
@@ -397,7 +398,7 @@ Value lin2rgb(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     DOUBLE XYZ.
 /// @see xyz2uint16
-Value xyz2double(const Value &xyz, std::pmr::memory_resource *mr = nullptr);
+Value xyz2double(const Value &xyz, keel::Allocator *mr = nullptr);
 
 /// @brief XYZ → UINT16 ICC encoding (`xyzu16 = xyz2uint16(xyz)`).
 ///
@@ -408,7 +409,7 @@ Value xyz2double(const Value &xyz, std::pmr::memory_resource *mr = nullptr);
 /// @param xyz  Input XYZ image / colormap.
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     UINT16 XYZ.
-Value xyz2uint16(const Value &xyz, std::pmr::memory_resource *mr = nullptr);
+Value xyz2uint16(const Value &xyz, keel::Allocator *mr = nullptr);
 
 /// @brief Gamma-adjust a colormap (`rmap = brighten(map, beta)`).
 ///
@@ -420,8 +421,8 @@ Value xyz2uint16(const Value &xyz, std::pmr::memory_resource *mr = nullptr);
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Adjusted colormap.
 /// @throws Error  `beta` out of range.
-Value brighten(const Value &map, double beta,
-               std::pmr::memory_resource *mr = nullptr);
+Value brighten(const Value &map, keel::f64 beta,
+               keel::Allocator *mr = nullptr);
 
 /// @brief Histogram-equalising gray colormap (`cmap = contrast(x, m)`).
 ///
@@ -433,7 +434,7 @@ Value brighten(const Value &map, double beta,
 /// @param m   Target colormap length (default 64 in adapter).
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `≈m × 3` gray colormap.
-Value contrast(const Value &x, int m, std::pmr::memory_resource *mr = nullptr);
+Value contrast(const Value &x, int m, keel::Allocator *mr = nullptr);
 
 // ── Colour difference / whitepoints / utility ───────────────────────
 
@@ -463,7 +464,7 @@ Value contrast(const Value &x, int m, std::pmr::memory_resource *mr = nullptr);
 /// @param mr              Memory resource (nullptr → process default).
 /// @return                UINT16 YCbCr, same shape as `RGB`.
 Value rgbwide2ycbcr(const Value &RGB, int bits_per_sample,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief BT.2020 / BT.2100 wide-gamut YCbCr → RGB
 /// (`rgb = ycbcr2rgbwide(YCBCR, bps)`).
@@ -494,7 +495,7 @@ Value rgbwide2ycbcr(const Value &RGB, int bits_per_sample,
 /// @param mr              Memory resource (nullptr → process default).
 /// @return                UINT16 RGB, same shape as `YCBCR`.
 Value ycbcr2rgbwide(const Value &YCBCR, int bits_per_sample,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief CIE94 / CIEDE2000 colour difference
 /// (`dE = imcolordiff(I1, I2, ...)`).
@@ -534,8 +535,8 @@ Value ycbcr2rgbwide(const Value &YCBCR, int bits_per_sample,
 /// @return              Per-pixel colour difference (channel dim removed).
 Value imcolordiff(const Value &I1, const Value &I2,
                   const std::string &standard, bool is_input_lab,
-                  double kL, double kC, double kH, double K1, double K2,
-                  std::pmr::memory_resource *mr = nullptr);
+                  keel::f64 kL, keel::f64 kC, keel::f64 kH, keel::f64 K1, keel::f64 K2,
+                  keel::Allocator *mr = nullptr);
 
 /// @brief CIE76 colour difference (`delE = deltaE(I1, I2, isInputLab)`).
 ///
@@ -550,7 +551,7 @@ Value imcolordiff(const Value &I1, const Value &I2,
 /// @param mr           Memory resource (nullptr → process default).
 /// @return             `H × W` (or `N × 1`) deltaE.
 Value deltaE(const Value &I1, const Value &I2, bool isInputLab,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// @brief CIE reference-illuminant tristimulus (`wp = whitepoint(illuminant)`).
 ///
@@ -563,7 +564,7 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab,
 /// @return            `1 × 3` XYZ tristimulus.
 /// @throws Error  Unknown illuminant code.
 Value whitepoint(const std::string &illuminant,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief RGB colormap → grayscale colormap (`gmap = cmap2gray(cmap)`).
 ///
@@ -573,7 +574,7 @@ Value whitepoint(const std::string &illuminant,
 /// @param cmap  `N × 3` RGB colormap.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `N × 3` grayscale colormap.
-Value cmap2gray(const Value &cmap, std::pmr::memory_resource *mr = nullptr);
+Value cmap2gray(const Value &cmap, keel::Allocator *mr = nullptr);
 
 // ── White-balance illumination estimation ─────────────────────────────
 
@@ -593,8 +594,8 @@ Value cmap2gray(const Value &cmap, std::pmr::memory_resource *mr = nullptr);
 /// @param mask  Optional `H × W` logical/numeric mask; empty → use all.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `1 × 3` DOUBLE illuminant.
-Value illumwhite(const Value &A, double P, const Value &mask,
-                 std::pmr::memory_resource *mr = nullptr);
+Value illumwhite(const Value &A, keel::f64 P, const Value &mask,
+                 keel::Allocator *mr = nullptr);
 
 /// @brief PCA-based illuminant estimate
 /// (`illum = illumpca(A [, P] [, 'Mask', M])`).
@@ -620,8 +621,8 @@ Value illumwhite(const Value &A, double P, const Value &mask,
 /// @param mask  Optional `H × W` mask; empty → all.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `1 × 3` DOUBLE illuminant.
-Value illumpca(const Value &A, double P, const Value &mask,
-               std::pmr::memory_resource *mr = nullptr);
+Value illumpca(const Value &A, keel::f64 P, const Value &mask,
+               keel::Allocator *mr = nullptr);
 
 /// @brief Grey-World illuminant estimate
 /// (`illum = illumgray(A [, P] [, 'Mask', M])`).
@@ -640,8 +641,8 @@ Value illumpca(const Value &A, double P, const Value &mask,
 /// @param mask  Optional `H × W` mask; empty → all.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `1 × 3` DOUBLE illuminant.
-Value illumgray(const Value &A, const std::vector<double> &P,
-                const Value &mask, std::pmr::memory_resource *mr = nullptr);
+Value illumgray(const Value &A, const std::vector<keel::f64> &P,
+                const Value &mask, keel::Allocator *mr = nullptr);
 
 /// @brief Colourise a labelled image
 /// (`RGB = label2rgb(L, cmap, background)`).
@@ -661,7 +662,7 @@ Value illumgray(const Value &A, const std::vector<double> &P,
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            `H × W × 3` UINT8 colour image.
 Value label2rgb(const Value &L, const Value &cmap, const Value &background,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief Composite two images for visual comparison
 /// (`C = imfuse(A, B, method, ...)`).
@@ -715,7 +716,7 @@ Value imfuse(const Value &A, const Value &B,
              const std::string &method,
              const std::string &scaling,
              const Value &channels,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// @brief Render high-dynamic-range image for low-dynamic-range
 /// display (`RGB = tonemap(HDR, ...)`).
@@ -746,10 +747,10 @@ Value imfuse(const Value &A, const Value &B,
 /// @param mr         Memory resource (nullptr → process default).
 /// @return           UINT8 LDR image, same H×W×{1,3} as HDR.
 Value tonemap(const Value &HDR,
-              double lremap_lo, double lremap_hi,
-              double saturation,
+              keel::f64 lremap_lo, keel::f64 lremap_hi,
+              keel::f64 saturation,
               int ntilesR, int ntilesC,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// @brief Overlay a label / mask / categorical-index image on a 2-D base
 /// (`B = labeloverlay(A, L, ...)`).
@@ -812,8 +813,8 @@ Value labeloverlay(const Value &A, const Value &L,
                    const Value &colormap,
                    const std::string &color_assignment,
                    const Value &included_labels,
-                   double transparency,
-                   std::pmr::memory_resource *mr = nullptr);
+                   keel::f64 transparency,
+                   keel::Allocator *mr = nullptr);
 
 /// @brief Chromatic adaptation for white-balance correction
 /// (`B = chromadapt(A, illuminant, ...)`).
@@ -873,7 +874,7 @@ Value labeloverlay(const Value &A, const Value &L,
 Value chromadapt(const Value &A, const Value &illuminant,
                  const std::string &method,
                  const std::string &color_space,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Narrow-range wide-gamut RGB → CIE 1931 XYZ
 /// (`XYZ = rgbwide2xyz(RGB, BPS, ...)`).
@@ -917,7 +918,7 @@ Value chromadapt(const Value &A, const Value &illuminant,
 Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
                   const std::string &color_space,
                   const std::string &linearization,
-                  std::pmr::memory_resource *mr = nullptr);
+                  keel::Allocator *mr = nullptr);
 
 /// @brief CIE 1931 XYZ → narrow-range wide-gamut RGB
 /// (`RGB = xyz2rgbwide(XYZ, BPS, ...)`).
@@ -935,7 +936,7 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
 Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
                   const std::string &color_space,
                   const std::string &linearization,
-                  std::pmr::memory_resource *mr = nullptr);
+                  keel::Allocator *mr = nullptr);
 
 /// @brief Convert a Bayer-encoded mosaic to a truecolor RGB image
 /// (`RGB = demosaic(I, sensorAlignment, BitsPerSample=bps)`).
@@ -968,7 +969,7 @@ Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
 ///     Demosaicing of Bayer-Patterned Color Images", IEEE ICASSP 2004.
 Value demosaic(const Value &I, const std::string &sensorAlignment,
                int bitsPerSample = 0,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// @brief Deinterleave a Bayer CFA mosaic into its four sensor planes
 /// (`P = raw2planar(cfa)`).
@@ -981,7 +982,7 @@ Value demosaic(const Value &I, const std::string &sensorAlignment,
 /// @param cfa  `M×N` numeric / logical mosaic. `M`, `N` must be even.
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     `(M/2)×(N/2)×4` array of the input class.
-Value raw2planar(const Value &cfa, std::pmr::memory_resource *mr = nullptr);
+Value raw2planar(const Value &cfa, keel::Allocator *mr = nullptr);
 
 /// @brief Re-interleave 4 sensor planes into a full Bayer CFA mosaic
 /// (`cfa = planar2raw(I)`).
@@ -993,7 +994,7 @@ Value raw2planar(const Value &cfa, std::pmr::memory_resource *mr = nullptr);
 /// @param I   `M×N×4` numeric / logical sensor-plane array.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `(2M)×(2N)` mosaic of the input class.
-Value planar2raw(const Value &I, std::pmr::memory_resource *mr = nullptr);
+Value planar2raw(const Value &I, keel::Allocator *mr = nullptr);
 
 
 /// @}

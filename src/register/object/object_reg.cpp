@@ -7,6 +7,9 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
+#include <keel/array.h>
 #include <numkit/image/object/object.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -29,7 +32,7 @@ namespace numkit::image {
 namespace detail {
 
 namespace {
-std::string parse_method(Span<const Value> args, size_t i, const std::string &def) {
+std::string parse_method(keel::ArrayRef<Value> args, keel::usize i, const std::string &def) {
     if (i < args.size() && (args[i].isChar() || args[i].isString())) {
         // MATLAB method names ('Canny', 'Sobel', 'Roberts', …) are
         // case-insensitive; downstream comparisons are all lowercase.
@@ -42,48 +45,48 @@ std::string parse_method(Span<const Value> args, size_t i, const std::string &de
 }
 }
 
-void imgradientxy_reg(Span<const Value> args, size_t nargout,
-                      Span<Value> outs, CallContext &ctx)
+void imgradientxy_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imgradientxy");
     const auto m = parse_method(args, 1, "sobel");
-    auto [Gx, Gy] = imgradientxy(args[0], m, ctx.engine->resource());
+    auto [Gx, Gy] = imgradientxy(args[0], m, ctx.engine->allocator());
     outs[0] = std::move(Gx);
     if (nargout > 1) outs[1] = std::move(Gy);
 }
 
-void imgradient_reg(Span<const Value> args, size_t nargout,
-                    Span<Value> outs, CallContext &ctx)
+void imgradient_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imgradient");
     const auto m = parse_method(args, 1, "sobel");
     if (nargout > 1) {
-        auto [Gmag, Gdir] = imgradient(args[0], m, ctx.engine->resource());
+        auto [Gmag, Gdir] = imgradient(args[0], m, ctx.engine->allocator());
         outs[0] = std::move(Gmag);
         outs[1] = std::move(Gdir);
     } else {
         // Magnitude only — skip the per-pixel atan2 direction.
-        outs[0] = imgradient_mag(args[0], m, ctx.engine->resource());
+        outs[0] = imgradient_mag(args[0], m, ctx.engine->allocator());
     }
 }
 
-void imgradientxyz_reg(Span<const Value> args, size_t nargout,
-                       Span<Value> outs, CallContext &ctx)
+void imgradientxyz_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "imgradientxyz");
     // no max: name-value tail in the reference
     const auto m = parse_method(args, 1, "sobel");
-    auto [Gx, Gy, Gz] = imgradientxyz(args[0], m, ctx.engine->resource());
+    auto [Gx, Gy, Gz] = imgradientxyz(args[0], m, ctx.engine->allocator());
     outs[0] = std::move(Gx);
     if (nargout > 1) outs[1] = std::move(Gy);
     if (nargout > 2) outs[2] = std::move(Gz);
 }
 
-void imgradient3_reg(Span<const Value> args, size_t nargout,
-                     Span<Value> outs, CallContext &ctx)
+void imgradient3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "imgradient3");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     // Detect (Gx, Gy, Gz) form: three numeric args, NO string arg.
     if (args.size() == 3
         && !args[0].isChar() && !args[0].isString()
@@ -104,8 +107,8 @@ void imgradient3_reg(Span<const Value> args, size_t nargout,
     if (nargout > 2) outs[2] = std::move(Gelev);
 }
 
-void edge_reg(Span<const Value> args, size_t /*nargout*/,
-              Span<Value> outs, CallContext &ctx)
+void edge_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+              keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 5, "edge");
     const auto m = parse_method(args, 1, "sobel");
@@ -118,26 +121,26 @@ void edge_reg(Span<const Value> args, size_t /*nargout*/,
             t_hi = v.elemAsDouble(1);
         }
     }
-    outs[0] = edge(args[0], m, t_lo, t_hi, ctx.engine->resource());
+    outs[0] = edge(args[0], m, t_lo, t_hi, ctx.engine->allocator());
 }
 
 } // namespace detail
 
 namespace detail {
 
-void cornermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "cornermetric");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const Value &I = args[0];
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     std::string method = "Harris";
     double sensitivity = 0.04;
     Value filter_coef;
-    std::size_t i = 1;
+    keel::usize i = 1;
     if (i < args.size() && is_string(args[i])) {
         std::string m = args[i].toString();
         std::string mlo;
@@ -179,12 +182,12 @@ void cornermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
     outs[0] = cornermetric(I, method, sensitivity, filter_coef, mr);
 }
 
-void corner_reg(Span<const Value> args, std::size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "corner");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const Value &I = args[0];
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
@@ -193,7 +196,7 @@ void corner_reg(Span<const Value> args, std::size_t /*nargout*/,
     double quality = 0.01;
     double sensitivity = 0.04;
     Value filter_coef;
-    std::size_t i = 1;
+    keel::usize i = 1;
 
     // Optional positional METHOD.
     if (i < args.size() && is_string(args[i])) {
@@ -234,15 +237,15 @@ void corner_reg(Span<const Value> args, std::size_t /*nargout*/,
     outs[0] = corner(I, method, maxN, quality, sensitivity, filter_coef, mr);
 }
 
-void hough_reg(Span<const Value> args, std::size_t nargout,
-               Span<Value> outs, CallContext &ctx)
+void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 5, "hough");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     double rho_res = 1.0;
     Value theta_deg;
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
-    std::size_t i = 1;
+    keel::usize i = 1;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("hough: expected NV-pair name",
@@ -252,19 +255,19 @@ void hough_reg(Span<const Value> args, std::size_t nargout,
         for (char ch : name)
             nlo += static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
-        if (nlo.compare(0, std::min<std::size_t>(nlo.size(), 4), "rhor") == 0) {
+        if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "rhor") == 0) {
             rho_res = args[i + 1].toScalar();
         } else if (nlo == "theta") {
             theta_deg = args[i + 1];
-        } else if (nlo.compare(0, std::min<std::size_t>(nlo.size(), 6), "thetar") == 0) {
+        } else if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 6), "thetar") == 0) {
             // 'ThetaResolution' (legacy): build theta = -90:tr:89.
             const double tr = args[i + 1].toScalar();
             const int n = static_cast<int>(std::ceil(90.0 / tr));
             const double step = 90.0 / n;
-            std::pmr::vector<double> tv(mr);
+            keel::Array<double> tv(mr);
             for (int k = -n; k < n; ++k) tv.push_back(k * step);
             theta_deg = Value::matrix(1, tv.size(), ValueType::DOUBLE, mr);
-            for (std::size_t kk = 0; kk < tv.size(); ++kk)
+            for (keel::usize kk = 0; kk < tv.size(); ++kk)
                 theta_deg.doubleDataMut()[kk] = tv[kk];
         } else {
             throw Error("hough: unknown option '" + name + "'",
@@ -279,15 +282,15 @@ void hough_reg(Span<const Value> args, std::size_t nargout,
     if (nargout >= 3) outs[2] = std::move(R);
 }
 
-void houghlines_reg(Span<const Value> args, std::size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void houghlines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 4, 8, "houghlines");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     double fillgap = 20.0;
     double minlength = 40.0;
-    std::size_t i = 4;
+    keel::usize i = 4;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("houghlines: expected NV-pair name",
@@ -312,25 +315,25 @@ void houghlines_reg(Span<const Value> args, std::size_t /*nargout*/,
                          fillgap, minlength, mr);
 }
 
-void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 8, "houghpeaks");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    std::size_t numpeaks = 1;
+    keel::usize numpeaks = 1;
     double threshold = -1.0;  // sentinel: use default
-    std::size_t nhoodRho = 0, nhoodTheta = 0;
+    keel::usize nhoodRho = 0, nhoodTheta = 0;
     Value theta_deg;
 
-    std::size_t i = 1;
+    keel::usize i = 1;
     if (i < args.size() && !is_string(args[i])) {
         const double npd = args[i].toScalar();
         if (!(npd > 0) || npd != std::floor(npd))
             throw Error("houghpeaks: NUMPEAKS must be a positive integer",
                         0, 0, "houghpeaks", "", "numkit:houghpeaks:numpeaks");
-        numpeaks = static_cast<std::size_t>(npd);
+        numpeaks = static_cast<keel::usize>(npd);
         ++i;
     }
     while (i + 1 < args.size()) {
@@ -364,8 +367,8 @@ void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
                             "positive odd integers",
                             0, 0, "houghpeaks", "",
                             "numkit:houghpeaks:nhoodOdd");
-            nhoodRho   = static_cast<std::size_t>(a);
-            nhoodTheta = static_cast<std::size_t>(b);
+            nhoodRho   = static_cast<keel::usize>(a);
+            nhoodTheta = static_cast<keel::usize>(b);
         } else if (nlo == "theta") {
             theta_deg = args[i + 1];
         } else {
@@ -379,11 +382,11 @@ void houghpeaks_reg(Span<const Value> args, std::size_t /*nargout*/,
                          nhoodRho, nhoodTheta, theta_deg, mr);
 }
 
-void imfindcircles_reg(Span<const Value> args, std::size_t nargout,
-                       Span<Value> outs, CallContext &ctx)
+void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 10, "imfindcircles");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const Value &rr = args[1];
     if (rr.isEmpty() || !rr.isNumeric() || rr.isComplex() || rr.numel() > 2) {
         throw Error("imfindcircles: input 2 (radiusRange) must be a 1- or "
@@ -404,7 +407,7 @@ void imfindcircles_reg(Span<const Value> args, std::size_t nargout,
         throw Error("imfindcircles: Name-Value arguments must occur in pairs.",
                     0, 0, "imfindcircles", "", "numkit:imfindcircles:unpairedNv");
     }
-    for (std::size_t i = 2; i + 1 < args.size(); i += 2) {
+    for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
         if (!is_string(args[i])) {
             throw Error("imfindcircles: expected option name string at argument "
                             + std::to_string(i + 1) + ".",

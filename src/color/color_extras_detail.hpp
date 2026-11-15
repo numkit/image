@@ -10,19 +10,19 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
-#include <memory_resource>
 #include <string>
 
 namespace numkit::image {
 
 // MATLAB-canonical jet(N) colormap (N x 3, double in [0,1]).
-Value jet_colormap(int m, std::pmr::memory_resource *mr);
+Value jet_colormap(int m, keel::Allocator *mr);
 
 // Dispatch a named MATLAB colormap (jet/hsv/parula/...). Throws on unknown.
 Value resolve_named_colormap(const std::string &name, int N,
-                             std::pmr::memory_resource *mr);
+                             keel::Allocator *mr);
 
 // Lower-case a string (ASCII).
 std::string lower(const std::string &s);

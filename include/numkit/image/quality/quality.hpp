@@ -6,7 +6,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <vector>
 #include <numkit/value/value.hpp>
 
@@ -26,7 +27,7 @@ namespace numkit::image {
 /// @return    Real scalar MSE.
 /// @see psnr, ssim
 Value immse(const Value &A, const Value &B,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 
 /// @brief Peak signal-to-noise ratio (`r = psnr(A, B, peak)`).
 ///
@@ -40,8 +41,8 @@ Value immse(const Value &A, const Value &B,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      PSNR in dB. Returns `+Inf` when MSE = 0.
 /// @see immse, ssim
-Value psnr(const Value &A, const Value &B, double peak,
-           std::pmr::memory_resource *mr = nullptr);
+Value psnr(const Value &A, const Value &B, keel::f64 peak,
+           keel::Allocator *mr = nullptr);
 
 /// @brief Structural similarity index (`r = ssim(A, B)`).
 ///
@@ -55,7 +56,7 @@ Value psnr(const Value &A, const Value &B, double peak,
 /// @return    SSIM scalar.
 /// @see immse, psnr
 Value ssim(const Value &A, const Value &B,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::Allocator *mr = nullptr);
 
 /// @brief 2-D correlation coefficient (`r = corr2(A, B)`).
 ///
@@ -68,7 +69,7 @@ Value ssim(const Value &A, const Value &B,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Pearson correlation scalar.
 Value corr2(const Value &A, const Value &B,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 
 /// @brief Mean of every element (`m = mean2(A)`).
 ///
@@ -79,7 +80,7 @@ Value corr2(const Value &A, const Value &B,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Scalar mean.
 /// @see std2
-Value mean2(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value mean2(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Standard deviation of every element (`s = std2(A)`).
 ///
@@ -89,7 +90,7 @@ Value mean2(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Scalar standard deviation.
 /// @see mean2
-Value std2(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value std2(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Multi-scale structural similarity index
 /// (`[score, qmaps] = multissim(I, Iref, ...)`).
@@ -147,10 +148,10 @@ Value std2(const Value &A, std::pmr::memory_resource *mr = nullptr);
 ///                          `(-1, 1]` (1 = identical).
 Value multissim(const Value &A, const Value &Iref,
                 int num_scales,
-                const std::vector<double> &scale_weights,
-                double sigma, double dynamic_range,
+                const std::vector<keel::f64> &scale_weights,
+                keel::f64 sigma, keel::f64 dynamic_range,
                 std::vector<Value> *quality_maps_out,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 /// @brief 3-D multi-scale SSIM
 /// (`[score, qmaps] = multissim3(V, Vref, ...)`).
@@ -185,10 +186,10 @@ Value multissim(const Value &A, const Value &Iref,
 ///                          SINGLE otherwise).
 Value multissim3(const Value &V, const Value &Vref,
                  int num_scales,
-                 const std::vector<double> &scale_weights,
-                 double sigma, double dynamic_range,
+                 const std::vector<keel::f64> &scale_weights,
+                 keel::f64 sigma, keel::f64 dynamic_range,
                  std::vector<Value> *quality_maps_out,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 
 /// @}

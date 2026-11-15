@@ -6,7 +6,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <string>
@@ -40,7 +41,7 @@ namespace numkit::image {
 /// @see imgradient, edge
 std::tuple<Value, Value>
 imgradientxy(const Value &I, const std::string &method,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// Gradient magnitude and direction (`[Gmag, Gdir] = imgradient(I, method)`).
 ///
@@ -53,7 +54,7 @@ imgradientxy(const Value &I, const std::string &method,
 /// @see imgradientxy, edge
 std::tuple<Value, Value>
 imgradient(const Value &I, const std::string &method,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::Allocator *mr = nullptr);
 
 /// 3-D component gradients
 /// (`[Gx, Gy, Gz] = imgradientxyz(V, method)`).
@@ -75,7 +76,7 @@ imgradient(const Value &I, const std::string &method,
 /// @return        Tuple `(Gx, Gy, Gz)` (same shape as `V`).
 std::tuple<Value, Value, Value>
 imgradientxyz(const Value &V, const std::string &method,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// 3-D gradient magnitude + spherical direction
 /// (`[Gmag, Gaz, Gelev] = imgradient3(V, method)` or
@@ -92,10 +93,10 @@ imgradientxyz(const Value &V, const std::string &method,
 /// @see imgradientxyz
 std::tuple<Value, Value, Value>
 imgradient3(const Value &V, const std::string &method,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 std::tuple<Value, Value, Value>
 imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
-                       std::pmr::memory_resource *mr = nullptr);
+                       keel::Allocator *mr = nullptr);
 
 /// Binary edge map (`BW = edge(I, method, thresh_lo, thresh_hi)`).
 ///
@@ -123,8 +124,8 @@ imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
 ///
 /// @see imgradient
 Value edge(const Value &I, const std::string &method,
-           double thresh_lo, double thresh_hi,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::f64 thresh_lo, keel::f64 thresh_hi,
+           keel::Allocator *mr = nullptr);
 
 /// @brief Corner metric matrix (`C = cornermetric(I, method, ...)`).
 ///
@@ -164,9 +165,9 @@ Value edge(const Value &I, const std::string &method,
 /// @param mr                 Memory resource (nullptr → process default).
 /// @return                   `H × W` DOUBLE corner-metric image.
 Value cornermetric(const Value &I, const std::string &method,
-                   double sensitivity_factor,
+                   keel::f64 sensitivity_factor,
                    const Value &filter_coef,
-                   std::pmr::memory_resource *mr = nullptr);
+                   keel::Allocator *mr = nullptr);
 
 /// @brief Detect corner points (`C = corner(I, ...)`).
 ///
@@ -187,9 +188,9 @@ Value cornermetric(const Value &I, const std::string &method,
 /// @return               `K × 2` DOUBLE matrix of `[x y]` corner coordinates.
 /// @see cornermetric
 Value corner(const Value &I, const std::string &method, int maxN,
-             double quality_level, double sensitivity,
+             keel::f64 quality_level, keel::f64 sensitivity,
              const Value &filter_coef,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// @brief Standard Hough transform (`[H, T, R] = hough(BW, ...)`).
 ///
@@ -216,10 +217,10 @@ Value corner(const Value &I, const std::string &method, int maxN,
 /// @param[out] T_out  θ vector echoed (1 × nTheta).
 /// @param[out] R_out  ρ vector (1 × nRho).
 /// @param mr          Memory resource (nullptr → process default).
-void hough(const Value &BW, double rho_res,
+void hough(const Value &BW, keel::f64 rho_res,
            const Value &theta_deg,
            Value &H_out, Value &T_out, Value &R_out,
-           std::pmr::memory_resource *mr = nullptr);
+           keel::Allocator *mr = nullptr);
 
 /// @brief Find peaks in a Hough-transform accumulator
 /// (`P = houghpeaks(H, NumPeaks, ...)`).
@@ -251,11 +252,11 @@ void hough(const Value &BW, double rho_res,
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          `P × 2` DOUBLE matrix; each row `[rho_idx,
 ///                  theta_idx]` is 1-based into `H`.
-Value houghpeaks(const Value &H, std::size_t numpeaks,
-                 double threshold,
-                 std::size_t nhoodRho, std::size_t nhoodTheta,
+Value houghpeaks(const Value &H, keel::usize numpeaks,
+                 keel::f64 threshold,
+                 keel::usize nhoodRho, keel::usize nhoodTheta,
                  const Value &theta_deg,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Extract line segments from Hough-transform peaks
 /// (`lines = houghlines(BW, theta, rho, peaks, ...)`).
@@ -287,8 +288,8 @@ Value houghpeaks(const Value &H, std::size_t numpeaks,
 ///                   four fields above.
 Value houghlines(const Value &BW, const Value &theta_deg,
                  const Value &rho, const Value &peaks,
-                 double fillgap, double minlength,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::f64 fillgap, keel::f64 minlength,
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Outputs of @ref imfindcircles.
 struct ImfindcirclesResult {
@@ -314,12 +315,12 @@ struct ImfindcirclesResult {
 /// @param mr              Memory resource (nullptr -> process default).
 /// @return                @ref ImfindcirclesResult sorted by descending metric.
 ImfindcirclesResult
-imfindcircles(const Value &A, double rmin, double rmax,
+imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
               const std::string &object_polarity = "bright",
               const std::string &method = "PhaseCode",
-              double sensitivity = 0.85,
-              double edge_threshold = -1.0,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::f64 sensitivity = 0.85,
+              keel::f64 edge_threshold = -1.0,
+              keel::Allocator *mr = nullptr);
 
 
 /// @}

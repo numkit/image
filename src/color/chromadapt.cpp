@@ -35,6 +35,8 @@
 //
 // PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 
@@ -307,18 +309,18 @@ void xyz_d65_to_rgb(const double xyz_d65[3], CS cs, double rgb[3])
 // decoded — chromadapt's pipeline works on the encoded RGB then
 // decodes inside rgb_to_xyz_d65).
 struct RGBPlane {
-    std::size_t H = 0, W = 0;
+    keel::usize H = 0, W = 0;
     std::vector<double> v;  // 3 channels, column-major: ch*H*W + c*H + r
 };
 
 RGBPlane to_double_rgb01(const Value &A)
 {
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     RGBPlane out; out.H = H; out.W = W;
     out.v.resize(H * W * 3);
     const ValueType t = A.type();
-    for (std::size_t i = 0; i < H * W * 3; ++i) {
+    for (keel::usize i = 0; i < H * W * 3; ++i) {
         const double raw = A.elemAsDouble(i);
         switch (t) {
             case ValueType::UINT8:  out.v[i] = raw / 255.0;   break;
@@ -330,31 +332,31 @@ RGBPlane to_double_rgb01(const Value &A)
 }
 
 Value rgb_to_value(const RGBPlane &P, ValueType outClass,
-                   std::pmr::memory_resource *mr)
+                   keel::Allocator *mr)
 {
-    const std::size_t H = P.H, W = P.W;
+    const keel::usize H = P.H, W = P.W;
     Value out = Value::matrix3d(H, W, 3, outClass, mr);
     auto write_uint8 = [&]() {
-        uint8_t *od = out.uint8DataMut();
-        for (std::size_t i = 0; i < H * W * 3; ++i) {
+        keel::u8 *od = out.uint8DataMut();
+        for (keel::usize i = 0; i < H * W * 3; ++i) {
             double v = std::round(P.v[i] * 255.0);
             if (v < 0.0)   v = 0.0;
             if (v > 255.0) v = 255.0;
-            od[i] = static_cast<uint8_t>(v);
+            od[i] = static_cast<keel::u8>(v);
         }
     };
     auto write_uint16 = [&]() {
-        uint16_t *od = out.uint16DataMut();
-        for (std::size_t i = 0; i < H * W * 3; ++i) {
+        keel::u16 *od = out.uint16DataMut();
+        for (keel::usize i = 0; i < H * W * 3; ++i) {
             double v = std::round(P.v[i] * 65535.0);
             if (v < 0.0)     v = 0.0;
             if (v > 65535.0) v = 65535.0;
-            od[i] = static_cast<uint16_t>(v);
+            od[i] = static_cast<keel::u16>(v);
         }
     };
     auto write_single = [&]() {
         float *od = out.singleDataMut();
-        for (std::size_t i = 0; i < H * W * 3; ++i)
+        for (keel::usize i = 0; i < H * W * 3; ++i)
             od[i] = static_cast<float>(P.v[i]);
     };
     auto write_double = [&]() {
@@ -378,8 +380,8 @@ void chromadapt_argcheck(const Value &A, const Value &illuminant_in,
     if (!dA.is3D() || dA.pages() != 3)
         throw Error("chromadapt: A must be H × W × 3 RGB",
                     0, 0, "chromadapt", "", "numkit:chromadapt:shape");
-    const std::size_t H = dA.rows();
-    const std::size_t W = dA.cols();
+    const keel::usize H = dA.rows();
+    const keel::usize W = dA.cols();
     if (H == 0 || W == 0)
         throw Error("chromadapt: A must be nonempty",
                     0, 0, "chromadapt", "", "numkit:chromadapt:empty");
@@ -409,15 +411,15 @@ void chromadapt_argcheck(const Value &A, const Value &illuminant_in,
 Value chromadapt(const Value &A, const Value &illuminant_in,
                  const std::string &method,
                  const std::string &color_space,
-                 std::pmr::memory_resource *mr)
+                 keel::Allocator *mr)
 {
     chromadapt_argcheck(A, illuminant_in, method, color_space);
     const auto &dA = A.dims();
     if (!dA.is3D() || dA.pages() != 3)
         throw Error("chromadapt: A must be H × W × 3 RGB",
                     0, 0, "chromadapt", "", "numkit:chromadapt:shape");
-    const std::size_t H = dA.rows();
-    const std::size_t W = dA.cols();
+    const keel::usize H = dA.rows();
+    const keel::usize W = dA.cols();
     if (H == 0 || W == 0)
         throw Error("chromadapt: A must be nonempty",
                     0, 0, "chromadapt", "", "numkit:chromadapt:empty");
@@ -481,7 +483,7 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
             if (ill_rgb_norm[k] == 0.0) ill_rgb_norm[k] = eps_d;
         }
         for (int ch = 0; ch < 3; ++ch)
-            for (std::size_t i = 0; i < H * W; ++i)
+            for (keel::usize i = 0; i < H * W; ++i)
                 out_rgb.v[ch * H * W + i] =
                     in_rgb.v[ch * H * W + i] / ill_rgb_norm[ch];
     } else {
@@ -492,7 +494,7 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
         make_adapt(ill_xyz, kD65, Madapt_mat, M_adapt);
         // For each pixel: A_RGB → linear → XYZ (D65) → adapted XYZ →
         // linear RGB → encoded RGB.
-        for (std::size_t i = 0; i < H * W; ++i) {
+        for (keel::usize i = 0; i < H * W; ++i) {
             const double rgb_in[3] = { in_rgb.v[0 * H * W + i],
                                        in_rgb.v[1 * H * W + i],
                                        in_rgb.v[2 * H * W + i] };

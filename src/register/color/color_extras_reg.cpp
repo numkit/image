@@ -8,6 +8,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 #include <numkit/image/geom/geom.hpp>
@@ -31,16 +33,16 @@ namespace numkit::image {
 
 namespace detail {
 
-void rgb2lightness_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void rgb2lightness_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "rgb2lightness");
     // no max: name-value tail in the reference
-    outs[0] = rgb2lightness(args[0], ctx.engine->resource());
+    outs[0] = rgb2lightness(args[0], ctx.engine->allocator());
 }
 
-void rgb2ind_reg(Span<const Value> args, size_t nargout,
-                 Span<Value> outs, CallContext &ctx)
+void rgb2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "rgb2ind");
     // Optional 3rd arg: 'dither' (default in MATLAB) | 'nodither'.
@@ -63,7 +65,7 @@ void rgb2ind_reg(Span<const Value> args, size_t nargout,
                     "an explicit K×3 colormap instead (KNOWN GAP)",
                     0, 0, "rgb2ind", "", "numkit:rgb2ind:NotImpl");
     }
-    auto [X, cmap] = rgb2ind_inmap(args[0], args[1], ctx.engine->resource());
+    auto [X, cmap] = rgb2ind_inmap(args[0], args[1], ctx.engine->allocator());
     outs[0] = X;
     if (nargout >= 2 && outs.size() >= 2) outs[1] = cmap;
 }
@@ -72,41 +74,41 @@ void rgb2ind_reg(Span<const Value> args, size_t nargout,
 
 namespace detail {
 
-void rgbwide2ycbcr_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void rgbwide2ycbcr_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "rgbwide2ycbcr");
     // no max: name-value tail in the reference
     const int bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "rgbwide2ycbcr"),
             {8, 10, 12, 16}, 2, "bps", "rgbwide2ycbcr");
-    outs[0] = rgbwide2ycbcr(args[0], bps, ctx.engine->resource());
+    outs[0] = rgbwide2ycbcr(args[0], bps, ctx.engine->allocator());
 }
 
-void ycbcr2rgbwide_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void ycbcr2rgbwide_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "ycbcr2rgbwide");
     // no max: name-value tail in the reference
     const int bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "ycbcr2rgbwide"),
             {8, 10, 12, 16}, 2, "bps", "ycbcr2rgbwide");
-    outs[0] = ycbcr2rgbwide(args[0], bps, ctx.engine->resource());
+    outs[0] = ycbcr2rgbwide(args[0], bps, ctx.engine->allocator());
 }
 
-void rgbwide2xyz_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void rgbwide2xyz_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "rgbwide2xyz");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const int bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "rgbwide2xyz"),
             {8, 10, 12, 16}, 2, "bps", "rgbwide2xyz");
     std::string cs = "BT.2020";
     std::string lin = "PQ";
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
-    std::size_t i = 2;
+    keel::usize i = 2;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("rgbwide2xyz: expected NV-pair name string",
@@ -130,19 +132,19 @@ void rgbwide2xyz_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = rgbwide2xyz(args[0], bps, cs, lin, mr);
 }
 
-void xyz2rgbwide_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void xyz2rgbwide_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "xyz2rgbwide");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const int bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "xyz2rgbwide"),
             {8, 10, 12, 16}, 2, "bps", "xyz2rgbwide");
     std::string cs = "BT.2020";
     std::string lin = "PQ";
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
-    std::size_t i = 2;
+    keel::usize i = 2;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("xyz2rgbwide: expected NV-pair name string",
@@ -166,11 +168,11 @@ void xyz2rgbwide_reg(Span<const Value> args, size_t /*nargout*/,
     outs[0] = xyz2rgbwide(args[0], bps, cs, lin, mr);
 }
 
-void cmunique_reg(Span<const Value> args, size_t nargout,
-                  Span<Value> outs, CallContext &ctx)
+void cmunique_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "cmunique");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     std::pair<Value, Value> result;
     if (args.size() == 1) {
         const auto &d = args[0].dims();
@@ -189,12 +191,12 @@ void cmunique_reg(Span<const Value> args, size_t nargout,
 
 namespace detail {
 
-void imfuse_reg(Span<const Value> args, std::size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imfuse");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
 
     const Value &A = args[0];
     const Value &B = args[1];
@@ -203,7 +205,7 @@ void imfuse_reg(Span<const Value> args, std::size_t /*nargout*/,
     std::string method = "falsecolor";
     std::string scaling = "independent";
     Value channels;  // empty → default (green-magenta)
-    std::size_t i = 2;
+    keel::usize i = 2;
     if (i < args.size() && is_string(args[i])) {
         std::string m = args[i].toString();
         static const std::array<const char *, 5> mset{
@@ -277,19 +279,19 @@ void imfuse_reg(Span<const Value> args, std::size_t /*nargout*/,
     outs[0] = imfuse(A, B, method, scaling, channels, mr);
 }
 
-void tonemap_reg(Span<const Value> args, std::size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "tonemap");
     // no max: inputParser name-value tail
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     double lo = 0.0, hi = 1.0;
     double saturation = 1.0;
     int ntilesR = 4, ntilesC = 4;
 
-    std::size_t i = 1;
+    keel::usize i = 1;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("tonemap: expected NV-pair name",
@@ -335,12 +337,12 @@ void tonemap_reg(Span<const Value> args, std::size_t /*nargout*/,
 
 namespace detail {
 
-void labeloverlay_reg(Span<const Value> args, std::size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void labeloverlay_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "labeloverlay");
     // no max: inputParser name-value tail
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     Value cmap;             // empty → default 'jet'
@@ -348,7 +350,7 @@ void labeloverlay_reg(Span<const Value> args, std::size_t /*nargout*/,
     Value included;         // empty → default 1:maxLabel
     double transparency = 0.5;
 
-    std::size_t i = 2;
+    keel::usize i = 2;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
             throw Error("labeloverlay: expected NV-pair name string",
@@ -388,11 +390,11 @@ void labeloverlay_reg(Span<const Value> args, std::size_t /*nargout*/,
 // numregion = max(L(:)); the colormap is generated with that many rows, so
 // label k maps to row k and label 0 maps to zerocolor. Delegates the pixel
 // mapping to the existing uint8 label2rgb(L, cmap, zerocolor) core.
-void label2rgb_reg(Span<const Value> args, std::size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "label2rgb");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const Value &L = args[0];
     // Class contract before the label scan below reads elements raw
     // (probed R2025b: numeric labels accepted, complex / char / cell
@@ -405,9 +407,9 @@ void label2rgb_reg(Span<const Value> args, std::size_t /*nargout*/,
 
     // numregion = max(L(:)); force ≥1 so the generated colormap always has
     // 3 columns (a 1-row map is never indexed when L is all background).
-    const std::size_t plane = L.numel();
+    const keel::usize plane = L.numel();
     int maxLabel = 0;
-    for (std::size_t i = 0; i < plane; ++i) {
+    for (keel::usize i = 0; i < plane; ++i) {
         const double v = L.elemAsDouble(i);
         if (std::isfinite(v) && v > maxLabel) maxLabel = static_cast<int>(v);
     }

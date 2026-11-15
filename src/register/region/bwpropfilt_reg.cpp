@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/region/region.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -30,8 +32,8 @@ namespace numkit::image {
 
 namespace detail {
 
-void bwpropfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     // MATLAB signatures:
     //   bwpropfilt(BW, attrib, range)
@@ -42,13 +44,13 @@ void bwpropfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     //   bwpropfilt(CC, I, attrib, ...)
     //   bwpropfilt(..., conn)
     argcheck::checkNargin(args.size(), 3, 6, "bwpropfilt");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     const Value &in1 = args[0];
     const bool first_is_struct = in1.isStruct();
 
-    std::size_t i = 1;
+    keel::usize i = 1;
     Value marker;
     // Optional intensity image: arg 2 is numeric (not a string).
     if (!is_string(args[i])) {
@@ -68,10 +70,10 @@ void bwpropfilt_reg(Span<const Value> args, std::size_t /*nargout*/,
     const Value &p = args[i];
     ++i;
     double p_min = 0, p_max = 0;
-    std::size_t keep_n = 0;
+    keel::usize keep_n = 0;
     bool keep_largest = true;
     if (p.numel() == 1) {
-        keep_n = static_cast<std::size_t>(argcheck::expectedPositiveInteger(
+        keep_n = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(p, 2, "n", "bwpropfilt"), 2, "n", "bwpropfilt"));
     } else if (p.numel() == 2) {
         p_min = p.elemAsDouble(0);

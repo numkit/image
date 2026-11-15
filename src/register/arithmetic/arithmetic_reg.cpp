@@ -7,6 +7,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/arithmetic/arithmetic.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -38,11 +40,11 @@ ValueType classFromString(const Value &v) {
 } // anonymous
 
 #define NUMKIT_BIN_REG(name, fn, mxArgs)                                              \
-    void name##_reg(Span<const Value> args, size_t /*nargout*/,                  \
-                    Span<Value> outs, CallContext &ctx)                          \
+    void name##_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,                  \
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)                          \
     {                                                                              \
         argcheck::checkNargin(args.size(), 2, mxArgs, #name);                    \
-        outs[0] = fn(args[0], args[1], ctx.engine->resource());                   \
+        outs[0] = fn(args[0], args[1], ctx.engine->allocator());                   \
     }
 
 NUMKIT_BIN_REG(imadd, imadd, 3)
@@ -53,19 +55,19 @@ NUMKIT_BIN_REG(imabsdiff, imabsdiff, 2)
 
 #undef NUMKIT_BIN_REG
 
-void imcomplement_reg(Span<const Value> args, size_t /*nargout*/,
-                      Span<Value> outs, CallContext &ctx)
+void imcomplement_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "imcomplement");
-    outs[0] = imcomplement(args[0], ctx.engine->resource());
+    outs[0] = imcomplement(args[0], ctx.engine->allocator());
 }
 
-void imlincomb_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void imlincomb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "imlincomb");
     // no max: variadic k1,A1,k2,A2,... pairs by design// Trailing string argument (optional) is the output class.
-    size_t end = args.size();
+    keel::usize end = args.size();
     ValueType out_class = ValueType::DOUBLE;
     const Value &last = args[args.size() - 1];
     if ((last.isChar() || last.isString())) {
@@ -81,17 +83,17 @@ void imlincomb_reg(Span<const Value> args, size_t /*nargout*/,
 
     std::vector<double> coefs;
     std::vector<Value>  images;
-    for (size_t i = 0; i + 1 < end; i += 2) {
+    for (keel::usize i = 0; i + 1 < end; i += 2) {
         coefs.push_back(args[i].toScalar());
         images.push_back(args[i + 1]);
     }
     if ((end & 1) == 1) coefs.push_back(args[end - 1].toScalar()); // trailing additive
 
-    outs[0] = imlincomb(coefs, images, out_class, ctx.engine->resource());
+    outs[0] = imlincomb(coefs, images, out_class, ctx.engine->allocator());
 }
 
-void imapplymatrix_reg(Span<const Value> args, size_t /*nargout*/,
-                       Span<Value> outs, CallContext &ctx)
+void imapplymatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                       keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     // 2-arg form imapplymatrix(M, X) is valid (probed R2025b): the
     // output class defaults to X's class.
@@ -99,7 +101,7 @@ void imapplymatrix_reg(Span<const Value> args, size_t /*nargout*/,
     ValueType out_class = (args.size() >= 3 && (args[2].isChar() || args[2].isString()))
         ? classFromString(args[2])
         : args[1].type();
-    outs[0] = imapplymatrix(args[0], args[1], out_class, ctx.engine->resource());
+    outs[0] = imapplymatrix(args[0], args[1], out_class, ctx.engine->allocator());
 }
 
 } // namespace detail

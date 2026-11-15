@@ -2,6 +2,7 @@
 //
 // Tests for in-tree Baseline JPEG codec.
 
+#include <keel/core.h>
 #include <gtest/gtest.h>
 #include "jpeg_codec.hpp"
 #include <numkit/value/value.hpp>
@@ -13,11 +14,11 @@ using namespace numkit;
 using namespace numkit::image;
 
 TEST(JpegCodecTest, Gray8RoundTripAndPeek) {
-    const size_t H = 16, W = 16;
+    const keel::usize H = 16, W = 16;
     Value orig = Value::matrix(H, W, ValueType::UINT8);
-    for (size_t y = 0; y < H; ++y) {
-        for (size_t x = 0; x < W; ++x) {
-            orig.uint8DataMut()[x * H + y] = static_cast<uint8_t>((x * 16 + y * 8) % 256);
+    for (keel::usize y = 0; y < H; ++y) {
+        for (keel::usize x = 0; x < W; ++x) {
+            orig.uint8DataMut()[x * H + y] = static_cast<keel::u8>((x * 16 + y * 8) % 256);
         }
     }
 
@@ -25,30 +26,30 @@ TEST(JpegCodecTest, Gray8RoundTripAndPeek) {
     EXPECT_GT(jpgBytes.size(), 100u);
 
     // Verify SOI and EOI markers
-    EXPECT_EQ(static_cast<uint8_t>(jpgBytes[0]), 0xFF);
-    EXPECT_EQ(static_cast<uint8_t>(jpgBytes[1]), 0xD8);
-    EXPECT_EQ(static_cast<uint8_t>(jpgBytes[jpgBytes.size() - 2]), 0xFF);
-    EXPECT_EQ(static_cast<uint8_t>(jpgBytes[jpgBytes.size() - 1]), 0xD9);
+    EXPECT_EQ(static_cast<keel::u8>(jpgBytes[0]), 0xFF);
+    EXPECT_EQ(static_cast<keel::u8>(jpgBytes[1]), 0xD8);
+    EXPECT_EQ(static_cast<keel::u8>(jpgBytes[jpgBytes.size() - 2]), 0xFF);
+    EXPECT_EQ(static_cast<keel::u8>(jpgBytes[jpgBytes.size() - 1]), 0xD9);
 
-    uint32_t w32 = 0, h32 = 0;
-    uint16_t bits = 0, channels = 0;
-    EXPECT_TRUE(peekJpeg(reinterpret_cast<const uint8_t*>(jpgBytes.data()), jpgBytes.size(), w32, h32, bits, channels));
+    keel::u32 w32 = 0, h32 = 0;
+    keel::u16 bits = 0, channels = 0;
+    EXPECT_TRUE(peekJpeg(reinterpret_cast<const keel::u8*>(jpgBytes.data()), jpgBytes.size(), w32, h32, bits, channels));
     EXPECT_EQ(w32, W);
     EXPECT_EQ(h32, H);
     EXPECT_EQ(bits, 8);
     EXPECT_EQ(channels, 1);
 
-    Value readBack = readJpeg(reinterpret_cast<const uint8_t*>(jpgBytes.data()), jpgBytes.size());
+    Value readBack = readJpeg(reinterpret_cast<const keel::u8*>(jpgBytes.data()), jpgBytes.size());
     EXPECT_EQ(readBack.dims().rows(), H);
     EXPECT_EQ(readBack.dims().cols(), W);
     EXPECT_EQ(readBack.type(), ValueType::UINT8);
 }
 
 TEST(JpegCodecTest, Rgb8RoundTripAndQualityLevels) {
-    const size_t H = 24, W = 32;
+    const keel::usize H = 24, W = 32;
     Value rgb = Value::matrix3d(H, W, 3, ValueType::UINT8);
-    for (size_t i = 0; i < H * W * 3; ++i) {
-        rgb.uint8DataMut()[i] = static_cast<uint8_t>((i * 19) % 256);
+    for (keel::usize i = 0; i < H * W * 3; ++i) {
+        rgb.uint8DataMut()[i] = static_cast<keel::u8>((i * 19) % 256);
     }
 
     // High quality (90) vs Low quality (30)
@@ -56,9 +57,9 @@ TEST(JpegCodecTest, Rgb8RoundTripAndQualityLevels) {
     std::string lowQ  = writeJpegToBytes(rgb, 30);
     EXPECT_GT(highQ.size(), lowQ.size()); // Lower quality results in smaller byte size
 
-    uint32_t w32 = 0, h32 = 0;
-    uint16_t bits = 0, channels = 0;
-    EXPECT_TRUE(peekJpeg(reinterpret_cast<const uint8_t*>(highQ.data()), highQ.size(), w32, h32, bits, channels));
+    keel::u32 w32 = 0, h32 = 0;
+    keel::u16 bits = 0, channels = 0;
+    EXPECT_TRUE(peekJpeg(reinterpret_cast<const keel::u8*>(highQ.data()), highQ.size(), w32, h32, bits, channels));
     EXPECT_EQ(w32, W);
     EXPECT_EQ(h32, H);
     EXPECT_EQ(channels, 3);
@@ -69,7 +70,7 @@ TEST(JpegCodecTest, Rgb8RoundTripAndQualityLevels) {
 TEST(JpegCodecTest, RestartIntervalDriAndRstMarkers) {
     // A valid 16x16 grayscale JPEG with DRI=1 and RST markers
     // (2x2 MCU grid of 8x8 blocks, separated by RST0, RST1, RST2).
-    const uint8_t kJpegDriSample[] = {
+    const keel::u8 kJpegDriSample[] = {
         0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
         0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08,
         0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
@@ -109,8 +110,8 @@ TEST(JpegCodecTest, RestartIntervalDriAndRstMarkers) {
         0xFF, 0xD9 // EOI
     };
 
-    uint32_t w = 0, h = 0;
-    uint16_t bits = 0, ch = 0;
+    keel::u32 w = 0, h = 0;
+    keel::u16 bits = 0, ch = 0;
     EXPECT_TRUE(peekJpeg(kJpegDriSample, sizeof(kJpegDriSample), w, h, bits, ch));
     EXPECT_EQ(w, 16u);
     EXPECT_EQ(h, 16u);
@@ -124,7 +125,7 @@ TEST(JpegCodecTest, RestartIntervalDriAndRstMarkers) {
 
     // Verify non-zero decoded pixel intensity
     double sum = 0;
-    for (size_t i = 0; i < v.numel(); ++i) {
+    for (keel::usize i = 0; i < v.numel(); ++i) {
         sum += v.uint8Data()[i];
     }
     EXPECT_GT(sum / v.numel(), 1.0);

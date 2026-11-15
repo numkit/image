@@ -8,6 +8,10 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/image/contrast/contrast.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -16,8 +20,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <cctype>
 #include <cstddef>
@@ -30,8 +32,8 @@ namespace numkit::image {
 
 namespace detail {
 
-void imhistmatch_reg(Span<const Value> args, size_t nargout,
-                     Span<Value> outs, CallContext &ctx)
+void imhistmatch_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "imhistmatch");
     int n = (args.size() >= 3 && !args[2].isEmpty())
@@ -39,23 +41,23 @@ void imhistmatch_reg(Span<const Value> args, size_t nargout,
     // 2nd output `hgram` (= imhist(ref, nbins)') only when requested.
     Value hgram;
     Value *hgp = (nargout >= 2) ? &hgram : nullptr;
-    outs[0] = imhistmatch(args[0], args[1], n, hgp, ctx.engine->resource());
+    outs[0] = imhistmatch(args[0], args[1], n, hgp, ctx.engine->allocator());
     if (nargout >= 2) outs[1] = std::move(hgram);
 }
 
-void imhist_reg(Span<const Value> args, size_t nargout,
-                Span<Value> outs, CallContext &ctx)
+void imhist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imhist");
     int n = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 0;
-    auto [c, x] = imhist(args[0], n, ctx.engine->resource());
+    auto [c, x] = imhist(args[0], n, ctx.engine->allocator());
 
     if (!outs.empty()) outs[0] = std::move(c);
     if (nargout > 1 && outs.size() > 1) outs[1] = std::move(x);
 }
 
-void stretchlim_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void stretchlim_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "stretchlim");
     double lo = 0.01, hi = 0.99;
@@ -69,11 +71,11 @@ void stretchlim_reg(Span<const Value> args, size_t /*nargout*/,
             hi = t.elemAsDouble(1);
         }
     }
-    outs[0] = stretchlim(args[0], lo, hi, ctx.engine->resource());
+    outs[0] = stretchlim(args[0], lo, hi, ctx.engine->allocator());
 }
 
-void imadjust_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void imadjust_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "imadjust");
     double low_in  = std::numeric_limits<double>::quiet_NaN();
@@ -108,19 +110,19 @@ void imadjust_reg(Span<const Value> args, size_t /*nargout*/,
     }
     if (args.size() >= 4 && !args[3].isEmpty()) gamma = args[3].toScalar();
 
-    outs[0] = imadjust(args[0], low_in, high_in, low_out, high_out, gamma, ctx.engine->resource());
+    outs[0] = imadjust(args[0], low_in, high_in, low_out, high_out, gamma, ctx.engine->allocator());
 }
 
-void histeq_reg(Span<const Value> args, size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void histeq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "histeq");
     int n = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 64;
-    outs[0] = histeq(args[0], n, ctx.engine->resource());
+    outs[0] = histeq(args[0], n, ctx.engine->allocator());
 }
 
-void adapthisteq_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void adapthisteq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "adapthisteq");
     // no max: name-value tail in the reference
@@ -128,11 +130,11 @@ void adapthisteq_reg(Span<const Value> args, size_t /*nargout*/,
 
     auto eqIgnoreCase = [](const std::string &a, const char *b) {
         if (a.size() != std::strlen(b)) return false;
-        for (size_t i = 0; i < a.size(); ++i)
+        for (keel::usize i = 0; i < a.size(); ++i)
             if (std::tolower(a[i]) != std::tolower(b[i])) return false;
         return true;
     };
-    for (size_t i = 1; i + 1 < args.size(); i += 2) {
+    for (keel::usize i = 1; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar())
             throw Error("adapthisteq: NV-pair name must be a string",
                          0, 0, "adapthisteq", "", "numkit:adapthisteq:badNVName");
@@ -154,42 +156,42 @@ void adapthisteq_reg(Span<const Value> args, size_t /*nargout*/,
                          0, 0, "adapthisteq", "", "numkit:adapthisteq:badNVKey");
         }
     }
-    outs[0] = adapthisteq(args[0], opts, ctx.engine->resource());
+    outs[0] = adapthisteq(args[0], opts, ctx.engine->allocator());
 }
 
-void graythresh_reg(Span<const Value> args, size_t nargout,
-                    Span<Value> outs, CallContext &ctx)
+void graythresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "graythresh");
-    auto [t, em] = graythresh(args[0], ctx.engine->resource());
+    auto [t, em] = graythresh(args[0], ctx.engine->allocator());
     outs[0] = std::move(t);
     if (nargout > 1) outs[1] = std::move(em);
 }
 
-void otsuthresh_reg(Span<const Value> args, size_t nargout,
-                    Span<Value> outs, CallContext &ctx)
+void otsuthresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "otsuthresh");
-    auto [t, em] = otsuthresh(args[0], ctx.engine->resource());
+    auto [t, em] = otsuthresh(args[0], ctx.engine->allocator());
     outs[0] = std::move(t);
     if (nargout > 1) outs[1] = std::move(em);
 }
 
-void multithresh_reg(Span<const Value> args, size_t nargout,
-                     Span<Value> outs, CallContext &ctx)
+void multithresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "multithresh");
     int N = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 1;
-    auto [t, em] = multithresh(args[0], N, ctx.engine->resource());
+    auto [t, em] = multithresh(args[0], N, ctx.engine->allocator());
     outs[0] = std::move(t);
     if (nargout > 1) outs[1] = std::move(em);
 }
 
-void imbinarize_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 6, "imbinarize");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
 
     // Method-string form: imbinarize(I, 'global') | imbinarize(I, 'adaptive', ...).
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
@@ -205,7 +207,7 @@ void imbinarize_reg(Span<const Value> args, size_t /*nargout*/,
             // imbinarize(I,'adaptive') = binarize(I, adaptthresh(I, sens, polarity)).
             double sens = 0.5;
             std::string polarity = "bright";
-            for (std::size_t i = 2; i + 1 < args.size(); i += 2) {
+            for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
                 if (!args[i].isChar() && !args[i].isString())
                     throw Error("imbinarize: expected a Name-Value pair",
                                 0, 0, "imbinarize", "", "numkit:imbinarize:nv");
@@ -246,27 +248,27 @@ void imbinarize_reg(Span<const Value> args, size_t /*nargout*/,
     }
 }
 
-void imquantize_reg(Span<const Value> args, size_t nargout,
-                    Span<Value> outs, CallContext &ctx)
+void imquantize_reg(keel::ArrayRef<Value> args, keel::usize nargout,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imquantize");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     // idx = the 1-based quantization index in 1..numel(levels)+1.
     Value idx = imquantize(args[0], args[1], mr);
 
     const bool hasValues = (args.size() >= 3 && !args[2].isEmpty());
     if (hasValues) {
         // quant = values(idx). values must hold numel(levels)+1 entries.
-        const std::size_t Lcount = args[1].numel();
+        const keel::usize Lcount = args[1].numel();
         if (args[2].numel() != Lcount + 1)
             throw Error("imquantize: values must have numel(levels)+1 elements",
                         0, 0, "imquantize", "", "numkit:imquantize:values");
         Value quant = idx;                 // same shape, DOUBLE
         double *qd = quant.doubleDataMut();
         const double *id = idx.doubleData();
-        const std::size_t N = idx.numel();
-        for (std::size_t i = 0; i < N; ++i)
-            qd[i] = args[2].elemAsDouble(static_cast<std::size_t>(id[i]) - 1);
+        const keel::usize N = idx.numel();
+        for (keel::usize i = 0; i < N; ++i)
+            qd[i] = args[2].elemAsDouble(static_cast<keel::usize>(id[i]) - 1);
         outs[0] = std::move(quant);
         if (nargout >= 2) outs[1] = std::move(idx);
     } else {
@@ -275,8 +277,8 @@ void imquantize_reg(Span<const Value> args, size_t nargout,
     }
 }
 
-void adaptthresh_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void adaptthresh_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 8, "adaptthresh");
     const double sens = (args.size() >= 2 && !args[1].isEmpty())
@@ -291,21 +293,21 @@ void adaptthresh_reg(Span<const Value> args, size_t /*nargout*/,
                         0, 0, "adaptthresh", "", "numkit:adaptthresh:type");
         stat = args[3].toString();
     }
-    outs[0] = adaptthresh(args[0], sens, nbh, stat, ctx.engine->resource());
+    outs[0] = adaptthresh(args[0], sens, nbh, stat, ctx.engine->allocator());
 }
 
-void imflatfield_reg(Span<const Value> args, size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void imflatfield_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "imflatfield");
     const double sigma = args[1].toScalar();
     Value mask;
     if (args.size() >= 3 && !args[2].isEmpty()) mask = args[2];
-    outs[0] = imflatfield(args[0], sigma, mask, ctx.engine->resource());
+    outs[0] = imflatfield(args[0], sigma, mask, ctx.engine->allocator());
 }
 
-void wcodemat_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void wcodemat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "wcodemat");
     int nb = (args.size() >= 2 && !args[1].isEmpty())
@@ -323,25 +325,25 @@ void wcodemat_reg(Span<const Value> args, size_t /*nargout*/,
         argcheck::expectedFlag01(av, 4, "absol", "wcodemat");
         absol = static_cast<int>(av);
     }
-    outs[0] = wcodemat(args[0], nb, opt, absol, ctx.engine->resource());
+    outs[0] = wcodemat(args[0], nb, opt, absol, ctx.engine->allocator());
 }
 
-void entropy_reg(Span<const Value> args, size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void entropy_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "entropy");
     int nbins = 0;
     if (args.size() >= 2 && !args[1].isEmpty())
         nbins = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "nbins", "entropy"), 2, "nbins", "entropy");
-    outs[0] = entropy(args[0], nbins, ctx.engine->resource());
+    outs[0] = entropy(args[0], nbins, ctx.engine->allocator());
 }
 
-void grayslice_reg(Span<const Value> args, size_t /*nargout*/,
-                   Span<Value> outs, CallContext &ctx)
+void grayslice_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "grayslice");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     // Decide which overload to dispatch on, mirroring MATLAB's
     // magic-polymorphism of grayslice's 2nd argument.
     //   - missing / empty         → default 10 levels
@@ -358,16 +360,16 @@ void grayslice_reg(Span<const Value> args, size_t /*nargout*/,
             outs[0] = grayslice(args[0], static_cast<int>(nv), mr);
         } else if (nv > 0.0) {
             const double levels[1] = { nv };
-            outs[0] = grayslice(args[0], Span<const double>(levels, 1), mr);
+            outs[0] = grayslice(args[0], keel::ArrayRef<double>(levels, 1), mr);
         } else {
             throw Error("grayslice: N must be a positive number",
                         0, 0, "grayslice", "", "numkit:grayslice:n");
         }
     } else if (n.numel() > 1) {
-        ScratchArena scratch(mr);
-        ScratchVec<double> buf(n.numel(), &scratch);
-        for (size_t i = 0; i < n.numel(); ++i) buf[i] = n.elemAsDouble(i);
-        outs[0] = grayslice(args[0], Span<const double>(buf.data(), buf.size()),
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<double> buf(n.numel(), scratch.allocator());
+        for (keel::usize i = 0; i < n.numel(); ++i) buf[i] = n.elemAsDouble(i);
+        outs[0] = grayslice(args[0], keel::ArrayRef<double>(buf.data(), buf.size()),
                             mr);
     } else {
         throw Error("grayslice: N must be scalar >= 1 or a vector",

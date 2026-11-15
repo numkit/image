@@ -6,6 +6,9 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
+#include <keel/array.h>
 #include <numkit/image/segment/segment.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -31,22 +34,22 @@ namespace numkit::image {
 
 namespace detail {
 
-void reducepoly_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
+void reducepoly_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 2, "reducepoly");
     double tol = 0.001;
     if (a.size() >= 2 && !a[1].isEmpty()) tol = a[1].toScalar();
-    o[0] = reducepoly(a[0], tol, c.engine->resource());
+    o[0] = reducepoly(a[0], tol, c.engine->allocator());
 }
 
-void imoverlay_reg(Span<const Value> a, size_t, Span<Value> o,
+void imoverlay_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                    CallContext &c)
 {
     argcheck::checkNargin(a.size(), 3, 3, "imoverlay");
-    o[0] = imoverlay(a[0], a[1], a[2], c.engine->resource());
+    o[0] = imoverlay(a[0], a[1], a[2], c.engine->allocator());
 }
 
-void grayconnected_reg(Span<const Value> a, size_t, Span<Value> o,
+void grayconnected_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                        CallContext &c)
 {
     argcheck::checkNargin(a.size(), 3, "grayconnected");
@@ -57,24 +60,24 @@ void grayconnected_reg(Span<const Value> a, size_t, Span<Value> o,
         argcheck::expectedReal(a[2], 3, "col", "grayconnected"), 3, "col", "grayconnected");
     double tol = -1.0;
     if (a.size() >= 4 && !a[3].isEmpty()) tol = a[3].toScalar();
-    o[0] = grayconnected(a[0], row, col, tol, c.engine->resource());
+    o[0] = grayconnected(a[0], row, col, tol, c.engine->allocator());
 }
 
-void dice_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
+void dice_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)
 {
     argcheck::checkNargin(a.size(), 2, "dice");
     // no max: name-value tail in the reference
-        o[0] = dice(a[0], a[1], c.engine->resource());
+        o[0] = dice(a[0], a[1], c.engine->allocator());
 }
 
-void jaccard_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
+void jaccard_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)
 {
     argcheck::checkNargin(a.size(), 2, "jaccard");
     // no max: name-value tail in the reference
-        o[0] = jaccard(a[0], a[1], c.engine->resource());
+        o[0] = jaccard(a[0], a[1], c.engine->allocator());
 }
 
-void boundarymask_reg(Span<const Value> a, size_t, Span<Value> o,
+void boundarymask_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                       CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 2, "boundarymask");
@@ -82,29 +85,29 @@ void boundarymask_reg(Span<const Value> a, size_t, Span<Value> o,
                      ? argcheck::expectedOneOf(
                          argcheck::expectedReal(a[1], 2, "conn", "boundarymask"),
                          {4, 8}, 2, "conn", "boundarymask") : 8;
-    o[0] = boundarymask(a[0], conn, c.engine->resource());
+    o[0] = boundarymask(a[0], conn, c.engine->allocator());
 }
 
 // graydiffweight adapter — handles all 4 input signatures plus the
 // 'RolloffFactor' / 'GrayDifferenceCutoff' name-value pairs by
 // computing the scalar reference value upfront and dispatching to
 // the typed entry-point.
-void graydiffweight_reg(Span<const Value> a, size_t, Span<Value> o,
+void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                         CallContext &c)
 {
     argcheck::checkNargin(a.size(), 2, 8, "graydiffweight");
-    auto *mr = c.engine->resource();
+    auto *mr = c.engine->allocator();
     const Value &I = a[0];
     const auto &d = I.dims();
-    const std::size_t N = I.numel();
-    const std::size_t H = d.rows();
-    const std::size_t W_ = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize N = I.numel();
+    const keel::usize H = d.rows();
+    const keel::usize W_ = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
 
     // Identify which signature is in play, then determine where the
     // name-value pairs start.
     double ref_gray_val = 0.0;
-    std::size_t nv_start = 2;
+    keel::usize nv_start = 2;
 
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     const bool a1_str = is_string(a[1]);
@@ -114,9 +117,9 @@ void graydiffweight_reg(Span<const Value> a, size_t, Span<Value> o,
         if (a[1].numel() != N)
             throw Error("graydiffweight: MASK must match I in shape",
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:mask");
-        long double sum = 0.0L; std::size_t cnt = 0;
-        const std::uint8_t *m = a[1].logicalData();
-        for (std::size_t i = 0; i < N; ++i)
+        long double sum = 0.0L; keel::usize cnt = 0;
+        const keel::u8 *m = a[1].logicalData();
+        for (keel::usize i = 0; i < N; ++i)
             if (m[i]) { sum += I.elemAsDouble(i); ++cnt; }
         if (cnt == 0)
             throw Error("graydiffweight: MASK must contain at least one true",
@@ -138,18 +141,18 @@ void graydiffweight_reg(Span<const Value> a, size_t, Span<Value> o,
         if (C.numel() != R.numel() || (Pi && Pi->numel() != C.numel()))
             throw Error("graydiffweight: C, R [, P] must have equal length",
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:crp");
-        long double sum = 0.0L; std::size_t cnt = 0;
-        for (std::size_t i = 0; i < C.numel(); ++i) {
-            const std::size_t c1 = static_cast<std::size_t>(C.elemAsDouble(i));
-            const std::size_t r1 = static_cast<std::size_t>(R.elemAsDouble(i));
-            const std::size_t p1 = Pi ? static_cast<std::size_t>(Pi->elemAsDouble(i))
+        long double sum = 0.0L; keel::usize cnt = 0;
+        for (keel::usize i = 0; i < C.numel(); ++i) {
+            const keel::usize c1 = static_cast<keel::usize>(C.elemAsDouble(i));
+            const keel::usize r1 = static_cast<keel::usize>(R.elemAsDouble(i));
+            const keel::usize p1 = Pi ? static_cast<keel::usize>(Pi->elemAsDouble(i))
                                        : 1;
             if (c1 < 1 || c1 > W_ || r1 < 1 || r1 > H || p1 < 1 || p1 > P)
                 throw Error("graydiffweight: (C, R [, P]) index out of range",
                             0, 0, "graydiffweight", "",
                             "numkit:graydiffweight:idx");
             // Column-major linear: r-1 + H*(c-1) + H*W*(p-1).
-            const std::size_t lin = (r1 - 1) + H * (c1 - 1)
+            const keel::usize lin = (r1 - 1) + H * (c1 - 1)
                                   + H * W_ * (p1 - 1);
             sum += I.elemAsDouble(lin);
             ++cnt;
@@ -166,7 +169,7 @@ void graydiffweight_reg(Span<const Value> a, size_t, Span<Value> o,
     // Name-value pairs.
     double rolloff = 0.5;
     double cutoff  = std::numeric_limits<double>::infinity();
-    std::size_t i = nv_start;
+    keel::usize i = nv_start;
     while (i + 1 < a.size()) {
         if (!is_string(a[i]))
             throw Error("graydiffweight: expected NV-pair name string",
@@ -178,9 +181,9 @@ void graydiffweight_reg(Span<const Value> a, size_t, Span<Value> o,
             ch = static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
         // Allow MATLAB-style abbreviation.
-        if (nlo.compare(0, std::min<std::size_t>(nlo.size(), 4), "roll") == 0)
+        if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "roll") == 0)
             rolloff = a[i + 1].toScalar();
-        else if (nlo.compare(0, std::min<std::size_t>(nlo.size(), 4), "gray") == 0)
+        else if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "gray") == 0)
             cutoff = a[i + 1].toScalar();
         else
             throw Error("graydiffweight: unknown option '" + name + "'",
@@ -200,24 +203,24 @@ void graydiffweight_reg(Span<const Value> a, size_t, Span<Value> o,
 //   sigma: scalar (replicated) or 2-element [sigma_x sigma_y]; default 1.5.
 //   'RolloffFactor': positive scalar, default 3.
 //   'WeightCutoff':  scalar in [1e-3, 1], default 0.25.
-void gradientweight_reg(Span<const Value> a, size_t, Span<Value> o,
+void gradientweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                         CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 6, "gradientweight");
-    auto *mr = c.engine->resource();
+    auto *mr = c.engine->allocator();
     const Value &I = a[0];
 
     double sigma_x = 1.5, sigma_y = 1.5;
     double rolloff = 3.0;
     double cutoff  = 0.25;
 
-    std::size_t nv_start = 1;
+    keel::usize nv_start = 1;
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     // Optional sigma argument.
     if (a.size() >= 2 && !is_string(a[1])) {
         const Value &s = a[1];
-        const std::size_t ns = s.numel();
+        const keel::usize ns = s.numel();
         if (ns == 1) {
             sigma_x = sigma_y = s.toScalar();
         } else if (ns == 2) {
@@ -233,7 +236,7 @@ void gradientweight_reg(Span<const Value> a, size_t, Span<Value> o,
     }
 
     // Name-value pairs.
-    std::size_t i = nv_start;
+    keel::usize i = nv_start;
     while (i + 1 < a.size()) {
         if (!is_string(a[i]))
             throw Error("gradientweight: expected NV-pair name string",
@@ -245,10 +248,10 @@ void gradientweight_reg(Span<const Value> a, size_t, Span<Value> o,
             ch = static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
         // MATLAB-style abbreviation: "RolloffFactor" / "WeightCutoff".
-        if (nlo.compare(0, std::min<std::size_t>(nlo.size(), 4), "roll") == 0)
+        if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "roll") == 0)
             rolloff = a[i + 1].toScalar();
-        else if (nlo.compare(0, std::min<std::size_t>(nlo.size(), 6), "weight") == 0
-              || nlo.compare(0, std::min<std::size_t>(nlo.size(), 3), "cut") == 0)
+        else if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 6), "weight") == 0
+              || nlo.compare(0, std::min<keel::usize>(nlo.size(), 3), "cut") == 0)
             cutoff = a[i + 1].toScalar();
         else
             throw Error("gradientweight: unknown option '" + name + "'",
@@ -265,26 +268,26 @@ void gradientweight_reg(Span<const Value> a, size_t, Span<Value> o,
 }
 
 // regionfill adapter — both (I, MASK) and (I, X, Y) polygon forms.
-void regionfill_reg(Span<const Value> a, size_t, Span<Value> o,
+void regionfill_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                     CallContext &c)
 {
     argcheck::checkNargin(a.size(), 2, 3, "regionfill");
-    auto *mr = c.engine->resource();
+    auto *mr = c.engine->allocator();
     if (a.size() == 2) {
         o[0] = regionfill(a[0], a[1], mr);
         return;
     }
     // (I, X, Y) form — build mask via poly2mask using I's H/W.
     const Value &I = a[0];
-    const std::size_t H = I.dims().rows();
-    const std::size_t W = I.dims().cols();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
     Value mask = poly2mask(a[1], a[2], H, W, mr);
     o[0] = regionfill(I, mask, mr);
 }
 
 // roipoly adapter — handles the 4 programmatic signatures and the
 // 1/2/3/4/5-output forms. Interactive (1 / 2 / 0-arg) variants throw.
-void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
+void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef<Value> o,
                  CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 6, "roipoly");
@@ -293,7 +296,7 @@ void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
                     "(A, xi, yi) | (M, N, xi, yi) | (x, y, A, xi, yi) "
                     "| (x, y, M, N, xi, yi)",
                     0, 0, "roipoly", "", "numkit:roipoly:nargin");
-    auto *mr = c.engine->resource();
+    auto *mr = c.engine->allocator();
 
     // Helper: pull [lo, hi] from a Value that's either a 2-elem extent
     // vector or a scalar (treated as a degenerate extent).
@@ -309,7 +312,7 @@ void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
     };
 
     double xlo = 0, xhi = 0, ylo = 0, yhi = 0;
-    std::size_t M = 0, N = 0;
+    keel::usize M = 0, N = 0;
     Value xi, yi;
 
     switch (a.size()) {
@@ -330,8 +333,8 @@ void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
             if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
-            M = static_cast<std::size_t>(Md);
-            N = static_cast<std::size_t>(Nd);
+            M = static_cast<keel::usize>(Md);
+            N = static_cast<keel::usize>(Nd);
             xlo = 1.0;  xhi = static_cast<double>(N);
             ylo = 1.0;  yhi = static_cast<double>(M);
             xi = a[2]; yi = a[3];
@@ -354,8 +357,8 @@ void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
             if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
-            M = static_cast<std::size_t>(Md);
-            N = static_cast<std::size_t>(Nd);
+            M = static_cast<keel::usize>(Md);
+            N = static_cast<keel::usize>(Nd);
             extent(a[0], 1.0, static_cast<double>(N), xlo, xhi);
             extent(a[1], 1.0, static_cast<double>(M), ylo, yhi);
             xi = a[4]; yi = a[5];
@@ -365,11 +368,11 @@ void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
 
     // Build the auto-closed xi/yi for the multi-output forms (matches
     // MATLAB's behaviour: outputs the closed polygon as a column vector).
-    const std::size_t n0 = xi.numel();
-    std::pmr::vector<double> xc(mr), yc(mr);
+    const keel::usize n0 = xi.numel();
+    keel::Array<double> xc(mr), yc(mr);
     xc.reserve(n0 + 1);
     yc.reserve(n0 + 1);
-    for (std::size_t i = 0; i < n0; ++i) {
+    for (keel::usize i = 0; i < n0; ++i) {
         xc.push_back(xi.elemAsDouble(i));
         yc.push_back(yi.elemAsDouble(i));
     }
@@ -377,10 +380,10 @@ void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
         xc.push_back(xc.front());
         yc.push_back(yc.front());
     }
-    const std::size_t nc = xc.size();
+    const keel::usize nc = xc.size();
     Value xiOut = Value::matrix(nc, 1, ValueType::DOUBLE, mr);
     Value yiOut = Value::matrix(nc, 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < nc; ++i) {
+    for (keel::usize i = 0; i < nc; ++i) {
         xiOut.doubleDataMut()[i] = xc[i];
         yiOut.doubleDataMut()[i] = yc[i];
     }
@@ -410,16 +413,16 @@ void roipoly_reg(Span<const Value> a, size_t nargout, Span<Value> o,
 }
 
 // graydist adapter — handles the 4 input forms + optional METHOD.
-void graydist_reg(Span<const Value> a, size_t, Span<Value> o,
+void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                   CallContext &c)
 {
     argcheck::checkNargin(a.size(), 2, 4, "graydist");
-    auto *mr = c.engine->resource();
+    auto *mr = c.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     // Strip trailing method string if present.
     std::string method = "chessboard";
-    std::size_t nargs = a.size();
+    keel::usize nargs = a.size();
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
         std::string lo;
@@ -437,11 +440,11 @@ void graydist_reg(Span<const Value> a, size_t, Span<Value> o,
     if (a.size() >= 2 && !a[1].isEmpty()
         && a[1].type() != ValueType::LOGICAL)
         numkit::image::internal::requireRealDoubleArg(a[1], "graydist", "IND", 2);
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
 
     // Build 1-based linear seed indices.
-    std::pmr::vector<double> indices(mr);
+    keel::Array<double> indices(mr);
     if (nargs == 2) {
         const Value &arg2 = a[1];
         if (arg2.isLogical()) {
@@ -449,13 +452,13 @@ void graydist_reg(Span<const Value> a, size_t, Span<Value> o,
             if (arg2.numel() != H * W)
                 throw Error("graydist: MASK must be the same size as A",
                             0, 0, "graydist", "", "numkit:graydist:maskSize");
-            const std::uint8_t *m = arg2.logicalData();
-            for (std::size_t i = 0; i < arg2.numel(); ++i)
+            const keel::u8 *m = arg2.logicalData();
+            for (keel::usize i = 0; i < arg2.numel(); ++i)
                 if (m[i]) indices.push_back(static_cast<double>(i + 1));
         } else {
             // Linear indices.
             indices.reserve(arg2.numel());
-            for (std::size_t i = 0; i < arg2.numel(); ++i)
+            for (keel::usize i = 0; i < arg2.numel(); ++i)
                 indices.push_back(arg2.elemAsDouble(i));
         }
     } else if (nargs == 3) {
@@ -466,14 +469,14 @@ void graydist_reg(Span<const Value> a, size_t, Span<Value> o,
             throw Error("graydist: C and R must have equal length",
                         0, 0, "graydist", "", "numkit:graydist:cr");
         indices.reserve(C.numel());
-        for (std::size_t i = 0; i < C.numel(); ++i) {
-            const std::size_t cc = static_cast<std::size_t>(C.elemAsDouble(i));
-            const std::size_t rr = static_cast<std::size_t>(R.elemAsDouble(i));
+        for (keel::usize i = 0; i < C.numel(); ++i) {
+            const keel::usize cc = static_cast<keel::usize>(C.elemAsDouble(i));
+            const keel::usize rr = static_cast<keel::usize>(R.elemAsDouble(i));
             if (cc < 1 || cc > W || rr < 1 || rr > H)
                 throw Error("graydist: (C, R) out of bounds",
                             0, 0, "graydist", "", "numkit:graydist:crBounds");
             // Column-major 1-based linear index.
-            const std::size_t lin = (cc - 1) * H + rr;  // 1-based
+            const keel::usize lin = (cc - 1) * H + rr;  // 1-based
             indices.push_back(static_cast<double>(lin));
         }
     } else {
@@ -482,17 +485,17 @@ void graydist_reg(Span<const Value> a, size_t, Span<Value> o,
     }
 
     Value seedVec = Value::matrix(indices.size(), 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < indices.size(); ++i)
+    for (keel::usize i = 0; i < indices.size(); ++i)
         seedVec.doubleDataMut()[i] = indices[i];
     o[0] = graydist(A, seedVec, method, mr);
 }
 
 // bwdistgeodesic adapter — same input parsing as graydist.
-void bwdistgeodesic_reg(Span<const Value> a, size_t, Span<Value> o,
+void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                         CallContext &c)
 {
     argcheck::checkNargin(a.size(), 2, 4, "bwdistgeodesic");
-    auto *mr = c.engine->resource();
+    auto *mr = c.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     // Probed R2025b: seed locations are real double (single / uint8
     // seeds are rejected) OR a logical seed MASK (the mask form) — gate
@@ -503,7 +506,7 @@ void bwdistgeodesic_reg(Span<const Value> a, size_t, Span<Value> o,
                                                   "seedlocs", 2);
 
     std::string method = "chessboard";
-    std::size_t nargs = a.size();
+    keel::usize nargs = a.size();
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
         std::string lo;
@@ -515,10 +518,10 @@ void bwdistgeodesic_reg(Span<const Value> a, size_t, Span<Value> o,
     }
 
     const Value &BW = a[0];
-    const std::size_t H = BW.dims().rows();
-    const std::size_t W = BW.dims().cols();
+    const keel::usize H = BW.dims().rows();
+    const keel::usize W = BW.dims().cols();
 
-    std::pmr::vector<double> indices(mr);
+    keel::Array<double> indices(mr);
     if (nargs == 2) {
         const Value &arg2 = a[1];
         if (arg2.isLogical()) {
@@ -526,12 +529,12 @@ void bwdistgeodesic_reg(Span<const Value> a, size_t, Span<Value> o,
                 throw Error("bwdistgeodesic: MASK must be the same size as BW",
                             0, 0, "bwdistgeodesic", "",
                             "numkit:bwdistgeodesic:maskSize");
-            const std::uint8_t *m = arg2.logicalData();
-            for (std::size_t i = 0; i < arg2.numel(); ++i)
+            const keel::u8 *m = arg2.logicalData();
+            for (keel::usize i = 0; i < arg2.numel(); ++i)
                 if (m[i]) indices.push_back(static_cast<double>(i + 1));
         } else {
             indices.reserve(arg2.numel());
-            for (std::size_t i = 0; i < arg2.numel(); ++i)
+            for (keel::usize i = 0; i < arg2.numel(); ++i)
                 indices.push_back(arg2.elemAsDouble(i));
         }
     } else if (nargs == 3) {
@@ -542,14 +545,14 @@ void bwdistgeodesic_reg(Span<const Value> a, size_t, Span<Value> o,
                         0, 0, "bwdistgeodesic", "",
                         "numkit:bwdistgeodesic:cr");
         indices.reserve(C.numel());
-        for (std::size_t i = 0; i < C.numel(); ++i) {
-            const std::size_t cc = static_cast<std::size_t>(C.elemAsDouble(i));
-            const std::size_t rr = static_cast<std::size_t>(R.elemAsDouble(i));
+        for (keel::usize i = 0; i < C.numel(); ++i) {
+            const keel::usize cc = static_cast<keel::usize>(C.elemAsDouble(i));
+            const keel::usize rr = static_cast<keel::usize>(R.elemAsDouble(i));
             if (cc < 1 || cc > W || rr < 1 || rr > H)
                 throw Error("bwdistgeodesic: (C, R) out of bounds",
                             0, 0, "bwdistgeodesic", "",
                             "numkit:bwdistgeodesic:crBounds");
-            const std::size_t lin = (cc - 1) * H + rr;
+            const keel::usize lin = (cc - 1) * H + rr;
             indices.push_back(static_cast<double>(lin));
         }
     } else {
@@ -559,16 +562,16 @@ void bwdistgeodesic_reg(Span<const Value> a, size_t, Span<Value> o,
     }
 
     Value seedVec = Value::matrix(indices.size(), 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < indices.size(); ++i)
+    for (keel::usize i = 0; i < indices.size(); ++i)
         seedVec.doubleDataMut()[i] = indices[i];
     o[0] = bwdistgeodesic(BW, seedVec, method, mr);
 }
 
-void poly2mask_reg(Span<const Value> a, size_t, Span<Value> o,
+void poly2mask_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o,
                    CallContext &c)
 {
     argcheck::checkNargin(a.size(), 4, 4, "poly2mask");
-    auto *mr = c.engine->resource();
+    auto *mr = c.engine->allocator();
     const double Md = a[2].toScalar();
     const double Nd = a[3].toScalar();
     if (!std::isfinite(Md) || !std::isfinite(Nd)
@@ -577,18 +580,18 @@ void poly2mask_reg(Span<const Value> a, size_t, Span<Value> o,
         throw Error("poly2mask: M and N must be non-negative integers",
                     0, 0, "poly2mask", "", "numkit:poly2mask:mn");
     o[0] = poly2mask(a[0], a[1],
-                     static_cast<std::size_t>(Md),
-                     static_cast<std::size_t>(Nd), mr);
+                     static_cast<keel::usize>(Md),
+                     static_cast<keel::usize>(Nd), mr);
 }
 
-void label2idx_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
+void label2idx_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, "label2idx");
     // no max: name-value tail in the reference
-    o[0] = label2idx(a[0], c.engine->resource());
+    o[0] = label2idx(a[0], c.engine->allocator());
 }
 
-void watershed_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
+void watershed_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 2, "watershed");
     const int conn = (a.size() >= 2 && !a[1].isEmpty())
@@ -596,7 +599,7 @@ void watershed_reg(Span<const Value> a, size_t, Span<Value> o, CallContext &c)
                          argcheck::expectedReal(a[1], 2, "conn", "watershed"),
                          {4, 8}, 2, "conn", "watershed")
                      : 8;
-    o[0] = watershed(a[0], conn, c.engine->resource());
+    o[0] = watershed(a[0], conn, c.engine->allocator());
 }
 
 } // namespace detail

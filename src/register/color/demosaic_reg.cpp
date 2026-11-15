@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -27,14 +29,14 @@ static std::string asString(const Value &v) {
     return v.toString();
 }
 
-void demosaic_reg(Span<const Value> args, size_t /*nargout*/,
-                  Span<Value> outs, CallContext &ctx)
+void demosaic_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "demosaic");  // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     const std::string align = asString(args[1]);
     int bps = 0;
-    for (size_t i = 2; i + 1 < args.size(); i += 2) {
+    for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
         const std::string name = asString(args[i]);
         if (name == "BitsPerSample" || name == "bitspersample")
             bps = argcheck::expectedOneOf(

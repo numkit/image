@@ -31,6 +31,9 @@
 // imguidedfilter, rgb2gray, mat2gray, stretchlim, imadjust, im2*),
 // so the haze-physics layer is the only new code here.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/math.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/morph/morph.hpp>
 #include <numkit/image/contrast/contrast.hpp>
@@ -43,6 +46,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <vector>
 
@@ -61,12 +65,12 @@ inline std::string lower_str(const std::string &s)
 
 // ── im2single semantics (uint8 → x/255 single, uint16 → x/65535,
 //   single passthrough, double clamp+cast).
-Value to_single01(const Value &A, std::pmr::memory_resource *mr)
+Value to_single01(const Value &A, keel::Allocator *mr)
 {
     const auto &d = A.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     const ValueType t = A.type();
     if (t == ValueType::SINGLE) {
         // Clamp to [0,1] copy (algorithm assumes valid range).
@@ -75,7 +79,7 @@ Value to_single01(const Value &A, std::pmr::memory_resource *mr)
             : Value::matrix(H, W, ValueType::SINGLE, mr);
         const float *src = A.singleData();
         float *dst = out.singleDataMut();
-        for (std::size_t i = 0; i < H * W * P; ++i) {
+        for (keel::usize i = 0; i < H * W * P; ++i) {
             float v = src[i];
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
@@ -87,7 +91,7 @@ Value to_single01(const Value &A, std::pmr::memory_resource *mr)
         ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
         : Value::matrix(H, W, ValueType::SINGLE, mr);
     float *dst = out.singleDataMut();
-    for (std::size_t i = 0; i < H * W * P; ++i) {
+    for (keel::usize i = 0; i < H * W * P; ++i) {
         const double raw = A.elemAsDouble(i);
         float v;
         switch (t) {
@@ -110,18 +114,18 @@ Value to_single01(const Value &A, std::pmr::memory_resource *mr)
 
 // ── min across pages (RGB → dark channel base, no spatial erosion) ──
 // Output is H×W SINGLE.
-Value min_across_pages(const Value &A, std::pmr::memory_resource *mr)
+Value min_across_pages(const Value &A, keel::Allocator *mr)
 {
     const auto &d = A.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
     float *dst = out.singleDataMut();
     const float *src = A.singleData();
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         float m = src[i];
-        for (std::size_t p = 1; p < P; ++p) {
+        for (keel::usize p = 1; p < P; ++p) {
             const float v = src[p * H * W + i];
             if (v < m) m = v;
         }
@@ -131,12 +135,12 @@ Value min_across_pages(const Value &A, std::pmr::memory_resource *mr)
 }
 
 // ── square strel of size n as a logical n×n matrix ──
-Value make_square_strel(int n, std::pmr::memory_resource *mr)
+Value make_square_strel(int n, keel::Allocator *mr)
 {
-    Value se = Value::matrix(static_cast<std::size_t>(n),
-                              static_cast<std::size_t>(n),
+    Value se = Value::matrix(static_cast<keel::usize>(n),
+                              static_cast<keel::usize>(n),
                               ValueType::LOGICAL, mr);
-    uint8_t *d = se.logicalDataMut();
+    keel::u8 *d = se.logicalDataMut();
     for (int i = 0; i < n * n; ++i) d[i] = 1;
     return se;
 }
@@ -145,18 +149,18 @@ Value make_square_strel(int n, std::pmr::memory_resource *mr)
 // A is SINGLE, atm is the brightest RGB triple (1×3) or scalar; we
 // divide each plane and then min-across-pages.
 Value normalize_by_atm_then_min(const Value &A, const std::vector<float> &atm,
-                                std::pmr::memory_resource *mr)
+                                keel::Allocator *mr)
 {
     const auto &d = A.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
     float *dst = out.singleDataMut();
     const float *src = A.singleData();
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         float m = std::numeric_limits<float>::infinity();
-        for (std::size_t p = 0; p < P; ++p) {
+        for (keel::usize p = 0; p < P; ++p) {
             const float a = atm[p > atm.size() - 1 ? atm.size() - 1 : p];
             const float v = (a == 0.0f) ? std::numeric_limits<float>::infinity()
                                         : src[p * H * W + i] / a;
@@ -170,17 +174,17 @@ Value normalize_by_atm_then_min(const Value &A, const std::vector<float> &atm,
 // ── Recursive 5-level quadtree on the eroded dark channel; return
 //    the (1-based row/col indices, inclusive both ends) of the final
 //    sub-rectangle of A. Implements computeatmLightUsingQuadTree.
-struct Rect { std::size_t r0, c0, r1, c1; };  // inclusive
+struct Rect { keel::usize r0, c0, r1, c1; };  // inclusive
 
 Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
 {
     const float *dd = dark.singleData();
-    const std::size_t H = dark.dims().rows();
+    const keel::usize H = dark.dims().rows();
     auto mean_of = [&](const Rect &q) -> double {
         double s = 0.0;
-        const std::size_t n = (q.r1 - q.r0 + 1) * (q.c1 - q.c0 + 1);
-        for (std::size_t c = q.c0; c <= q.c1; ++c)
-            for (std::size_t r = q.r0; r <= q.r1; ++r)
+        const keel::usize n = (q.r1 - q.r0 + 1) * (q.c1 - q.c0 + 1);
+        for (keel::usize c = q.c0; c <= q.c1; ++c)
+            for (keel::usize r = q.r0; r <= q.r1; ++r)
                 s += dd[c * H + r];
         return s / static_cast<double>(n);
     };
@@ -197,18 +201,18 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
             (static_cast<double>(Q.c0) + static_cast<double>(Q.c1)) / 2.0));
         const Rect q1{Q.r0,
                        Q.c0,
-                       static_cast<std::size_t>(rmid),
-                       static_cast<std::size_t>(cmid)};
+                       static_cast<keel::usize>(rmid),
+                       static_cast<keel::usize>(cmid)};
         const Rect q2{Q.r0,
-                       static_cast<std::size_t>(cmid + 1),
-                       static_cast<std::size_t>(rmid),
+                       static_cast<keel::usize>(cmid + 1),
+                       static_cast<keel::usize>(rmid),
                        Q.c1};
-        const Rect q3{static_cast<std::size_t>(rmid + 1),
+        const Rect q3{static_cast<keel::usize>(rmid + 1),
                        Q.c0,
                        Q.r1,
-                       static_cast<std::size_t>(cmid)};
-        const Rect q4{static_cast<std::size_t>(rmid + 1),
-                       static_cast<std::size_t>(cmid + 1),
+                       static_cast<keel::usize>(cmid)};
+        const Rect q4{static_cast<keel::usize>(rmid + 1),
+                       static_cast<keel::usize>(cmid + 1),
                        Q.r1,
                        Q.c1};
         const double m[4] = {mean_of(q1), mean_of(q2), mean_of(q3), mean_of(q4)};
@@ -223,12 +227,12 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
 // Compute atmospheric light using the simpledcp quadtree algorithm.
 // A is SINGLE (H×W×P).
 std::vector<float> simpledcp_atm_light(const Value &A,
-                                       std::pmr::memory_resource *mr)
+                                       keel::Allocator *mr)
 {
     const auto &d = A.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     Rect Q{0, 0, H - 1, W - 1};
     if (H >= 64 && W >= 64) {
         const int winSize = static_cast<int>(std::ceil(
@@ -242,13 +246,13 @@ std::vector<float> simpledcp_atm_light(const Value &A,
     // in the final quadrant — i.e., the brightest pixel by L2 to ones.
     const float *src = A.singleData();
     double bestDist = std::numeric_limits<double>::infinity();
-    std::size_t bestR = Q.r0, bestC = Q.c0;
-    for (std::size_t c = Q.c0; c <= Q.c1; ++c)
-        for (std::size_t r = Q.r0; r <= Q.r1; ++r) {
+    keel::usize bestR = Q.r0, bestC = Q.c0;
+    for (keel::usize c = Q.c0; c <= Q.c1; ++c)
+        for (keel::usize r = Q.r0; r <= Q.r1; ++r) {
             double s = 0.0;
-            for (std::size_t p = 0; p < P; ++p) {
+            for (keel::usize p = 0; p < P; ++p) {
                 const double v = src[p * H * W + c * H + r];
-                const double d2 = std::abs(1.0 - v);
+                const double d2 = keel::abs(1.0 - v);
                 s += d2;     // sqrt(d2^2) == |d2|; matches MATLAB's
                             // sqrt(abs(brightIm-img).^2) then sum.
             }
@@ -259,7 +263,7 @@ std::vector<float> simpledcp_atm_light(const Value &A,
             }
         }
     std::vector<float> atm(P);
-    for (std::size_t p = 0; p < P; ++p)
+    for (keel::usize p = 0; p < P; ++p)
         atm[p] = src[p * H * W + bestC * H + bestR];
     return atm;
 }
@@ -269,17 +273,17 @@ std::vector<float> simpledcp_atm_light(const Value &A,
 // grayscale luminance (rgb2gray for RGB, A for grayscale).
 std::vector<float> approxdcp_atm_light(const Value &A,
                                        const Value &darkChannel,
-                                       std::pmr::memory_resource *mr)
+                                       keel::Allocator *mr)
 {
     const auto &d = A.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     const float *dc = darkChannel.singleData();
     // 256-bin imhist on the dark channel.
     constexpr int NBINS = 256;
-    std::vector<std::size_t> hist(NBINS, 0);
-    for (std::size_t i = 0; i < H * W; ++i) {
+    std::vector<keel::usize> hist(NBINS, 0);
+    for (keel::usize i = 0; i < H * W; ++i) {
         int b = static_cast<int>(std::floor(dc[i] * (NBINS - 1) + 0.5f));
         if (b < 0) b = 0;
         if (b >= NBINS) b = NBINS - 1;
@@ -309,7 +313,7 @@ std::vector<float> approxdcp_atm_light(const Value &A,
     const float *src = A.singleData();
     float bestGray = -std::numeric_limits<float>::infinity();
     long bestIdx = -1;
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         if (dc[i] >= cutoff) {
             const float gval = gv[i];
             if (gval > bestGray) {
@@ -322,14 +326,14 @@ std::vector<float> approxdcp_atm_light(const Value &A,
     if (bestIdx < 0) {
         // No pixel above cutoff (shouldn't happen for sane input);
         // fall back to the pixel with maximum dark-channel value.
-        std::size_t mi = 0;
+        keel::usize mi = 0;
         float mv = dc[0];
-        for (std::size_t i = 1; i < H * W; ++i)
+        for (keel::usize i = 1; i < H * W; ++i)
             if (dc[i] > mv) { mv = dc[i]; mi = i; }
-        for (std::size_t p = 0; p < P; ++p)
+        for (keel::usize p = 0; p < P; ++p)
             atm[p] = src[p * H * W + mi];
     } else {
-        for (std::size_t p = 0; p < P; ++p) {
+        for (keel::usize p = 0; p < P; ++p) {
             float v = src[p * H * W + bestIdx];
             if (v == 0.0f)
                 v = std::numeric_limits<float>::epsilon();  // eps('single')
@@ -347,12 +351,12 @@ std::vector<float> approxdcp_atm_light(const Value &A,
 //   B = clip(B, 0, 1)
 Value recover_radiance(const Value &A, const Value &transmissionMap,
                        const std::vector<float> &atm, double amount,
-                       double omega, std::pmr::memory_resource *mr)
+                       double omega, keel::Allocator *mr)
 {
     const auto &d = A.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     constexpr float t0 = 0.1f;
     const float *src = A.singleData();
     const float *tm = transmissionMap.singleData();
@@ -364,12 +368,12 @@ Value recover_radiance(const Value &A, const Value &transmissionMap,
     float *dst = out.singleDataMut();
     const float famount = static_cast<float>(amount);
     const float fomega = static_cast<float>(omega);
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         const float t = tm[i];
         const float tb = 1.0f - fomega * (1.0f - t);
         const float tt = (tb > t0) ? tb : t0;
         const float tnew = std::min(1.0f, tb + famount);
-        for (std::size_t p = 0; p < P; ++p) {
+        for (keel::usize p = 0; p < P; ++p) {
             const float a = atm[p > atm.size() - 1 ? atm.size() - 1 : p];
             const float v = src[p * H * W + i];
             float rad = a + (v - a) / tt;
@@ -385,29 +389,29 @@ Value recover_radiance(const Value &A, const Value &transmissionMap,
 }
 
 // 1 - t (haze thickness, the second imreducehaze output).
-Value one_minus(const Value &T, std::pmr::memory_resource *mr)
+Value one_minus(const Value &T, keel::Allocator *mr)
 {
-    const std::size_t H = T.dims().rows();
-    const std::size_t W = T.dims().cols();
+    const keel::usize H = T.dims().rows();
+    const keel::usize W = T.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (T.type() == ValueType::SINGLE) {
         const float *td = T.singleData();
-        for (std::size_t i = 0; i < H * W; ++i)
+        for (keel::usize i = 0; i < H * W; ++i)
             od[i] = 1.0 - static_cast<double>(td[i]);
     } else {
-        for (std::size_t i = 0; i < H * W; ++i)
+        for (keel::usize i = 0; i < H * W; ++i)
             od[i] = 1.0 - T.elemAsDouble(i);
     }
     return out;
 }
 
 // Per-channel slice → H×W SINGLE Value (extract page p).
-Value extract_plane(const Value &A, std::size_t p,
-                    std::pmr::memory_resource *mr)
+Value extract_plane(const Value &A, keel::usize p,
+                    keel::Allocator *mr)
 {
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
     const float *src = A.singleData() + p * H * W;
     std::memcpy(out.singleDataMut(), src, H * W * sizeof(float));
@@ -416,11 +420,11 @@ Value extract_plane(const Value &A, std::size_t p,
 
 // Stack P H×W single planes back into an H×W×P SINGLE.
 Value stack_planes(const std::vector<Value> &planes,
-                   std::pmr::memory_resource *mr)
+                   keel::Allocator *mr)
 {
-    const std::size_t P = planes.size();
-    const std::size_t H = planes[0].dims().rows();
-    const std::size_t W = planes[0].dims().cols();
+    const keel::usize P = planes.size();
+    const keel::usize H = planes[0].dims().rows();
+    const keel::usize W = planes[0].dims().cols();
     if (P == 1) {
         // Return a 2-D matrix copy to preserve grayscale shape.
         Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
@@ -429,7 +433,7 @@ Value stack_planes(const std::vector<Value> &planes,
         return out;
     }
     Value out = Value::matrix3d(H, W, P, ValueType::SINGLE, mr);
-    for (std::size_t p = 0; p < P; ++p)
+    for (keel::usize p = 0; p < P; ++p)
         std::memcpy(out.singleDataMut() + p * H * W,
                     planes[p].singleData(),
                     H * W * sizeof(float));
@@ -442,17 +446,17 @@ Value stack_planes(const std::vector<Value> &planes,
 //   stretchlim [0.001, 0.999]
 //   adjust clip: clip + 0.8 * (max(clip, mean(clip)) - clip)
 //   imadjust (per-channel)
-Value global_stretching(const Value &A, std::pmr::memory_resource *mr)
+Value global_stretching(const Value &A, keel::Allocator *mr)
 {
     const auto &d = A.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     Value G = d.is3D() ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
                         : Value::matrix(H, W, ValueType::SINGLE, mr);
     const float *src = A.singleData();
     float *dst = G.singleDataMut();
-    for (std::size_t i = 0; i < H * W * P; ++i)
+    for (keel::usize i = 0; i < H * W * P; ++i)
         dst[i] = std::pow(src[i], 0.75f);
     Value Nd = mat2gray(G, std::numeric_limits<double>::quiet_NaN(),
                         std::numeric_limits<double>::quiet_NaN(), mr);
@@ -463,7 +467,7 @@ Value global_stretching(const Value &A, std::pmr::memory_resource *mr)
     {
         float *nd = N.singleDataMut();
         const double *dd_ = Nd.doubleData();
-        for (std::size_t i = 0; i < H * W * P; ++i)
+        for (keel::usize i = 0; i < H * W * P; ++i)
             nd[i] = static_cast<float>(dd_[i]);
     }
     constexpr double alpha = 0.8;
@@ -474,14 +478,14 @@ Value global_stretching(const Value &A, std::pmr::memory_resource *mr)
     // clipLimit (low / high) gets the same channel-mean value
     // broadcast across all P channels.  Then per-channel imadjust.
     std::vector<double> lo_per(P), hi_per(P);
-    for (std::size_t p = 0; p < P; ++p) {
+    for (keel::usize p = 0; p < P; ++p) {
         Value plane = (P == 1) ? N : extract_plane(N, p, mr);
         Value cl = stretchlim(plane, 0.001, 0.999, mr);
         lo_per[p] = cl.elemAsDouble(0);
         hi_per[p] = cl.elemAsDouble(1);
     }
     double sum_lo = 0.0, sum_hi = 0.0;
-    for (std::size_t p = 0; p < P; ++p) {
+    for (keel::usize p = 0; p < P; ++p) {
         sum_lo += lo_per[p];
         sum_hi += hi_per[p];
     }
@@ -489,7 +493,7 @@ Value global_stretching(const Value &A, std::pmr::memory_resource *mr)
     const double mean_hi = sum_hi / static_cast<double>(P);
     std::vector<Value> outPlanes;
     outPlanes.reserve(P);
-    for (std::size_t p = 0; p < P; ++p) {
+    for (keel::usize p = 0; p < P; ++p) {
         Value plane = (P == 1) ? N : extract_plane(N, p, mr);
         const double lo_n = lo_per[p]
             + alpha * (std::max(lo_per[p], mean_lo) - lo_per[p]);
@@ -513,12 +517,12 @@ Value global_stretching(const Value &A, std::pmr::memory_resource *mr)
 //        = T. So gain = boostAmount * T. Final B = dehazed*(1+amount*
 //        boostAmount*T). Yes.
 Value boost_postproc(const Value &dehazed, double amount, double boost,
-                     const Value &T_thick, std::pmr::memory_resource *mr)
+                     const Value &T_thick, keel::Allocator *mr)
 {
     const auto &d = dehazed.dims();
-    const std::size_t H = d.rows();
-    const std::size_t W = d.cols();
-    const std::size_t P = d.is3D() ? d.pages() : 1;
+    const keel::usize H = d.rows();
+    const keel::usize W = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1;
     Value out = d.is3D() ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
                           : Value::matrix(H, W, ValueType::SINGLE, mr);
     const float *src = dehazed.singleData();
@@ -526,10 +530,10 @@ Value boost_postproc(const Value &dehazed, double amount, double boost,
     const float famount = static_cast<float>(amount);
     const float fboost  = static_cast<float>(boost);
     // T_thick is DOUBLE H×W.
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         const float Tv = static_cast<float>(T_thick.elemAsDouble(i));
         const float g = 1.0f + famount * fboost * Tv;
-        for (std::size_t p = 0; p < P; ++p) {
+        for (keel::usize p = 0; p < P; ++p) {
             float v = src[p * H * W + i] * g;
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
@@ -541,11 +545,11 @@ Value boost_postproc(const Value &dehazed, double amount, double boost,
 
 // Cast final SINGLE output back to the input class.
 Value cast_back(const Value &B, ValueType origClass,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
     if (origClass == ValueType::SINGLE) {
         // Already SINGLE; just clip [0,1].
-        const std::size_t N = B.numel();
+        const keel::usize N = B.numel();
         Value out = B;
         // Make a copy under mr to ensure ownership.
         const auto &d = B.dims();
@@ -556,7 +560,7 @@ Value cast_back(const Value &B, ValueType origClass,
             out = Value::matrix(d.rows(), d.cols(), ValueType::SINGLE, mr);
         const float *src = B.singleData();
         float *dst = out.singleDataMut();
-        for (std::size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             float v = src[i];
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
@@ -571,17 +575,17 @@ Value cast_back(const Value &B, ValueType origClass,
                               : Value::matrix(d.rows(), d.cols(),
                                               ValueType::DOUBLE, mr);
         double *dst = out.doubleDataMut();
-        const std::size_t N = B.numel();
+        const keel::usize N = B.numel();
         if (B.type() == ValueType::SINGLE) {
             const float *src = B.singleData();
-            for (std::size_t i = 0; i < N; ++i) {
+            for (keel::usize i = 0; i < N; ++i) {
                 double v = static_cast<double>(src[i]);
                 if (v < 0.0) v = 0.0;
                 if (v > 1.0) v = 1.0;
                 dst[i] = v;
             }
         } else {
-            for (std::size_t i = 0; i < N; ++i) {
+            for (keel::usize i = 0; i < N; ++i) {
                 double v = B.elemAsDouble(i);
                 if (v < 0.0) v = 0.0;
                 if (v > 1.0) v = 1.0;
@@ -650,7 +654,7 @@ Value imreducehaze(const Value &I, double amount,
                    const std::string &contrast_enhancement,
                    double boost_amount,
                    Value &t_out, Value &L_out,
-                   std::pmr::memory_resource *mr)
+                   keel::Allocator *mr)
 {
     std::string m, ce;
     bool isRGB = false;
@@ -667,14 +671,14 @@ Value imreducehaze(const Value &I, double amount,
 
     // ── Promote to SINGLE [0,1] ──────────────────────────────────
     Value A = to_single01(I, mr);
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
-    const std::size_t P = A.dims().is3D() ? A.dims().pages() : 1;
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
+    const keel::usize P = A.dims().is3D() ? A.dims().pages() : 1;
 
     // ── Resolve / estimate atmospheric light ─────────────────────
     std::vector<float> atm;
     if (!atmospheric_light.isEmpty()) {
-        const std::size_t N = atmospheric_light.numel();
+        const keel::usize N = atmospheric_light.numel();
         if (isRGB && N != 3)
             throw Error("imreducehaze: AtmosphericLight must be a 3-element "
                         "vector for RGB input",
@@ -686,7 +690,7 @@ Value imreducehaze(const Value &I, double amount,
                         0, 0, "imreducehaze", "",
                         "numkit:imreducehaze:atmGray");
         atm.resize(P);
-        for (std::size_t p = 0; p < P; ++p)
+        for (keel::usize p = 0; p < P; ++p)
             atm[p] = static_cast<float>(atmospheric_light.elemAsDouble(
                 p >= N ? N - 1 : p));
     }
@@ -703,17 +707,17 @@ Value imreducehaze(const Value &I, double amount,
         if (atm.empty()) atm = simpledcp_atm_light(A, mr);
         // transmissionMap = 1 - min(A, [], 3)
         Value mp = min_across_pages(A, mr);
-        const std::size_t N = mp.numel();
+        const keel::usize N = mp.numel();
         Value tmap = Value::matrix(H, W, ValueType::SINGLE, mr);
         float *td = tmap.singleDataMut();
         const float *mpd = mp.singleData();
-        for (std::size_t i = 0; i < N; ++i) td[i] = 1.0f - mpd[i];
+        for (keel::usize i = 0; i < N; ++i) td[i] = 1.0f - mpd[i];
         // Guided filter: 5×5 (radius 2), eps = 0.01.
         // Self-guided (tmap is the transmission map; used as own guide).
         transmissionMap = imguidedfilter(tmap, tmap, 5, 0.01, mr);
         // Clamp [0, 1].
         float *tt = transmissionMap.singleDataMut();
-        for (std::size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             if (tt[i] < 0.0f) tt[i] = 0.0f;
             if (tt[i] > 1.0f) tt[i] = 1.0f;
         }
@@ -728,8 +732,8 @@ Value imreducehaze(const Value &I, double amount,
         Value tmap = Value::matrix(H, W, ValueType::SINGLE, mr);
         float *td = tmap.singleDataMut();
         const float *od = opened.singleData();
-        const std::size_t N = tmap.numel();
-        for (std::size_t i = 0; i < N; ++i) td[i] = 1.0f - od[i];
+        const keel::usize N = tmap.numel();
+        for (keel::usize i = 0; i < N; ++i) td[i] = 1.0f - od[i];
         // Guided filter: nhood = 2*radius+1, radius=ceil(min(H,W)/50).
         // nk's imguidedfilter accepts grayscale guides only; for
         // RGB input we use rgb2gray(A) as guide (close approximation
@@ -745,7 +749,7 @@ Value imreducehaze(const Value &I, double amount,
         transmissionMap = imguidedfilter(tmap, guide, nhood, 1e-4, mr);
         // Clamp [0, 1].
         float *tt = transmissionMap.singleDataMut();
-        for (std::size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             if (tt[i] < 0.0f) tt[i] = 0.0f;
             if (tt[i] > 1.0f) tt[i] = 1.0f;
         }

@@ -1,5 +1,11 @@
 // toolboxes/image/src/morph/morph.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/math.h>
 #include <numkit/image/morph/morph.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -9,13 +15,13 @@ namespace numkit::image::internal {
 // cast back to the input class (probed R2025b: imclearborder /
 // imkeepborder / imfill preserve pixel VALUES, not just the mask).
 inline Value maskImageByLogical(const Value &I, const Value &mask,
-                                std::pmr::memory_resource *mr)
+                                keel::Allocator *mr)
 {
     Value Id = coerceToDoubleImage(I, mr);
-    const std::size_t n = Id.numel();
+    const keel::usize n = Id.numel();
     double *d = Id.doubleDataMut();
-    const uint8_t *m = mask.logicalData();
-    for (std::size_t i = 0; i < n; ++i)
+    const keel::u8 *m = mask.logicalData();
+    for (keel::usize i = 0; i < n; ++i)
         if (!m[i]) d[i] = 0.0;
     return castResultToClass(Id, I.type(), mr);
 }
@@ -24,10 +30,8 @@ inline Value maskImageByLogical(const Value &I, const Value &mask,
 #include <numkit/signal/convolution/convolution.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/value/fn_handle.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <array>
@@ -49,54 +53,54 @@ namespace numkit::image {
 
 namespace {
 
-Value pack_logical(const std::vector<uint8_t> &mask, int rows, int cols, std::pmr::memory_resource *mr)
+Value pack_logical(const std::vector<keel::u8> &mask, int rows, int cols, keel::Allocator *mr)
 {
     Value out = Value::matrix(rows, cols, ValueType::LOGICAL, mr);
     if (mask.empty()) return out;
-    uint8_t *od = out.logicalDataMut();
+    keel::u8 *od = out.logicalDataMut();
     // Input is row-major mask; storage is column-major.
     for (int c = 0; c < cols; ++c)
         for (int r = 0; r < rows; ++r)
-            od[(size_t)c * (size_t)rows + (size_t)r]
-                = mask[(size_t)r * (size_t)cols + (size_t)c] ? 1 : 0;
+            od[(keel::usize)c * (keel::usize)rows + (keel::usize)r]
+                = mask[(keel::usize)r * (keel::usize)cols + (keel::usize)c] ? 1 : 0;
     return out;
 }
 
-Value strel_square(int N, std::pmr::memory_resource *mr) {
+Value strel_square(int N, keel::Allocator *mr) {
     if (N < 1) N = 1;
-    std::vector<uint8_t> m((size_t)N * (size_t)N, 1);
+    std::vector<keel::u8> m((keel::usize)N * (keel::usize)N, 1);
     return pack_logical(m, N, N, mr);
 }
 
-Value strel_rect(int rows, int cols, std::pmr::memory_resource *mr) {
+Value strel_rect(int rows, int cols, keel::Allocator *mr) {
     if (rows < 1) rows = 1;
     if (cols < 1) cols = 1;
-    std::vector<uint8_t> m((size_t)rows * (size_t)cols, 1);
+    std::vector<keel::u8> m((keel::usize)rows * (keel::usize)cols, 1);
     return pack_logical(m, rows, cols, mr);
 }
 
-Value strel_diamond(int r, std::pmr::memory_resource *mr) {
+Value strel_diamond(int r, keel::Allocator *mr) {
     if (r < 1) r = 1;
     const int N = 2 * r + 1;
-    std::vector<uint8_t> m((size_t)N * (size_t)N, 0);
+    std::vector<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j)
-            if (std::abs(i - r) + std::abs(j - r) <= r)
-                m[(size_t)i * (size_t)N + (size_t)j] = 1;
+            if (keel::abs(i - r) + keel::abs(j - r) <= r)
+                m[(keel::usize)i * (keel::usize)N + (keel::usize)j] = 1;
     return pack_logical(m, N, N, mr);
 }
 
 // Build a true Euclidean disk neighbourhood: {(dy,dx) : dy²+dx² ≤ r²}.
-Value strel_disk_euclidean(double r, std::pmr::memory_resource *mr) {
+Value strel_disk_euclidean(double r, keel::Allocator *mr) {
     const int R = (int)std::ceil(r);
     const int N = 2 * R + 1;
-    std::vector<uint8_t> m((size_t)N * (size_t)N, 0);
+    std::vector<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
     const double r2 = r * r;
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j) {
             const double dy = i - R, dx = j - R;
             if (dy * dy + dx * dx <= r2)
-                m[(size_t)i * (size_t)N + (size_t)j] = 1;
+                m[(keel::usize)i * (keel::usize)N + (keel::usize)j] = 1;
         }
     return pack_logical(m, N, N, mr);
 }
@@ -115,7 +119,7 @@ void minksum_periodic(std::set<std::pair<int,int>> &P, int vr, int vc, int rp) {
 // Jones & Soille 1996) with N∈{4,6,8} basis directions (default 4), then
 // compensating horizontal/vertical line strels. The final neighbourhood is
 // the Minkowski sum (full dilation) of all decomposition strels.
-Value strel_disk(double r_in, int n, std::pmr::memory_resource *mr) {
+Value strel_disk(double r_in, int n, keel::Allocator *mr) {
     if (r_in < 1.0) r_in = 1.0;
     const int r = (int)std::lround(r_in);
     if (r < 3 || (n != 4 && n != 6 && n != 8))
@@ -149,7 +153,7 @@ Value strel_disk(double r_in, int n, std::pmr::memory_resource *mr) {
 
     // The decomposition is a little small; pad with H/V line strels.
     int maxRow = 0;
-    for (const auto &p : P) maxRow = std::max(maxRow, std::abs(p.first));
+    for (const auto &p : P) maxRow = std::max(maxRow, keel::abs(p.first));
     const int radial_difference = r - maxRow;
     const int len = 2 * (radial_difference - 1) + 1;
     if (len >= 3) {
@@ -159,23 +163,23 @@ Value strel_disk(double r_in, int n, std::pmr::memory_resource *mr) {
     }
 
     int R = 0, C = 0;
-    for (const auto &p : P) { R = std::max(R, std::abs(p.first));
-                             C = std::max(C, std::abs(p.second)); }
+    for (const auto &p : P) { R = std::max(R, keel::abs(p.first));
+                             C = std::max(C, keel::abs(p.second)); }
     const int H = 2 * R + 1, W = 2 * C + 1;
-    std::vector<uint8_t> m((size_t)H * (size_t)W, 0);
+    std::vector<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
     for (const auto &p : P)
-        m[(size_t)(p.first + R) * (size_t)W + (size_t)(p.second + C)] = 1;
+        m[(keel::usize)(p.first + R) * (keel::usize)W + (keel::usize)(p.second + C)] = 1;
     return pack_logical(m, H, W, mr);
 }
 
-Value strel_line(double len, double theta_deg, std::pmr::memory_resource *mr) {
+Value strel_line(double len, double theta_deg, keel::Allocator *mr) {
     if (len < 1.0) len = 1.0;
     const double th = theta_deg * M_PI / 180.0;
     const double cx = (len - 1) * 0.5 * std::cos(th);
     const double cy = (len - 1) * 0.5 * std::sin(th);
     const int W = std::max(1, (int)std::ceil(2.0 * std::fabs(cx) + 1.0));
     const int H = std::max(1, (int)std::ceil(2.0 * std::fabs(cy) + 1.0));
-    std::vector<uint8_t> m((size_t)H * (size_t)W, 0);
+    std::vector<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
     const double r0 = (H - 1) * 0.5;
     const double c0 = (W - 1) * 0.5;
     const int Nstep = std::max(1, (int)std::ceil(len));
@@ -184,7 +188,7 @@ Value strel_line(double len, double theta_deg, std::pmr::memory_resource *mr) {
         const int rr = (int)std::round(r0 + t * std::sin(th));
         const int cc = (int)std::round(c0 + t * std::cos(th));
         if (rr >= 0 && rr < H && cc >= 0 && cc < W)
-            m[(size_t)rr * (size_t)W + (size_t)cc] = 1;
+            m[(keel::usize)rr * (keel::usize)W + (keel::usize)cc] = 1;
     }
     return pack_logical(m, H, W, mr);
 }
@@ -204,7 +208,7 @@ void strel_argcheck(const std::string &shape, const Value &arbitrary_nhood)
 
 } // anonymous
 
-Value strel(const std::string &shape, const std::vector<double> &params, const Value &arbitrary_nhood, std::pmr::memory_resource *mr)
+Value strel(const std::string &shape, const std::vector<double> &params, const Value &arbitrary_nhood, keel::Allocator *mr)
 {
     strel_argcheck(shape, arbitrary_nhood);
     // Compute the raw logical neighbourhood, then wrap it in a 1x1
@@ -235,11 +239,11 @@ Value strel(const std::string &shape, const std::vector<double> &params, const V
         const auto &d = arbitrary_nhood.dims();
         const int H = (int)d.rows();
         const int W = (int)d.cols();
-        std::vector<uint8_t> m((size_t)H * (size_t)W, 0);
+        std::vector<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
         for (int c = 0; c < W; ++c)
             for (int r = 0; r < H; ++r) {
-                const double v = arbitrary_nhood.elemAsDouble((size_t)c * (size_t)H + (size_t)r);
-                m[(size_t)r * (size_t)W + (size_t)c] = (v != 0.0) ? 1 : 0;
+                const double v = arbitrary_nhood.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
+                m[(keel::usize)r * (keel::usize)W + (keel::usize)c] = (v != 0.0) ? 1 : 0;
             }
         nhood = pack_logical(m, H, W, mr);
     }
@@ -257,21 +261,21 @@ Value strel(const std::string &shape, const std::vector<double> &params, const V
 
 namespace {
 
-inline void store_classed_morph(Value &out, size_t i, double v, ValueType t) {
+inline void store_classed_morph(Value &out, keel::usize i, double v, ValueType t) {
     switch (t) {
         case ValueType::DOUBLE:  out.doubleDataMut()[i]  = v; break;
         case ValueType::SINGLE:  out.singleDataMut()[i]  = (float)v; break;
         case ValueType::UINT8: {
             if (v < 0) v = 0; if (v > 255) v = 255;
-            out.uint8DataMut()[i] = (uint8_t)std::lround(v); break;
+            out.uint8DataMut()[i] = (keel::u8)std::lround(v); break;
         }
         case ValueType::UINT16: {
             if (v < 0) v = 0; if (v > 65535) v = 65535;
-            out.uint16DataMut()[i] = (uint16_t)std::lround(v); break;
+            out.uint16DataMut()[i] = (keel::u16)std::lround(v); break;
         }
         case ValueType::INT16: {
             if (v < -32768) v = -32768; if (v > 32767) v = 32767;
-            out.int16DataMut()[i] = (int16_t)std::lround(v); break;
+            out.int16DataMut()[i] = (keel::i16)std::lround(v); break;
         }
         case ValueType::LOGICAL:
             out.logicalDataMut()[i] = v != 0.0 ? 1 : 0; break;
@@ -285,7 +289,7 @@ inline void store_classed_morph(Value &out, size_t i, double v, ValueType t) {
 struct SEInfo {
     int H, W;
     int half_r, half_c;
-    std::vector<uint8_t> mask;  // row-major
+    std::vector<keel::u8> mask;  // row-major
 };
 
 SEInfo unpack_se(const Value &SE) {
@@ -302,11 +306,11 @@ SEInfo unpack_se(const Value &SE) {
     s.W = (int)nhood->dims().cols();
     s.half_r = s.H / 2;
     s.half_c = s.W / 2;
-    s.mask.assign((size_t)s.H * (size_t)s.W, 0);
+    s.mask.assign((keel::usize)s.H * (keel::usize)s.W, 0);
     for (int c = 0; c < s.W; ++c)
         for (int r = 0; r < s.H; ++r) {
-            const double v = nhood->elemAsDouble((size_t)c * (size_t)s.H + (size_t)r);
-            s.mask[(size_t)r * (size_t)s.W + (size_t)c] = (v != 0.0) ? 1 : 0;
+            const double v = nhood->elemAsDouble((keel::usize)c * (keel::usize)s.H + (keel::usize)r);
+            s.mask[(keel::usize)r * (keel::usize)s.W + (keel::usize)c] = (v != 0.0) ? 1 : 0;
         }
     return s;
 }
@@ -319,45 +323,45 @@ SEInfo unpack_se(const Value &SE) {
 // scalar reduction that mirrors morph_op byte-for-byte. ~20-40× over the
 // generic elemAsDouble path on large images.
 template <bool IsErode>
-Value morph_flat_u8(const Value &I, const SEInfo &se, std::pmr::memory_resource *mr)
+Value morph_flat_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
 {
     const int H = (int)I.dims().rows();
     const int W = (int)I.dims().cols();
     Value out = Value::matrix(H, W, I.type(), mr);
     if (H == 0 || W == 0) return out;
-    const std::uint8_t *src = I.isLogical() ? I.logicalData() : I.uint8Data();
-    std::uint8_t *dst = out.isLogical() ? out.logicalDataMut() : out.uint8DataMut();
+    const keel::u8 *src = I.isLogical() ? I.logicalData() : I.uint8Data();
+    keel::u8 *dst = out.isLogical() ? out.logicalDataMut() : out.uint8DataMut();
 
     // Marked offsets (dr, dc) relative to centre, plus their extent.
     struct Off { int dr, dc; };
     std::vector<Off> off;
-    off.reserve((size_t)se.H * (size_t)se.W);
+    off.reserve((keel::usize)se.H * (keel::usize)se.W);
     int drMin = 0, drMax = 0, dcMin = 0, dcMax = 0;
     for (int kj = 0; kj < se.W; ++kj)
         for (int ki = 0; ki < se.H; ++ki)
-            if (se.mask[(size_t)ki * (size_t)se.W + (size_t)kj]) {
+            if (se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) {
                 const int dr = ki - se.half_r, dc = kj - se.half_c;
                 off.push_back({dr, dc});
                 drMin = std::min(drMin, dr); drMax = std::max(drMax, dr);
                 dcMin = std::min(dcMin, dc); dcMax = std::max(dcMax, dc);
             }
     if (off.empty()) {                       // empty SE → all-0 (matches morph_op)
-        std::fill(dst, dst + (size_t)H * (size_t)W, std::uint8_t{0});
+        std::fill(dst, dst + (keel::usize)H * (keel::usize)W, keel::u8{0});
         return out;
     }
 
     // Interior region where every marked offset lands in bounds.
     const int ir0 = std::max(0, -drMin), ir1 = std::min(H, H - drMax);
     const int ic0 = std::max(0, -dcMin), ic1 = std::min(W, W - dcMax);
-    const std::uint8_t INIT = IsErode ? std::uint8_t(255) : std::uint8_t(0);
+    const keel::u8 INIT = IsErode ? keel::u8(255) : keel::u8(0);
 
     // Interior: contiguous min/max passes per marked offset (auto-vectorised).
     if (ir1 > ir0 && ic1 > ic0) {
         for (int oc = ic0; oc < ic1; ++oc) {
-            std::uint8_t *dcol = dst + (size_t)oc * (size_t)H;
+            keel::u8 *dcol = dst + (keel::usize)oc * (keel::usize)H;
             for (int r = ir0; r < ir1; ++r) dcol[r] = INIT;
             for (const Off &o : off) {
-                const std::uint8_t *scol = src + (size_t)(oc + o.dc) * (size_t)H + o.dr;
+                const keel::u8 *scol = src + (keel::usize)(oc + o.dc) * (keel::usize)H + o.dr;
                 if (IsErode)
                     for (int r = ir0; r < ir1; ++r) dcol[r] = std::min(dcol[r], scol[r]);
                 else
@@ -375,13 +379,13 @@ Value morph_flat_u8(const Value &I, const SEInfo &se, std::pmr::memory_resource 
             for (const Off &o : off) {
                 const int rc = oc + o.dc, rr = orow + o.dr;
                 if (rc < 0 || rc >= W || rr < 0 || rr >= H) continue;
-                const int v = src[(size_t)rc * (size_t)H + (size_t)rr];
+                const int v = src[(keel::usize)rc * (keel::usize)H + (keel::usize)rr];
                 if (!covered) { best = v; covered = true; }
                 else if (IsErode) { if (v < best) best = v; }
                 else { if (v > best) best = v; }
             }
-            dst[(size_t)oc * (size_t)H + (size_t)orow] =
-                static_cast<std::uint8_t>(covered ? best : 0);
+            dst[(keel::usize)oc * (keel::usize)H + (keel::usize)orow] =
+                static_cast<keel::u8>(covered ? best : 0);
         }
     }
     return out;
@@ -394,15 +398,15 @@ Value morph_flat_u8(const Value &I, const SEInfo &se, std::pmr::memory_resource 
 // identity (0 for max / 255 for min), which is equivalent to skipping them.
 // Scratch P/g/h must each hold ≥ n + k - 1 bytes (k = hi - lo + 1).
 template <bool IsErode>
-inline void blockVanHerk(const std::uint8_t *in, std::uint8_t *out, int n,
+inline void blockVanHerk(const keel::u8 *in, keel::u8 *out, int n,
                          int lo, int hi,
-                         std::uint8_t *P, std::uint8_t *g, std::uint8_t *h)
+                         keel::u8 *P, keel::u8 *g, keel::u8 *h)
 {
-    auto MX = [](std::uint8_t a, std::uint8_t b) {
+    auto MX = [](keel::u8 a, keel::u8 b) {
         return IsErode ? std::min(a, b) : std::max(a, b);
     };
     const int k = hi - lo + 1;
-    const std::uint8_t PAD = IsErode ? std::uint8_t(255) : std::uint8_t(0);
+    const keel::u8 PAD = IsErode ? keel::u8(255) : keel::u8(0);
     const int off = -lo;          // ≥ 0 (lo ≤ 0)
     const int m = n + k - 1;      // padded length: out[r]=reduce(P[r..r+k-1])
 
@@ -432,13 +436,13 @@ inline void blockVanHerk(const std::uint8_t *in, std::uint8_t *out, int n,
 inline bool vanHerkEligible(const SEInfo &se)
 {
     if (se.half_r < 0 || se.half_c < 0) return false;
-    if (!se.mask[(size_t)se.half_r * (size_t)se.W + (size_t)se.half_c]) return false;
+    if (!se.mask[(keel::usize)se.half_r * (keel::usize)se.W + (keel::usize)se.half_c]) return false;
     for (int kj = 0; kj < se.W; ++kj) {
         int lo = -1, hi = -1;
         for (int ki = 0; ki < se.H; ++ki)
-            if (se.mask[(size_t)ki * (size_t)se.W + (size_t)kj]) { if (lo < 0) lo = ki; hi = ki; }
+            if (se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) { if (lo < 0) lo = ki; hi = ki; }
         for (int ki = lo; ki >= 0 && ki <= hi; ++ki)
-            if (!se.mask[(size_t)ki * (size_t)se.W + (size_t)kj]) return false;  // gap
+            if (!se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) return false;  // gap
     }
     return true;
 }
@@ -450,16 +454,16 @@ inline bool vanHerkEligible(const SEInfo &se)
 // area — so it pulls ahead of morph_flat_u8 as the SE grows. Byte-identical
 // to morph_flat_u8 (same marked-pixel set, same skip-OOB convention).
 template <bool IsErode>
-Value morph_vanherk_u8(const Value &I, const SEInfo &se, std::pmr::memory_resource *mr)
+Value morph_vanherk_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
 {
     const int H = (int)I.dims().rows();
     const int W = (int)I.dims().cols();
     Value out = Value::matrix(H, W, I.type(), mr);
     if (H == 0 || W == 0) return out;
-    const std::uint8_t *src = I.isLogical() ? I.logicalData() : I.uint8Data();
-    std::uint8_t *dst = out.isLogical() ? out.logicalDataMut() : out.uint8DataMut();
-    const std::uint8_t INIT = IsErode ? std::uint8_t(255) : std::uint8_t(0);
-    std::fill(dst, dst + (size_t)H * (size_t)W, INIT);
+    const keel::u8 *src = I.isLogical() ? I.logicalData() : I.uint8Data();
+    keel::u8 *dst = out.isLogical() ? out.logicalDataMut() : out.uint8DataMut();
+    const keel::u8 INIT = IsErode ? keel::u8(255) : keel::u8(0);
+    std::fill(dst, dst + (keel::usize)H * (keel::usize)W, INIT);
 
     // Group SE columns by their vertical run (lo,hi). Symmetric SEs (disk,
     // square, diamond, …) have many columns sharing a run, so we compute the
@@ -473,7 +477,7 @@ Value morph_vanherk_u8(const Value &I, const SEInfo &se, std::pmr::memory_resour
     for (int kj = 0; kj < se.W; ++kj) {
         int kiLo = -1, kiHi = -1;
         for (int ki = 0; ki < se.H; ++ki)
-            if (se.mask[(size_t)ki * (size_t)se.W + (size_t)kj]) { if (kiLo < 0) kiLo = ki; kiHi = ki; }
+            if (se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) { if (kiLo < 0) kiLo = ki; kiHi = ki; }
         if (kiLo < 0) continue;                          // empty SE column
         const int lo = kiLo - se.half_r, hi = kiHi - se.half_r;
         int rid = -1;
@@ -485,18 +489,18 @@ Value morph_vanherk_u8(const Value &I, const SEInfo &se, std::pmr::memory_resour
         maxK = std::max(maxK, hi - lo + 1);
     }
 
-    ScratchArena arena(mr);
-    ScratchVec<std::uint8_t> V((size_t)H * (size_t)W, &arena);
-    ScratchVec<std::uint8_t> P((size_t)(H + maxK), &arena),
-                             G((size_t)(H + maxK), &arena),
-                             Hh((size_t)(H + maxK), &arena);  // tiny, reused across columns
+    keel::ArenaTemp arena = keel::get_scratch(mr);
+    keel::Array<keel::u8> V((keel::usize)H * (keel::usize)W, arena.allocator());
+    keel::Array<keel::u8> P((keel::usize)(H + maxK), arena.allocator()),
+                             G((keel::usize)(H + maxK), arena.allocator()),
+                             Hh((keel::usize)(H + maxK), arena.allocator());  // tiny, reused across columns
 
     for (int rid = 0; rid < (int)runs.size(); ++rid) {
         const int lo = runs[rid].lo, hi = runs[rid].hi;
         // Vertical windowed reduce for this run, once, over every column.
         for (int c = 0; c < W; ++c)
-            blockVanHerk<IsErode>(src + (size_t)c * (size_t)H,
-                                  V.data() + (size_t)c * (size_t)H, H, lo, hi,
+            blockVanHerk<IsErode>(src + (keel::usize)c * (keel::usize)H,
+                                  V.data() + (keel::usize)c * (keel::usize)H, H, lo, hi,
                                   P.data(), G.data(), Hh.data());
         // Combine into dst for every SE column that shares this run.
         for (int ci = 0; ci < (int)colRun.size(); ++ci) {
@@ -504,8 +508,8 @@ Value morph_vanherk_u8(const Value &I, const SEInfo &se, std::pmr::memory_resour
             const int dc = colDc[ci];
             const int oc0 = std::max(0, -dc), oc1 = std::min(W, W - dc);
             for (int oc = oc0; oc < oc1; ++oc) {
-                std::uint8_t *dcol = dst + (size_t)oc * (size_t)H;
-                const std::uint8_t *vcol = V.data() + (size_t)(oc + dc) * (size_t)H;
+                keel::u8 *dcol = dst + (keel::usize)oc * (keel::usize)H;
+                const keel::u8 *vcol = V.data() + (keel::usize)(oc + dc) * (keel::usize)H;
                 if (IsErode)
                     for (int r = 0; r < H; ++r) dcol[r] = std::min(dcol[r], vcol[r]);
                 else
@@ -517,7 +521,7 @@ Value morph_vanherk_u8(const Value &I, const SEInfo &se, std::pmr::memory_resour
 }
 
 template <bool IsErode>
-Value morph_op(const Value &I, const Value &SE, std::pmr::memory_resource *mr)
+Value morph_op(const Value &I, const Value &SE, keel::Allocator *mr)
 {
     auto se = unpack_se(SE);
     // Byte-backed flat-SE fast paths (LOGICAL / UINT8). van Herk (O(SE width))
@@ -547,10 +551,10 @@ Value morph_op(const Value &I, const Value &SE, std::pmr::memory_resource *mr)
                 const int c_in = oc + kj - se.half_c;
                 if (c_in < 0 || c_in >= W) continue;
                 for (int ki = 0; ki < se.H; ++ki) {
-                    if (!se.mask[(size_t)ki * (size_t)se.W + (size_t)kj]) continue;
+                    if (!se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) continue;
                     const int r_in = orow + ki - se.half_r;
                     if (r_in < 0 || r_in >= H) continue;
-                    const double v = I.elemAsDouble((size_t)c_in * (size_t)H + (size_t)r_in);
+                    const double v = I.elemAsDouble((keel::usize)c_in * (keel::usize)H + (keel::usize)r_in);
                     if (std::isnan(best)) {
                         best = v;
                     } else if (IsErode) {
@@ -567,7 +571,7 @@ Value morph_op(const Value &I, const Value &SE, std::pmr::memory_resource *mr)
                 // this branch).
                 best = 0.0;
             }
-            store_classed_morph(out, (size_t)oc * (size_t)H + (size_t)orow, best, I.type());
+            store_classed_morph(out, (keel::usize)oc * (keel::usize)H + (keel::usize)orow, best, I.type());
         }
     }
     return out;
@@ -645,20 +649,20 @@ void imclearborder_argcheck(const Value &BW)
 
 } // anonymous
 
-Value imerode(const Value &I, const Value &SE, std::pmr::memory_resource *mr) {
+Value imerode(const Value &I, const Value &SE, keel::Allocator *mr) {
     return morph_op<true>(I, SE, mr);
 }
 
-Value imdilate(const Value &I, const Value &SE, std::pmr::memory_resource *mr) {
+Value imdilate(const Value &I, const Value &SE, keel::Allocator *mr) {
     return morph_op<false>(I, SE, mr);
 }
 
-Value imopen(const Value &I, const Value &SE, std::pmr::memory_resource *mr) {
+Value imopen(const Value &I, const Value &SE, keel::Allocator *mr) {
     Value e = imerode(I, SE, mr);
     return imdilate(e, SE, mr);
 }
 
-Value imclose(const Value &I, const Value &SE, std::pmr::memory_resource *mr) {
+Value imclose(const Value &I, const Value &SE, keel::Allocator *mr) {
     Value d = imdilate(I, SE, mr);
     return imerode(d, SE, mr);
 }
@@ -674,27 +678,27 @@ Value imclose(const Value &I, const Value &SE, std::pmr::memory_resource *mr) {
 // the grayscale max-in-neighborhood form (which reduces to binary
 // dilation when the input is logical).
 
-Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::memory_resource *mr)
+Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allocator *mr)
 {
     imreconstruct_argcheck(marker, mask);
     if (conn != 4) conn = 8;
-    const size_t H = marker.dims().rows();
-    const size_t W = marker.dims().cols();
+    const keel::usize H = marker.dims().rows();
+    const keel::usize W = marker.dims().cols();
 
-    const size_t N = marker.numel();
+    const keel::usize N = marker.numel();
     const ValueType srcT = marker.type();
 
-    auto writeNative = [&](Value &dst, size_t i, double v) {
+    auto writeNative = [&](Value &dst, keel::usize i, double v) {
         switch (srcT) {
             case ValueType::DOUBLE: dst.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: dst.singleDataMut()[i] = float(v); break;
             case ValueType::UINT8: {
                 if (v < 0.0) v = 0.0; if (v > 255.0) v = 255.0;
-                dst.uint8DataMut()[i] = std::uint8_t(std::lround(v)); break;
+                dst.uint8DataMut()[i] = keel::u8(std::lround(v)); break;
             }
             case ValueType::UINT16: {
                 if (v < 0.0) v = 0.0; if (v > 65535.0) v = 65535.0;
-                dst.uint16DataMut()[i] = std::uint16_t(std::lround(v)); break;
+                dst.uint16DataMut()[i] = keel::u16(std::lround(v)); break;
             }
             case ValueType::LOGICAL:
                 dst.logicalDataMut()[i] = (v != 0.0) ? 1u : 0u; break;
@@ -708,10 +712,10 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::
     // finishes only where values can still rise. O(N) (plus bounded queue
     // traffic) instead of the naive O(N·(H+W)) iterate-dilate-until-stable.
     // Same fixed point: J = max-propagated marker, capped by the mask.
-    ScratchArena arena(mr);
-    ScratchVec<double> I(N, &arena);   // mask
-    ScratchVec<double> J(N, &arena);   // working reconstruction
-    for (size_t i = 0; i < N; ++i) {
+    keel::ArenaTemp arena = keel::get_scratch(mr);
+    keel::Array<double> I(N, arena.allocator());   // mask
+    keel::Array<double> J(N, arena.allocator());   // working reconstruction
+    for (keel::usize i = 0; i < N; ++i) {
         I[i] = mask.elemAsDouble(i);
         J[i] = std::min(marker.elemAsDouble(i), I[i]);
     }
@@ -725,20 +729,20 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::
 
     const int Hi = static_cast<int>(H);
     const int Wi = static_cast<int>(W);
-    auto idxOf = [Hi](int r, int c) -> size_t {
-        return static_cast<size_t>(c) * static_cast<size_t>(Hi) + static_cast<size_t>(r);
+    auto idxOf = [Hi](int r, int c) -> keel::usize {
+        return static_cast<keel::usize>(c) * static_cast<keel::usize>(Hi) + static_cast<keel::usize>(r);
     };
 
     // Raster scan (increasing linear index): pull from already-processed
     // (causal) neighbours — those with a smaller linear index.
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const int r = static_cast<int>(i % H);
         const int c = static_cast<int>(i / H);
         double m = J[i];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
-            const size_t q = idxOf(nr, nc);
+            const keel::usize q = idxOf(nr, nc);
             if (q < i && J[q] > m) m = J[q];
         }
         J[i] = std::min(m, I[i]);
@@ -747,40 +751,40 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::
     // Anti-raster scan (decreasing index): pull from anti-causal neighbours,
     // and seed the FIFO with pixels that still have a neighbour they could
     // raise.
-    ScratchVec<size_t> fifo(0, &arena);
+    keel::Array<keel::usize> fifo(0, arena.allocator());
     fifo.reserve(N);
-    for (size_t ii = N; ii-- > 0; ) {
-        const size_t i = ii;
+    for (keel::usize ii = N; ii-- > 0; ) {
+        const keel::usize i = ii;
         const int r = static_cast<int>(i % H);
         const int c = static_cast<int>(i / H);
         double m = J[i];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
-            const size_t q = idxOf(nr, nc);
+            const keel::usize q = idxOf(nr, nc);
             if (q > i && J[q] > m) m = J[q];
         }
         J[i] = std::min(m, I[i]);
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
-            const size_t q = idxOf(nr, nc);
+            const keel::usize q = idxOf(nr, nc);
             if (q > i && J[q] < J[i] && J[q] < I[q]) { fifo.push_back(i); break; }
         }
     }
 
     // Propagation: pop p, raise each neighbour q that is below J[p] and not
     // yet at its mask cap.
-    size_t head = 0;
+    keel::usize head = 0;
     while (head < fifo.size()) {
-        const size_t p = fifo[head++];
+        const keel::usize p = fifo[head++];
         const int r = static_cast<int>(p % H);
         const int c = static_cast<int>(p / H);
         const double Jp = J[p];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
-            const size_t q = idxOf(nr, nc);
+            const keel::usize q = idxOf(nr, nc);
             if (J[q] < Jp && J[q] < I[q]) {
                 J[q] = std::min(Jp, I[q]);
                 fifo.push_back(q);
@@ -789,7 +793,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::
     }
 
     Value out = Value::matrix(H, W, srcT, mr);
-    for (size_t i = 0; i < N; ++i) writeNative(out, i, J[i]);
+    for (keel::usize i = 0; i < N; ++i) writeNative(out, i, J[i]);
     return out;
 }
 
@@ -803,14 +807,14 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, std::pmr::
 // the border becomes 1 in the output, which means foreground
 // pixels stay 1 and holes are filled.
 
-Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
+Value imfill_holes(const Value &BW, int conn, keel::Allocator *mr)
 {
     imfill_holes_argcheck(BW);
     if (conn != 4) conn = 8;
-    const size_t H = BW.dims().rows();
-    const size_t W = BW.dims().cols();
+    const keel::usize H = BW.dims().rows();
+    const keel::usize W = BW.dims().cols();
     if (BW.type() != ValueType::LOGICAL) {
-        const size_t N = H * W;
+        const keel::usize N = H * W;
         if (N == 0) return Value::matrix(H, W, BW.type(), mr);
         // Morphological reconstruction by erosion (via complement dilation):
         //   T      = max(I)
@@ -818,7 +822,7 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
         //   marker = T - I on the image border (rim), -Inf in the interior
         //   J      = T - imreconstruct(marker, mask, conn)
         double maxI = -std::numeric_limits<double>::infinity();
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = BW.elemAsDouble(i);
             if (std::isfinite(v) && v > maxI) maxI = v;
         }
@@ -828,9 +832,9 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
         Value mask   = Value::matrix(H, W, ValueType::DOUBLE, mr);
         double *md = marker.doubleDataMut();
         double *kd = mask.doubleDataMut();
-        for (size_t c = 0; c < W; ++c) {
-            for (size_t r = 0; r < H; ++r) {
-                const size_t idx = c * H + r;
+        for (keel::usize c = 0; c < W; ++c) {
+            for (keel::usize r = 0; r < H; ++r) {
+                const keel::usize idx = c * H + r;
                 const double ic = maxI - BW.elemAsDouble(idx);
                 kd[idx] = ic;
                 const bool onRim = (r == 0 || c == 0 || r + 1 == H || c + 1 == W);
@@ -840,7 +844,7 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
         Value R = imreconstruct(marker, mask, conn, mr);
         Value J = Value::matrix(H, W, ValueType::DOUBLE, mr);
         double *jd = J.doubleDataMut();
-        for (size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             jd[i] = maxI - R.elemAsDouble(i);
         return internal::castResultToClass(J, BW.type(), mr);
     }
@@ -851,11 +855,11 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
     // mask    = ~BW.
     Value marker = Value::matrix(H, W, ValueType::LOGICAL, mr);
     Value mask   = Value::matrix(H, W, ValueType::LOGICAL, mr);
-    std::uint8_t *md = marker.logicalDataMut();
-    std::uint8_t *kd = mask.logicalDataMut();
-    for (size_t c = 0; c < W; ++c)
-        for (size_t r = 0; r < H; ++r) {
-            const size_t idx = c * H + r;
+    keel::u8 *md = marker.logicalDataMut();
+    keel::u8 *kd = mask.logicalDataMut();
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r) {
+            const keel::usize idx = c * H + r;
             const bool fg = (BW.elemAsDouble(idx) != 0.0);
             kd[idx] = fg ? 0u : 1u;            // ~BW
             const bool onRim = (r == 0 || c == 0 ||
@@ -866,8 +870,8 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
     Value R = imreconstruct(marker, mask, conn, mr);
 
     // J = ~R.
-    std::uint8_t *od = out.logicalDataMut();
-    for (size_t i = 0; i < H * W; ++i) {
+    keel::u8 *od = out.logicalDataMut();
+    for (keel::usize i = 0; i < H * W; ++i) {
         const bool r = (R.elemAsDouble(i) != 0.0);
         od[i] = r ? 0u : 1u;
     }
@@ -889,12 +893,12 @@ Value imfill_holes(const Value &BW, int conn, std::pmr::memory_resource *mr)
 // Inverting flips peaks↔troughs, so regional maxima of −I are the
 // regional minima of I.
 
-Value imregionalmax(const Value &I, int conn, std::pmr::memory_resource *mr)
+Value imregionalmax(const Value &I, int conn, keel::Allocator *mr)
 {
     imregionalmax_argcheck(I);
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = I.numel();
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (N == 0) return out;
 
@@ -913,13 +917,13 @@ Value imregionalmax(const Value &I, int conn, std::pmr::memory_resource *mr)
     double *md = marker.doubleDataMut();
     double *kd = mask.doubleDataMut();
     double maxFin = -std::numeric_limits<double>::infinity();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         if (std::isfinite(v) && v > maxFin) maxFin = v;
     }
     if (!std::isfinite(maxFin)) maxFin = 0.0;
     const double POS_INF = std::numeric_limits<double>::infinity();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         kd[i] = v;
         md[i] = (v == POS_INF) ? maxFin : (v - 1.0);
@@ -927,8 +931,8 @@ Value imregionalmax(const Value &I, int conn, std::pmr::memory_resource *mr)
     Value R = imreconstruct(marker, mask, conn, mr);
 
     // Output = (I > R).
-    std::uint8_t *od = out.logicalDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    keel::u8 *od = out.logicalDataMut();
+    for (keel::usize i = 0; i < N; ++i) {
         const double iv = I.elemAsDouble(i);
         const double rv = R.elemAsDouble(i);
         od[i] = (iv > rv) ? 1u : 0u;
@@ -936,12 +940,12 @@ Value imregionalmax(const Value &I, int conn, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value imregionalmin(const Value &I, int conn, std::pmr::memory_resource *mr)
+Value imregionalmin(const Value &I, int conn, keel::Allocator *mr)
 {
     imregionalmin_argcheck(I);
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = I.numel();
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (N == 0) return out;
 
@@ -950,13 +954,13 @@ Value imregionalmin(const Value &I, int conn, std::pmr::memory_resource *mr)
     // non-negative for unsigned classes (purely cosmetic — only the
     // ordering matters).
     double high = 0.0;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         if (v > high) high = v;
     }
     Value Iinv = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *id = Iinv.doubleDataMut();
-    for (size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         id[i] = high - I.elemAsDouble(i);
 
     return imregionalmax(Iinv, conn, mr);
@@ -970,19 +974,19 @@ Value imregionalmin(const Value &I, int conn, std::pmr::memory_resource *mr)
 // h-maxima suppresses regional maxima shallower than h. Used as a
 // precursor to imregionalmax to ignore small / noise-like peaks.
 
-Value imhmax(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
+Value imhmax(const Value &I, double h, int conn, keel::Allocator *mr)
 {
     imhmax_argcheck(I, h);
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = I.numel();
     if (N == 0) return Value::matrix(H, W, I.type(), mr);
 
     Value marker = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value mask   = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *md = marker.doubleDataMut();
     double *kd = mask.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         kd[i] = v;
         md[i] = v - h;
@@ -993,24 +997,24 @@ Value imhmax(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
         imreconstruct(marker, mask, conn, mr), I.type(), mr);
 }
 
-Value imhmin(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
+Value imhmin(const Value &I, double h, int conn, keel::Allocator *mr)
 {
     imhmin_argcheck(I, h);
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = I.numel();
     if (N == 0) return Value::matrix(H, W, I.type(), mr);
 
     // Invert about a high value so peaks ↔ troughs, then reuse imhmax,
     // then invert back.
     double high = 0.0;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         if (v > high) high = v;
     }
     Value Iinv = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *id = Iinv.doubleDataMut();
-    for (size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         id[i] = high - I.elemAsDouble(i);
 
     Value Jinv = imhmax(Iinv, h, conn, mr);
@@ -1019,7 +1023,7 @@ Value imhmin(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
     // R2025b): single / integer inputs come back in the input class.
     Value J = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *jd = J.doubleDataMut();
-    for (size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         jd[i] = high - Jinv.elemAsDouble(i);
     return internal::castResultToClass(J, I.type(), mr);
 }
@@ -1034,12 +1038,12 @@ Value imhmin(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
 // those that belong to a regional maximum at least h units above its
 // surroundings — the "tall enough" peaks.
 
-Value imextendedmax(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
+Value imextendedmax(const Value &I, double h, int conn, keel::Allocator *mr)
 {
     return imregionalmax(imhmax(I, h, conn, mr), conn, mr);
 }
 
-Value imextendedmin(const Value &I, double h, int conn, std::pmr::memory_resource *mr)
+Value imextendedmin(const Value &I, double h, int conn, keel::Allocator *mr)
 {
     return imregionalmin(imhmin(I, h, conn, mr), conn, mr);
 }
@@ -1065,18 +1069,18 @@ Value imextendedmin(const Value &I, double h, int conn, std::pmr::memory_resourc
 // MATLAB exactly); the existing imreconstruct propagates ±Inf as
 // expected because every internal min/max is over finite differences.
 
-Value imimposemin(const Value &I, const Value &BW, int conn, std::pmr::memory_resource *mr)
+Value imimposemin(const Value &I, const Value &BW, int conn, keel::Allocator *mr)
 {
     imimposemin_argcheck(I, BW);
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = I.numel();
     if (N == 0) return Value::matrix(H, W, I.type(), mr);
 
     // Per-class lift step h.
     double minI =  std::numeric_limits<double>::infinity();
     double maxI = -std::numeric_limits<double>::infinity();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = I.elemAsDouble(i);
         if (v < minI) minI = v;
         if (v > maxI) maxI = v;
@@ -1095,7 +1099,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn, std::pmr::memory_re
     double *gd = marker.doubleDataMut();
     const double NEG_INF = -std::numeric_limits<double>::infinity();
     const double POS_INF =  std::numeric_limits<double>::infinity();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const bool b = (BW.elemAsDouble(i) != 0.0);
         const double v = I.elemAsDouble(i);
         if (b) { md[i] = NEG_INF; gd[i] = NEG_INF; }
@@ -1107,13 +1111,13 @@ Value imimposemin(const Value &I, const Value &BW, int conn, std::pmr::memory_re
     // T must be a strict upper bound on every working value. With ±Inf
     // in fm/m the complement gives ∓Inf, which imreconstruct handles
     // as expected (any finite mask value caps from below).
-    const double T = (std::isfinite(maxI) ? maxI : 0.0) + std::abs(h) + 1.0;
+    const double T = (std::isfinite(maxI) ? maxI : 0.0) + keel::abs(h) + 1.0;
 
     Value m_inv = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value g_inv = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *mi = m_inv.doubleDataMut();
     double *gi = g_inv.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         mi[i] = T - md[i];   // +Inf at BW, T-(I+h) elsewhere
         gi[i] = T - gd[i];   // +Inf at BW, T-(+Inf)=−Inf? — clamp:
         // T − (+Inf) = −Inf; we want g_inv ≤ m_inv, both at marker
@@ -1124,7 +1128,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn, std::pmr::memory_re
 
     Value J = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *jd = J.doubleDataMut();
-    for (size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         jd[i] = T - J_inv.elemAsDouble(i);
     // Class-preserving result (probed R2025b).
     return internal::castResultToClass(J, I.type(), mr);
@@ -1141,7 +1145,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn, std::pmr::memory_re
 // foreground; we coerce to LOGICAL since MATLAB documents the result
 // as a logical mask.
 
-Value imclearborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
+Value imclearborder(const Value &BW, int conn, keel::Allocator *mr)
 {
     imclearborder_argcheck(BW);
     if (BW.type() != ValueType::LOGICAL)
@@ -1150,18 +1154,18 @@ Value imclearborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
             imclearborder(internal::coerceToLogicalImage(BW, mr), conn, mr),
             mr);
     if (conn != 4) conn = 8;
-    const size_t H = BW.dims().rows();
-    const size_t W = BW.dims().cols();
+    const keel::usize H = BW.dims().rows();
+    const keel::usize W = BW.dims().cols();
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
 
     Value marker = Value::matrix(H, W, ValueType::LOGICAL, mr);
     Value mask   = Value::matrix(H, W, ValueType::LOGICAL, mr);
-    std::uint8_t *md = marker.logicalDataMut();
-    std::uint8_t *kd = mask.logicalDataMut();
-    for (size_t c = 0; c < W; ++c)
-        for (size_t r = 0; r < H; ++r) {
-            const size_t idx = c * H + r;
+    keel::u8 *md = marker.logicalDataMut();
+    keel::u8 *kd = mask.logicalDataMut();
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r) {
+            const keel::usize idx = c * H + r;
             const bool fg = (BW.elemAsDouble(idx) != 0.0);
             kd[idx] = fg ? 1u : 0u;
             const bool onRim = (r == 0 || c == 0 ||
@@ -1171,8 +1175,8 @@ Value imclearborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
 
     Value R = imreconstruct(marker, mask, conn, mr);
 
-    std::uint8_t *od = out.logicalDataMut();
-    for (size_t i = 0; i < H * W; ++i) {
+    keel::u8 *od = out.logicalDataMut();
+    for (keel::usize i = 0; i < H * W; ++i) {
         const bool b   = (BW.elemAsDouble(i) != 0.0);
         const bool rim = (R.elemAsDouble(i) != 0.0);
         od[i] = (b && !rim) ? 1u : 0u;
@@ -1191,13 +1195,13 @@ Value imclearborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
 
 namespace {
 
-Value tophat_subtract(const Value &lhs, const Value &rhs, std::pmr::memory_resource *mr)
+Value tophat_subtract(const Value &lhs, const Value &rhs, keel::Allocator *mr)
 {
-    const size_t H = lhs.dims().rows();
-    const size_t W = lhs.dims().cols();
-    const size_t N = lhs.numel();
+    const keel::usize H = lhs.dims().rows();
+    const keel::usize W = lhs.dims().cols();
+    const keel::usize N = lhs.numel();
     Value out = Value::matrix(H, W, lhs.type(), mr);
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = lhs.elemAsDouble(i) - rhs.elemAsDouble(i);
         store_classed_morph(out, i, v, lhs.type());
     }
@@ -1216,18 +1220,18 @@ void bwpack_argcheck(const Value &BW)
                                 internal::ImgClasses::AnyNumericReal);
 }
 
-void bwunpack_argcheck(const Value &BWP, size_t &M)
+void bwunpack_argcheck(const Value &BWP, keel::usize &M)
 {
     internal::requireUint32Packed(BWP, "bwunpack");
-    constexpr size_t CLASS_BITS = 32;
-    const size_t pH = BWP.dims().rows();
-    if (M == static_cast<size_t>(-1)) M = pH * CLASS_BITS;
+    constexpr keel::usize CLASS_BITS = 32;
+    const keel::usize pH = BWP.dims().rows();
+    if (M == static_cast<keel::usize>(-1)) M = pH * CLASS_BITS;
     if (M > pH * CLASS_BITS)
         throw Error("bwunpack: M exceeds packed-row capacity",
                     0, 0, "bwunpack", "", "numkit:bwunpack:M");
 }
 
-void applylut_argcheck(const Value &BW, const Value &LUT, size_t &lutLen, size_t &nq, size_t &n)
+void applylut_argcheck(const Value &BW, const Value &LUT, keel::usize &lutLen, keel::usize &nq, keel::usize &n)
 {
     internal::requireImageClass(BW, "applylut", "BW", 1,
                                 internal::ImgClasses::AnyNumericReal);
@@ -1236,11 +1240,11 @@ void applylut_argcheck(const Value &BW, const Value &LUT, size_t &lutLen, size_t
         throw Error("applylut: LUT must be non-empty",
                     0, 0, "applylut", "", "numkit:applylut:lutsize");
     nq = 0;
-    while ((size_t{1} << nq) < lutLen) ++nq;
-    if ((size_t{1} << nq) != lutLen)
+    while ((keel::usize{1} << nq) < lutLen) ++nq;
+    if ((keel::usize{1} << nq) != lutLen)
         throw Error("applylut: LUT length must be 2^(n*n)",
                     0, 0, "applylut", "", "numkit:applylut:lutsize");
-    n = static_cast<size_t>(std::round(std::sqrt((double)nq)));
+    n = static_cast<keel::usize>(std::round(std::sqrt((double)nq)));
     if (n * n != nq)
         throw Error("applylut: LUT length not 2^(n*n) for any integer n",
                     0, 0, "applylut", "", "numkit:applylut:lutshape");
@@ -1248,7 +1252,7 @@ void applylut_argcheck(const Value &BW, const Value &LUT, size_t &lutLen, size_t
 
 void bwlookup_argcheck(const Value &lut)
 {
-    const size_t n = lut.numel();
+    const keel::usize n = lut.numel();
     if (n != 16 && n != 512)
         throw Error("bwlookup: Expected LUT (argument 2) to have 16 or 512 elements.",
                     0, 0, "bwlookup", "", "numkit:bwlookup:lutsize");
@@ -1284,20 +1288,20 @@ void imkeepborder_argcheck(const Value &BW)
 
 } // anonymous
 
-Value imtophat(const Value &I, const Value &SE, std::pmr::memory_resource *mr)
+Value imtophat(const Value &I, const Value &SE, keel::Allocator *mr)
 {
     Value opened = imopen(I, SE, mr);
     return tophat_subtract(I, opened, mr);
 }
 
-Value imbothat(const Value &I, const Value &SE, std::pmr::memory_resource *mr)
+Value imbothat(const Value &I, const Value &SE, keel::Allocator *mr)
 {
     Value closed = imclose(I, SE, mr);
     return tophat_subtract(closed, I, mr);
 }
 
 
-Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, std::pmr::memory_resource *mr)
+Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, keel::Allocator *mr)
 {
     // mmgradm is reference-absent (Octave image package API) — the
     // nk-defined contract takes the standard grayscale class set.
@@ -1307,17 +1311,17 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, std::pmr
     Value dilated = dilEmpty ? Value{} : imdilate(I, se_dil, mr);
     Value eroded  = eroEmpty ? Value{} : imerode(I, se_ero, mr);
 
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t P = I.dims().is3D() ? I.dims().pages() : 1;
-    const size_t N = H * W * P;
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize P = I.dims().is3D() ? I.dims().pages() : 1;
+    const keel::usize N = H * W * P;
 
     if (I.type() == ValueType::LOGICAL) {
         Value out = I.dims().is3D()
             ? Value::matrix3d(H, W, P, ValueType::LOGICAL, mr)
             : Value::matrix(H, W, ValueType::LOGICAL, mr);
-        std::uint8_t *od = out.logicalDataMut();
-        for (size_t i = 0; i < N; ++i) {
+        keel::u8 *od = out.logicalDataMut();
+        for (keel::usize i = 0; i < N; ++i) {
             const bool d = !dilEmpty && (dilated.elemAsDouble(i) != 0.0);
             const bool e = !eroEmpty && (eroded .elemAsDouble(i) != 0.0);
             // dilated & ~eroded for the standard form; half-gradients drop
@@ -1336,31 +1340,31 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, std::pmr
         ? Value::matrix3d(H, W, P, I.type(), mr)
         : Value::matrix(H, W, I.type(), mr);
 
-    auto satStore = [&](size_t i, double v) {
+    auto satStore = [&](keel::usize i, double v) {
         switch (I.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] =
                                     static_cast<float>(v); break;
             case ValueType::UINT8: {
                 if (v < 0) v = 0; if (v > 255) v = 255;
-                out.uint8DataMut()[i] = static_cast<std::uint8_t>(std::lround(v));
+                out.uint8DataMut()[i] = static_cast<keel::u8>(std::lround(v));
                 break;
             }
             case ValueType::UINT16: {
                 if (v < 0) v = 0; if (v > 65535) v = 65535;
-                out.uint16DataMut()[i] = static_cast<std::uint16_t>(std::lround(v));
+                out.uint16DataMut()[i] = static_cast<keel::u16>(std::lround(v));
                 break;
             }
             case ValueType::INT16: {
                 if (v < -32768) v = -32768; if (v > 32767) v = 32767;
-                out.int16DataMut()[i] = static_cast<std::int16_t>(std::lround(v));
+                out.int16DataMut()[i] = static_cast<keel::i16>(std::lround(v));
                 break;
             }
             default: out.doubleDataMut()[i] = v; break;
         }
     };
 
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         double d = dilEmpty ? 0.0 : dilated.elemAsDouble(i);
         double e = eroEmpty ? 0.0 : eroded.elemAsDouble(i);
         double v;
@@ -1372,25 +1376,25 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, std::pmr
     return out;
 }
 
-Value bwpack(const Value &BW, std::pmr::memory_resource *mr)
+Value bwpack(const Value &BW, keel::Allocator *mr)
 {
     bwpack_argcheck(BW);
-    constexpr size_t CLASS_BITS = 32;
-    const size_t H = BW.dims().rows();
-    const size_t W = BW.dims().cols();
-    const size_t outH = (H + CLASS_BITS - 1) / CLASS_BITS;
+    constexpr keel::usize CLASS_BITS = 32;
+    const keel::usize H = BW.dims().rows();
+    const keel::usize W = BW.dims().cols();
+    const keel::usize outH = (H + CLASS_BITS - 1) / CLASS_BITS;
     Value out = Value::matrix(outH, W, ValueType::UINT32, mr);
     if (outH == 0 || W == 0) return out;
-    uint32_t *od = out.uint32DataMut();
+    keel::u32 *od = out.uint32DataMut();
 
-    for (size_t c = 0; c < W; ++c) {
-        for (size_t orow = 0; orow < outH; ++orow) {
-            uint32_t word = 0;
-            for (size_t b = 0; b < CLASS_BITS; ++b) {
-                const size_t r = orow * CLASS_BITS + b;
+    for (keel::usize c = 0; c < W; ++c) {
+        for (keel::usize orow = 0; orow < outH; ++orow) {
+            keel::u32 word = 0;
+            for (keel::usize b = 0; b < CLASS_BITS; ++b) {
+                const keel::usize r = orow * CLASS_BITS + b;
                 if (r >= H) break;
                 if (BW.elemAsDouble(c * H + r) != 0.0)
-                    word |= (uint32_t{1} << b);
+                    word |= (keel::u32{1} << b);
             }
             od[c * outH + orow] = word;
         }
@@ -1398,36 +1402,36 @@ Value bwpack(const Value &BW, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value bwunpack(const Value &BWP, size_t M, std::pmr::memory_resource *mr)
+Value bwunpack(const Value &BWP, keel::usize M, keel::Allocator *mr)
 {
     bwunpack_argcheck(BWP, M);
-    constexpr size_t CLASS_BITS = 32;
-    const size_t pH = BWP.dims().rows();
-    const size_t W  = BWP.dims().cols();
+    constexpr keel::usize CLASS_BITS = 32;
+    const keel::usize pH = BWP.dims().rows();
+    const keel::usize W  = BWP.dims().cols();
 
     Value out = Value::matrix(M, W, ValueType::LOGICAL, mr);
     if (M == 0 || W == 0) return out;
-    uint8_t *od = out.logicalDataMut();
-    const uint32_t *pd = BWP.uint32Data();
+    keel::u8 *od = out.logicalDataMut();
+    const keel::u32 *pd = BWP.uint32Data();
 
-    for (size_t c = 0; c < W; ++c) {
-        for (size_t r = 0; r < M; ++r) {
-            const size_t orow = r / CLASS_BITS;
-            const size_t b    = r % CLASS_BITS;
-            const uint32_t bit = (pd[c * pH + orow] >> b) & 1u;
-            od[c * M + r] = static_cast<uint8_t>(bit);
+    for (keel::usize c = 0; c < W; ++c) {
+        for (keel::usize r = 0; r < M; ++r) {
+            const keel::usize orow = r / CLASS_BITS;
+            const keel::usize b    = r % CLASS_BITS;
+            const keel::u32 bit = (pd[c * pH + orow] >> b) & 1u;
+            od[c * M + r] = static_cast<keel::u8>(bit);
         }
     }
     return out;
 }
 
-Value applylut(const Value &BW, const Value &LUT, std::pmr::memory_resource *mr)
+Value applylut(const Value &BW, const Value &LUT, keel::Allocator *mr)
 {
-    size_t lutLen = 0, nq = 0, n = 0;
+    keel::usize lutLen = 0, nq = 0, n = 0;
     applylut_argcheck(BW, LUT, lutLen, nq, n);
 
-    const size_t H = BW.dims().rows();
-    const size_t W = BW.dims().cols();
+    const keel::usize H = BW.dims().rows();
+    const keel::usize W = BW.dims().cols();
     Value out = Value::matrix(H, W, LUT.type(), mr);
     if (H == 0 || W == 0) return out;
 
@@ -1435,42 +1439,42 @@ Value applylut(const Value &BW, const Value &LUT, std::pmr::memory_resource *mr)
     Value w = Value::matrix(n, n, ValueType::DOUBLE, mr);
     {
         double *wd = w.doubleDataMut();
-        for (size_t i = 0; i < n * n; ++i)
-            wd[i] = static_cast<double>(size_t{1} << (nq - 1 - i));
+        for (keel::usize i = 0; i < n * n; ++i)
+            wd[i] = static_cast<double>(keel::usize{1} << (nq - 1 - i));
     }
 
     // BW promoted to double for filter2.
     Value bw_d = Value::matrix(H, W, ValueType::DOUBLE, mr);
     {
         double *bd = bw_d.doubleDataMut();
-        for (size_t i = 0; i < H * W; ++i)
+        for (keel::usize i = 0; i < H * W; ++i)
             bd[i] = (BW.elemAsDouble(i) != 0.0) ? 1.0 : 0.0;
     }
 
     // filter2(w, BW, 'same') = index per pixel.
     Value idx = signal::filter2(w, bw_d, "same", mr);
     const double *id = idx.doubleData();
-    const size_t N = H * W;
+    const keel::usize N = H * W;
 
-    auto store_lut = [&](size_t i, double v) {
+    auto store_lut = [&](keel::usize i, double v) {
         switch (LUT.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] =
                                     static_cast<float>(v); break;
             case ValueType::UINT8:  out.uint8DataMut()[i] =
-                                    static_cast<uint8_t>(std::lround(v)); break;
+                                    static_cast<keel::u8>(std::lround(v)); break;
             case ValueType::UINT16: out.uint16DataMut()[i] =
-                                    static_cast<uint16_t>(std::lround(v)); break;
+                                    static_cast<keel::u16>(std::lround(v)); break;
             case ValueType::INT16:  out.int16DataMut()[i] =
-                                    static_cast<int16_t>(std::lround(v)); break;
+                                    static_cast<keel::i16>(std::lround(v)); break;
             case ValueType::LOGICAL: out.logicalDataMut()[i] =
                                     (v != 0.0) ? 1u : 0u; break;
             default: out.doubleDataMut()[i] = v; break;
         }
     };
 
-    for (size_t i = 0; i < N; ++i) {
-        size_t k = static_cast<size_t>(std::lround(id[i]));
+    for (keel::usize i = 0; i < N; ++i) {
+        keel::usize k = static_cast<keel::usize>(std::lround(id[i]));
         if (k >= lutLen) k = lutLen - 1;
         store_lut(i, LUT.elemAsDouble(k));
     }
@@ -1480,7 +1484,7 @@ Value applylut(const Value &BW, const Value &LUT, std::pmr::memory_resource *mr)
 // bwlookup — modern neighbourhood-LUT filter. Identical index convention
 // to applylut, restricted to the documented 16- (2×2) and 512- (3×3)
 // element table sizes.
-Value bwlookup(const Value &BW, const Value &lut, std::pmr::memory_resource *mr)
+Value bwlookup(const Value &BW, const Value &lut, keel::Allocator *mr)
 {
     bwlookup_argcheck(lut);
     return applylut(BW, lut, mr);
@@ -1498,7 +1502,7 @@ Value bwlookup(const Value &BW, const Value &lut, std::pmr::memory_resource *mr)
 //   fill         : centre set  OR   faces6 == 6  (fill 6-conn holes)
 //   majority     : count > 13                    (≥14 of 27)
 //   remove       : centre set  AND  faces6 != 6  (strip interior voxels)
-Value bwmorph3(const Value &V, const std::string &op, std::pmr::memory_resource *mr)
+Value bwmorph3(const Value &V, const std::string &op, keel::Allocator *mr)
 {
     int opIdx = 0;
     bwmorph3_argcheck(V, op, opIdx);
@@ -1513,14 +1517,14 @@ Value bwmorph3(const Value &V, const std::string &op, std::pmr::memory_resource 
     Value out = (P > 1) ? Value::matrix3d(H, W, P, ValueType::LOGICAL, mr)
                         : Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0 || P == 0) return out;
-    uint8_t *od = out.logicalDataMut();
+    keel::u8 *od = out.logicalDataMut();
 
-    const size_t plane = static_cast<size_t>(H) * static_cast<size_t>(W);
+    const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
     auto at = [&](int r, int c, int p) -> int {
         if (r < 0 || r >= H || c < 0 || c >= W || p < 0 || p >= P) return 0;
-        return V.elemAsDouble(static_cast<size_t>(p) * plane
-                              + static_cast<size_t>(c) * static_cast<size_t>(H)
-                              + static_cast<size_t>(r)) != 0.0 ? 1 : 0;
+        return V.elemAsDouble(static_cast<keel::usize>(p) * plane
+                              + static_cast<keel::usize>(c) * static_cast<keel::usize>(H)
+                              + static_cast<keel::usize>(r)) != 0.0 ? 1 : 0;
     };
 
     for (int p = 0; p < P; ++p) {
@@ -1545,21 +1549,21 @@ Value bwmorph3(const Value &V, const std::string &op, std::pmr::memory_resource 
                     case MAJORITY: v = (count > 13); break;
                     case REMOVE:   v = (centre && faces6 != 6); break;
                 }
-                const size_t idx = static_cast<size_t>(p) * plane
-                                 + static_cast<size_t>(c) * static_cast<size_t>(H)
-                                 + static_cast<size_t>(r);
-                od[idx] = static_cast<uint8_t>(v ? 1 : 0);
+                const keel::usize idx = static_cast<keel::usize>(p) * plane
+                                 + static_cast<keel::usize>(c) * static_cast<keel::usize>(H)
+                                 + static_cast<keel::usize>(r);
+                od[idx] = static_cast<keel::u8>(v ? 1 : 0);
             }
         }
     }
     return out;
 }
 
-Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2, std::pmr::memory_resource *mr)
+Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2, keel::Allocator *mr)
 {
     bwhitmiss_argcheck(BW);
-    const size_t H = BW.dims().rows();
-    const size_t W = BW.dims().cols();
+    const keel::usize H = BW.dims().rows();
+    const keel::usize W = BW.dims().cols();
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
 
@@ -1569,15 +1573,15 @@ Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2, std::pmr::m
     // Build !BW as a logical image, then erode with se2.
     Value notBW = Value::matrix(H, W, ValueType::LOGICAL, mr);
     {
-        std::uint8_t *nd = notBW.logicalDataMut();
-        for (size_t i = 0; i < H * W; ++i)
+        keel::u8 *nd = notBW.logicalDataMut();
+        for (keel::usize i = 0; i < H * W; ++i)
             nd[i] = (BW.elemAsDouble(i) != 0.0) ? 0u : 1u;
     }
     Value e2 = imerode(notBW, se2, mr);
 
     // J = e1 & e2.
-    std::uint8_t *od = out.logicalDataMut();
-    for (size_t i = 0; i < H * W; ++i) {
+    keel::u8 *od = out.logicalDataMut();
+    for (keel::usize i = 0; i < H * W; ++i) {
         const bool a = (e1.elemAsDouble(i) != 0.0);
         const bool b = (e2.elemAsDouble(i) != 0.0);
         od[i] = (a && b) ? 1u : 0u;
@@ -1589,7 +1593,7 @@ Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2, std::pmr::m
 //   marker = BW ∩ rim, J = imreconstruct(marker, BW, conn)
 // imreconstruct already returns a LOGICAL when marker+mask are LOGICAL,
 // so we just hand that through.
-Value imkeepborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
+Value imkeepborder(const Value &BW, int conn, keel::Allocator *mr)
 {
     imkeepborder_argcheck(BW);
     if (BW.type() != ValueType::LOGICAL)
@@ -1598,18 +1602,18 @@ Value imkeepborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
             imkeepborder(internal::coerceToLogicalImage(BW, mr), conn, mr),
             mr);
     if (conn != 4) conn = 8;
-    const size_t H = BW.dims().rows();
-    const size_t W = BW.dims().cols();
+    const keel::usize H = BW.dims().rows();
+    const keel::usize W = BW.dims().cols();
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
 
     Value marker = Value::matrix(H, W, ValueType::LOGICAL, mr);
     Value mask   = Value::matrix(H, W, ValueType::LOGICAL, mr);
-    std::uint8_t *md = marker.logicalDataMut();
-    std::uint8_t *kd = mask.logicalDataMut();
-    for (size_t c = 0; c < W; ++c)
-        for (size_t r = 0; r < H; ++r) {
-            const size_t idx = c * H + r;
+    keel::u8 *md = marker.logicalDataMut();
+    keel::u8 *kd = mask.logicalDataMut();
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize r = 0; r < H; ++r) {
+            const keel::usize idx = c * H + r;
             const bool fg = (BW.elemAsDouble(idx) != 0.0);
             kd[idx] = fg ? 1u : 0u;
             const bool onRim = (r == 0 || c == 0 ||
@@ -1636,7 +1640,7 @@ Value imkeepborder(const Value &BW, int conn, std::pmr::memory_resource *mr)
 
 namespace {
 
-using Lut = std::array<std::uint8_t, 512>;
+using Lut = std::array<keel::u8, 512>;
 
 // ──────────────────────────────────────────────────────────────────
 // The 3x3-neighbourhood lookup primitive.
@@ -1646,26 +1650,26 @@ using Lut = std::array<std::uint8_t, 512>;
 // the centre pixel. Neighbours outside the image read as 0. The
 // output pixel is lut[index].
 // ──────────────────────────────────────────────────────────────────
-void bwlookup3x3(const std::uint8_t *src, std::uint8_t *dst,
-                 std::size_t R, std::size_t C, const Lut &lut)
+void bwlookup3x3(const keel::u8 *src, keel::u8 *dst,
+                 keel::usize R, keel::usize C, const Lut &lut)
 {
     if (R == 0 || C == 0)
         return;
 
-    const std::ptrdiff_t Rs = static_cast<std::ptrdiff_t>(R);
-    const std::ptrdiff_t Cs = static_cast<std::ptrdiff_t>(C);
+    const keel::isize Rs = static_cast<keel::isize>(R);
+    const keel::isize Cs = static_cast<keel::isize>(C);
 
-    for (std::ptrdiff_t c = 0; c < Cs; ++c) {
-        for (std::ptrdiff_t r = 0; r < Rs; ++r) {
+    for (keel::isize c = 0; c < Cs; ++c) {
+        for (keel::isize r = 0; r < Rs; ++r) {
             unsigned idx = 0;
             // bit k = neighbour at (r + (k%3)-1, c + (k/3)-1)
-            for (std::ptrdiff_t dc = -1; dc <= 1; ++dc) {
-                const std::ptrdiff_t cc = c + dc;
+            for (keel::isize dc = -1; dc <= 1; ++dc) {
+                const keel::isize cc = c + dc;
                 if (cc < 0 || cc >= Cs)
                     continue;  // whole column out of bounds → bits stay 0
-                const std::ptrdiff_t colBase = cc * Rs;
-                for (std::ptrdiff_t dr = -1; dr <= 1; ++dr) {
-                    const std::ptrdiff_t rr = r + dr;
+                const keel::isize colBase = cc * Rs;
+                for (keel::isize dr = -1; dr <= 1; ++dr) {
+                    const keel::isize rr = r + dr;
                     if (rr < 0 || rr >= Rs)
                         continue;
                     if (src[colBase + rr]) {
@@ -1684,38 +1688,38 @@ void bwlookup3x3(const std::uint8_t *src, std::uint8_t *dst,
 // Element-wise boolean helpers. Every buffer is treated as a logical
 // 0/1 array of length n.
 // ──────────────────────────────────────────────────────────────────
-void boolAnd(const std::uint8_t *a, const std::uint8_t *b,
-             std::uint8_t *out, std::size_t n)
+void boolAnd(const keel::u8 *a, const keel::u8 *b,
+             keel::u8 *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = (a[i] && b[i]) ? 1 : 0;
 }
 
-void boolNot(const std::uint8_t *a, std::uint8_t *out, std::size_t n)
+void boolNot(const keel::u8 *a, keel::u8 *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = a[i] ? 0 : 1;
 }
 
 // out = a AND (NOT b)
-void boolAndNot(const std::uint8_t *a, const std::uint8_t *b,
-                std::uint8_t *out, std::size_t n)
+void boolAndNot(const keel::u8 *a, const keel::u8 *b,
+                keel::u8 *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = (a[i] && !b[i]) ? 1 : 0;
 }
 
-bool boolEqual(const std::uint8_t *a, const std::uint8_t *b, std::size_t n)
+bool boolEqual(const keel::u8 *a, const keel::u8 *b, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         if ((a[i] != 0) != (b[i] != 0))
             return false;
     return true;
 }
 
-bool anySet(const std::uint8_t *a, std::size_t n)
+bool anySet(const keel::u8 *a, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         if (a[i])
             return true;
     return false;
@@ -1726,16 +1730,16 @@ bool anySet(const std::uint8_t *a, std::size_t n)
 // ──────────────────────────────────────────────────────────────────
 
 // open = erode then dilate.  bw is overwritten with the result.
-void opOpen(std::uint8_t *bw, std::size_t R, std::size_t C,
-            std::uint8_t *tmp)
+void opOpen(keel::u8 *bw, keel::usize R, keel::usize C,
+            keel::u8 *tmp)
 {
     bwlookup3x3(bw, tmp, R, C, luterode);
     bwlookup3x3(tmp, bw, R, C, lutdilate);
 }
 
 // close = dilate then erode.  bw is overwritten with the result.
-void opClose(std::uint8_t *bw, std::size_t R, std::size_t C,
-             std::uint8_t *tmp)
+void opClose(keel::u8 *bw, keel::usize R, keel::usize C,
+             keel::u8 *tmp)
 {
     bwlookup3x3(bw, tmp, R, C, lutdilate);
     bwlookup3x3(tmp, bw, R, C, luterode);
@@ -1748,8 +1752,8 @@ void opClose(std::uint8_t *bw, std::size_t R, std::size_t C,
 //   3. overwrite bw with cand only on the active checkerboard
 //      sub-field — pixels with (r%2,c%2) == (rOff,cOff), stepping by 2.
 // Sub-field offsets in order s = 0,1,2,3: (0,0),(1,1),(1,0),(0,1).
-void opShrink(std::uint8_t *bw, std::size_t R, std::size_t C,
-              std::uint8_t *m, std::uint8_t *cand)
+void opShrink(keel::u8 *bw, keel::usize R, keel::usize C,
+              keel::u8 *m, keel::u8 *cand)
 {
     static constexpr int rOffTab[4] = {0, 1, 1, 0};
     static constexpr int cOffTab[4] = {0, 1, 0, 1};
@@ -1758,11 +1762,11 @@ void opShrink(std::uint8_t *bw, std::size_t R, std::size_t C,
         bwlookup3x3(bw, m, R, C, lutshrink);
         boolAndNot(bw, m, cand, R * C);
 
-        const std::size_t rOff = static_cast<std::size_t>(rOffTab[s]);
-        const std::size_t cOff = static_cast<std::size_t>(cOffTab[s]);
-        for (std::size_t c = cOff; c < C; c += 2) {
-            const std::size_t colBase = c * R;
-            for (std::size_t r = rOff; r < R; r += 2)
+        const keel::usize rOff = static_cast<keel::usize>(rOffTab[s]);
+        const keel::usize cOff = static_cast<keel::usize>(cOffTab[s]);
+        for (keel::usize c = cOff; c < C; c += 2) {
+            const keel::usize colBase = c * R;
+            for (keel::usize r = rOff; r < R; r += 2)
                 bw[colBase + r] = cand[colBase + r];
         }
     }
@@ -1776,10 +1780,10 @@ void opShrink(std::uint8_t *bw, std::size_t R, std::size_t C,
 //      the current bw → e; t = e AND endPoints; XOR t into bw on the
 //      sub-field only.
 //   5. bw = NOT bw
-void opSpur(std::uint8_t *bw, std::size_t R, std::size_t C,
-            std::uint8_t *endPoints, std::uint8_t *e, std::uint8_t *t)
+void opSpur(keel::u8 *bw, keel::usize R, keel::usize C,
+            keel::u8 *endPoints, keel::u8 *e, keel::u8 *t)
 {
-    const std::size_t n = R * C;
+    const keel::usize n = R * C;
 
     boolNot(bw, bw, n);
     bwlookup3x3(bw, endPoints, R, C, lutspur);
@@ -1788,7 +1792,7 @@ void opSpur(std::uint8_t *bw, std::size_t R, std::size_t C,
     static constexpr int cOffTab[4] = {0, 0, 1, 1};
 
     for (int s = 0; s < 4; ++s) {
-        const std::uint8_t *fieldSrc;
+        const keel::u8 *fieldSrc;
         if (s == 0) {
             // XOR endPoints directly on sub-field 0.
             fieldSrc = endPoints;
@@ -1800,12 +1804,12 @@ void opSpur(std::uint8_t *bw, std::size_t R, std::size_t C,
             fieldSrc = t;
         }
 
-        const std::size_t rOff = static_cast<std::size_t>(rOffTab[s]);
-        const std::size_t cOff = static_cast<std::size_t>(cOffTab[s]);
-        for (std::size_t c = cOff; c < C; c += 2) {
-            const std::size_t colBase = c * R;
-            for (std::size_t r = rOff; r < R; r += 2) {
-                const std::size_t i = colBase + r;
+        const keel::usize rOff = static_cast<keel::usize>(rOffTab[s]);
+        const keel::usize cOff = static_cast<keel::usize>(cOffTab[s]);
+        for (keel::usize c = cOff; c < C; c += 2) {
+            const keel::usize colBase = c * R;
+            for (keel::usize r = rOff; r < R; r += 2) {
+                const keel::usize i = colBase + r;
                 bw[i] = ((bw[i] != 0) != (fieldSrc[i] != 0)) ? 1 : 0;
             }
         }
@@ -1815,21 +1819,21 @@ void opSpur(std::uint8_t *bw, std::size_t R, std::size_t C,
 }
 
 // thicken.
-void opThicken(std::uint8_t *bw, std::size_t R, std::size_t C,
-               numkit::ScratchArena &arena)
+void opThicken(keel::u8 *bw, keel::usize R, keel::usize C,
+               const keel::ArenaTemp &arena)
 {
-    const std::size_t n = R * C;
+    const keel::usize n = R * C;
 
     // ── Step 1: isolated-pixel boost ──────────────────────────────
     {
-        numkit::ScratchVec<std::uint8_t> iso(n, &arena);
+        keel::Array<keel::u8> iso(n, arena.allocator());
         bwlookup3x3(bw, iso.data(), R, C, lutiso);
         if (anySet(iso.data(), n)) {
-            numkit::ScratchVec<std::uint8_t> grow(n, &arena);
-            numkit::ScratchVec<std::uint8_t> oneNbr(n, &arena);
+            keel::Array<keel::u8> grow(n, arena.allocator());
+            keel::Array<keel::u8> oneNbr(n, arena.allocator());
             bwlookup3x3(iso.data(), grow.data(), R, C, lutdilate);
             bwlookup3x3(bw, oneNbr.data(), R, C, lutsingle);
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 if (oneNbr[i] && grow[i])
                     bw[i] = 1;
         }
@@ -1838,22 +1842,22 @@ void opThicken(std::uint8_t *bw, std::size_t R, std::size_t C,
     // ── Step 2: padded thinning of the complement ─────────────────
     // Build a padded buffer (R+4)×(C+4), all 1, with NOT bw written
     // into the centre R×C region at offset (2,2).
-    const std::size_t PR = R + 4;
-    const std::size_t PC = C + 4;
-    const std::size_t pn = PR * PC;
+    const keel::usize PR = R + 4;
+    const keel::usize PC = C + 4;
+    const keel::usize pn = PR * PC;
 
-    numkit::ScratchVec<std::uint8_t> c(pn, &arena);
+    keel::Array<keel::u8> c(pn, arena.allocator());
     c.assign(pn, 1);
-    for (std::size_t cc = 0; cc < C; ++cc) {
-        const std::size_t srcBase = cc * R;
-        const std::size_t dstBase = (cc + 2) * PR + 2;
-        for (std::size_t rr = 0; rr < R; ++rr)
+    for (keel::usize cc = 0; cc < C; ++cc) {
+        const keel::usize srcBase = cc * R;
+        const keel::usize dstBase = (cc + 2) * PR + 2;
+        for (keel::usize rr = 0; rr < R; ++rr)
             c[dstBase + rr] = bw[srcBase + rr] ? 0 : 1;
     }
 
-    numkit::ScratchVec<std::uint8_t> c1(pn, &arena);
-    numkit::ScratchVec<std::uint8_t> c2(pn, &arena);
-    numkit::ScratchVec<std::uint8_t> d(pn, &arena);
+    keel::Array<keel::u8> c1(pn, arena.allocator());
+    keel::Array<keel::u8> c2(pn, arena.allocator());
+    keel::Array<keel::u8> d(pn, arena.allocator());
 
     // c1 = thin1(c); c2 = thin2(c1); d = diag(c2)
     bwlookup3x3(c.data(), c1.data(), PR, PC, lutthin1);
@@ -1861,20 +1865,20 @@ void opThicken(std::uint8_t *bw, std::size_t R, std::size_t C,
     bwlookup3x3(c2.data(), d.data(), PR, PC, lutdiag);
 
     // c = (c AND (NOT c2) AND d) OR c2
-    for (std::size_t i = 0; i < pn; ++i) {
+    for (keel::usize i = 0; i < pn; ++i) {
         const bool keep = c[i] && !c2[i] && d[i];
         c[i] = (keep || c2[i]) ? 1 : 0;
     }
 
     // Force the outer two-pixel border of c back to 1 (all four edges).
-    for (std::size_t cc = 0; cc < PC; ++cc) {
-        const std::size_t colBase = cc * PR;
+    for (keel::usize cc = 0; cc < PC; ++cc) {
+        const keel::usize colBase = cc * PR;
         c[colBase + 0] = 1;
         c[colBase + 1] = 1;
         c[colBase + (PR - 2)] = 1;
         c[colBase + (PR - 1)] = 1;
     }
-    for (std::size_t rr = 0; rr < PR; ++rr) {
+    for (keel::usize rr = 0; rr < PR; ++rr) {
         c[0 * PR + rr] = 1;
         c[1 * PR + rr] = 1;
         c[(PC - 2) * PR + rr] = 1;
@@ -1882,32 +1886,32 @@ void opThicken(std::uint8_t *bw, std::size_t R, std::size_t C,
     }
 
     // bw = NOT (centre R×C region of c)
-    for (std::size_t cc = 0; cc < C; ++cc) {
-        const std::size_t srcBase = (cc + 2) * PR + 2;
-        const std::size_t dstBase = cc * R;
-        for (std::size_t rr = 0; rr < R; ++rr)
+    for (keel::usize cc = 0; cc < C; ++cc) {
+        const keel::usize srcBase = (cc + 2) * PR + 2;
+        const keel::usize dstBase = cc * R;
+        for (keel::usize rr = 0; rr < R; ++rr)
             bw[dstBase + rr] = c[srcBase + rr] ? 0 : 1;
     }
 }
 
 // branchpoints.
-void opBranchpoints(std::uint8_t *bw, std::size_t R, std::size_t C,
-                    numkit::ScratchArena &arena)
+void opBranchpoints(keel::u8 *bw, keel::usize R, keel::usize C,
+                    const keel::ArenaTemp &arena)
 {
-    const std::size_t n = R * C;
+    const keel::usize n = R * C;
 
-    numkit::ScratchVec<std::uint8_t> Cset(n, &arena);
-    numkit::ScratchVec<std::uint8_t> Bset(n, &arena);
+    keel::Array<keel::u8> Cset(n, arena.allocator());
+    keel::Array<keel::u8> Bset(n, arena.allocator());
 
     // Cset = lutbranchpoints(bw); Bset = lutbackcount4(bw) (small ints).
     bwlookup3x3(bw, Cset.data(), R, C, lutbranchpoints);
     bwlookup3x3(bw, Bset.data(), R, C, lutbackcount4);
 
-    numkit::ScratchVec<std::uint8_t> FC(n, &arena);
-    numkit::ScratchVec<std::uint8_t> Vp(n, &arena);
-    numkit::ScratchVec<std::uint8_t> Vq(n, &arena);
+    keel::Array<keel::u8> FC(n, arena.allocator());
+    keel::Array<keel::u8> Vp(n, arena.allocator());
+    keel::Array<keel::u8> Vq(n, arena.allocator());
 
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const unsigned b = Bset[i];
         const bool E = (b == 1);
         const bool notE = !E;
@@ -1916,11 +1920,11 @@ void opBranchpoints(std::uint8_t *bw, std::size_t R, std::size_t C,
         Vq[i] = (notE && b > 2) ? 1 : 0;
     }
 
-    numkit::ScratchVec<std::uint8_t> Dset(n, &arena);
+    keel::Array<keel::u8> Dset(n, arena.allocator());
     bwlookup3x3(Vq.data(), Dset.data(), R, C, lutdilate);
 
     // M = FC AND Vp AND Dset;  result = FC AND (NOT M)
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const bool M = FC[i] && Vp[i] && Dset[i];
         bw[i] = (FC[i] && !M) ? 1 : 0;
     }
@@ -1930,11 +1934,11 @@ void opBranchpoints(std::uint8_t *bw, std::size_t R, std::size_t C,
 // Single-pass dispatch — runs ONE pass of `op` on `bw` in place.
 // Returns false if `op` is not a recognised operation.
 // ──────────────────────────────────────────────────────────────────
-bool runOnePass(const std::string &op, std::uint8_t *bw,
-                std::size_t R, std::size_t C, std::uint8_t *tmp,
-                numkit::ScratchArena &arena)
+bool runOnePass(const std::string &op, keel::u8 *bw,
+                keel::usize R, keel::usize C, keel::u8 *tmp,
+                const keel::ArenaTemp &arena)
 {
-    const std::size_t n = R * C;
+    const keel::usize n = R * C;
 
     // Single-table operations: one pass of the like-named table.
     const Lut *single = nullptr;
@@ -1954,7 +1958,7 @@ bool runOnePass(const std::string &op, std::uint8_t *bw,
 
     if (single != nullptr) {
         bwlookup3x3(bw, tmp, R, C, *single);
-        for (std::size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             bw[i] = tmp[i];
         return true;
     }
@@ -1970,16 +1974,16 @@ bool runOnePass(const std::string &op, std::uint8_t *bw,
     }
     if (op == "bothat") {
         // bottom-hat: close(bw) AND NOT bw
-        numkit::ScratchVec<std::uint8_t> closed(bw, bw + n, &arena);
-        numkit::ScratchVec<std::uint8_t> ctmp(n, &arena);
+        keel::Array<keel::u8> closed(keel::ArrayRef<keel::u8>(bw, n), arena.allocator());
+        keel::Array<keel::u8> ctmp(n, arena.allocator());
         opClose(closed.data(), R, C, ctmp.data());
         boolAndNot(closed.data(), bw, bw, n);
         return true;
     }
     if (op == "tophat") {
         // top-hat: bw AND NOT open(bw)
-        numkit::ScratchVec<std::uint8_t> opened(bw, bw + n, &arena);
-        numkit::ScratchVec<std::uint8_t> otmp(n, &arena);
+        keel::Array<keel::u8> opened(keel::ArrayRef<keel::u8>(bw, n), arena.allocator());
+        keel::Array<keel::u8> otmp(n, arena.allocator());
         opOpen(opened.data(), R, C, otmp.data());
         boolAndNot(bw, opened.data(), bw, n);
         return true;
@@ -1998,23 +2002,23 @@ bool runOnePass(const std::string &op, std::uint8_t *bw,
             &lutskel5, &lutskel6, &lutskel7, &lutskel8};
         for (int k = 0; k < 8; ++k) {
             bwlookup3x3(bw, tmp, R, C, *skel[k]);
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 bw[i] = tmp[i];
         }
         return true;
     }
 
     if (op == "shrink") {
-        numkit::ScratchVec<std::uint8_t> m(n, &arena);
-        numkit::ScratchVec<std::uint8_t> cand(n, &arena);
+        keel::Array<keel::u8> m(n, arena.allocator());
+        keel::Array<keel::u8> cand(n, arena.allocator());
         opShrink(bw, R, C, m.data(), cand.data());
         return true;
     }
 
     if (op == "spur") {
-        numkit::ScratchVec<std::uint8_t> endPoints(n, &arena);
-        numkit::ScratchVec<std::uint8_t> e(n, &arena);
-        numkit::ScratchVec<std::uint8_t> t(n, &arena);
+        keel::Array<keel::u8> endPoints(n, arena.allocator());
+        keel::Array<keel::u8> e(n, arena.allocator());
+        keel::Array<keel::u8> t(n, arena.allocator());
         opSpur(bw, R, C, endPoints.data(), e.data(), t.data());
         return true;
     }
@@ -2065,25 +2069,25 @@ void bwmorph_argcheck(const Value &BW, const std::string &op)
 // The iteration framework — public entry point.
 // ──────────────────────────────────────────────────────────────────
 Value bwmorph(const Value &BW, const std::string &op, int n,
-              std::pmr::memory_resource *mr)
+              keel::Allocator *mr)
 {
     bwmorph_argcheck(BW, op);
 
-    const std::size_t R = BW.dims().rows();
-    const std::size_t C = BW.dims().cols();
-    const std::size_t N = R * C;
+    const keel::usize R = BW.dims().rows();
+    const keel::usize C = BW.dims().cols();
+    const keel::usize N = R * C;
 
-    numkit::ScratchArena arena(mr);
+    keel::ArenaTemp arena = keel::get_scratch(mr);
 
     // Pack BW into a column-major logical (0/1) working buffer.
-    numkit::ScratchVec<std::uint8_t> bw(N, &arena);
-    for (std::size_t i = 0; i < N; ++i)
+    keel::Array<keel::u8> bw(N, arena.allocator());
+    for (keel::usize i = 0; i < N; ++i)
         bw[i] = (BW.elemAsDouble(i) != 0.0) ? 1 : 0;
 
-    auto emitLogical = [&](const std::uint8_t *buf) -> Value {
+    auto emitLogical = [&](const keel::u8 *buf) -> Value {
         Value out = Value::matrix(R, C, ValueType::LOGICAL, mr);
-        std::uint8_t *dst = out.logicalDataMut();
-        for (std::size_t i = 0; i < N; ++i)
+        keel::u8 *dst = out.logicalDataMut();
+        for (keel::usize i = 0; i < N; ++i)
             dst[i] = buf[i] ? 1 : 0;
         return out;
     };
@@ -2098,16 +2102,16 @@ Value bwmorph(const Value &BW, const std::string &op, int n,
     const bool untilStable = (n < 0);
     const int maxPasses = untilStable ? kSafetyCap : n;
 
-    numkit::ScratchVec<std::uint8_t> prev(N, &arena);
-    numkit::ScratchVec<std::uint8_t> tmp(N, &arena);
+    keel::Array<keel::u8> prev(N, arena.allocator());
+    keel::Array<keel::u8> tmp(N, arena.allocator());
 
     for (int pass = 0; pass < maxPasses; ++pass) {
-        for (std::size_t i = 0; i < N; ++i)
+        for (keel::usize i = 0; i < N; ++i)
             prev[i] = bw[i];
 
         // A fresh per-pass arena keeps multi-buffer ops from
         // accumulating monotonic-arena allocations across passes.
-        numkit::ScratchArena passArena(mr);
+        keel::ArenaTemp passArena = keel::get_scratch(mr);
         const bool ok =
             runOnePass(op, bw.data(), R, C, tmp.data(), passArena);
         if (!ok)
@@ -2194,19 +2198,19 @@ void bwtraceboundary_argcheck(const Value &BW, const Value &P,
                     0, 0, "bwtraceboundary", "",
                     "numkit:bwtraceboundary:dir");
 
-    const std::size_t M = BW.dims().rows();
-    const std::size_t N = BW.dims().cols();
+    const keel::usize M = BW.dims().rows();
+    const keel::usize N = BW.dims().cols();
     pr = static_cast<long>(P.elemAsDouble(0)) - 1;
     pc = static_cast<long>(P.elemAsDouble(1)) - 1;
     if (pr < 0 || pc < 0
-     || static_cast<std::size_t>(pr) >= M
-     || static_cast<std::size_t>(pc) >= N)
+     || static_cast<keel::usize>(pr) >= M
+     || static_cast<keel::usize>(pc) >= N)
         throw Error("bwtraceboundary: P out of bounds",
                     0, 0, "bwtraceboundary", "",
                     "numkit:bwtraceboundary:pbounds");
 
-    const std::size_t k = static_cast<std::size_t>(pc) * M
-                        + static_cast<std::size_t>(pr);
+    const keel::usize k = static_cast<keel::usize>(pc) * M
+                        + static_cast<keel::usize>(pr);
     const bool is_fg = BW.isLogical() ? (BW.logicalData()[k] != 0)
                                       : (BW.elemAsDouble(k) != 0.0);
     if (!is_fg)
@@ -2232,22 +2236,22 @@ void makelut_argcheck(int n)
 
 Value bwtraceboundary(const Value &BW, const Value &P,
                       const std::string &fstep, int conn,
-                      std::size_t m, const std::string &dir,
-                      std::pmr::memory_resource *mr)
+                      keel::usize m, const std::string &dir,
+                      keel::Allocator *mr)
 {
     long pr = 0, pc = 0;
     int fidx = 0;
     bwtraceboundary_argcheck(BW, P, fstep, conn, dir, pr, pc, fidx);
 
-    const std::size_t M = BW.dims().rows();
-    const std::size_t N = BW.dims().cols();
+    const keel::usize M = BW.dims().rows();
+    const keel::usize N = BW.dims().cols();
 
     auto fg_at = [&](long r, long c) -> bool {
         if (r < 0 || c < 0
-         || static_cast<std::size_t>(r) >= M
-         || static_cast<std::size_t>(c) >= N) return false;
-        const std::size_t k = static_cast<std::size_t>(c) * M
-                            + static_cast<std::size_t>(r);
+         || static_cast<keel::usize>(r) >= M
+         || static_cast<keel::usize>(c) >= N) return false;
+        const keel::usize k = static_cast<keel::usize>(c) * M
+                            + static_cast<keel::usize>(r);
         if (BW.isLogical()) return BW.logicalData()[k] != 0;
         return BW.elemAsDouble(k) != 0.0;
     };
@@ -2261,14 +2265,14 @@ Value bwtraceboundary(const Value &BW, const Value &P,
     // Initial back_dir = opposite(fstep). Search starts +rot from back_dir.
     int back_dir = (fidx + nd / 2) % nd;
 
-    std::pmr::vector<long> br(mr), bc(mr);
+    keel::Array<long> br(mr), bc(mr);
     br.reserve(64);
     bc.reserve(64);
     br.push_back(pr);
     bc.push_back(pc);
 
     long cur_r = pr, cur_c = pc;
-    const std::size_t cap = (m == 0) ? std::numeric_limits<std::size_t>::max() : m;
+    const keel::usize cap = (m == 0) ? std::numeric_limits<keel::usize>::max() : m;
 
     while (br.size() < cap) {
         bool found = false;
@@ -2298,9 +2302,9 @@ Value bwtraceboundary(const Value &BW, const Value &P,
     }
 
     // Pack output (Q × 2) of doubles, 1-based.
-    const std::size_t Q = br.size();
+    const keel::usize Q = br.size();
     Value out = Value::matrix(Q, 2, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < Q; ++i) {
+    for (keel::usize i = 0; i < Q; ++i) {
         out.doubleDataMut()[i]     = static_cast<double>(br[i] + 1);
         out.doubleDataMut()[Q + i] = static_cast<double>(bc[i] + 1);
     }
@@ -2312,23 +2316,23 @@ Value bwtraceboundary(const Value &BW, const Value &P,
 // user function handle is invoked through the FnHandle callback (the engine
 // adapter in bundle binds it to Engine::callFunctionHandle). The VM-pausable
 // path for user-code handles is the separate MakelutCallbackBuiltin in bundle.
-Value makelut(FnHandle fun, int n, std::pmr::memory_resource *mr)
+Value makelut(FnHandle fun, int n, keel::Allocator *mr)
 {
     makelut_argcheck(n);
     const int nq = n * n;
-    const std::size_t N = std::size_t{1} << nq;   // 16 or 512
+    const keel::usize N = keel::usize{1} << nq;   // 16 or 512
     Value lut = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     double *ld = lut.doubleDataMut();
 
     // Reusable logical neighbourhood, mutated per table entry.
-    Value nh = Value::matrix(static_cast<std::size_t>(n), static_cast<std::size_t>(n),
+    Value nh = Value::matrix(static_cast<keel::usize>(n), static_cast<keel::usize>(n),
                              ValueType::LOGICAL, mr);
-    uint8_t *nd = nh.logicalDataMut();
-    for (std::size_t k = 0; k < N; ++k) {
+    keel::u8 *nd = nh.logicalDataMut();
+    for (keel::usize k = 0; k < N; ++k) {
         for (int i = 0; i < nq; ++i)
-            nd[i] = static_cast<uint8_t>((k >> (nq - 1 - i)) & std::size_t{1});
+            nd[i] = static_cast<keel::u8>((k >> (nq - 1 - i)) & keel::usize{1});
         std::array<Value, 1> o;
-        fun(Span<const Value>(&nh, 1), Span<Value>(o.data(), 1), mr);
+        fun(keel::ArrayRef<Value>(&nh, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
         const Value &r = o[0];
         if (r.numel() != 1)
             throw Error("makelut: fun must return a scalar",

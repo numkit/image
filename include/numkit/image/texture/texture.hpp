@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 #include <string>
 
@@ -48,8 +49,8 @@ namespace numkit::image {
 ///
 /// @see graycoprops
 Value graycomatrix(const Value &I, int numLevels, int offR, int offC,
-                   double gLow, double gHigh, bool symmetric,
-                   std::pmr::memory_resource *mr = nullptr);
+                   keel::f64 gLow, keel::f64 gHigh, bool symmetric,
+                   keel::Allocator *mr = nullptr);
 
 /// Texture statistics from a GLCM (`S = graycoprops(G)`).
 ///
@@ -69,7 +70,7 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC,
 ///
 /// @see graycomatrix
 Value graycoprops(const Value &G,
-                  std::pmr::memory_resource *mr = nullptr);
+                  keel::Allocator *mr = nullptr);
 
 
 /// @}

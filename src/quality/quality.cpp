@@ -1,5 +1,8 @@
 // toolboxes/image/src/quality/quality.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/image/quality/quality.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -10,6 +13,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <vector>
 
@@ -30,22 +34,22 @@ double class_peak(ValueType t) {
 // (probed R2025b: immse computes the absolute-square error, not the
 // real-part difference).
 double sum_squared_error(const Value &A, const Value &B) {
-    const size_t N = A.numel();
+    const keel::usize N = A.numel();
     double s = 0.0;
     if (A.isComplex() || B.isComplex()) {
         // Either side may be real (complex pairs with double — probed).
         const bool ac = A.isComplex(), bc = B.isComplex();
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const auto za = ac ? A.complexData()[i]
-                               : std::complex<double>(A.elemAsDouble(i), 0.0);
+                               : keel::c64(A.elemAsDouble(i), 0.0);
             const auto zb = bc ? B.complexData()[i]
-                               : std::complex<double>(B.elemAsDouble(i), 0.0);
+                               : keel::c64(B.elemAsDouble(i), 0.0);
             const auto d = za - zb;
             s += d.real() * d.real() + d.imag() * d.imag();
         }
         return s;
     }
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double d = A.elemAsDouble(i) - B.elemAsDouble(i);
         s += d * d;
     }
@@ -103,7 +107,7 @@ void corr2_argcheck(const Value &A, const Value &B) {
 
 } // anonymous
 
-Value immse(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
+Value immse(const Value &A, const Value &B, keel::Allocator *mr) {
     immse_argcheck(A, B);
     const double mse = (A.numel() > 0)
                        ? sum_squared_error(A, B) / double(A.numel())
@@ -111,7 +115,7 @@ Value immse(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
     return Value::scalar(mse, mr);
 }
 
-Value psnr(const Value &A, const Value &B, double peak, std::pmr::memory_resource *mr) {
+Value psnr(const Value &A, const Value &B, double peak, keel::Allocator *mr) {
     psnr_argcheck(A, B);
     if (std::isnan(peak)) peak = class_peak(A.type());
     if (A.numel() == 0) return Value::scalar(std::numeric_limits<double>::infinity(), mr);
@@ -121,17 +125,17 @@ Value psnr(const Value &A, const Value &B, double peak, std::pmr::memory_resourc
     return Value::scalar(db, mr);
 }
 
-Value ssim(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
+Value ssim(const Value &A, const Value &B, keel::Allocator *mr) {
     ssim_argcheck(A, B);
-    const size_t H = A.dims().rows();
-    const size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     if (H == 0 || W == 0) return Value::scalar(1.0, mr);
 
     // Convert to DOUBLE in [0, 1] for stable SSIM computation.
     auto unit = [&](const Value &X) {
         std::vector<double> out(X.numel());
         const double scale = 1.0 / class_peak(X.type());
-        for (size_t i = 0; i < X.numel(); ++i)
+        for (keel::usize i = 0; i < X.numel(); ++i)
             out[i] = X.elemAsDouble(i) * scale;
         return out;
     };
@@ -146,7 +150,7 @@ Value ssim(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
         double *vd = V.doubleDataMut();
         // Au is in column-major (because Value is column-major and we
         // copied via elemAsDouble which respects col-major linear index).
-        for (size_t i = 0; i < v.size(); ++i) vd[i] = v[i];
+        for (keel::usize i = 0; i < v.size(); ++i) vd[i] = v[i];
         return V;
     };
     Value Av = pack(Au), Bv = pack(Bu);
@@ -167,7 +171,7 @@ Value ssim(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
         double *aa = Aa.doubleDataMut();
         double *bb = Bb.doubleDataMut();
         double *ab = Ab.doubleDataMut();
-        for (size_t i = 0; i < H * W; ++i) {
+        for (keel::usize i = 0; i < H * W; ++i) {
             const double a = Av.doubleData()[i];
             const double b = Bv.doubleData()[i];
             aa[i] = a * a;
@@ -184,8 +188,8 @@ Value ssim(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
     const double C2 = (K2 * L) * (K2 * L);
 
     double total = 0.0;
-    size_t cnt = 0;
-    for (size_t i = 0; i < H * W; ++i) {
+    keel::usize cnt = 0;
+    for (keel::usize i = 0; i < H * W; ++i) {
         const double mua = mu_a.doubleData()[i];
         const double mub = mu_b.doubleData()[i];
         const double va  = sa2.doubleData()[i] - mua * mua;
@@ -200,26 +204,26 @@ Value ssim(const Value &A, const Value &B, std::pmr::memory_resource *mr) {
     return Value::scalar(s, mr);
 }
 
-Value mean2(const Value &A, std::pmr::memory_resource *mr)
+Value mean2(const Value &A, keel::Allocator *mr)
 {
-    const size_t N = A.numel();
+    const keel::usize N = A.numel();
     if (N == 0) return Value::scalar(std::nan(""), mr);
     long double s = 0.0L;
-    for (size_t i = 0; i < N; ++i) s += A.elemAsDouble(i);
+    for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
     return Value::scalar(static_cast<double>(s / static_cast<long double>(N)),
                          mr);
 }
 
-Value std2(const Value &A, std::pmr::memory_resource *mr)
+Value std2(const Value &A, keel::Allocator *mr)
 {
-    const size_t N = A.numel();
+    const keel::usize N = A.numel();
     if (N == 0) return Value::scalar(std::nan(""), mr);
     if (N == 1) return Value::scalar(0.0, mr);
     long double s = 0.0L;
-    for (size_t i = 0; i < N; ++i) s += A.elemAsDouble(i);
+    for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
     const long double mu = s / static_cast<long double>(N);
     long double v = 0.0L;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const long double d = A.elemAsDouble(i) - mu;
         v += d * d;
     }
@@ -274,7 +278,7 @@ double class_dynamic_range(ValueType t)
 std::vector<double> default_scale_weights(int N)
 {
     if (N < 1) N = 1;
-    std::vector<double> w(static_cast<std::size_t>(N));
+    std::vector<double> w(static_cast<keel::usize>(N));
     if (N == 1) { w[0] = 1.0; return w; }
     const double half = (N - 1) / 2.0;
     double s = 0.0;
@@ -291,14 +295,14 @@ std::vector<double> default_scale_weights(int N)
 // inputs are promoted: uint8/uint16 → x (NOT divided — multissim
 // uses the raw integer pixel values plus the DynamicRange scaling
 // for C constants). int16 → x - intmin = x + 32768.
-Value to_double_image(const Value &A, std::pmr::memory_resource *mr)
+Value to_double_image(const Value &A, keel::Allocator *mr)
 {
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     const ValueType t = A.type();
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         double v = A.elemAsDouble(i);
         if (t == ValueType::INT16) v += 32768.0;
         // uint8 / uint16 / single / double all keep raw value.
@@ -313,17 +317,17 @@ Value to_double_image(const Value &A, std::pmr::memory_resource *mr)
 //
 // Out(r,c) = 0.25 · (X(r,c) + X(r+1,c) + X(r,c+1) + X(r+1,c+1))
 // with row r+1 / col c+1 clamped via replicate at the bottom/right edges.
-Value lowpass_2x2(const Value &X, std::pmr::memory_resource *mr)
+Value lowpass_2x2(const Value &X, keel::Allocator *mr)
 {
-    const std::size_t H = X.dims().rows();
-    const std::size_t W = X.dims().cols();
+    const keel::usize H = X.dims().rows();
+    const keel::usize W = X.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     const double *xd = X.doubleData();
-    for (std::size_t c = 0; c < W; ++c) {
-        const std::size_t cn = (c + 1 < W) ? (c + 1) : (W - 1);  // replicate
-        for (std::size_t r = 0; r < H; ++r) {
-            const std::size_t rn = (r + 1 < H) ? (r + 1) : (H - 1);
+    for (keel::usize c = 0; c < W; ++c) {
+        const keel::usize cn = (c + 1 < W) ? (c + 1) : (W - 1);  // replicate
+        for (keel::usize r = 0; r < H; ++r) {
+            const keel::usize rn = (r + 1 < H) ? (r + 1) : (H - 1);
             od[c * H + r] = 0.25 * (xd[c  * H + r ]
                                   + xd[c  * H + rn]
                                   + xd[cn * H + r ]
@@ -335,17 +339,17 @@ Value lowpass_2x2(const Value &X, std::pmr::memory_resource *mr)
 
 // Take every other row/column (1:2:end semantics, 0-based: rows/cols
 // 0, 2, 4, ...). Returns a new H' × W' Value.
-Value downsample_2(const Value &X, std::pmr::memory_resource *mr)
+Value downsample_2(const Value &X, keel::Allocator *mr)
 {
-    const std::size_t H = X.dims().rows();
-    const std::size_t W = X.dims().cols();
-    const std::size_t Ho = (H + 1) / 2;
-    const std::size_t Wo = (W + 1) / 2;
+    const keel::usize H = X.dims().rows();
+    const keel::usize W = X.dims().cols();
+    const keel::usize Ho = (H + 1) / 2;
+    const keel::usize Wo = (W + 1) / 2;
     Value out = Value::matrix(Ho, Wo, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     const double *xd = X.doubleData();
-    for (std::size_t c = 0; c < Wo; ++c)
-        for (std::size_t r = 0; r < Ho; ++r)
+    for (keel::usize c = 0; c < Wo; ++c)
+        for (keel::usize r = 0; r < Ho; ++r)
             od[c * Ho + r] = xd[(c * 2) * H + (r * 2)];
     return out;
 }
@@ -356,10 +360,10 @@ Value downsample_2(const Value &X, std::pmr::memory_resource *mr)
 Value ssim_map_double(const Value &A, const Value &B,
                       const Value &gK, double C1, double C2,
                       bool include_luminance,
-                      std::pmr::memory_resource *mr)
+                      keel::Allocator *mr)
 {
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     auto box = [&](const Value &X) {
         return imfilter(X, gK, PadMode::Replicate, 0.0, /*full=*/false,
                         /*flip_kernel=*/false, mr);
@@ -375,7 +379,7 @@ Value ssim_map_double(const Value &A, const Value &B,
     double *aa = AA.doubleDataMut();
     double *bb = BB.doubleDataMut();
     double *ab = AB.doubleDataMut();
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         const double a = ad[i], b = bd[i];
         aa[i] = a * a;
         bb[i] = b * b;
@@ -392,7 +396,7 @@ Value ssim_map_double(const Value &A, const Value &B,
     const double *sa2_d = sa2.doubleData();
     const double *sb2_d = sb2.doubleData();
     const double *sab_d = sab.doubleData();
-    for (std::size_t i = 0; i < H * W; ++i) {
+    for (keel::usize i = 0; i < H * W; ++i) {
         const double mua = mua_d[i];
         const double mub = mub_d[i];
         const double mu_xy = mua * mub;
@@ -421,7 +425,7 @@ Value ssim_map_double(const Value &A, const Value &B,
 
 // Cast a DOUBLE Value to SINGLE (or pass through for DOUBLE).
 Value cast_score_value(double v, ValueType originalClass,
-                       std::pmr::memory_resource *mr)
+                       keel::Allocator *mr)
 {
     if (originalClass == ValueType::DOUBLE)
         return Value::scalar(v, mr);
@@ -459,17 +463,17 @@ Value multissim(const Value &A, const Value &Iref,
                 const std::vector<double> &scale_weights_in,
                 double sigma, double dynamic_range_in,
                 std::vector<Value> *quality_maps_out,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
     multissim_argcheck(A, Iref, num_scales, sigma);
 
     const ValueType origClass = A.type();
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
 
     // Verify downsampleability.
     {
-        std::size_t h = H, w = W;
+        keel::usize h = H, w = W;
         for (int i = 1; i < num_scales; ++i) {
             if (h <= 1 || w <= 1)
                 throw Error("multissim: image too small for NumScales="
@@ -539,10 +543,10 @@ Value multissim(const Value &A, const Value &Iref,
         Value ssimmap = ssim_map_double(Ad, Bd, gK, C1, C2,
                                         /*include_luminance=*/last, mr);
         // Mean of ssimmap.
-        const std::size_t Nm = ssimmap.numel();
+        const keel::usize Nm = ssimmap.numel();
         long double s = 0.0L;
         const double *sd = ssimmap.doubleData();
-        for (std::size_t k = 0; k < Nm; ++k) s += sd[k];
+        for (keel::usize k = 0; k < Nm; ++k) s += sd[k];
         const double mean_map = static_cast<double>(
             s / static_cast<long double>(Nm));
         const double per_scale = apply_weight(mean_map, sw[i]);
@@ -583,28 +587,28 @@ namespace {
 
 // Volume buffer mirror of the 2-D "image-in-DOUBLE" used by multissim.
 struct Vol {
-    std::size_t H = 0, W = 0, D = 0;
+    keel::usize H = 0, W = 0, D = 0;
     std::vector<double> v;  // column-major: idx = z*H*W + c*H + r
     Vol() = default;
-    Vol(std::size_t h, std::size_t w, std::size_t d)
+    Vol(keel::usize h, keel::usize w, keel::usize d)
         : H(h), W(w), D(d), v(h * w * d, 0.0) {}
-    double &at(std::size_t r, std::size_t c, std::size_t z) {
+    double &at(keel::usize r, keel::usize c, keel::usize z) {
         return v[z * H * W + c * H + r];
     }
-    double at(std::size_t r, std::size_t c, std::size_t z) const {
+    double at(keel::usize r, keel::usize c, keel::usize z) const {
         return v[z * H * W + c * H + r];
     }
 };
 
 Vol to_double_vol(const Value &V)
 {
-    const std::size_t H = V.dims().rows();
-    const std::size_t W = V.dims().cols();
-    const std::size_t D = V.dims().is3D() ? V.dims().pages() : 1;
+    const keel::usize H = V.dims().rows();
+    const keel::usize W = V.dims().cols();
+    const keel::usize D = V.dims().is3D() ? V.dims().pages() : 1;
     Vol out(H, W, D);
     const ValueType t = V.type();
-    const std::size_t N = H * W * D;
-    for (std::size_t i = 0; i < N; ++i) {
+    const keel::usize N = H * W * D;
+    for (keel::usize i = 0; i < N; ++i) {
         double v = V.elemAsDouble(i);
         if (t == ValueType::INT16) v += 32768.0;
         out.v[i] = v;
@@ -612,7 +616,7 @@ Vol to_double_vol(const Value &V)
     return out;
 }
 
-Value vol_to_value(const Vol &V, std::pmr::memory_resource *mr)
+Value vol_to_value(const Vol &V, keel::Allocator *mr)
 {
     Value out = V.D == 1
         ? Value::matrix(V.H, V.W, ValueType::DOUBLE, mr)
@@ -625,7 +629,7 @@ Value vol_to_value(const Vol &V, std::pmr::memory_resource *mr)
 // Build a 1-D Gaussian kernel with `filtSize` elements, mean = (filtSize-1)/2.
 std::vector<double> gauss1d(double sigma, int filtSize)
 {
-    std::vector<double> k(static_cast<std::size_t>(filtSize));
+    std::vector<double> k(static_cast<keel::usize>(filtSize));
     const double half = (filtSize - 1) / 2.0;
     double s = 0.0;
     for (int i = 0; i < filtSize; ++i) {
@@ -637,58 +641,58 @@ std::vector<double> gauss1d(double sigma, int filtSize)
     return k;
 }
 
-inline std::size_t reflect_clamp(long i, std::size_t n)
+inline keel::usize reflect_clamp(long i, keel::usize n)
 {
     // Replicate boundary: clamp to [0, n-1].
     if (i < 0) return 0;
     if (i >= static_cast<long>(n)) return n - 1;
-    return static_cast<std::size_t>(i);
+    return static_cast<keel::usize>(i);
 }
 
 // Separable 3-D Gaussian: convolve along rows, then cols, then slices.
 // All passes use replicate boundary.
 Vol gauss3d_filter(const Vol &In, const std::vector<double> &k)
 {
-    const std::size_t H = In.H;
-    const std::size_t W = In.W;
-    const std::size_t D = In.D;
+    const keel::usize H = In.H;
+    const keel::usize W = In.W;
+    const keel::usize D = In.D;
     const int kn = static_cast<int>(k.size());
     const int half = kn / 2;
     Vol tmp(H, W, D), out(H, W, D);
     // Rows pass: for each (c, z), convolve along r.
-    for (std::size_t z = 0; z < D; ++z)
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize z = 0; z < D; ++z)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < H; ++r) {
                 double s = 0.0;
                 for (int j = -half; j <= half; ++j) {
-                    const std::size_t rr = reflect_clamp(
+                    const keel::usize rr = reflect_clamp(
                         static_cast<long>(r) + j, H);
-                    s += k[static_cast<std::size_t>(j + half)] * In.at(rr, c, z);
+                    s += k[static_cast<keel::usize>(j + half)] * In.at(rr, c, z);
                 }
                 tmp.at(r, c, z) = s;
             }
     // Cols pass.
     Vol tmp2(H, W, D);
-    for (std::size_t z = 0; z < D; ++z)
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize z = 0; z < D; ++z)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < H; ++r) {
                 double s = 0.0;
                 for (int j = -half; j <= half; ++j) {
-                    const std::size_t cc = reflect_clamp(
+                    const keel::usize cc = reflect_clamp(
                         static_cast<long>(c) + j, W);
-                    s += k[static_cast<std::size_t>(j + half)] * tmp.at(r, cc, z);
+                    s += k[static_cast<keel::usize>(j + half)] * tmp.at(r, cc, z);
                 }
                 tmp2.at(r, c, z) = s;
             }
     // Slices pass.
-    for (std::size_t z = 0; z < D; ++z)
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize z = 0; z < D; ++z)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < H; ++r) {
                 double s = 0.0;
                 for (int j = -half; j <= half; ++j) {
-                    const std::size_t zz = reflect_clamp(
+                    const keel::usize zz = reflect_clamp(
                         static_cast<long>(z) + j, D);
-                    s += k[static_cast<std::size_t>(j + half)] * tmp2.at(r, c, zz);
+                    s += k[static_cast<keel::usize>(j + half)] * tmp2.at(r, c, zz);
                 }
                 out.at(r, c, z) = s;
             }
@@ -699,16 +703,16 @@ Vol gauss3d_filter(const Vol &In, const std::vector<double> &k)
 //   Out(r,c,z) = (1/8) * sum_(i,j,k) In(r+i, c+j, z+k), i,j,k ∈ {0,1}
 Vol lowpass_2x2x2(const Vol &In)
 {
-    const std::size_t H = In.H;
-    const std::size_t W = In.W;
-    const std::size_t D = In.D;
+    const keel::usize H = In.H;
+    const keel::usize W = In.W;
+    const keel::usize D = In.D;
     Vol out(H, W, D);
-    for (std::size_t z = 0; z < D; ++z) {
-        const std::size_t zn = (z + 1 < D) ? (z + 1) : (D - 1);
-        for (std::size_t c = 0; c < W; ++c) {
-            const std::size_t cn = (c + 1 < W) ? (c + 1) : (W - 1);
-            for (std::size_t r = 0; r < H; ++r) {
-                const std::size_t rn = (r + 1 < H) ? (r + 1) : (H - 1);
+    for (keel::usize z = 0; z < D; ++z) {
+        const keel::usize zn = (z + 1 < D) ? (z + 1) : (D - 1);
+        for (keel::usize c = 0; c < W; ++c) {
+            const keel::usize cn = (c + 1 < W) ? (c + 1) : (W - 1);
+            for (keel::usize r = 0; r < H; ++r) {
+                const keel::usize rn = (r + 1 < H) ? (r + 1) : (H - 1);
                 out.at(r, c, z) =
                     0.125 * (In.at(r, c, z) + In.at(rn, c, z)
                           + In.at(r, cn, z) + In.at(rn, cn, z)
@@ -722,13 +726,13 @@ Vol lowpass_2x2x2(const Vol &In)
 
 Vol downsample_2x2x2(const Vol &In)
 {
-    const std::size_t H = (In.H + 1) / 2;
-    const std::size_t W = (In.W + 1) / 2;
-    const std::size_t D = (In.D + 1) / 2;
+    const keel::usize H = (In.H + 1) / 2;
+    const keel::usize W = (In.W + 1) / 2;
+    const keel::usize D = (In.D + 1) / 2;
     Vol out(H, W, D);
-    for (std::size_t z = 0; z < D; ++z)
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < H; ++r)
+    for (keel::usize z = 0; z < D; ++z)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < H; ++r)
                 out.at(r, c, z) = In.at(r * 2, c * 2, z * 2);
     return out;
 }
@@ -738,9 +742,9 @@ Vol ssim_map_vol(const Vol &A, const Vol &B,
                  const std::vector<double> &k,
                  double C1, double C2, bool include_luminance)
 {
-    const std::size_t H = A.H, W = A.W, D = A.D;
+    const keel::usize H = A.H, W = A.W, D = A.D;
     Vol AA(H, W, D), BB(H, W, D), AB(H, W, D);
-    for (std::size_t i = 0; i < A.v.size(); ++i) {
+    for (keel::usize i = 0; i < A.v.size(); ++i) {
         const double a = A.v[i], b = B.v[i];
         AA.v[i] = a * a;
         BB.v[i] = b * b;
@@ -752,7 +756,7 @@ Vol ssim_map_vol(const Vol &A, const Vol &B,
     Vol sb2  = gauss3d_filter(BB, k);
     Vol sab  = gauss3d_filter(AB, k);
     Vol out(H, W, D);
-    for (std::size_t i = 0; i < A.v.size(); ++i) {
+    for (keel::usize i = 0; i < A.v.size(); ++i) {
         const double mua = mu_a.v[i], mub = mu_b.v[i];
         const double mu_xy = mua * mub;
         const double mux2 = mua * mua;
@@ -810,7 +814,7 @@ Value multissim3(const Value &V, const Value &Vref,
                  const std::vector<double> &scale_weights_in,
                  double sigma, double dynamic_range_in,
                  std::vector<Value> *quality_maps_out,
-                 std::pmr::memory_resource *mr)
+                 keel::Allocator *mr)
 {
     multissim3_argcheck(V, Vref, num_scales, sigma);
 
@@ -820,7 +824,7 @@ Value multissim3(const Value &V, const Value &Vref,
 
     // Verify downsampleability.
     {
-        std::size_t h = Ad.H, w = Ad.W, d = Ad.D;
+        keel::usize h = Ad.H, w = Ad.W, d = Ad.D;
         for (int i = 1; i < num_scales; ++i) {
             if (h <= 1 || w <= 1 || d <= 1)
                 throw Error("multissim3: volume too small for NumScales="
@@ -876,7 +880,7 @@ Value multissim3(const Value &V, const Value &Vref,
         const bool last = (i == num_scales - 1);
         Vol ssimmap = ssim_map_vol(Ad, Bd, gk, C1, C2,
                                    /*include_luminance=*/last);
-        const std::size_t Nm = ssimmap.v.size();
+        const keel::usize Nm = ssimmap.v.size();
         long double s = 0.0L;
         for (double x : ssimmap.v) s += x;
         const double mean_map = static_cast<double>(
@@ -896,20 +900,20 @@ Value multissim3(const Value &V, const Value &Vref,
     return cast_score_value(score, origClass, mr);
 }
 
-Value corr2(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+Value corr2(const Value &A, const Value &B, keel::Allocator *mr)
 {
     corr2_argcheck(A, B);
-    const size_t N = A.numel();
+    const keel::usize N = A.numel();
     if (N == 0) return Value::scalar(std::nan(""), mr);
     long double sa = 0.0L, sb = 0.0L;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         sa += A.elemAsDouble(i);
         sb += B.elemAsDouble(i);
     }
     const long double ma = sa / static_cast<long double>(N);
     const long double mb = sb / static_cast<long double>(N);
     long double cov = 0.0L, va = 0.0L, vb = 0.0L;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const long double da = A.elemAsDouble(i) - ma;
         const long double db = B.elemAsDouble(i) - mb;
         cov += da * db;

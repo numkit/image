@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -26,11 +28,11 @@ namespace numkit::image {
 
 namespace detail {
 
-void fibermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
-                     Span<Value> outs, CallContext &ctx)
+void fibermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 6, "fibermetric");
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     const Value &I = args[0];
@@ -38,12 +40,12 @@ void fibermetric_reg(Span<const Value> args, std::size_t /*nargout*/,
     double c = -1.0;
     bool bright = true;
 
-    std::size_t i = 1;
+    keel::usize i = 1;
     if (i < args.size() && !is_string(args[i])) {
         const Value &v = args[i];
-        const std::size_t N = v.numel();
+        const keel::usize N = v.numel();
         thickness.resize(N);
-        for (std::size_t k = 0; k < N; ++k)
+        for (keel::usize k = 0; k < N; ++k)
             thickness[k] = v.elemAsDouble(k);
         ++i;
     }

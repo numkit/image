@@ -1,5 +1,11 @@
 // toolboxes/image/src/filter/filter.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 #include <numkit/image/internal/type_gates.hpp>
@@ -8,7 +14,6 @@
 #include <numkit/signal/convolution/convolution.hpp>
 #include <numkit/signal/transforms/fft.hpp>
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/parallel_for.hpp>
 #include "filter_detail.hpp"
@@ -90,7 +95,7 @@ void fspecial_argcheck(const std::string &type)
 
 } // anonymous
 
-Value padarray(const Value &x, const std::vector<int> &padsize, PadMode mode, double pad_value, const std::string &direction, std::pmr::memory_resource *mr)
+Value padarray(const Value &x, const std::vector<int> &padsize, PadMode mode, double pad_value, const std::string &direction, keel::Allocator *mr)
 {
     padarray_argcheck(x);
     const auto &d = x.dims();
@@ -127,36 +132,36 @@ Value padarray(const Value &x, const std::vector<int> &padsize, PadMode mode, do
     auto src = [&](int r, int c, int p) -> double {
         if (mode == PadMode::Constant) {
             if (r < 0 || r >= H || c < 0 || c >= W || p < 0 || p >= P) return pad_value;
-            const size_t plane = static_cast<size_t>(H) * static_cast<size_t>(W);
-            const size_t idx = (size_t)p * plane + (size_t)c * H + (size_t)r;
+            const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
+            const keel::usize idx = (keel::usize)p * plane + (keel::usize)c * H + (keel::usize)r;
             return x.elemAsDouble(idx);
         }
         const int rs = fold_index(r, H, mode);
         const int cs = fold_index(c, W, mode);
         const int ps = (P == 1) ? 0 : fold_index(p, P, mode);
-        const size_t plane = static_cast<size_t>(H) * static_cast<size_t>(W);
-        const size_t idx = (size_t)ps * plane + (size_t)cs * H + (size_t)rs;
+        const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
+        const keel::usize idx = (keel::usize)ps * plane + (keel::usize)cs * H + (keel::usize)rs;
         return x.elemAsDouble(idx);
     };
 
     // Storage helpers per output type.
-    auto store = [&](size_t outIdx, double v) {
+    auto store = [&](keel::usize outIdx, double v) {
         switch (x.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[outIdx] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[outIdx] = (float)v; break;
             case ValueType::UINT8: {
                 if (v < 0) v = 0; if (v > 255) v = 255;
-                out.uint8DataMut()[outIdx] = (uint8_t)std::lround(v);
+                out.uint8DataMut()[outIdx] = (keel::u8)std::lround(v);
                 break;
             }
             case ValueType::UINT16: {
                 if (v < 0) v = 0; if (v > 65535) v = 65535;
-                out.uint16DataMut()[outIdx] = (uint16_t)std::lround(v);
+                out.uint16DataMut()[outIdx] = (keel::u16)std::lround(v);
                 break;
             }
             case ValueType::INT16: {
                 if (v < -32768) v = -32768; if (v > 32767) v = 32767;
-                out.int16DataMut()[outIdx] = (int16_t)std::lround(v);
+                out.int16DataMut()[outIdx] = (keel::i16)std::lround(v);
                 break;
             }
             case ValueType::LOGICAL: {
@@ -169,12 +174,12 @@ Value padarray(const Value &x, const std::vector<int> &padsize, PadMode mode, do
         }
     };
 
-    const size_t plane2 = (size_t)H2 * (size_t)W2;
+    const keel::usize plane2 = (keel::usize)H2 * (keel::usize)W2;
     for (int p = 0; p < P2; ++p) {
         for (int c = 0; c < W2; ++c) {
             for (int r = 0; r < H2; ++r) {
                 const double v = src(r - prR, c - prC, P == 1 ? 0 : p - prP);
-                const size_t outIdx = (size_t)p * plane2 + (size_t)c * H2 + (size_t)r;
+                const keel::usize outIdx = (keel::usize)p * plane2 + (keel::usize)c * H2 + (keel::usize)r;
                 store(outIdx, v);
             }
         }
@@ -188,38 +193,38 @@ Value padarray(const Value &x, const std::vector<int> &padsize, PadMode mode, do
 
 namespace {
 
-Value mat_double(const std::vector<double> &v, int rows, int cols, std::pmr::memory_resource *mr) {
+Value mat_double(const std::vector<double> &v, int rows, int cols, keel::Allocator *mr) {
     Value out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     if (!v.empty()) std::memcpy(out.doubleDataMut(), v.data(), v.size() * sizeof(double));
     return out;
 }
 
-Value fspecial_average(int rows, int cols, std::pmr::memory_resource *mr) {
+Value fspecial_average(int rows, int cols, keel::Allocator *mr) {
     const double w = 1.0 / (double(rows) * double(cols));
-    std::vector<double> data(size_t(rows) * size_t(cols), w);
+    std::vector<double> data(keel::usize(rows) * keel::usize(cols), w);
     return mat_double(data, rows, cols, mr);
 }
 
-Value fspecial_gaussian(int rows, int cols, double sigma, std::pmr::memory_resource *mr) {
+Value fspecial_gaussian(int rows, int cols, double sigma, keel::Allocator *mr) {
     if (sigma <= 0.0) throw Error("fspecial: sigma must be positive",
                                   0, 0, "fspecial", "", "numkit:fspecial:sigma");
     const double cy = (rows - 1) / 2.0;
     const double cx = (cols - 1) / 2.0;
     const double inv2s2 = 1.0 / (2.0 * sigma * sigma);
-    std::vector<double> k(size_t(rows) * size_t(cols), 0.0);
+    std::vector<double> k(keel::usize(rows) * keel::usize(cols), 0.0);
     double sum = 0.0;
     for (int c = 0; c < cols; ++c)
         for (int r = 0; r < rows; ++r) {
             const double dy = r - cy, dx = c - cx;
             const double v = std::exp(-(dx * dx + dy * dy) * inv2s2);
-            k[size_t(c) * size_t(rows) + size_t(r)] = v;
+            k[keel::usize(c) * keel::usize(rows) + keel::usize(r)] = v;
             sum += v;
         }
     if (sum > 0.0) for (auto &v : k) v /= sum;
     return mat_double(k, rows, cols, mr);
 }
 
-Value fspecial_laplacian(double alpha, std::pmr::memory_resource *mr) {
+Value fspecial_laplacian(double alpha, keel::Allocator *mr) {
     // 3×3 Laplacian, controlled by alpha ∈ [0, 1] (default 0.2 in MATLAB).
     if (alpha < 0.0) alpha = 0.0; if (alpha > 1.0) alpha = 1.0;
     const double a = alpha;
@@ -232,20 +237,20 @@ Value fspecial_laplacian(double alpha, std::pmr::memory_resource *mr) {
     return mat_double(k, 3, 3, mr);
 }
 
-Value fspecial_log(int rows, int cols, double sigma, std::pmr::memory_resource *mr) {
+Value fspecial_log(int rows, int cols, double sigma, keel::Allocator *mr) {
     // Laplacian-of-Gaussian. Convention from MATLAB: zero-mean, normalized.
     const double cy = (rows - 1) / 2.0;
     const double cx = (cols - 1) / 2.0;
     const double s2 = sigma * sigma;
-    std::vector<double> g(size_t(rows) * size_t(cols), 0.0);
-    std::vector<double> log_k(size_t(rows) * size_t(cols), 0.0);
+    std::vector<double> g(keel::usize(rows) * keel::usize(cols), 0.0);
+    std::vector<double> log_k(keel::usize(rows) * keel::usize(cols), 0.0);
     double gsum = 0.0;
     for (int c = 0; c < cols; ++c)
         for (int r = 0; r < rows; ++r) {
             const double dy = r - cy, dx = c - cx;
             const double rsq = dx * dx + dy * dy;
             const double e = std::exp(-rsq / (2.0 * s2));
-            g[size_t(c) * size_t(rows) + size_t(r)] = e;
+            g[keel::usize(c) * keel::usize(rows) + keel::usize(r)] = e;
             gsum += e;
         }
     if (gsum > 0.0) for (auto &v : g) v /= gsum;
@@ -253,7 +258,7 @@ Value fspecial_log(int rows, int cols, double sigma, std::pmr::memory_resource *
         for (int r = 0; r < rows; ++r) {
             const double dy = r - cy, dx = c - cx;
             const double rsq = dx * dx + dy * dy;
-            const size_t i = size_t(c) * size_t(rows) + size_t(r);
+            const keel::usize i = keel::usize(c) * keel::usize(rows) + keel::usize(r);
             log_k[i] = (rsq - 2.0 * s2) / (s2 * s2) * g[i];
         }
     // Mean subtraction so kernel sums to zero.
@@ -264,20 +269,20 @@ Value fspecial_log(int rows, int cols, double sigma, std::pmr::memory_resource *
     return mat_double(log_k, rows, cols, mr);
 }
 
-Value fspecial_sobel(std::pmr::memory_resource *mr) {
+Value fspecial_sobel(keel::Allocator *mr) {
     // MATLAB convention: [1 2 1; 0 0 0; -1 -2 -1]. Column-major storage:
     // col0 = [1, 0, -1], col1 = [2, 0, -2], col2 = [1, 0, -1].
     std::vector<double> k = {1, 0, -1,   2, 0, -2,   1, 0, -1};
     return mat_double(k, 3, 3, mr);
 }
 
-Value fspecial_prewitt(std::pmr::memory_resource *mr) {
+Value fspecial_prewitt(keel::Allocator *mr) {
     // [1 1 1; 0 0 0; -1 -1 -1] column-major.
     std::vector<double> k = {1, 0, -1,   1, 0, -1,   1, 0, -1};
     return mat_double(k, 3, 3, mr);
 }
 
-Value fspecial_disk(double rad, std::pmr::memory_resource *mr) {
+Value fspecial_disk(double rad, keel::Allocator *mr) {
     if (rad <= 0.0) throw Error("fspecial: radius must be positive",
                                 0, 0, "fspecial", "", "numkit:fspecial:radius");
     // MATLAB R2025b fspecial('disk',rad): each cell's weight is the EXACT
@@ -286,14 +291,14 @@ Value fspecial_disk(double rad, std::pmr::memory_resource *mr) {
     const int crad = int(std::ceil(rad - 0.5));
     const int side = 2 * crad + 1;
     const double r2 = rad * rad;
-    std::vector<double> sg(size_t(side) * size_t(side), 0.0);
+    std::vector<double> sg(keel::usize(side) * keel::usize(side), 0.0);
     auto clamp1 = [](double v) { return v < -1.0 ? -1.0 : (v > 1.0 ? 1.0 : v); };
     auto sq = [](double v) { return v * v; };
     for (int ii = 0; ii < side; ++ii)
         for (int jj = 0; jj < side; ++jj) {
             const double y = double(-crad + ii);   // row coordinate
             const double x = double(-crad + jj);   // col coordinate
-            const double ax = std::abs(x), ay = std::abs(y);
+            const double ax = keel::abs(x), ay = keel::abs(y);
             const double maxxy = std::max(ax, ay), minxy = std::min(ax, ay);
             const double m1 = (r2 < sq(maxxy + 0.5) + sq(minxy - 0.5))
                 ? (minxy - 0.5)
@@ -314,10 +319,10 @@ Value fspecial_disk(double rad, std::pmr::memory_resource *mr) {
                     - (maxxy - 0.5) * (m2 - m1) + (m1 - minxy + 0.5);
             }
             if (sq(maxxy + 0.5) + sq(minxy + 0.5) < r2) s += 1.0;
-            sg[size_t(jj) * size_t(side) + size_t(ii)] = s;
+            sg[keel::usize(jj) * keel::usize(side) + keel::usize(ii)] = s;
         }
     auto at = [&](int i, int j) -> double & {
-        return sg[size_t(j) * size_t(side) + size_t(i)];   // (row i, col j)
+        return sg[keel::usize(j) * keel::usize(side) + keel::usize(i)];   // (row i, col j)
     };
     at(crad, crad) = std::min(M_PI * r2, M_PI / 2.0);
     if (crad > 0 && rad > crad - 0.5 && r2 < sq(crad - 0.5) + 0.25) {
@@ -338,7 +343,7 @@ Value fspecial_disk(double rad, std::pmr::memory_resource *mr) {
     return mat_double(sg, side, side, mr);
 }
 
-Value fspecial_motion(double len_in, double theta, std::pmr::memory_resource *mr) {
+Value fspecial_motion(double len_in, double theta, keel::Allocator *mr) {
     // MATLAB R2025b fspecial('motion',len,theta): a motion-blur PSF — a line
     // of `len` pixels at `theta` degrees (counter-clockwise from the
     // horizontal), anti-aliased by bilinear interpolation. Ported verbatim
@@ -360,34 +365,34 @@ Value fspecial_motion(double len_in, double theta, std::pmr::memory_resource *mr
     const int nrow = (int)sy + 1;
 
     // Half-matrix of (signed) perpendicular distances to the rotated line.
-    std::vector<double> D((size_t)nrow * (size_t)ncol, 0.0);
+    std::vector<double> D((keel::usize)nrow * (keel::usize)ncol, 0.0);
     for (int r = 0; r < nrow; ++r)
         for (int c = 0; c < ncol; ++c) {
             const double x = (double)c * xsign;
             const double y = (double)r;
             double d = y * cosphi - x * sinphi;
             const double rad = std::hypot(x, y);
-            if (rad >= half && std::abs(d) <= linewdt) {
+            if (rad >= half && keel::abs(d) <= linewdt) {
                 // Pixel past the line's end: distance to the end-point.
                 const double x2 = (cosphi != 0.0)
-                    ? half - std::abs((x + d * sinphi) / cosphi) : 0.0;
+                    ? half - keel::abs((x + d * sinphi) / cosphi) : 0.0;
                 d = std::sqrt(d * d + x2 * x2);
             }
-            double w = linewdt + EPS - std::abs(d);
+            double w = linewdt + EPS - keel::abs(d);
             if (w < 0.0) w = 0.0;
-            D[(size_t)r * (size_t)ncol + (size_t)c] = w;
+            D[(keel::usize)r * (keel::usize)ncol + (keel::usize)c] = w;
         }
 
     // Unfold the half-matrix to the full PSF via 180-degree symmetry.
     const int H = 2 * nrow - 1, W = 2 * ncol - 1;
-    std::vector<double> Hm((size_t)H * (size_t)W, 0.0);
-    auto Dat = [&](int r, int c) { return D[(size_t)r * (size_t)ncol + (size_t)c]; };
+    std::vector<double> Hm((keel::usize)H * (keel::usize)W, 0.0);
+    auto Dat = [&](int r, int c) { return D[(keel::usize)r * (keel::usize)ncol + (keel::usize)c]; };
     for (int r = 0; r < nrow; ++r)                       // rot90(D,2) top-left
         for (int c = 0; c < ncol; ++c)
-            Hm[(size_t)r * (size_t)W + (size_t)c] = Dat(nrow - 1 - r, ncol - 1 - c);
+            Hm[(keel::usize)r * (keel::usize)W + (keel::usize)c] = Dat(nrow - 1 - r, ncol - 1 - c);
     for (int r = 0; r < nrow; ++r)                       // D bottom-right
         for (int c = 0; c < ncol; ++c)
-            Hm[(size_t)(nrow - 1 + r) * (size_t)W + (size_t)(ncol - 1 + c)] = Dat(r, c);
+            Hm[(keel::usize)(nrow - 1 + r) * (keel::usize)W + (keel::usize)(ncol - 1 + c)] = Dat(r, c);
 
     double s = 0.0;
     for (double v : Hm) s += v;
@@ -395,16 +400,16 @@ Value fspecial_motion(double len_in, double theta, std::pmr::memory_resource *mr
     for (auto &v : Hm) v /= s;
 
     // Column-major output; flipud when cosphi > 0 (MATLAB convention).
-    std::vector<double> out((size_t)H * (size_t)W);
+    std::vector<double> out((keel::usize)H * (keel::usize)W);
     for (int c = 0; c < W; ++c)
         for (int r = 0; r < H; ++r) {
             const int rr = (cosphi > 0.0) ? (H - 1 - r) : r;
-            out[(size_t)c * (size_t)H + (size_t)r] = Hm[(size_t)rr * (size_t)W + (size_t)c];
+            out[(keel::usize)c * (keel::usize)H + (keel::usize)r] = Hm[(keel::usize)rr * (keel::usize)W + (keel::usize)c];
         }
     return mat_double(out, H, W, mr);
 }
 
-Value fspecial_unsharp(double alpha, std::pmr::memory_resource *mr) {
+Value fspecial_unsharp(double alpha, keel::Allocator *mr) {
     // MATLAB R2025b fspecial('unsharp',alpha): the 3x3 unsharp-contrast
     // enhancement filter h = [-a a-1 -a; a-1 a+5 a-1; -a a-1 -a]/(a+1),
     // with alpha in [0,1] (default 0.2). Sums to 1 (a sharpening Laplacian:
@@ -425,7 +430,7 @@ Value fspecial_unsharp(double alpha, std::pmr::memory_resource *mr) {
 
 } // anonymous
 
-Value fspecial(const std::string &type, const std::vector<double> &params, std::pmr::memory_resource *mr)
+Value fspecial(const std::string &type, const std::vector<double> &params, keel::Allocator *mr)
 {
     fspecial_argcheck(type);
     if (type == "average") {
@@ -482,24 +487,24 @@ inline double sample_padded(const Value &I, int r, int c, int H, int W,
         r = fold_index(r, H, mode);
         c = fold_index(c, W, mode);
     }
-    return I.elemAsDouble((size_t)c * (size_t)H + (size_t)r);
+    return I.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
 }
 
-inline void store_classed(Value &out, size_t i, double v, ValueType t) {
+inline void store_classed(Value &out, keel::usize i, double v, ValueType t) {
     switch (t) {
         case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
         case ValueType::SINGLE: out.singleDataMut()[i] = (float)v; break;
         case ValueType::UINT8: {
             if (v < 0) v = 0; if (v > 255) v = 255;
-            out.uint8DataMut()[i] = (uint8_t)std::lround(v); break;
+            out.uint8DataMut()[i] = (keel::u8)std::lround(v); break;
         }
         case ValueType::UINT16: {
             if (v < 0) v = 0; if (v > 65535) v = 65535;
-            out.uint16DataMut()[i] = (uint16_t)std::lround(v); break;
+            out.uint16DataMut()[i] = (keel::u16)std::lround(v); break;
         }
         case ValueType::INT16: {
             if (v < -32768) v = -32768; if (v > 32767) v = 32767;
-            out.int16DataMut()[i] = (int16_t)std::lround(v); break;
+            out.int16DataMut()[i] = (keel::i16)std::lround(v); break;
         }
         default:
             throw Error("imfilter: unsupported class", 0, 0, "imfilter", "",
@@ -535,14 +540,14 @@ void integralBoxFilter_argcheck(const Value &I, int fH, int fW)
         throw Error("integralBoxFilter: input must be 2-D or 3-D integral image",
                     0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:rank");
 
-    const size_t H1 = d.rows();
-    const size_t W1 = d.cols();
+    const keel::usize H1 = d.rows();
+    const keel::usize W1 = d.cols();
     if (H1 < 1 || W1 < 1)
         throw Error("integralBoxFilter: integral image must be at least (1+1) × (1+1)",
                     0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tiny");
-    const size_t H = H1 - 1;
-    const size_t W = W1 - 1;
-    if (static_cast<size_t>(fH) > H || static_cast<size_t>(fW) > W)
+    const keel::usize H = H1 - 1;
+    const keel::usize W = W1 - 1;
+    if (static_cast<keel::usize>(fH) > H || static_cast<keel::usize>(fW) > W)
         throw Error("integralBoxFilter: filter size too large for integral image",
                     0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tooLarge");
 }
@@ -560,15 +565,15 @@ void integralBoxFilter3_argcheck(const Value &I, int fH, int fW, int fP)
     if (d.ndim() > 3)
         throw Error("integralBoxFilter3: input must be a 3-D integral volume",
                     0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:rank");
-    const size_t H1 = d.rows();
-    const size_t W1 = d.cols();
-    const size_t D1 = d.is3D() ? d.pages() : 1;
+    const keel::usize H1 = d.rows();
+    const keel::usize W1 = d.cols();
+    const keel::usize D1 = d.is3D() ? d.pages() : 1;
     if (H1 < 2 || W1 < 2 || D1 < 2)
         throw Error("integralBoxFilter3: integral volume must be at least (1+1)^3",
                     0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tiny");
-    const size_t H = H1 - 1, W = W1 - 1, D = D1 - 1;
-    if (static_cast<size_t>(fH) > H || static_cast<size_t>(fW) > W
-        || static_cast<size_t>(fP) > D)
+    const keel::usize H = H1 - 1, W = W1 - 1, D = D1 - 1;
+    if (static_cast<keel::usize>(fH) > H || static_cast<keel::usize>(fW) > W
+        || static_cast<keel::usize>(fP) > D)
         throw Error("integralBoxFilter3: Filter size is too large for integral image.",
                     0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tooLarge");
 }
@@ -613,7 +618,7 @@ void imsharpen_argcheck(const Value &I, double threshold)
 
 } // anonymous
 
-Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_value, bool full, bool flip_kernel, std::pmr::memory_resource *mr)
+Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_value, bool full, bool flip_kernel, keel::Allocator *mr)
 {
     imfilter_argcheck(I, h);
     if (I.isComplex() || h.isComplex()) {
@@ -621,15 +626,15 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
             const auto &d = V.dims();
             Value out = Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
             double *od = out.doubleDataMut();
-            const size_t N = V.numel();
+            const keel::usize N = V.numel();
             if (V.isComplex()) {
                 const auto *cd = V.complexData();
-                for (size_t i = 0; i < N; ++i)
+                for (keel::usize i = 0; i < N; ++i)
                     od[i] = imagPart ? cd[i].imag() : cd[i].real();
             } else if (imagPart) {
-                for (size_t i = 0; i < N; ++i) od[i] = 0.0;
+                for (keel::usize i = 0; i < N; ++i) od[i] = 0.0;
             } else {
-                for (size_t i = 0; i < N; ++i) od[i] = V.elemAsDouble(i);
+                for (keel::usize i = 0; i < N; ++i) od[i] = V.elemAsDouble(i);
             }
             return out;
         };
@@ -638,8 +643,8 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
         Value hr = extractPart(h, false);
         Value hi = extractPart(h, true);
         Value rr = imfilter(Ir, hr, boundary, pad_value, full, flip_kernel, mr);
-        const size_t outH = rr.dims().rows();
-        const size_t outW = rr.dims().cols();
+        const keel::usize outH = rr.dims().rows();
+        const keel::usize outW = rr.dims().cols();
         Value ri = h.isComplex() ? imfilter(Ir, hi, boundary, pad_value, full, flip_kernel, mr)
                                  : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
         Value ir = I.isComplex() ? imfilter(Ii, hr, boundary, 0.0, full, flip_kernel, mr)
@@ -648,13 +653,13 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
             ? imfilter(Ii, hi, boundary, 0.0, full, flip_kernel, mr)
             : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
         Value out = Value::matrix(outH, outW, ValueType::COMPLEX, mr);
-        std::complex<double> *od = out.complexDataMut();
+        keel::c64 *od = out.complexDataMut();
         const double *rrd = rr.doubleData();
         const double *rid = ri.doubleData();
         const double *ird = ir.doubleData();
         const double *iid = ii.doubleData();
-        for (size_t i = 0; i < outH * outW; ++i)
-            od[i] = std::complex<double>(rrd[i] - iid[i], rid[i] + ird[i]);
+        for (keel::usize i = 0; i < outH * outW; ++i)
+            od[i] = keel::c64(rrd[i] - iid[i], rid[i] + ird[i]);
         return out;
     }
     // Logical input → logical output: the reference filters the double
@@ -684,8 +689,8 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
     if (outH == 0 || outW == 0) return out;
 
     // Read kernel into a contiguous double buffer.
-    std::vector<double> kbuf((size_t)kH * (size_t)kW);
-    for (size_t i = 0; i < kbuf.size(); ++i) kbuf[i] = h.elemAsDouble(i);
+    std::vector<double> kbuf((keel::usize)kH * (keel::usize)kW);
+    for (keel::usize i = 0; i < kbuf.size(); ++i) kbuf[i] = h.elemAsDouble(i);
 
     // For 'same' correlation: output(r,c) = Σ_{ki, kj} kernel[ki, kj]
     //                                       · I[r + ki - half_r, c + kj - half_c].
@@ -693,7 +698,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
     auto getK = [&](int ki, int kj) -> double {
         const int kki = flip_kernel ? (kH - 1 - ki) : ki;
         const int kkj = flip_kernel ? (kW - 1 - kj) : kj;
-        return kbuf[(size_t)kkj * (size_t)kH + (size_t)kki];
+        return kbuf[(keel::usize)kkj * (keel::usize)kH + (keel::usize)kki];
     };
 
     if (full) {
@@ -707,10 +712,10 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
                     for (int ki = 0; ki < kH; ++ki) {
                         const int r_in = orow - ki;
                         if (r_in < 0 || r_in >= H) continue;
-                        s += getK(ki, kj) * I.elemAsDouble((size_t)c_in * (size_t)H + (size_t)r_in);
+                        s += getK(ki, kj) * I.elemAsDouble((keel::usize)c_in * (keel::usize)H + (keel::usize)r_in);
                     }
                 }
-                store_classed(out, (size_t)oc * (size_t)outH + (size_t)orow, s, I.type());
+                store_classed(out, (keel::usize)oc * (keel::usize)outH + (keel::usize)orow, s, I.type());
             }
         }
     } else if (I.type() == ValueType::DOUBLE) {
@@ -731,22 +736,22 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
             // parallel_for is a no-op (plain fn(0,n)) unless NUMKIT_WITH_THREADS
             // is set; thread only when the interior work dwarfs the pool
             // hand-off (~1M tap-multiplies), else stay on the caller's thread.
-            const std::size_t ncols = (std::size_t)(ic1 - ic0);
-            const std::size_t work  = ncols * (std::size_t)(ir1 - ir0) *
-                                      (std::size_t)kH * (std::size_t)kW;
-            const std::size_t threshold =
-                (work >= (std::size_t{1} << 20)) ? std::size_t{1} : ncols + 1;
+            const keel::usize ncols = (keel::usize)(ic1 - ic0);
+            const keel::usize work  = ncols * (keel::usize)(ir1 - ir0) *
+                                      (keel::usize)kH * (keel::usize)kW;
+            const keel::usize threshold =
+                (work >= (keel::usize{1} << 20)) ? keel::usize{1} : ncols + 1;
             numkit::detail::parallel_for(ncols, threshold,
-                [&](std::size_t cs, std::size_t ce) {
-                    for (std::size_t cc = cs; cc < ce; ++cc) {
+                [&](keel::usize cs, keel::usize ce) {
+                    for (keel::usize cc = cs; cc < ce; ++cc) {
                         const int oc = ic0 + (int)cc;
-                        double *dcol = dst + (size_t)oc * (size_t)H;
+                        double *dcol = dst + (keel::usize)oc * (keel::usize)H;
                         for (int r = ir0; r < ir1; ++r) dcol[r] = 0.0;
                         for (int kj = 0; kj < kW; ++kj) {
                             const int c_in = oc + kj - half_c;
                             for (int ki = 0; ki < kH; ++ki) {
                                 const double w = getK(ki, kj);
-                                const double *scol = src + (size_t)c_in * (size_t)H + (ki - half_r);
+                                const double *scol = src + (keel::usize)c_in * (keel::usize)H + (ki - half_r);
                                 for (int r = ir0; r < ir1; ++r) dcol[r] += w * scol[r];
                             }
                         }
@@ -767,7 +772,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
                                                           boundary, pad_value);
                     }
                 }
-                dst[(size_t)oc * (size_t)H + (size_t)orow] = s;
+                dst[(keel::usize)oc * (keel::usize)H + (keel::usize)orow] = s;
             }
         }
     } else {
@@ -782,7 +787,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
                                                           boundary, pad_value);
                     }
                 }
-                store_classed(out, (size_t)oc * (size_t)H + (size_t)orow, s, I.type());
+                store_classed(out, (keel::usize)oc * (keel::usize)H + (keel::usize)orow, s, I.type());
             }
         }
     }
@@ -795,7 +800,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
 // costs O(2k) instead of O(k²), keeps the intermediate un-quantised between
 // passes (matches MATLAB), and hits imfilter's fast double path. 2-D only.
 static Value applySeparableSym(const Value &I, const std::vector<double> &g,
-                               std::pmr::memory_resource *mr)
+                               keel::Allocator *mr)
 {
     const int k = (int)g.size();
     Value gRow = mat_double(g, 1, k, mr);
@@ -808,7 +813,7 @@ static Value applySeparableSym(const Value &I, const std::vector<double> &g,
     } else {
         Id = Value::matrix(H, W, ValueType::DOUBLE, mr);
         double *dd = Id.doubleDataMut();
-        for (size_t i = 0; i < (size_t)H * (size_t)W; ++i) dd[i] = I.elemAsDouble(i);
+        for (keel::usize i = 0; i < (keel::usize)H * (keel::usize)W; ++i) dd[i] = I.elemAsDouble(i);
     }
     Value tmp = imfilter(Id,  gRow, PadMode::Replicate, 0.0, false, false, mr);
     Value res = imfilter(tmp, gCol, PadMode::Replicate, 0.0, false, false, mr);
@@ -816,11 +821,11 @@ static Value applySeparableSym(const Value &I, const std::vector<double> &g,
 
     Value out = Value::matrix(H, W, I.type(), mr);
     const double *rd = res.doubleData();
-    for (size_t i = 0; i < (size_t)H * (size_t)W; ++i) store_classed(out, i, rd[i], I.type());
+    for (keel::usize i = 0; i < (keel::usize)H * (keel::usize)W; ++i) store_classed(out, i, rd[i], I.type());
     return out;
 }
 
-Value imgaussfilt(const Value &I, double sigma, int filter_size, std::pmr::memory_resource *mr)
+Value imgaussfilt(const Value &I, double sigma, int filter_size, keel::Allocator *mr)
 {
     if (filter_size <= 0) {
         // Default: 2·ceil(2σ) + 1.
@@ -842,7 +847,7 @@ Value imgaussfilt(const Value &I, double sigma, int filter_size, std::pmr::memor
     // input class.
     const double cx = (filter_size - 1) / 2.0;
     const double inv2s2 = 1.0 / (2.0 * sigma * sigma);
-    std::vector<double> g((size_t)filter_size);
+    std::vector<double> g((keel::usize)filter_size);
     double sum = 0.0;
     for (int i = 0; i < filter_size; ++i) {
         const double d = i - cx;
@@ -853,7 +858,7 @@ Value imgaussfilt(const Value &I, double sigma, int filter_size, std::pmr::memor
     return applySeparableSym(I, g, mr);
 }
 
-Value imboxfilt(const Value &I, int filter_size, std::pmr::memory_resource *mr)
+Value imboxfilt(const Value &I, int filter_size, keel::Allocator *mr)
 {
     imboxfilt_argcheck(I);
     if (filter_size <= 0) filter_size = 3;
@@ -875,7 +880,7 @@ Value imboxfilt(const Value &I, int filter_size, std::pmr::memory_resource *mr)
 
     const int Hp = H + 2 * hk, Wp = W + 2 * hk;   // replicate-padded extent
     const int Hs = Hp + 1, Ws = Wp + 1;           // integral-image extent
-    ScratchArena arena(mr);
+    keel::ArenaTemp arena = keel::get_scratch(mr);
 
     // uint8 fast path: INTEGER summed-area table (uint32 — typed read, no
     // elemAsDouble; half the bytes of the double SAT; integer mean). Used when
@@ -883,48 +888,48 @@ Value imboxfilt(const Value &I, int filter_size, std::pmr::memory_resource *mr)
     // ~16.8 Mpx). Bit-identical to the double SAT: (2·sum + k²)/(2·k²) is
     // round-half-up == lround(sum/k²) for the non-negative box sum.
     if (I.type() == ValueType::UINT8 &&
-        (std::uint64_t)H * (std::uint64_t)W * 255ULL < (1ULL << 32)) {
-        const std::uint8_t *src = I.uint8Data();
-        std::uint8_t *dst = out.uint8DataMut();
-        ScratchVec<std::uint32_t> Si((std::size_t)Hs * (std::size_t)Ws, &arena);
-        auto Q = [&](int r, int c) -> std::uint32_t & { return Si[(std::size_t)c * (std::size_t)Hs + (std::size_t)r]; };
+        (keel::u64)H * (keel::u64)W * 255ULL < (1ULL << 32)) {
+        const keel::u8 *src = I.uint8Data();
+        keel::u8 *dst = out.uint8DataMut();
+        keel::Array<keel::u32> Si((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
+        auto Q = [&](int r, int c) -> keel::u32 & { return Si[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
         for (int c = 0; c < Ws; ++c) Q(0, c) = 0;
         for (int r = 0; r < Hs; ++r) Q(r, 0) = 0;
         for (int c = 1; c < Ws; ++c) {
             const int sc = std::min(std::max((c - 1) - hk, 0), W - 1);
-            const std::size_t srcCol = (std::size_t)sc * (std::size_t)H;
+            const keel::usize srcCol = (keel::usize)sc * (keel::usize)H;
             for (int r = 1; r < Hs; ++r) {
                 const int sr = std::min(std::max((r - 1) - hk, 0), H - 1);
-                Q(r, c) = (std::uint32_t)src[srcCol + (std::size_t)sr]
+                Q(r, c) = (keel::u32)src[srcCol + (keel::usize)sr]
                           + Q(r - 1, c) + Q(r, c - 1) - Q(r - 1, c - 1);
             }
         }
-        const std::uint32_t k2 = (std::uint32_t)k * (std::uint32_t)k;
+        const keel::u32 k2 = (keel::u32)k * (keel::u32)k;
         for (int c = 0; c < W; ++c)
             for (int r = 0; r < H; ++r) {
-                const std::uint32_t sum =
+                const keel::u32 sum =
                     (Q(r + k, c + k) + Q(r, c)) - (Q(r, c + k) + Q(r + k, c));
-                dst[(std::size_t)c * (std::size_t)H + (std::size_t)r] =
-                    (std::uint8_t)((2u * sum + k2) / (2u * k2));
+                dst[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
+                    (keel::u8)((2u * sum + k2) / (2u * k2));
             }
         return out;
     }
 
-    ScratchVec<double> S((size_t)Hs * (size_t)Ws, &arena);
+    keel::Array<double> S((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
 
     // Summed-area table S (column-major): S[c*Hs + r] = Σ P[0..r-1, 0..c-1],
     // where P is I replicate-padded by hk. First row/col are zero; we read
     // the padded source value on the fly (clamped indices) — no explicit pad
     // buffer. Recurrence: S[r][c] = P[r-1][c-1] + S[r-1][c] + S[r][c-1] - S[r-1][c-1].
-    auto Sat = [&](int r, int c) -> double & { return S[(size_t)c * (size_t)Hs + (size_t)r]; };
+    auto Sat = [&](int r, int c) -> double & { return S[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
     for (int c = 0; c < Ws; ++c) Sat(0, c) = 0.0;
     for (int r = 0; r < Hs; ++r) Sat(r, 0) = 0.0;
     for (int c = 1; c < Ws; ++c) {
         const int sc = std::min(std::max((c - 1) - hk, 0), W - 1);   // padded→source col
-        const std::size_t srcCol = (std::size_t)sc * (std::size_t)H;
+        const keel::usize srcCol = (keel::usize)sc * (keel::usize)H;
         for (int r = 1; r < Hs; ++r) {
             const int sr = std::min(std::max((r - 1) - hk, 0), H - 1); // padded→source row
-            const double p = I.elemAsDouble(srcCol + (std::size_t)sr);
+            const double p = I.elemAsDouble(srcCol + (keel::usize)sr);
             Sat(r, c) = p + Sat(r - 1, c) + Sat(r, c - 1) - Sat(r - 1, c - 1);
         }
     }
@@ -934,7 +939,7 @@ Value imboxfilt(const Value &I, int filter_size, std::pmr::memory_resource *mr)
         for (int r = 0; r < H; ++r) {
             // Output (r,c) → padded window rows [r, r+k), cols [c, c+k).
             const double sum = Sat(r + k, c + k) - Sat(r, c + k) - Sat(r + k, c) + Sat(r, c);
-            store_classed(out, (std::size_t)c * (std::size_t)H + (std::size_t)r, sum * invk2, I.type());
+            store_classed(out, (keel::usize)c * (keel::usize)H + (keel::usize)r, sum * invk2, I.type());
         }
     return out;
 }
@@ -949,43 +954,43 @@ Value imboxfilt(const Value &I, int filter_size, std::pmr::memory_resource *mr)
 // Output is (H - fH + 1) x (W - fW + 1) — only the no-boundary core.
 // For 3-D input the filter is applied per-channel.
 Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
-                         std::pmr::memory_resource *mr)
+                         keel::Allocator *mr)
 {
     integralBoxFilter_argcheck(I, fH, fW);
     const auto &d = I.dims();
-    const size_t H1 = d.rows();
-    const size_t W1 = d.cols();
-    const size_t H = H1 - 1;
-    const size_t W = W1 - 1;
+    const keel::usize H1 = d.rows();
+    const keel::usize W1 = d.cols();
+    const keel::usize H = H1 - 1;
+    const keel::usize W = W1 - 1;
 
-    const size_t C = (d.ndim() == 3) ? d.pages() : 1;
-    const size_t outH = H - static_cast<size_t>(fH) + 1;
-    const size_t outW = W - static_cast<size_t>(fW) + 1;
+    const keel::usize C = (d.ndim() == 3) ? d.pages() : 1;
+    const keel::usize outH = H - static_cast<keel::usize>(fH) + 1;
+    const keel::usize outW = W - static_cast<keel::usize>(fW) + 1;
 
     Value out = (C == 1)
         ? Value::matrix(outH, outW, ValueType::DOUBLE, mr)
         : Value::matrix3d(outH, outW, C, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
 
-    const size_t inPlane = H1 * W1;
+    const keel::usize inPlane = H1 * W1;
     // normFactor is a MULTIPLIER (MATLAB semantics): out = boxSum * normFactor.
     // Default (1/(fH·fW)) → mean; pass 1 for raw sum.
 
-    for (size_t c = 0; c < C; ++c) {
-        for (size_t oj = 0; oj < outW; ++oj) {
-            const size_t c0 = oj;
-            const size_t c1 = oj + static_cast<size_t>(fW);
-            for (size_t oi = 0; oi < outH; ++oi) {
-                const size_t r0 = oi;
-                const size_t r1 = oi + static_cast<size_t>(fH);
+    for (keel::usize c = 0; c < C; ++c) {
+        for (keel::usize oj = 0; oj < outW; ++oj) {
+            const keel::usize c0 = oj;
+            const keel::usize c1 = oj + static_cast<keel::usize>(fW);
+            for (keel::usize oi = 0; oi < outH; ++oi) {
+                const keel::usize r0 = oi;
+                const keel::usize r1 = oi + static_cast<keel::usize>(fH);
                 // Column-major indexing for I: idx = c·inPlane + col·H1 + row.
-                const size_t base = c * inPlane;
+                const keel::usize base = c * inPlane;
                 const double s =
                       I.elemAsDouble(base + c1 * H1 + r1)
                     - I.elemAsDouble(base + c1 * H1 + r0)
                     - I.elemAsDouble(base + c0 * H1 + r1)
                     + I.elemAsDouble(base + c0 * H1 + r0);
-                const size_t dstIdx = (C == 1)
+                const keel::usize dstIdx = (C == 1)
                     ? (oj * outH + oi)
                     : (c * outH * outW + oj * outH + oi);
                 od[dstIdx] = s * normFactor;
@@ -1005,42 +1010,42 @@ Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
 // core, matching MATLAB. `normFactor` is a MULTIPLIER (MATLAB semantics):
 // each box sum is multiplied by it.
 Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
-                         double normFactor, std::pmr::memory_resource *mr)
+                         double normFactor, keel::Allocator *mr)
 {
     integralBoxFilter3_argcheck(I, fH, fW, fP);
     const auto &d = I.dims();
-    const size_t H1 = d.rows();
-    const size_t W1 = d.cols();
-    const size_t D1 = d.is3D() ? d.pages() : 1;
-    const size_t H = H1 - 1, W = W1 - 1, D = D1 - 1;
+    const keel::usize H1 = d.rows();
+    const keel::usize W1 = d.cols();
+    const keel::usize D1 = d.is3D() ? d.pages() : 1;
+    const keel::usize H = H1 - 1, W = W1 - 1, D = D1 - 1;
 
-    const size_t outH = H - static_cast<size_t>(fH) + 1;
-    const size_t outW = W - static_cast<size_t>(fW) + 1;
-    const size_t outD = D - static_cast<size_t>(fP) + 1;
+    const keel::usize outH = H - static_cast<keel::usize>(fH) + 1;
+    const keel::usize outW = W - static_cast<keel::usize>(fW) + 1;
+    const keel::usize outD = D - static_cast<keel::usize>(fP) + 1;
 
     Value out = (outD > 1)
         ? Value::matrix3d(outH, outW, outD, ValueType::DOUBLE, mr)
         : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
 
-    const size_t plane = H1 * W1;  // page stride in I
+    const keel::usize plane = H1 * W1;  // page stride in I
     // Column-major, page-major index into the integral volume I.
-    auto Iat = [&](size_t r, size_t c, size_t p) -> double {
+    auto Iat = [&](keel::usize r, keel::usize c, keel::usize p) -> double {
         return I.elemAsDouble(p * plane + c * H1 + r);
     };
 
-    for (size_t ok = 0; ok < outD; ++ok) {
-        const size_t p0 = ok, p1 = ok + static_cast<size_t>(fP);
-        for (size_t oj = 0; oj < outW; ++oj) {
-            const size_t c0 = oj, c1 = oj + static_cast<size_t>(fW);
-            for (size_t oi = 0; oi < outH; ++oi) {
-                const size_t r0 = oi, r1 = oi + static_cast<size_t>(fH);
+    for (keel::usize ok = 0; ok < outD; ++ok) {
+        const keel::usize p0 = ok, p1 = ok + static_cast<keel::usize>(fP);
+        for (keel::usize oj = 0; oj < outW; ++oj) {
+            const keel::usize c0 = oj, c1 = oj + static_cast<keel::usize>(fW);
+            for (keel::usize oi = 0; oi < outH; ++oi) {
+                const keel::usize r0 = oi, r1 = oi + static_cast<keel::usize>(fH);
                 const double s =
                       Iat(r1, c1, p1)
                     - Iat(r0, c1, p1) - Iat(r1, c0, p1) - Iat(r1, c1, p0)
                     + Iat(r0, c0, p1) + Iat(r0, c1, p0) + Iat(r1, c0, p0)
                     - Iat(r0, c0, p0);
-                const size_t dstIdx = ok * outH * outW + oj * outH + oi;
+                const keel::usize dstIdx = ok * outH * outW + oj * outH + oi;
                 od[dstIdx] = s * normFactor;
             }
         }
@@ -1064,7 +1069,7 @@ Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
 // 3-D volume and the filter window is fH × fW × fD; otherwise pure 2-D.
 static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                             const std::string &padopt,
-                            std::pmr::memory_resource *mr)
+                            keel::Allocator *mr)
 {
     int padMode = 0;  // 0=symmetric, 1=replicate, 2=zeros
     modefilt_argcheck(A, fH, fW, fD, padopt, padMode);
@@ -1109,7 +1114,7 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
     };
 
     auto getDouble = [&](long long idx) -> double {
-        return idx < 0 ? 0.0 : A.elemAsDouble(static_cast<size_t>(idx));
+        return idx < 0 ? 0.0 : A.elemAsDouble(static_cast<keel::usize>(idx));
     };
 
     // Fast UINT8 / LOGICAL path with 256-bucket histogram.
@@ -1145,10 +1150,10 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                                           + static_cast<long long>(c) * H + r;
                 if (vt == ValueType::UINT8)
                     out.uint8DataMut()[dstIdx] =
-                        static_cast<std::uint8_t>(bestVal);
+                        static_cast<keel::u8>(bestVal);
                 else
                     out.logicalDataMut()[dstIdx] =
-                        static_cast<std::uint8_t>(bestVal != 0);
+                        static_cast<keel::u8>(bestVal != 0);
                 continue;
             }
             // Generic path: ordered map keyed by value → count.
@@ -1170,16 +1175,16 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                 }
             }
             // Store into output of matching dtype.
-            const size_t dst = static_cast<size_t>(p) * static_cast<size_t>(plane)
-                              + static_cast<size_t>(c) * H + static_cast<size_t>(r);
+            const keel::usize dst = static_cast<keel::usize>(p) * static_cast<keel::usize>(plane)
+                              + static_cast<keel::usize>(c) * H + static_cast<keel::usize>(r);
             switch (vt) {
                 case ValueType::DOUBLE: out.doubleDataMut()[dst] = bestVal; break;
                 case ValueType::SINGLE: out.singleDataMut()[dst] = static_cast<float>(bestVal); break;
-                case ValueType::UINT16: out.uint16DataMut()[dst] = static_cast<std::uint16_t>(bestVal); break;
-                case ValueType::UINT32: out.uint32DataMut()[dst] = static_cast<std::uint32_t>(bestVal); break;
-                case ValueType::INT8:   out.int8DataMut()[dst]   = static_cast<std::int8_t>(bestVal); break;
-                case ValueType::INT16:  out.int16DataMut()[dst]  = static_cast<std::int16_t>(bestVal); break;
-                case ValueType::INT32:  out.int32DataMut()[dst]  = static_cast<std::int32_t>(bestVal); break;
+                case ValueType::UINT16: out.uint16DataMut()[dst] = static_cast<keel::u16>(bestVal); break;
+                case ValueType::UINT32: out.uint32DataMut()[dst] = static_cast<keel::u32>(bestVal); break;
+                case ValueType::INT8:   out.int8DataMut()[dst]   = static_cast<keel::i8>(bestVal); break;
+                case ValueType::INT16:  out.int16DataMut()[dst]  = static_cast<keel::i16>(bestVal); break;
+                case ValueType::INT32:  out.int32DataMut()[dst]  = static_cast<keel::i32>(bestVal); break;
                 default:                out.doubleDataMut()[dst] = bestVal; break;
             }
             }
@@ -1190,14 +1195,14 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
 
 // Public 2-D entry point — pure 2-D semantics (fD = 0 means no 3rd dim).
 Value modefilt(const Value &A, int fH, int fW,
-               const std::string &padopt, std::pmr::memory_resource *mr)
+               const std::string &padopt, keel::Allocator *mr)
 {
     return modefilt_impl(A, fH, fW, /*fD=*/0, padopt, mr);
 }
 
 // Public 3-D entry point — fD is the depth-axis window length.
 Value modefilt3D(const Value &A, int fH, int fW, int fD,
-                 const std::string &padopt, std::pmr::memory_resource *mr)
+                 const std::string &padopt, keel::Allocator *mr)
 {
     return modefilt_impl(A, fH, fW, fD, padopt, mr);
 }
@@ -1227,23 +1232,23 @@ inline double med9(double p[9])
 // median is the single th-th (0-based, th = n/2) order statistic — identical
 // to nth_element's window[n/2]. Scans down columns (contiguous, column-major).
 static Value medfilt2_huang_u8(const Value &I, int rows, int cols,
-                               std::pmr::memory_resource *mr)
+                               keel::Allocator *mr)
 {
     const int H = (int)I.dims().rows(), W = (int)I.dims().cols();
     const int hr = (rows - 1) / 2, hc = (cols - 1) / 2;
     Value out = Value::matrix(H, W, ValueType::UINT8, mr);
     if (H == 0 || W == 0) return out;
-    const std::uint8_t *src = I.uint8Data();
-    std::uint8_t *dst = out.uint8DataMut();
+    const keel::u8 *src = I.uint8Data();
+    keel::u8 *dst = out.uint8DataMut();
 
     const int Hp = H + rows - 1, Wp = W + cols - 1;        // zero-padded extent
-    ScratchArena arena(mr);
-    ScratchVec<std::uint8_t> Pp((std::size_t)Hp * (std::size_t)Wp, &arena);
-    std::fill(Pp.begin(), Pp.end(), std::uint8_t{0});
+    keel::ArenaTemp arena = keel::get_scratch(mr);
+    keel::Array<keel::u8> Pp((keel::usize)Hp * (keel::usize)Wp, arena.allocator());
+    std::fill(Pp.begin(), Pp.end(), keel::u8{0});
     for (int c = 0; c < W; ++c) {
-        const std::size_t scol = (std::size_t)c * (std::size_t)H;
-        std::uint8_t *pcol = Pp.data() + (std::size_t)(c + hc) * (std::size_t)Hp + (std::size_t)hr;
-        for (int r = 0; r < H; ++r) pcol[r] = src[scol + (std::size_t)r];
+        const keel::usize scol = (keel::usize)c * (keel::usize)H;
+        keel::u8 *pcol = Pp.data() + (keel::usize)(c + hc) * (keel::usize)Hp + (keel::usize)hr;
+        for (int r = 0; r < H; ++r) pcol[r] = src[scol + (keel::usize)r];
     }
 
     const int th = (rows * cols) / 2;     // 0-based median index (n odd)
@@ -1251,30 +1256,30 @@ static Value medfilt2_huang_u8(const Value &I, int rows, int cols,
     for (int oc = 0; oc < W; ++oc) {
         std::fill(hist, hist + 256, 0);
         for (int wc = 0; wc < cols; ++wc) {
-            const std::uint8_t *col = Pp.data() + (std::size_t)(oc + wc) * (std::size_t)Hp;
+            const keel::u8 *col = Pp.data() + (keel::usize)(oc + wc) * (keel::usize)Hp;
             for (int wr = 0; wr < rows; ++wr) ++hist[col[wr]];
         }
         int med = 0, below = 0;
         while (below + hist[med] <= th) { below += hist[med]; ++med; }
-        dst[(std::size_t)oc * (std::size_t)H + 0] = (std::uint8_t)med;
+        dst[(keel::usize)oc * (keel::usize)H + 0] = (keel::u8)med;
 
         for (int orow = 1; orow < H; ++orow) {
             const int rOut = orow - 1;            // window row leaving (top)
             const int rIn  = orow + rows - 1;     // window row entering (bottom)
             for (int wc = 0; wc < cols; ++wc) {
-                const std::uint8_t *col = Pp.data() + (std::size_t)(oc + wc) * (std::size_t)Hp;
-                const std::uint8_t vo = col[rOut]; --hist[vo]; if (vo < med) --below;
-                const std::uint8_t vi = col[rIn];  ++hist[vi]; if (vi < med) ++below;
+                const keel::u8 *col = Pp.data() + (keel::usize)(oc + wc) * (keel::usize)Hp;
+                const keel::u8 vo = col[rOut]; --hist[vo]; if (vo < med) --below;
+                const keel::u8 vi = col[rIn];  ++hist[vi]; if (vi < med) ++below;
             }
             while (below > th)                 { --med; below -= hist[med]; }
             while (below + hist[med] <= th)    { below += hist[med]; ++med; }
-            dst[(std::size_t)oc * (std::size_t)H + (std::size_t)orow] = (std::uint8_t)med;
+            dst[(keel::usize)oc * (keel::usize)H + (keel::usize)orow] = (keel::u8)med;
         }
     }
     return out;
 }
 
-Value medfilt2(const Value &I, int rows, int cols, std::pmr::memory_resource *mr)
+Value medfilt2(const Value &I, int rows, int cols, keel::Allocator *mr)
 {
     medfilt2_argcheck(I);
     // Logical input → logical output (probed R2025b): median on the
@@ -1307,21 +1312,21 @@ Value medfilt2(const Value &I, int rows, int cols, std::pmr::memory_resource *mr
                     for (int ki = 0; ki < 3; ++ki) {
                         const int r_in = orow + ki - 1, c_in = oc + kj - 1;
                         p[m++] = (r_in < 0 || r_in >= H || c_in < 0 || c_in >= W)
-                                     ? 0.0 : src[(std::size_t)c_in * (std::size_t)H + (std::size_t)r_in];
+                                     ? 0.0 : src[(keel::usize)c_in * (keel::usize)H + (keel::usize)r_in];
                     }
-                dst[(std::size_t)oc * (std::size_t)H + (std::size_t)orow] = med9(p);
+                dst[(keel::usize)oc * (keel::usize)H + (keel::usize)orow] = med9(p);
             }
         return out;
     }
 
     std::vector<double> window;
-    window.reserve((size_t)rows * (size_t)cols);
+    window.reserve((keel::usize)rows * (keel::usize)cols);
 
     // Typed pointers for the common image classes — avoids the per-element
     // elemAsDouble() type-switch in the hot window-gather loop.
     const double  *sd = (I.type() == ValueType::DOUBLE) ? I.doubleData() : nullptr;
-    const uint8_t *su = (I.type() == ValueType::UINT8)  ? I.uint8Data()  : nullptr;
-    auto getv = [&](std::size_t idx) -> double {
+    const keel::u8 *su = (I.type() == ValueType::UINT8)  ? I.uint8Data()  : nullptr;
+    auto getv = [&](keel::usize idx) -> double {
         if (sd) return sd[idx];
         if (su) return static_cast<double>(su[idx]);
         return I.elemAsDouble(idx);
@@ -1338,7 +1343,7 @@ Value medfilt2(const Value &I, int rows, int cols, std::pmr::memory_resource *mr
                     if (r_in < 0 || r_in >= H || c_in < 0 || c_in >= W) {
                         window.push_back(0.0);
                     } else {
-                        window.push_back(getv((std::size_t)c_in * (std::size_t)H + (std::size_t)r_in));
+                        window.push_back(getv((keel::usize)c_in * (keel::usize)H + (keel::usize)r_in));
                     }
                 }
             }
@@ -1355,7 +1360,7 @@ Value medfilt2(const Value &I, int rows, int cols, std::pmr::memory_resource *mr
                     if (*it > left_max) left_max = *it;
                 med = 0.5 * (left_max + med);
             }
-            store_classed(out, (size_t)oc * (size_t)H + (size_t)orow, med, I.type());
+            store_classed(out, (keel::usize)oc * (keel::usize)H + (keel::usize)orow, med, I.type());
         }
     }
     return out;
@@ -1372,7 +1377,7 @@ Value medfilt2(const Value &I, int rows, int cols, std::pmr::memory_resource *mr
 // MATLAB R2025b defaults: radius=1, amount=0.8, threshold=0. Output
 // has the same class as the input (saturating cast for ints).
 
-Value imsharpen(const Value &I, double radius, double amount, double threshold, std::pmr::memory_resource *mr)
+Value imsharpen(const Value &I, double radius, double amount, double threshold, keel::Allocator *mr)
 {
     imsharpen_argcheck(I, threshold);
     if (!(radius > 0.0)) radius = 1.0;
@@ -1384,9 +1389,9 @@ Value imsharpen(const Value &I, double radius, double amount, double threshold, 
 
     Value blurred = imgaussfilt(I, radius, fs, mr);
 
-    const size_t Hh = I.dims().rows();
-    const size_t Ww = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize Hh = I.dims().rows();
+    const keel::usize Ww = I.dims().cols();
+    const keel::usize N = I.numel();
     const bool useThreshold = (threshold > 0.0);
 
     Value out = Value::matrix(Hh, Ww, I.type(), mr);
@@ -1403,21 +1408,21 @@ Value imsharpen(const Value &I, double radius, double amount, double threshold, 
         const double *Bd = blurred.doubleData();
         double *od = out.doubleDataMut();
         if (!useThreshold) {
-            for (size_t i = 0; i < N; ++i)
+            for (keel::usize i = 0; i < N; ++i)
                 od[i] = Id[i] + amount * (Id[i] - Bd[i]);
         } else {
             std::vector<double> Hbuf(N);
             double max_abs = 0.0;
-            for (size_t i = 0; i < N; ++i) {
+            for (keel::usize i = 0; i < N; ++i) {
                 const double v = Id[i] - Bd[i];
                 Hbuf[i] = v;
-                const double a = std::abs(v);
+                const double a = keel::abs(v);
                 if (a > max_abs) max_abs = a;
             }
             const double thr_abs = threshold * max_abs;
-            for (size_t i = 0; i < N; ++i) {
+            for (keel::usize i = 0; i < N; ++i) {
                 double h = Hbuf[i];
-                if (std::abs(h) < thr_abs) h = 0.0;
+                if (keel::abs(h) < thr_abs) h = 0.0;
                 od[i] = Id[i] + amount * h;
             }
         }
@@ -1427,16 +1432,16 @@ Value imsharpen(const Value &I, double radius, double amount, double threshold, 
     // Generic path (single / uintN / int16, or complex) — unchanged.
     std::vector<double> Hbuf(N);
     double max_abs = 0.0;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = I.elemAsDouble(i) - blurred.elemAsDouble(i);
         Hbuf[i] = v;
-        const double a = std::abs(v);
+        const double a = keel::abs(v);
         if (a > max_abs) max_abs = a;
     }
     const double thr_abs = threshold * max_abs;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         double h = Hbuf[i];
-        if (useThreshold && std::abs(h) < thr_abs) h = 0.0;
+        if (useThreshold && keel::abs(h) < thr_abs) h = 0.0;
         const double v = I.elemAsDouble(i) + amount * h;
         store_classed(out, i, v, I.type());
     }
@@ -1461,47 +1466,21 @@ Value imsharpen(const Value &I, double radius, double amount, double threshold, 
 namespace {
 
 template <typename T>
-inline T elem_typed(const Value &A, size_t i);
-
-template <> inline double  elem_typed<double>(const Value &A, size_t i)
-                          { return A.doubleData()[i]; }
-template <> inline float   elem_typed<float> (const Value &A, size_t i)
-                          { return A.singleData()[i]; }
-template <> inline std::uint8_t elem_typed<std::uint8_t>(const Value &A, size_t i)
-                          { return A.uint8Data()[i]; }
-template <> inline std::uint16_t elem_typed<std::uint16_t>(const Value &A, size_t i)
-                          { return A.uint16Data()[i]; }
-template <> inline std::int16_t  elem_typed<std::int16_t>(const Value &A, size_t i)
-                          { return A.int16Data()[i]; }
-
-template <typename T>
-inline T *out_typed_mut(Value &B);
-template <> inline double  *out_typed_mut<double>(Value &B) { return B.doubleDataMut(); }
-template <> inline float   *out_typed_mut<float> (Value &B) { return B.singleDataMut(); }
-template <> inline std::uint8_t *out_typed_mut<std::uint8_t>(Value &B)
-                                                       { return B.uint8DataMut(); }
-template <> inline std::uint16_t *out_typed_mut<std::uint16_t>(Value &B)
-                                                        { return B.uint16DataMut(); }
-template <> inline std::int16_t  *out_typed_mut<std::int16_t>(Value &B)
-                                                       { return B.int16DataMut(); }
-
-template <typename T>
-void im2col_sliding_typed(const Value &A, Value &B, size_t H, size_t W,
-                           int m, int n)
+void im2col_sliding_ptr(const T *ad, T *bd, keel::usize H, keel::usize W,
+                        int m, int n)
 {
-    const size_t outH = (size_t)(m * n);
-    const size_t Hp = H - (size_t)m + 1;
-    const size_t Wp = W - (size_t)n + 1;
-    T *bd = out_typed_mut<T>(B);
-    size_t col = 0;
-    for (size_t c0 = 0; c0 < Wp; ++c0) {
-        for (size_t r0 = 0; r0 < Hp; ++r0) {
+    const keel::usize outH = (keel::usize)(m * n);
+    const keel::usize Hp = H - (keel::usize)m + 1;
+    const keel::usize Wp = W - (keel::usize)n + 1;
+    keel::usize col = 0;
+    for (keel::usize c0 = 0; c0 < Wp; ++c0) {
+        for (keel::usize r0 = 0; r0 < Hp; ++r0) {
             // Within-block: column-major (bc outer, br inner).
-            size_t off = col * outH;
+            keel::usize off = col * outH;
             for (int bc = 0; bc < n; ++bc) {
-                const size_t Acol = (c0 + (size_t)bc) * H;
+                const keel::usize Acol = (c0 + (keel::usize)bc) * H;
                 for (int br = 0; br < m; ++br) {
-                    bd[off++] = elem_typed<T>(A, Acol + r0 + (size_t)br);
+                    bd[off++] = ad[Acol + r0 + (keel::usize)br];
                 }
             }
             ++col;
@@ -1510,26 +1489,25 @@ void im2col_sliding_typed(const Value &A, Value &B, size_t H, size_t W,
 }
 
 template <typename T>
-void im2col_distinct_typed(const Value &A, Value &B, size_t H, size_t W,
-                            int m, int n)
+void im2col_distinct_ptr(const T *ad, T *bd, keel::usize H, keel::usize W,
+                         int m, int n)
 {
-    const size_t outH = (size_t)(m * n);
-    const size_t Hb = (H + (size_t)m - 1) / (size_t)m;
-    const size_t Wb = (W + (size_t)n - 1) / (size_t)n;
-    T *bd = out_typed_mut<T>(B);
+    const keel::usize outH = (keel::usize)(m * n);
+    const keel::usize Hb = (H + (keel::usize)m - 1) / (keel::usize)m;
+    const keel::usize Wb = (W + (keel::usize)n - 1) / (keel::usize)n;
     // Output starts zero-initialised by Value::matrix; we just write
     // the in-bounds elements.
-    size_t col = 0;
-    for (size_t bj = 0; bj < Wb; ++bj) {
-        for (size_t bi = 0; bi < Hb; ++bi) {
-            size_t off = col * outH;
+    keel::usize col = 0;
+    for (keel::usize bj = 0; bj < Wb; ++bj) {
+        for (keel::usize bi = 0; bi < Hb; ++bi) {
+            keel::usize off = col * outH;
             for (int bc = 0; bc < n; ++bc) {
-                const size_t cc = bj * (size_t)n + (size_t)bc;
-                if (cc >= W) { off += (size_t)m; continue; }
-                const size_t Acol = cc * H;
+                const keel::usize cc = bj * (keel::usize)n + (keel::usize)bc;
+                if (cc >= W) { off += (keel::usize)m; continue; }
+                const keel::usize Acol = cc * H;
                 for (int br = 0; br < m; ++br) {
-                    const size_t rr = bi * (size_t)m + (size_t)br;
-                    if (rr < H) bd[off] = elem_typed<T>(A, Acol + rr);
+                    const keel::usize rr = bi * (keel::usize)m + (keel::usize)br;
+                    if (rr < H) bd[off] = ad[Acol + rr];
                     ++off;
                 }
             }
@@ -1561,27 +1539,27 @@ void imbilatfilt_argcheck(const Value &I, double degreeOfSmoothing)
 
 } // anonymous
 
-Value im2col(const Value &A, int m, int n, const std::string &block_type, std::pmr::memory_resource *mr)
+Value im2col(const Value &A, int m, int n, const std::string &block_type, keel::Allocator *mr)
 {
     im2col_argcheck(A, m, n, block_type);
-    const size_t H = A.dims().rows();
-    const size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     const ValueType T = A.type();
 
-    size_t outH = (size_t)(m * n);
-    size_t outW;
+    keel::usize outH = (keel::usize)(m * n);
+    keel::usize outW;
     bool sliding = (block_type == "sliding" || block_type.empty());
     if (sliding) {
         // Block larger than the image in a sliding gather → an EMPTY
         // double (outH×0) result, matching the reference (probed:
         // im2col('ab', [3 3]) is zeros(9,0), not an error — the empty
         // result is double even for class-preserving inputs).
-        outW = ((size_t)m > H || (size_t)n > W)
+        outW = ((keel::usize)m > H || (keel::usize)n > W)
                    ? 0
-                   : (H - (size_t)m + 1) * (W - (size_t)n + 1);
+                   : (H - (keel::usize)m + 1) * (W - (keel::usize)n + 1);
     } else if (block_type == "distinct") {
-        const size_t Hb = (H + (size_t)m - 1) / (size_t)m;
-        const size_t Wb = (W + (size_t)n - 1) / (size_t)n;
+        const keel::usize Hb = (H + (keel::usize)m - 1) / (keel::usize)m;
+        const keel::usize Wb = (W + (keel::usize)n - 1) / (keel::usize)n;
         outW = Hb * Wb;
     } else {
         throw Error("im2col: block_type must be 'sliding' or 'distinct'",
@@ -1592,46 +1570,45 @@ Value im2col(const Value &A, int m, int n, const std::string &block_type, std::p
         return Value::matrix(outH, 0, ValueType::DOUBLE, mr);
     Value B = Value::matrix(outH, outW, T, mr);
 
-    auto run = [&](auto tag) {
-        using ET = decltype(tag);
-        if (sliding) im2col_sliding_typed<ET>(A, B, H, W, m, n);
-        else         im2col_distinct_typed<ET>(A, B, H, W, m, n);
+    auto run = [&](const auto *ad, auto *bd) {
+        if (sliding) im2col_sliding_ptr(ad, bd, H, W, m, n);
+        else         im2col_distinct_ptr(ad, bd, H, W, m, n);
     };
 
     if (T == ValueType::COMPLEX) {
         // Complex gather — values preserved (probed R2025b).
         auto *ad = A.complexData();
         auto *bd = B.complexDataMut();
-        const size_t outHc = outH;
+        const keel::usize outHc = outH;
         if (sliding) {
-            const size_t Hp = (H >= (size_t)m) ? H - (size_t)m + 1 : 0;
-            const size_t Wp = (W >= (size_t)n) ? W - (size_t)n + 1 : 0;
-            size_t col = 0;
-            for (size_t c0 = 0; c0 < Wp; ++c0)
-                for (size_t r0 = 0; r0 < Hp; ++r0) {
-                    size_t off = col * outHc;
+            const keel::usize Hp = (H >= (keel::usize)m) ? H - (keel::usize)m + 1 : 0;
+            const keel::usize Wp = (W >= (keel::usize)n) ? W - (keel::usize)n + 1 : 0;
+            keel::usize col = 0;
+            for (keel::usize c0 = 0; c0 < Wp; ++c0)
+                for (keel::usize r0 = 0; r0 < Hp; ++r0) {
+                    keel::usize off = col * outHc;
                     for (int bc = 0; bc < n; ++bc) {
-                        const size_t Acol = (c0 + (size_t)bc) * H;
+                        const keel::usize Acol = (c0 + (keel::usize)bc) * H;
                         for (int br = 0; br < m; ++br)
-                            bd[off++] = ad[Acol + r0 + (size_t)br];
+                            bd[off++] = ad[Acol + r0 + (keel::usize)br];
                     }
                     ++col;
                 }
         } else {
-            const size_t Hb = (H + (size_t)m - 1) / (size_t)m;
-            const size_t Wb = (W + (size_t)n - 1) / (size_t)n;
-            size_t col = 0;
-            for (size_t bj = 0; bj < Wb; ++bj)
-                for (size_t bi = 0; bi < Hb; ++bi) {
-                    size_t off = col * outHc;
+            const keel::usize Hb = (H + (keel::usize)m - 1) / (keel::usize)m;
+            const keel::usize Wb = (W + (keel::usize)n - 1) / (keel::usize)n;
+            keel::usize col = 0;
+            for (keel::usize bj = 0; bj < Wb; ++bj)
+                for (keel::usize bi = 0; bi < Hb; ++bi) {
+                    keel::usize off = col * outHc;
                     for (int bc = 0; bc < n; ++bc) {
-                        const size_t cc = bj * (size_t)n + (size_t)bc;
-                        if (cc >= W) { off += (size_t)m; continue; }
-                        const size_t Acol = cc * H;
+                        const keel::usize cc = bj * (keel::usize)n + (keel::usize)bc;
+                        if (cc >= W) { off += (keel::usize)m; continue; }
+                        const keel::usize Acol = cc * H;
                         for (int br = 0; br < m; ++br) {
-                            const size_t rr = bi * (size_t)m + (size_t)br;
+                            const keel::usize rr = bi * (keel::usize)m + (keel::usize)br;
                             bd[off++] = (rr < H) ? ad[Acol + rr]
-                                                 : std::complex<double>{};
+                                                 : keel::c64{};
                         }
                     }
                     ++col;
@@ -1641,16 +1618,12 @@ Value im2col(const Value &A, int m, int n, const std::string &block_type, std::p
     }
 
     switch (T) {
-        case ValueType::DOUBLE: run(double{}); break;
-        case ValueType::SINGLE: run(float{});  break;
-        case ValueType::UINT8:  run(std::uint8_t{});  break;
-        case ValueType::UINT16: run(std::uint16_t{}); break;
-        case ValueType::INT16:  run(std::int16_t{});  break;
-        case ValueType::LOGICAL: {
-            // Treat LOGICAL as uint8 (same storage).
-            run(std::uint8_t{});
-            break;
-        }
+        case ValueType::DOUBLE:  run(A.doubleData(),  B.doubleDataMut());  break;
+        case ValueType::SINGLE:  run(A.singleData(),  B.singleDataMut());  break;
+        case ValueType::UINT8:   run(A.uint8Data(),   B.uint8DataMut());   break;
+        case ValueType::UINT16:  run(A.uint16Data(),  B.uint16DataMut());  break;
+        case ValueType::INT16:   run(A.int16Data(),   B.int16DataMut());   break;
+        case ValueType::LOGICAL: run(A.logicalData(), B.logicalDataMut()); break;
         default:
             throw Error("im2col: unsupported class",
                         0, 0, "im2col", "", "numkit:im2col:badtype");
@@ -1676,14 +1649,14 @@ Value im2col(const Value &A, int m, int n, const std::string &block_type, std::p
 // precomputed once per call. Range weight is per (centre, neighbour)
 // pair — we eat the per-pixel exp; same cost as MATLAB's reference.
 
-Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma, std::pmr::memory_resource *mr)
+Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma, keel::Allocator *mr)
 {
     imbilatfilt_argcheck(I, degreeOfSmoothing);
     if (!(spatialSigma > 0.0)) spatialSigma = 1.0;
 
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = I.numel();
     Value out = Value::matrix(H, W, I.type(), mr);
     if (N == 0) return out;
 
@@ -1693,7 +1666,7 @@ Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma,
     // (probed: imbilatfilt on a 5×5 with the default σs=1 → window 5
     // dies with "Expected NeighborhoodSize to be a scalar with
     // value < 5").
-    if ((size_t)win >= std::min(H, W))
+    if ((keel::usize)win >= std::min(H, W))
         throw Error("imbilatfilt: NeighborhoodSize (window "
                         + std::to_string(win)
                         + ") must be smaller than the image (min dimension "
@@ -1704,10 +1677,10 @@ Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma,
     const double inv2dos = 0.5 / degreeOfSmoothing;
 
     // Precompute spatial weights — flat (win*win) row-major (di, dj).
-    std::vector<double> sw((size_t)win * (size_t)win);
+    std::vector<double> sw((keel::usize)win * (keel::usize)win);
     for (int di = -half; di <= half; ++di)
         for (int dj = -half; dj <= half; ++dj)
-            sw[(size_t)(di + half) * (size_t)win + (size_t)(dj + half)]
+            sw[(keel::usize)(di + half) * (keel::usize)win + (keel::usize)(dj + half)]
                 = std::exp(-(double)(di*di + dj*dj) * inv2ss);
 
     auto clamp = [](int v, int lo, int hi) {
@@ -1716,19 +1689,19 @@ Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma,
         return v;
     };
 
-    for (size_t oc = 0; oc < W; ++oc) {
-        for (size_t orow = 0; orow < H; ++orow) {
+    for (keel::usize oc = 0; oc < W; ++oc) {
+        for (keel::usize orow = 0; orow < H; ++orow) {
             const double Ic = I.elemAsDouble(oc * H + orow);
             double sum_w = 0.0, sum_v = 0.0;
             for (int dj = -half; dj <= half; ++dj) {
                 const int c = clamp((int)oc + dj, 0, (int)W - 1);
                 for (int di = -half; di <= half; ++di) {
                     const int r = clamp((int)orow + di, 0, (int)H - 1);
-                    const double v = I.elemAsDouble((size_t)c * H + (size_t)r);
+                    const double v = I.elemAsDouble((keel::usize)c * H + (keel::usize)r);
                     const double dI = v - Ic;
                     const double rw = std::exp(-(dI * dI) * inv2dos);
-                    const double w = sw[(size_t)(di + half) * (size_t)win
-                                          + (size_t)(dj + half)] * rw;
+                    const double w = sw[(keel::usize)(di + half) * (keel::usize)win
+                                          + (keel::usize)(dj + half)] * rw;
                     sum_w += w;
                     sum_v += w * v;
                 }
@@ -1761,36 +1734,22 @@ Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma,
 namespace {
 
 template <typename T>
-inline T elem_typed_data(const Value &B, size_t i);
-template <> inline double  elem_typed_data<double>(const Value &B, size_t i)
-                          { return B.doubleData()[i]; }
-template <> inline float   elem_typed_data<float> (const Value &B, size_t i)
-                          { return B.singleData()[i]; }
-template <> inline std::uint8_t elem_typed_data<std::uint8_t>(const Value &B, size_t i)
-                          { return B.uint8Data()[i]; }
-template <> inline std::uint16_t elem_typed_data<std::uint16_t>(const Value &B, size_t i)
-                          { return B.uint16Data()[i]; }
-template <> inline std::int16_t  elem_typed_data<std::int16_t>(const Value &B, size_t i)
-                          { return B.int16Data()[i]; }
-
-template <typename T>
-void col2im_distinct_typed(const Value &B, Value &A, size_t mm, size_t nn,
-                            int m, int n)
+void col2im_distinct_ptr(const T *bd, T *ad, keel::usize mm, keel::usize nn,
+                         int m, int n)
 {
-    const size_t Hb = (mm + (size_t)m - 1) / (size_t)m;
-    T *ad = out_typed_mut<T>(A);
-    const size_t outH = (size_t)(m * n);
-    size_t col = 0;
-    for (size_t bj = 0; bj < (nn + (size_t)n - 1) / (size_t)n; ++bj) {
-        for (size_t bi = 0; bi < Hb; ++bi) {
-            size_t off = col * outH;
+    const keel::usize Hb = (mm + (keel::usize)m - 1) / (keel::usize)m;
+    const keel::usize outH = (keel::usize)(m * n);
+    keel::usize col = 0;
+    for (keel::usize bj = 0; bj < (nn + (keel::usize)n - 1) / (keel::usize)n; ++bj) {
+        for (keel::usize bi = 0; bi < Hb; ++bi) {
+            keel::usize off = col * outH;
             for (int bc = 0; bc < n; ++bc) {
-                const size_t cc = bj * (size_t)n + (size_t)bc;
-                if (cc >= nn) { off += (size_t)m; continue; }
-                const size_t Acol = cc * mm;
+                const keel::usize cc = bj * (keel::usize)n + (keel::usize)bc;
+                if (cc >= nn) { off += (keel::usize)m; continue; }
+                const keel::usize Acol = cc * mm;
                 for (int br = 0; br < m; ++br) {
-                    const size_t rr = bi * (size_t)m + (size_t)br;
-                    if (rr < mm) ad[Acol + rr] = elem_typed_data<T>(B, off);
+                    const keel::usize rr = bi * (keel::usize)m + (keel::usize)br;
+                    if (rr < mm) ad[Acol + rr] = bd[off];
                     ++off;
                 }
             }
@@ -1821,26 +1780,26 @@ void imnoise_argcheck(const Value &I, const std::string &mode)
 
 } // anonymous
 
-Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &block_type, std::pmr::memory_resource *mr)
+Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &block_type, keel::Allocator *mr)
 {
     col2im_argcheck(m, n, mm, nn, block_type);
-    const size_t MM = (size_t)mm;
-    const size_t NN = (size_t)nn;
+    const keel::usize MM = (keel::usize)mm;
+    const keel::usize NN = (keel::usize)nn;
     const ValueType T = B.type();
 
     bool sliding = (block_type == "sliding" || block_type.empty());
     if (sliding) {
-        if ((size_t)m > MM || (size_t)n > NN)
+        if ((keel::usize)m > MM || (keel::usize)n > NN)
             throw Error("col2im(sliding): block larger than output image",
                         0, 0, "col2im", "", "numkit:col2im:size");
-        const size_t Hp = MM - (size_t)m + 1;
-        const size_t Wp = NN - (size_t)n + 1;
+        const keel::usize Hp = MM - (keel::usize)m + 1;
+        const keel::usize Wp = NN - (keel::usize)n + 1;
         if (B.numel() != Hp * Wp)
             throw Error("col2im(sliding): B size mismatch — expected 1×(mm−m+1)·(nn−n+1)",
                         0, 0, "col2im", "", "numkit:col2im:nelems");
         Value A = Value::matrix(Hp, Wp, T, mr);
         // Both A and B are column-major linearised; values flow 1:1.
-        const size_t N = Hp * Wp;
+        const keel::usize N = Hp * Wp;
         switch (T) {
             case ValueType::DOUBLE:
                 std::memcpy(A.doubleDataMut(), B.doubleData(),
@@ -1852,10 +1811,10 @@ Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &bl
                 std::memcpy(A.uint8DataMut(), B.uint8Data(), N); break;
             case ValueType::UINT16:
                 std::memcpy(A.uint16DataMut(), B.uint16Data(),
-                            N * sizeof(std::uint16_t)); break;
+                            N * sizeof(keel::u16)); break;
             case ValueType::INT16:
                 std::memcpy(A.int16DataMut(), B.int16Data(),
-                            N * sizeof(std::int16_t)); break;
+                            N * sizeof(keel::i16)); break;
             case ValueType::LOGICAL:
                 std::memcpy(A.logicalDataMut(), B.logicalData(), N); break;
             default:
@@ -1869,10 +1828,10 @@ Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &bl
         throw Error("col2im: block_type must be 'sliding' or 'distinct'",
                     0, 0, "col2im", "", "numkit:col2im:type");
 
-    const size_t Hb = (MM + (size_t)m - 1) / (size_t)m;
-    const size_t Wb = (NN + (size_t)n - 1) / (size_t)n;
-    const size_t expRows = (size_t)(m * n);
-    const size_t expCols = Hb * Wb;
+    const keel::usize Hb = (MM + (keel::usize)m - 1) / (keel::usize)m;
+    const keel::usize Wb = (NN + (keel::usize)n - 1) / (keel::usize)n;
+    const keel::usize expRows = (keel::usize)(m * n);
+    const keel::usize expCols = Hb * Wb;
     if (B.dims().rows() != expRows || B.dims().cols() != expCols)
         throw Error("col2im(distinct): B shape mismatch — expected m·n × ⌈mm/m⌉·⌈nn/n⌉",
                     0, 0, "col2im", "", "numkit:col2im:shape");
@@ -1880,17 +1839,13 @@ Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &bl
     Value A = Value::matrix(MM, NN, T, mr);
     if (MM == 0 || NN == 0) return A;
 
-    auto run = [&](auto tag) {
-        using ET = decltype(tag);
-        col2im_distinct_typed<ET>(B, A, MM, NN, m, n);
-    };
     switch (T) {
-        case ValueType::DOUBLE: run(double{}); break;
-        case ValueType::SINGLE: run(float{});  break;
-        case ValueType::UINT8:  run(std::uint8_t{});  break;
-        case ValueType::UINT16: run(std::uint16_t{}); break;
-        case ValueType::INT16:  run(std::int16_t{});  break;
-        case ValueType::LOGICAL: run(std::uint8_t{}); break;
+        case ValueType::DOUBLE:  col2im_distinct_ptr(B.doubleData(),  A.doubleDataMut(),  MM, NN, m, n); break;
+        case ValueType::SINGLE:  col2im_distinct_ptr(B.singleData(),  A.singleDataMut(),  MM, NN, m, n); break;
+        case ValueType::UINT8:   col2im_distinct_ptr(B.uint8Data(),   A.uint8DataMut(),   MM, NN, m, n); break;
+        case ValueType::UINT16:  col2im_distinct_ptr(B.uint16Data(),  A.uint16DataMut(),  MM, NN, m, n); break;
+        case ValueType::INT16:   col2im_distinct_ptr(B.int16Data(),   A.int16DataMut(),   MM, NN, m, n); break;
+        case ValueType::LOGICAL: col2im_distinct_ptr(B.logicalData(), A.logicalDataMut(), MM, NN, m, n); break;
         default:
             throw Error("col2im: unsupported class",
                         0, 0, "col2im", "", "numkit:col2im:badtype");
@@ -1914,13 +1869,13 @@ Value col2im(const Value &B, int m, int n, int mm, int nn, const std::string &bl
 //   speckle        J = I + I * sqrt(var) * N(0, 1)      multiplicative
 //   poisson        J = Poisson(I * scale) / scale       scale per class
 
-Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string &mode, const Value &p1, const Value &p2, std::pmr::memory_resource *mr)
+Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string &mode, const Value &p1, const Value &p2, keel::Allocator *mr)
 {
     imnoise_argcheck(I, mode);
     const ValueType T = I.type();
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
-    const size_t N = I.numel();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = I.numel();
 
     if (I.isComplex()) {
         const auto *cd = I.complexData();
@@ -1929,24 +1884,24 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
             std::uniform_real_distribution<double> U(0.0, 1.0);
             Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
             auto *od = out.complexDataMut();
-            for (size_t i = 0; i < N; ++i) {
-                std::complex<double> z = cd[i];
+            for (keel::usize i = 0; i < N; ++i) {
+                keel::c64 z = cd[i];
                 const double u = U(rng);
-                if      (u < d * 0.5) z = std::complex<double>(0.0, 0.0);
-                else if (u < d)       z = std::complex<double>(1.0, 0.0);
+                if      (u < d * 0.5) z = keel::c64(0.0, 0.0);
+                else if (u < d)       z = keel::c64(1.0, 0.0);
                 od[i] = z;
             }
             return out;
         }
         Value Ir = Value::matrix(H, W, ValueType::DOUBLE, mr);
         double *ird = Ir.doubleDataMut();
-        for (size_t i = 0; i < N; ++i) ird[i] = cd[i].real();
+        for (keel::usize i = 0; i < N; ++i) ird[i] = cd[i].real();
         Value Jr = imnoise(rng, Ir, mode, p1, p2, mr);
         Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
         auto *od = out.complexDataMut();
         const double *jrd = Jr.doubleData();
-        for (size_t i = 0; i < N; ++i)
-            od[i] = std::complex<double>(jrd[i], cd[i].imag());
+        for (keel::usize i = 0; i < N; ++i)
+            od[i] = keel::c64(jrd[i], cd[i].imag());
         return out;
     }
 
@@ -1959,21 +1914,21 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
             default:                 return v;
         }
     };
-    auto fromUnit = [&](Value &out, size_t i, double v) {
+    auto fromUnit = [&](Value &out, keel::usize i, double v) {
         if (v < 0.0) v = 0.0;
         if (v > 1.0) v = 1.0;
         switch (T) {
             case ValueType::UINT8:
                 out.uint8DataMut()[i] =
-                    (std::uint8_t)std::lround(v * 255.0); break;
+                    (keel::u8)std::lround(v * 255.0); break;
             case ValueType::UINT16:
                 out.uint16DataMut()[i] =
-                    (std::uint16_t)std::lround(v * 65535.0); break;
+                    (keel::u16)std::lround(v * 65535.0); break;
             case ValueType::INT16: {
                 double w = std::lround(v * 65535.0) - 32768.0;
                 if (w < -32768.0) w = -32768.0;
                 if (w >  32767.0) w =  32767.0;
-                out.int16DataMut()[i] = (std::int16_t)w; break;
+                out.int16DataMut()[i] = (keel::i16)w; break;
             }
             case ValueType::LOGICAL:
                 out.logicalDataMut()[i] = v >= 0.5 ? 1u : 0u; break;
@@ -1991,7 +1946,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
         const double m = (p1.numel() > 0) ? p1.toScalar() : 0.0;
         const double v = (p2.numel() > 0) ? p2.toScalar() : 0.01;
         std::normal_distribution<double> Z(0.0, std::sqrt(std::max(v, 0.0)));
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + m + Z(rng));
         }
@@ -1999,7 +1954,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
     else if (mode == "salt & pepper" || mode == "salt&pepper") {
         const double d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
         std::uniform_real_distribution<double> U(0.0, 1.0);
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             double x = toUnit(I.elemAsDouble(i));
             const double u = U(rng);
             if      (u < d * 0.5) x = 0.0;       // pepper
@@ -2010,7 +1965,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
     else if (mode == "speckle") {
         const double v = (p1.numel() > 0) ? p1.toScalar() : 0.04;
         std::normal_distribution<double> Z(0.0, std::sqrt(std::max(v, 0.0)));
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + x * Z(rng));
         }
@@ -2024,7 +1979,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
             case ValueType::UINT16:  scale = 65535.0; break;
             default:                 scale = 1e12;    break;
         }
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             const double mean = std::max(x * scale, 0.0);
             // mean == 0 → the Poisson draw is 0; constructing the
@@ -2040,7 +1995,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string 
         if (p1.numel() != N)
             throw Error("imnoise('localvar', V): V must match I in size",
                         0, 0, "imnoise", "", "numkit:imnoise:localvar");
-        for (size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             const double v = std::max(p1.elemAsDouble(i), 0.0);
             std::normal_distribution<double> Z(0.0, std::sqrt(v));
@@ -2065,13 +2020,13 @@ struct DomainOffsets {
 
 DomainOffsets domain_offsets(const Value &domain) {
     DomainOffsets r;
-    const size_t kH = domain.dims().rows();
-    const size_t kW = domain.dims().cols();
+    const keel::usize kH = domain.dims().rows();
+    const keel::usize kW = domain.dims().cols();
     r.rh = static_cast<int>(kH) / 2;
     r.ch = static_cast<int>(kW) / 2;
     r.offs.reserve(kH * kW);
-    for (size_t c = 0; c < kW; ++c)
-        for (size_t row = 0; row < kH; ++row)
+    for (keel::usize c = 0; c < kW; ++c)
+        for (keel::usize row = 0; row < kH; ++row)
             if (domain.elemAsDouble(c * kH + row) != 0.0)
                 r.offs.push_back({static_cast<int>(row) - r.rh,
                                   static_cast<int>(c)   - r.ch});
@@ -2081,9 +2036,9 @@ DomainOffsets domain_offsets(const Value &domain) {
 inline double sample_sym(const Value &I, int r, int c, int H, int W) {
     r = fold_index(r, H, PadMode::Symmetric);
     c = fold_index(c, W, PadMode::Symmetric);
-    return I.elemAsDouble(static_cast<size_t>(c) *
-                          static_cast<size_t>(H) +
-                          static_cast<size_t>(r));
+    return I.elemAsDouble(static_cast<keel::usize>(c) *
+                          static_cast<keel::usize>(H) +
+                          static_cast<keel::usize>(r));
 }
 
 void stdfilt_argcheck(const Value &I)
@@ -2171,8 +2126,8 @@ void freqz2_argcheck(const Value &h)
 
 void roifilt2_combine_argcheck(const Value &I, const Value &filtRes, const Value &BW)
 {
-    const std::size_t H = I.dims().rows();
-    const std::size_t W = I.dims().cols();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
     if (BW.dims().rows() != H || BW.dims().cols() != W)
         throw Error("roifilt2: I and BW must be the same size",
                     0, 0, "roifilt2", "", "numkit:roifilt2:imageMaskSizeMismatch");
@@ -2246,19 +2201,19 @@ void imgaborfilt_argcheck(const Value &A_in, double wavelength, double sfb, doub
 
 } // anonymous
 
-Value stdfilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr)
+Value stdfilt(const Value &I, const Value &domain, keel::Allocator *mr)
 {
     stdfilt_argcheck(I);
     const int H = static_cast<int>(I.dims().rows());
     const int W = static_cast<int>(I.dims().cols());
-    Value out = Value::matrix((size_t)H, (size_t)W, ValueType::DOUBLE, mr);
+    Value out = Value::matrix((keel::usize)H, (keel::usize)W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
 
     Value dom_local;
     const Value *dom = &domain;
     if (domain.numel() == 0) {
         dom_local = Value::matrix(3, 3, ValueType::LOGICAL, mr);
-        for (size_t i = 0; i < 9; ++i) dom_local.logicalDataMut()[i] = 1;
+        for (keel::usize i = 0; i < 9; ++i) dom_local.logicalDataMut()[i] = 1;
         dom = &dom_local;
     }
 
@@ -2271,30 +2226,30 @@ Value stdfilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr
     {
         const int kH = (int)dom->dims().rows(), kW = (int)dom->dims().cols();
         bool rect = (kH > 0 && kW > 0);
-        for (size_t i = 0; rect && i < dom->numel(); ++i)
+        for (keel::usize i = 0; rect && i < dom->numel(); ++i)
             if (dom->elemAsDouble(i) == 0.0) rect = false;
         if (rect) {
             const int rh = kH / 2, ch = kW / 2;     // match domain_offsets centring
             const double n = (double)kH * (double)kW;
             const int Hp = H + kH - 1, Wp = W + kW - 1;
             const int Hs = Hp + 1, Ws = Wp + 1;
-            ScratchArena arena(mr);
-            ScratchVec<double> Sx((size_t)Hs * (size_t)Ws, &arena);
-            ScratchVec<double> Sxx((size_t)Hs * (size_t)Ws, &arena);
-            auto X  = [&](int r, int c) -> double & { return Sx[(size_t)c * (size_t)Hs + (size_t)r]; };
-            auto XX = [&](int r, int c) -> double & { return Sxx[(size_t)c * (size_t)Hs + (size_t)r]; };
+            keel::ArenaTemp arena = keel::get_scratch(mr);
+            keel::Array<double> Sx((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
+            keel::Array<double> Sxx((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
+            auto X  = [&](int r, int c) -> double & { return Sx[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
+            auto XX = [&](int r, int c) -> double & { return Sxx[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
             // Typed source read (no per-element elemAsDouble dispatch) for the
             // common image classes; integer values are exact in a double SAT.
-            const std::uint8_t  *su8 = (I.type() == ValueType::UINT8)  ? I.uint8Data()  : nullptr;
+            const keel::u8  *su8 = (I.type() == ValueType::UINT8)  ? I.uint8Data()  : nullptr;
             const double        *sdd = (I.type() == ValueType::DOUBLE) ? I.doubleData() : nullptr;
             for (int c = 0; c < Ws; ++c) { X(0, c) = 0.0; XX(0, c) = 0.0; }
             for (int r = 0; r < Hs; ++r) { X(r, 0) = 0.0; XX(r, 0) = 0.0; }
             for (int c = 1; c < Ws; ++c) {
                 const int sc = fold_index((c - 1) - ch, W, PadMode::Symmetric);
-                const std::size_t scol = (std::size_t)sc * (std::size_t)H;
+                const keel::usize scol = (keel::usize)sc * (keel::usize)H;
                 for (int r = 1; r < Hs; ++r) {
                     const int sr = fold_index((r - 1) - rh, H, PadMode::Symmetric);
-                    const std::size_t idx = scol + (std::size_t)sr;
+                    const keel::usize idx = scol + (keel::usize)sr;
                     const double p = su8 ? (double)su8[idx] : sdd ? sdd[idx] : I.elemAsDouble(idx);
                     X(r, c)  = p       + X(r - 1, c)  + X(r, c - 1)  - X(r - 1, c - 1);
                     XX(r, c) = p * p   + XX(r - 1, c) + XX(r, c - 1) - XX(r - 1, c - 1);
@@ -2307,40 +2262,40 @@ Value stdfilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr
                     const double s2 = XX(r + kH, c + kW) - XX(r, c + kW) - XX(r + kH, c) + XX(r, c);
                     double var = (n > 1.0) ? (s2 - s * s / n) / (n - 1.0) : 0.0;
                     if (var < 0.0) var = 0.0;   // clamp tiny negatives from FP cancellation
-                    od2[(std::size_t)c * (std::size_t)H + (std::size_t)r] = std::sqrt(var);
+                    od2[(keel::usize)c * (keel::usize)H + (keel::usize)r] = std::sqrt(var);
                 }
             return out;
         }
     }
 
     const DomainOffsets dom_offs = domain_offsets(*dom);
-    const size_t M = dom_offs.offs.size();
+    const keel::usize M = dom_offs.offs.size();
     if (M == 0) return out;
 
     double *od = out.doubleDataMut();
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             double sum = 0.0;
-            for (size_t k = 0; k < M; ++k)
+            for (keel::usize k = 0; k < M; ++k)
                 sum += sample_sym(I, r + dom_offs.offs[k].first,
                                      c + dom_offs.offs[k].second, H, W);
             const double mu = sum / static_cast<double>(M);
             double v = 0.0;
-            for (size_t k = 0; k < M; ++k) {
+            for (keel::usize k = 0; k < M; ++k) {
                 const double d = sample_sym(I,
                                             r + dom_offs.offs[k].first,
                                             c + dom_offs.offs[k].second,
                                             H, W) - mu;
                 v += d * d;
             }
-            od[(size_t)c * (size_t)H + (size_t)r] =
+            od[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
                 (M > 1) ? std::sqrt(v / static_cast<double>(M - 1)) : 0.0;
         }
     }
     return out;
 }
 
-Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, PadMode boundary, double pad_value, std::pmr::memory_resource *mr)
+Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, PadMode boundary, double pad_value, keel::Allocator *mr)
 {
     ordfilt2_argcheck(A, domain);
     // Logical input → logical output (probed R2025b): order-statistic on
@@ -2352,11 +2307,11 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
             ValueType::LOGICAL, mr);
     const int H = static_cast<int>(A.dims().rows());
     const int W = static_cast<int>(A.dims().cols());
-    Value out = Value::matrix((size_t)H, (size_t)W, A.type(), mr);
+    Value out = Value::matrix((keel::usize)H, (keel::usize)W, A.type(), mr);
     if (H == 0 || W == 0) return out;
 
-    const size_t kH = domain.dims().rows();
-    const size_t kW = domain.dims().cols();
+    const keel::usize kH = domain.dims().rows();
+    const keel::usize kW = domain.dims().cols();
     const int rh = static_cast<int>(kH) / 2;
     const int ch = static_cast<int>(kW) / 2;
     const bool has_S = (S.numel() == domain.numel());
@@ -2364,8 +2319,8 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
     struct Off { int dr; int dc; double s; };
     std::vector<Off> offs;
     offs.reserve(kH * kW);
-    for (size_t c = 0; c < kW; ++c)
-        for (size_t r = 0; r < kH; ++r)
+    for (keel::usize c = 0; c < kW; ++c)
+        for (keel::usize r = 0; r < kH; ++r)
             if (domain.elemAsDouble(c * kH + r) != 0.0) {
                 const double s = has_S ? S.elemAsDouble(c * kH + r) : 0.0;
                 offs.push_back({static_cast<int>(r) - rh,
@@ -2384,33 +2339,33 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
             r = fold_index(r, H, boundary);
             c = fold_index(c, W, boundary);
         }
-        return A.elemAsDouble((size_t)c * (size_t)H + (size_t)r);
+        return A.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
     };
 
-    std::vector<double> nb(static_cast<size_t>(M));
+    std::vector<double> nb(static_cast<keel::usize>(M));
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             for (int k = 0; k < M; ++k) {
-                nb[(size_t)k] = sample(r + offs[(size_t)k].dr,
-                                       c + offs[(size_t)k].dc)
-                                + offs[(size_t)k].s;
+                nb[(keel::usize)k] = sample(r + offs[(keel::usize)k].dr,
+                                       c + offs[(keel::usize)k].dc)
+                                + offs[(keel::usize)k].s;
             }
             std::nth_element(nb.begin(),
                              nb.begin() + (nth - 1),
                              nb.end());
-            store_classed(out, (size_t)c * (size_t)H + (size_t)r,
-                          nb[(size_t)(nth - 1)], A.type());
+            store_classed(out, (keel::usize)c * (keel::usize)H + (keel::usize)r,
+                          nb[(keel::usize)(nth - 1)], A.type());
         }
     }
     return out;
 }
 
 std::tuple<Value, Value>
-wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_resource *mr)
+wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allocator *mr)
 {
     const ValueType cls = I.type();
-    const size_t H = I.dims().rows();
-    const size_t W = I.dims().cols();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
     if (H == 0 || W == 0) {
         Value out = Value::matrix(H, W, cls, mr);
         return {std::move(out), Value::scalar(0.0, mr)};
@@ -2433,7 +2388,7 @@ wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_res
     {
         const double a = 1.0 / static_cast<double>(nh * nw);
         double *kd = k.doubleDataMut();
-        for (size_t i = 0; i < nh * nw; ++i) kd[i] = a;
+        for (keel::usize i = 0; i < nh * nw; ++i) kd[i] = a;
     }
 
     // Squared image.
@@ -2441,7 +2396,7 @@ wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_res
     {
         const double *id = Id.doubleData();
         double *od = Id_sq.doubleDataMut();
-        for (size_t i = 0; i < H * W; ++i) od[i] = id[i] * id[i];
+        for (keel::usize i = 0; i < H * W; ++i) od[i] = id[i] * id[i];
     }
 
     // Local mean and mean-of-squares via zero-pad conv2 'same'.
@@ -2454,14 +2409,14 @@ wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_res
         double *vd = var_im.doubleDataMut();
         const double *m  = mean_im.doubleData();
         const double *ms = mean_sq.doubleData();
-        for (size_t i = 0; i < H * W; ++i)
+        for (keel::usize i = 0; i < H * W; ++i)
             vd[i] = ms[i] - m[i] * m[i];
     }
 
     // Estimate noise as mean of variance if not supplied.
     if (std::isnan(noise)) {
         long double s = 0.0L;
-        for (size_t i = 0; i < H * W; ++i)
+        for (keel::usize i = 0; i < H * W; ++i)
             s += var_im.doubleData()[i];
         noise = static_cast<double>(s / static_cast<long double>(H * W));
     }
@@ -2474,7 +2429,7 @@ wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_res
         const double *m  = mean_im.doubleData();
         double *vd       = var_im.doubleDataMut();
         double *od       = out_d.doubleDataMut();
-        for (size_t i = 0; i < H * W; ++i) {
+        for (keel::usize i = 0; i < H * W; ++i) {
             double vo = vd[i] - noise;
             if (vo < 0.0) vo = 0.0;
             const double denom = vo + noise;
@@ -2490,7 +2445,7 @@ wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_res
         out = Value::matrix(H, W, ValueType::SINGLE, mr);
         const double *o = out_d.doubleData();
         float *of = out.singleDataMut();
-        for (size_t i = 0; i < H * W; ++i) of[i] = static_cast<float>(o[i]);
+        for (keel::usize i = 0; i < H * W; ++i) of[i] = static_cast<float>(o[i]);
     } else if (cls == ValueType::UINT8) out = im2uint8(out_d, mr);
     else if (cls == ValueType::UINT16) out = im2uint16(out_d, mr);
     else if (cls == ValueType::INT16)  out = im2int16(out_d, mr);
@@ -2499,7 +2454,7 @@ wiener2(const Value &I, size_t nh, size_t nw, double noise, std::pmr::memory_res
     return {std::move(out), Value::scalar(noise, mr)};
 }
 
-Value imsmooth(const Value &I, const std::string &name, double sigma, std::pmr::memory_resource *mr)
+Value imsmooth(const Value &I, const std::string &name, double sigma, keel::Allocator *mr)
 {
     imsmooth_argcheck(I, name, sigma);
 
@@ -2510,31 +2465,31 @@ Value imsmooth(const Value &I, const std::string &name, double sigma, std::pmr::
     const int h = static_cast<int>(std::ceil(3.0 * sigma));
     const int K = 2 * h + 1;
 
-    std::vector<double> f((size_t)K);
+    std::vector<double> f((keel::usize)K);
     double s = 0.0;
     for (int i = -h; i <= h; ++i) {
-        f[(size_t)(i + h)] = std::exp(-(double)i * i / (2.0 * sigma * sigma));
-        s += f[(size_t)(i + h)];
+        f[(keel::usize)(i + h)] = std::exp(-(double)i * i / (2.0 * sigma * sigma));
+        s += f[(keel::usize)(i + h)];
     }
-    for (int i = 0; i < K; ++i) f[(size_t)i] /= s;
+    for (int i = 0; i < K; ++i) f[(keel::usize)i] /= s;
 
     Value out = (P > 1) ? Value::matrix3d(H, W, P, cls, mr)
                         : Value::matrix(H, W, cls, mr);
     if (H == 0 || W == 0) return out;
 
     for (int p = 0; p < P; ++p) {
-        std::vector<double> tmp((size_t)H * (size_t)W, 0.0);
+        std::vector<double> tmp((keel::usize)H * (keel::usize)W, 0.0);
         for (int r = 0; r < H; ++r) {
             for (int c = 0; c < W; ++c) {
                 double acc = 0.0;
                 for (int k = -h; k <= h; ++k) {
                     const int cs = fold_index(c + k, W, PadMode::Symmetric);
-                    const size_t srcIdx =
-                        (size_t)p * (size_t)H * (size_t)W +
-                        (size_t)cs * (size_t)H + (size_t)r;
-                    acc += f[(size_t)(k + h)] * I.elemAsDouble(srcIdx);
+                    const keel::usize srcIdx =
+                        (keel::usize)p * (keel::usize)H * (keel::usize)W +
+                        (keel::usize)cs * (keel::usize)H + (keel::usize)r;
+                    acc += f[(keel::usize)(k + h)] * I.elemAsDouble(srcIdx);
                 }
-                tmp[(size_t)c * (size_t)H + (size_t)r] = acc;
+                tmp[(keel::usize)c * (keel::usize)H + (keel::usize)r] = acc;
             }
         }
         for (int c = 0; c < W; ++c) {
@@ -2542,12 +2497,12 @@ Value imsmooth(const Value &I, const std::string &name, double sigma, std::pmr::
                 double acc = 0.0;
                 for (int k = -h; k <= h; ++k) {
                     const int rs = fold_index(r + k, H, PadMode::Symmetric);
-                    acc += f[(size_t)(k + h)] *
-                           tmp[(size_t)c * (size_t)H + (size_t)rs];
+                    acc += f[(keel::usize)(k + h)] *
+                           tmp[(keel::usize)c * (keel::usize)H + (keel::usize)rs];
                 }
                 store_classed(out,
-                              (size_t)p * (size_t)H * (size_t)W +
-                                  (size_t)c * (size_t)H + (size_t)r,
+                              (keel::usize)p * (keel::usize)H * (keel::usize)W +
+                                  (keel::usize)c * (keel::usize)H + (keel::usize)r,
                               acc, cls);
             }
         }
@@ -2558,7 +2513,7 @@ Value imsmooth(const Value &I, const std::string &name, double sigma, std::pmr::
 // ════════════════════════════════════════════════════════════════════
 // imboxfilt3 — 3-D box (mean) filter, separable + replicate boundary
 // ════════════════════════════════════════════════════════════════════
-Value imboxfilt3(const Value &V, int fH, int fW, int fP, std::pmr::memory_resource *mr)
+Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
 {
     imboxfilt3_argcheck(V);
     if (fH <= 0) fH = 3;
@@ -2580,10 +2535,10 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, std::pmr::memory_resour
                         : Value::matrix(H, W, cls, mr);
     if (H == 0 || W == 0 || P == 0) return out;
 
-    const size_t total = (size_t)H * (size_t)W * (size_t)P;
+    const keel::usize total = (keel::usize)H * (keel::usize)W * (keel::usize)P;
     std::vector<double> a(total), b(total);
     // Load V into a (double).
-    for (size_t i = 0; i < total; ++i) a[i] = V.elemAsDouble(i);
+    for (keel::usize i = 0; i < total; ++i) a[i] = V.elemAsDouble(i);
 
     // Pass 1: average along rows (H axis).
     for (int p = 0; p < P; ++p) {
@@ -2592,11 +2547,11 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, std::pmr::memory_resour
                 double acc = 0.0;
                 for (int k = -hh; k <= hh; ++k) {
                     const int rs = fold_index(r + k, H, PadMode::Replicate);
-                    acc += a[(size_t)p * (size_t)H * (size_t)W +
-                              (size_t)c * (size_t)H + (size_t)rs];
+                    acc += a[(keel::usize)p * (keel::usize)H * (keel::usize)W +
+                              (keel::usize)c * (keel::usize)H + (keel::usize)rs];
                 }
-                b[(size_t)p * (size_t)H * (size_t)W +
-                  (size_t)c * (size_t)H + (size_t)r] = acc / (double)fH;
+                b[(keel::usize)p * (keel::usize)H * (keel::usize)W +
+                  (keel::usize)c * (keel::usize)H + (keel::usize)r] = acc / (double)fH;
             }
         }
     }
@@ -2607,11 +2562,11 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, std::pmr::memory_resour
                 double acc = 0.0;
                 for (int k = -hw; k <= hw; ++k) {
                     const int cs = fold_index(c + k, W, PadMode::Replicate);
-                    acc += b[(size_t)p * (size_t)H * (size_t)W +
-                              (size_t)cs * (size_t)H + (size_t)r];
+                    acc += b[(keel::usize)p * (keel::usize)H * (keel::usize)W +
+                              (keel::usize)cs * (keel::usize)H + (keel::usize)r];
                 }
-                a[(size_t)p * (size_t)H * (size_t)W +
-                  (size_t)c * (size_t)H + (size_t)r] = acc / (double)fW;
+                a[(keel::usize)p * (keel::usize)H * (keel::usize)W +
+                  (keel::usize)c * (keel::usize)H + (keel::usize)r] = acc / (double)fW;
             }
         }
     }
@@ -2622,12 +2577,12 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, std::pmr::memory_resour
                 double acc = 0.0;
                 for (int k = -hp; k <= hp; ++k) {
                     const int ps = fold_index(p + k, P, PadMode::Replicate);
-                    acc += a[(size_t)ps * (size_t)H * (size_t)W +
-                              (size_t)c * (size_t)H + (size_t)r];
+                    acc += a[(keel::usize)ps * (keel::usize)H * (keel::usize)W +
+                              (keel::usize)c * (keel::usize)H + (keel::usize)r];
                 }
                 store_classed(out,
-                              (size_t)p * (size_t)H * (size_t)W +
-                                  (size_t)c * (size_t)H + (size_t)r,
+                              (keel::usize)p * (keel::usize)H * (keel::usize)W +
+                                  (keel::usize)c * (keel::usize)H + (keel::usize)r,
                               acc / (double)fP, cls);
             }
         }
@@ -2641,12 +2596,12 @@ static std::vector<double> gauss1d_kernel(double sigma) {
     int half = static_cast<int>(std::ceil(2.0 * sigma));
     if (half < 1) half = 1;
     const int K = 2 * half + 1;
-    std::vector<double> k(static_cast<size_t>(K));
+    std::vector<double> k(static_cast<keel::usize>(K));
     double sum = 0.0;
     const double inv2s2 = 0.5 / (sigma * sigma);
     for (int i = -half; i <= half; ++i) {
         const double w = std::exp(-static_cast<double>(i * i) * inv2s2);
-        k[static_cast<size_t>(i + half)] = w;
+        k[static_cast<keel::usize>(i + half)] = w;
         sum += w;
     }
     const double inv = 1.0 / sum;
@@ -2654,7 +2609,7 @@ static std::vector<double> gauss1d_kernel(double sigma) {
     return k;
 }
 
-Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::pmr::memory_resource *mr)
+Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::Allocator *mr)
 {
     imgaussfilt3_argcheck(V);
     const ValueType cls = V.type();
@@ -2672,11 +2627,11 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::p
     const int hW = static_cast<int>(kW.size()) / 2;
     const int hP = static_cast<int>(kP.size()) / 2;
 
-    const size_t total = static_cast<size_t>(H)
-                       * static_cast<size_t>(W)
-                       * static_cast<size_t>(P);
+    const keel::usize total = static_cast<keel::usize>(H)
+                       * static_cast<keel::usize>(W)
+                       * static_cast<keel::usize>(P);
     std::vector<double> a(total), b(total);
-    for (size_t i = 0; i < total; ++i) a[i] = V.elemAsDouble(i);
+    for (keel::usize i = 0; i < total; ++i) a[i] = V.elemAsDouble(i);
 
     // Pass 1: along H axis.
     for (int p = 0; p < P; ++p) {
@@ -2685,10 +2640,10 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::p
                 double acc = 0.0;
                 for (int k = -hH; k <= hH; ++k) {
                     const int rs = fold_index(r + k, H, PadMode::Replicate);
-                    acc += kH[static_cast<size_t>(k + hH)] *
-                           a[(size_t)p * H * W + (size_t)c * H + (size_t)rs];
+                    acc += kH[static_cast<keel::usize>(k + hH)] *
+                           a[(keel::usize)p * H * W + (keel::usize)c * H + (keel::usize)rs];
                 }
-                b[(size_t)p * H * W + (size_t)c * H + (size_t)r] = acc;
+                b[(keel::usize)p * H * W + (keel::usize)c * H + (keel::usize)r] = acc;
             }
         }
     }
@@ -2699,10 +2654,10 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::p
                 double acc = 0.0;
                 for (int k = -hW; k <= hW; ++k) {
                     const int cs = fold_index(c + k, W, PadMode::Replicate);
-                    acc += kW[static_cast<size_t>(k + hW)] *
-                           b[(size_t)p * H * W + (size_t)cs * H + (size_t)r];
+                    acc += kW[static_cast<keel::usize>(k + hW)] *
+                           b[(keel::usize)p * H * W + (keel::usize)cs * H + (keel::usize)r];
                 }
-                a[(size_t)p * H * W + (size_t)c * H + (size_t)r] = acc;
+                a[(keel::usize)p * H * W + (keel::usize)c * H + (keel::usize)r] = acc;
             }
         }
     }
@@ -2713,11 +2668,11 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::p
                 double acc = 0.0;
                 for (int k = -hP; k <= hP; ++k) {
                     const int ps = fold_index(p + k, P, PadMode::Replicate);
-                    acc += kP[static_cast<size_t>(k + hP)] *
-                           a[(size_t)ps * H * W + (size_t)c * H + (size_t)r];
+                    acc += kP[static_cast<keel::usize>(k + hP)] *
+                           a[(keel::usize)ps * H * W + (keel::usize)c * H + (keel::usize)r];
                 }
                 store_classed(out,
-                              (size_t)p * H * W + (size_t)c * H + (size_t)r,
+                              (keel::usize)p * H * W + (keel::usize)c * H + (keel::usize)r,
                               acc, cls);
             }
         }
@@ -2725,7 +2680,7 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, std::p
     return out;
 }
 
-Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *mr)
+Value medfilt3(const Value &V, int M, int N, int P, keel::Allocator *mr)
 {
     medfilt3_argcheck(V, M, N, P);
     if (V.type() == ValueType::LOGICAL)
@@ -2748,9 +2703,9 @@ Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *m
     const int hM = M / 2;
     const int hN = N / 2;
     const int hP = P / 2;
-    const size_t plane = static_cast<size_t>(H) * static_cast<size_t>(W);
-    const size_t nbhd = static_cast<size_t>(M) * static_cast<size_t>(N)
-                      * static_cast<size_t>(P);
+    const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
+    const keel::usize nbhd = static_cast<keel::usize>(M) * static_cast<keel::usize>(N)
+                      * static_cast<keel::usize>(P);
 
     std::vector<double> window;
     window.reserve(nbhd);
@@ -2764,9 +2719,9 @@ Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *m
                         const int cs = fold_index(c + kc, W, PadMode::Symmetric);
                         for (int kr = -hM; kr <= hM; ++kr) {
                             const int rs = fold_index(r + kr, H, PadMode::Symmetric);
-                            const size_t idx = static_cast<size_t>(ps) * plane
-                                             + static_cast<size_t>(cs) * H
-                                             + static_cast<size_t>(rs);
+                            const keel::usize idx = static_cast<keel::usize>(ps) * plane
+                                             + static_cast<keel::usize>(cs) * H
+                                             + static_cast<keel::usize>(rs);
                             window.push_back(V.elemAsDouble(idx));
                         }
                     }
@@ -2783,9 +2738,9 @@ Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *m
                     med = 0.5 * (left_max + med);
                 }
                 store_classed(out,
-                              static_cast<size_t>(p) * plane
-                                + static_cast<size_t>(c) * H
-                                + static_cast<size_t>(r),
+                              static_cast<keel::usize>(p) * plane
+                                + static_cast<keel::usize>(c) * H
+                                + static_cast<keel::usize>(r),
                               med, cls);
             }
         }
@@ -2793,16 +2748,16 @@ Value medfilt3(const Value &V, int M, int N, int P, std::pmr::memory_resource *m
     return out;
 }
 
-Value convmtx2(const Value &h, int m, int n, std::pmr::memory_resource *mr)
+Value convmtx2(const Value &h, int m, int n, keel::Allocator *mr)
 {
     convmtx2_argcheck(h, m, n);
     const auto &dh = h.dims();
     const int M = static_cast<int>(dh.rows());
     const int N = static_cast<int>(dh.cols());
-    const size_t out_rows = static_cast<size_t>(m + M - 1);
-    const size_t out_cols = static_cast<size_t>(n + N - 1);
-    const size_t P = out_rows * out_cols;
-    const size_t Q = static_cast<size_t>(m) * static_cast<size_t>(n);
+    const keel::usize out_rows = static_cast<keel::usize>(m + M - 1);
+    const keel::usize out_cols = static_cast<keel::usize>(n + N - 1);
+    const keel::usize P = out_rows * out_cols;
+    const keel::usize Q = static_cast<keel::usize>(m) * static_cast<keel::usize>(n);
 
     Value T = Value::matrix(P, Q, ValueType::DOUBLE, mr);
     if (P == 0 || Q == 0) return T;
@@ -2813,17 +2768,17 @@ Value convmtx2(const Value &h, int m, int n, std::pmr::memory_resource *mr)
     // where out_r = r_in + i - 1, out_c = c_in + j - 1.
     for (int c_in = 0; c_in < n; ++c_in) {
         for (int r_in = 0; r_in < m; ++r_in) {
-            const size_t k = static_cast<size_t>(c_in) * static_cast<size_t>(m)
-                           + static_cast<size_t>(r_in);
+            const keel::usize k = static_cast<keel::usize>(c_in) * static_cast<keel::usize>(m)
+                           + static_cast<keel::usize>(r_in);
             for (int j = 0; j < N; ++j) {
                 for (int i = 0; i < M; ++i) {
                     const double hv = h.elemAsDouble(
-                        static_cast<size_t>(j) * static_cast<size_t>(M)
-                        + static_cast<size_t>(i));
+                        static_cast<keel::usize>(j) * static_cast<keel::usize>(M)
+                        + static_cast<keel::usize>(i));
                     if (hv == 0.0) continue;
-                    const size_t out_r = static_cast<size_t>(r_in + i);
-                    const size_t out_c = static_cast<size_t>(c_in + j);
-                    const size_t p = out_c * out_rows + out_r;
+                    const keel::usize out_r = static_cast<keel::usize>(r_in + i);
+                    const keel::usize out_c = static_cast<keel::usize>(c_in + j);
+                    const keel::usize p = out_c * out_rows + out_r;
                     Td[k * P + p] = hv;
                 }
             }
@@ -2832,7 +2787,7 @@ Value convmtx2(const Value &h, int m, int n, std::pmr::memory_resource *mr)
     return T;
 }
 
-Value entropyfilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr)
+Value entropyfilt(const Value &I, const Value &domain, keel::Allocator *mr)
 {
     entropyfilt_argcheck(I);
     const bool isLogical = (I.type() == ValueType::LOGICAL);
@@ -2844,7 +2799,7 @@ Value entropyfilt(const Value &I, const Value &domain, std::pmr::memory_resource
 
     const int H = static_cast<int>(Iu.dims().rows());
     const int W = static_cast<int>(Iu.dims().cols());
-    Value out = Value::matrix((size_t)H, (size_t)W, ValueType::DOUBLE, mr);
+    Value out = Value::matrix((keel::usize)H, (keel::usize)W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
 
     Value dom_local;
@@ -2852,19 +2807,19 @@ Value entropyfilt(const Value &I, const Value &domain, std::pmr::memory_resource
     if (domain.numel() == 0) {
         // Default: ones(9).
         dom_local = Value::matrix(9, 9, ValueType::LOGICAL, mr);
-        for (size_t i = 0; i < 81; ++i) dom_local.logicalDataMut()[i] = 1;
+        for (keel::usize i = 0; i < 81; ++i) dom_local.logicalDataMut()[i] = 1;
         dom = &dom_local;
     }
     const DomainOffsets dom_offs = domain_offsets(*dom);
-    const size_t M = dom_offs.offs.size();
+    const keel::usize M = dom_offs.offs.size();
     if (M == 0) return out;
 
     double *od = out.doubleDataMut();
-    std::vector<int> hist(static_cast<size_t>(nbins), 0);
+    std::vector<int> hist(static_cast<keel::usize>(nbins), 0);
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             std::fill(hist.begin(), hist.end(), 0);
-            for (size_t k = 0; k < M; ++k) {
+            for (keel::usize k = 0; k < M; ++k) {
                 const double v = sample_sym(Iu,
                                             r + dom_offs.offs[k].first,
                                             c + dom_offs.offs[k].second,
@@ -2872,23 +2827,23 @@ Value entropyfilt(const Value &I, const Value &domain, std::pmr::memory_resource
                 int b = static_cast<int>(v);
                 if (b < 0)        b = 0;
                 if (b >= nbins)   b = nbins - 1;
-                ++hist[(size_t)b];
+                ++hist[(keel::usize)b];
             }
             const double total = static_cast<double>(M);
             double H_bits = 0.0;
             for (int b = 0; b < nbins; ++b) {
-                const int n = hist[(size_t)b];
+                const int n = hist[(keel::usize)b];
                 if (n <= 0) continue;
                 const double p = static_cast<double>(n) / total;
                 H_bits -= p * std::log2(p);
             }
-            od[(size_t)c * (size_t)H + (size_t)r] = H_bits;
+            od[(keel::usize)c * (keel::usize)H + (keel::usize)r] = H_bits;
         }
     }
     return out;
 }
 
-Value rangefilt(const Value &I, const Value &domain, std::pmr::memory_resource *mr)
+Value rangefilt(const Value &I, const Value &domain, keel::Allocator *mr)
 {
     rangefilt_argcheck(I);
     // Logical input → logical output (probed R2025b).
@@ -2902,25 +2857,25 @@ Value rangefilt(const Value &I, const Value &domain, std::pmr::memory_resource *
     // the range in the unsigned domain for signed inputs).
     const ValueType outT = (I.type() == ValueType::INT16)
                                ? ValueType::UINT16 : I.type();
-    Value out = Value::matrix((size_t)H, (size_t)W, outT, mr);
+    Value out = Value::matrix((keel::usize)H, (keel::usize)W, outT, mr);
     if (H == 0 || W == 0) return out;
 
     Value dom_local;
     const Value *dom = &domain;
     if (domain.numel() == 0) {
         dom_local = Value::matrix(3, 3, ValueType::LOGICAL, mr);
-        for (size_t i = 0; i < 9; ++i) dom_local.logicalDataMut()[i] = 1;
+        for (keel::usize i = 0; i < 9; ++i) dom_local.logicalDataMut()[i] = 1;
         dom = &dom_local;
     }
     const DomainOffsets dom_offs = domain_offsets(*dom);
-    const size_t M = dom_offs.offs.size();
+    const keel::usize M = dom_offs.offs.size();
     if (M == 0) return out;
 
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             double mn =  std::numeric_limits<double>::infinity();
             double mx = -std::numeric_limits<double>::infinity();
-            for (size_t k = 0; k < M; ++k) {
+            for (keel::usize k = 0; k < M; ++k) {
                 const double v = sample_sym(I,
                                             r + dom_offs.offs[k].first,
                                             c + dom_offs.offs[k].second,
@@ -2928,7 +2883,7 @@ Value rangefilt(const Value &I, const Value &domain, std::pmr::memory_resource *
                 if (v < mn) mn = v;
                 if (v > mx) mx = v;
             }
-            store_classed(out, (size_t)c * (size_t)H + (size_t)r,
+            store_classed(out, (keel::usize)c * (keel::usize)H + (keel::usize)r,
                           mx - mn, outT);
         }
     }
@@ -2936,11 +2891,11 @@ Value rangefilt(const Value &I, const Value &domain, std::pmr::memory_resource *
 }
 
 std::tuple<Value, Value, Value>
-freqz2(const Value &h, size_t M, size_t N, std::pmr::memory_resource *mr)
+freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
 {
     freqz2_argcheck(h);
-    const size_t P = h.dims().rows();
-    const size_t Q = h.dims().cols();
+    const keel::usize P = h.dims().rows();
+    const keel::usize Q = h.dims().cols();
     if (M == 0) M = 64;
     if (N == 0) N = 64;
 
@@ -2950,35 +2905,35 @@ freqz2(const Value &h, size_t M, size_t N, std::pmr::memory_resource *mr)
     Value f2V = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     double *f1 = f1V.doubleDataMut();
     double *f2 = f2V.doubleDataMut();
-    for (size_t i = 0; i < M; ++i) f1[i] = -1.0 + 2.0 * static_cast<double>(i) / static_cast<double>(M);
-    for (size_t j = 0; j < N; ++j) f2[j] = -1.0 + 2.0 * static_cast<double>(j) / static_cast<double>(N);
+    for (keel::usize i = 0; i < M; ++i) f1[i] = -1.0 + 2.0 * static_cast<double>(i) / static_cast<double>(M);
+    for (keel::usize j = 0; j < N; ++j) f2[j] = -1.0 + 2.0 * static_cast<double>(j) / static_cast<double>(N);
 
     Value HV = Value::matrix(M, N, ValueType::COMPLEX, mr);
     if (P == 0 || Q == 0) return {std::move(HV), std::move(f1V), std::move(f2V)};
-    Complex *Hd = HV.complexDataMut();
+    keel::c64 *Hd = HV.complexDataMut();
 
     // H[i, j] = Σ_p Σ_q h[p,q] · exp(+iπ·(f1[i]·(p - cp) + f2[j]·(q - cq)))
     // where (cp, cq) = (⌊(P-1)/2⌋, ⌊(Q-1)/2⌋) are the kernel centre
     // offsets. Matches MATLAB: real for symmetric h, complex otherwise.
     const double cp = static_cast<double>((P > 0 ? (P - 1) / 2 : 0));
     const double cq = static_cast<double>((Q > 0 ? (Q - 1) / 2 : 0));
-    std::vector<Complex> phase_p_i(M * P), phase_q_j(N * Q);
-    for (size_t i = 0; i < M; ++i)
-        for (size_t p = 0; p < P; ++p) {
+    std::vector<keel::c64> phase_p_i(M * P), phase_q_j(N * Q);
+    for (keel::usize i = 0; i < M; ++i)
+        for (keel::usize p = 0; p < P; ++p) {
             const double a = M_PI * f1[i] * (static_cast<double>(p) - cp);
             phase_p_i[p + i * P] = {std::cos(a), std::sin(a)};
         }
-    for (size_t j = 0; j < N; ++j)
-        for (size_t q = 0; q < Q; ++q) {
+    for (keel::usize j = 0; j < N; ++j)
+        for (keel::usize q = 0; q < Q; ++q) {
             const double a = M_PI * f2[j] * (static_cast<double>(q) - cq);
             phase_q_j[q + j * Q] = {std::cos(a), std::sin(a)};
         }
-    for (size_t j = 0; j < N; ++j) {
-        for (size_t i = 0; i < M; ++i) {
-            Complex sum{0.0, 0.0};
-            for (size_t q = 0; q < Q; ++q) {
-                const Complex pq = phase_q_j[q + j * Q];
-                for (size_t p = 0; p < P; ++p) {
+    for (keel::usize j = 0; j < N; ++j) {
+        for (keel::usize i = 0; i < M; ++i) {
+            keel::c64 sum{0.0, 0.0};
+            for (keel::usize q = 0; q < Q; ++q) {
+                const keel::c64 pq = phase_q_j[q + j * Q];
+                for (keel::usize p = 0; p < P; ++p) {
                     const double hpq = h.elemAsDouble(p + q * P);
                     sum += hpq * (phase_p_i[p + i * P] * pq);
                 }
@@ -3006,20 +2961,20 @@ freqz2(const Value &h, size_t M, size_t N, std::pmr::memory_resource *mr)
 // the class of fun's result; the filter form's follows class(I).
 // out = cast(I, class(filtRes)); out(BW) = filtRes(BW).
 Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
-                       std::pmr::memory_resource *mr)
+                       keel::Allocator *mr)
 {
     roifilt2_combine_argcheck(I, filtRes, BW);
-    const std::size_t H = I.dims().rows();
-    const std::size_t W = I.dims().cols();
-    const std::size_t N = H * W;
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
+    const keel::usize N = H * W;
     if (filtRes.isComplex() || I.isComplex()) {
         Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
         auto *od = out.complexDataMut();
-        auto getC = [](const Value &v, std::size_t idx) -> std::complex<double> {
+        auto getC = [](const Value &v, keel::usize idx) -> keel::c64 {
             return v.isComplex() ? v.complexData()[idx]
-                                 : std::complex<double>(v.elemAsDouble(idx), 0.0);
+                                 : keel::c64(v.elemAsDouble(idx), 0.0);
         };
-        for (std::size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const bool masked = BW.elemAsDouble(i) != 0.0;
             od[i] = masked ? getC(filtRes, i) : getC(I, i);
         }
@@ -3027,21 +2982,21 @@ Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
     }
     const ValueType cls = filtRes.type();
     Value out = Value::matrix(H, W, cls, mr);
-    auto store = [&](std::size_t i, double v) {
+    auto store = [&](keel::usize i, double v) {
         switch (cls) {
             case ValueType::SINGLE: out.singleDataMut()[i] = static_cast<float>(v); break;
-            case ValueType::UINT8:  out.uint8DataMut()[i]  = static_cast<uint8_t>(std::lround(v)); break;
-            case ValueType::UINT16: out.uint16DataMut()[i] = static_cast<uint16_t>(std::lround(v)); break;
-            case ValueType::UINT32: out.uint32DataMut()[i] = static_cast<uint32_t>(std::lround(v)); break;
-            case ValueType::INT8:   out.int8DataMut()[i]   = static_cast<int8_t>(std::lround(v)); break;
-            case ValueType::INT16:  out.int16DataMut()[i]  = static_cast<int16_t>(std::lround(v)); break;
-            case ValueType::INT32:  out.int32DataMut()[i]  = static_cast<int32_t>(std::lround(v)); break;
-            case ValueType::INT64:  out.int64DataMut()[i]  = static_cast<int64_t>(std::llround(v)); break;
+            case ValueType::UINT8:  out.uint8DataMut()[i]  = static_cast<keel::u8>(std::lround(v)); break;
+            case ValueType::UINT16: out.uint16DataMut()[i] = static_cast<keel::u16>(std::lround(v)); break;
+            case ValueType::UINT32: out.uint32DataMut()[i] = static_cast<keel::u32>(std::lround(v)); break;
+            case ValueType::INT8:   out.int8DataMut()[i]   = static_cast<keel::i8>(std::lround(v)); break;
+            case ValueType::INT16:  out.int16DataMut()[i]  = static_cast<keel::i16>(std::lround(v)); break;
+            case ValueType::INT32:  out.int32DataMut()[i]  = static_cast<keel::i32>(std::lround(v)); break;
+            case ValueType::INT64:  out.int64DataMut()[i]  = static_cast<keel::i64>(std::llround(v)); break;
             case ValueType::LOGICAL:out.logicalDataMut()[i]= (v != 0.0) ? 1u : 0u; break;
             default:                out.doubleDataMut()[i] = v; break;
         }
     };
-    for (std::size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const bool masked = BW.elemAsDouble(i) != 0.0;
         store(i, (masked ? filtRes : I).elemAsDouble(i));
     }
@@ -3050,7 +3005,7 @@ Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
 
 // Filter form: J = roifilt2(h, I, BW).
 Value roifilt2(const Value &h, const Value &I, const Value &BW,
-               std::pmr::memory_resource *mr)
+               keel::Allocator *mr)
 {
     roifilt2_argcheck(h, I);
     // imfilter defaults: correlation, zero boundary, same size.
@@ -3078,11 +3033,11 @@ Value roifilt2(const Value &h, const Value &I, const Value &BW,
 // Grayscale guide only here. Default ε = 0.01 · range².
 Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
                      double eps_in,
-                     std::pmr::memory_resource *mr)
+                     keel::Allocator *mr)
 {
     imguidedfilter_argcheck(A, nhood);
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     if (H == 0 || W == 0) return A;
 
     Value G = G_in;
@@ -3110,16 +3065,16 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
     }
 
     // Cast A, G → DOUBLE.
-    const std::size_t N = H * W;
+    const keel::usize N = H * W;
     Value Ad = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value Gd = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < N; ++i) Ad.doubleDataMut()[i] = A.elemAsDouble(i);
-    for (std::size_t i = 0; i < N; ++i) Gd.doubleDataMut()[i] = G.elemAsDouble(i);
+    for (keel::usize i = 0; i < N; ++i) Ad.doubleDataMut()[i] = A.elemAsDouble(i);
+    for (keel::usize i = 0; i < N; ++i) Gd.doubleDataMut()[i] = G.elemAsDouble(i);
 
     // I.*I, I.*P (element-wise products).
     Value II = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value IP = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double gi = Gd.doubleData()[i];
         const double ai = Ad.doubleData()[i];
         II.doubleDataMut()[i] = gi * gi;
@@ -3134,7 +3089,7 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
     // a, b.
     Value a_ = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value b_ = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double mI = meanI.doubleData()[i];
         const double mP = meanP.doubleData()[i];
         const double varI  = corrI.doubleData()[i]  - mI * mI;
@@ -3149,7 +3104,7 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
 
     // B = meana·G + meanb.
     Value Bd = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         Bd.doubleDataMut()[i] = meana.doubleData()[i] * Gd.doubleData()[i]
                               + meanb.doubleData()[i];
 
@@ -3163,16 +3118,16 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
         if (v > hi) v = hi;
         return v;
     };
-    for (std::size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double v = Bd.doubleData()[i];
         switch (outT) {
             case ValueType::SINGLE:  Bout.singleDataMut()[i] = static_cast<float>(v); break;
-            case ValueType::UINT8:   Bout.uint8DataMut()[i]  = static_cast<std::uint8_t>(saturate(v, 0.0, 255.0)); break;
-            case ValueType::UINT16:  Bout.uint16DataMut()[i] = static_cast<std::uint16_t>(saturate(v, 0.0, 65535.0)); break;
-            case ValueType::INT8:    Bout.int8DataMut()[i]   = static_cast<std::int8_t>(saturate(v, -128.0, 127.0)); break;
-            case ValueType::INT16:   Bout.int16DataMut()[i]  = static_cast<std::int16_t>(saturate(v, -32768.0, 32767.0)); break;
-            case ValueType::INT32:   Bout.int32DataMut()[i]  = static_cast<std::int32_t>(saturate(v, -2147483648.0, 2147483647.0)); break;
-            case ValueType::UINT32:  Bout.uint32DataMut()[i] = static_cast<std::uint32_t>(saturate(v, 0.0, 4294967295.0)); break;
+            case ValueType::UINT8:   Bout.uint8DataMut()[i]  = static_cast<keel::u8>(saturate(v, 0.0, 255.0)); break;
+            case ValueType::UINT16:  Bout.uint16DataMut()[i] = static_cast<keel::u16>(saturate(v, 0.0, 65535.0)); break;
+            case ValueType::INT8:    Bout.int8DataMut()[i]   = static_cast<keel::i8>(saturate(v, -128.0, 127.0)); break;
+            case ValueType::INT16:   Bout.int16DataMut()[i]  = static_cast<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
+            case ValueType::INT32:   Bout.int32DataMut()[i]  = static_cast<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
+            case ValueType::UINT32:  Bout.uint32DataMut()[i] = static_cast<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
             case ValueType::LOGICAL: Bout.logicalDataMut()[i] = v >= 0.5 ? 1 : 0; break;
             default: Bout.doubleDataMut()[i] = v; break;
         }
@@ -3186,15 +3141,15 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
 // References: [1] Perona & Malik 1990; [2] Gerig et al. 1992.
 Value imdiffusefilt(const Value &I,
                     const Value &thresh,
-                    std::size_t N_in,
+                    keel::usize N_in,
                     const std::string &connectivity,
                     const std::string &conduction,
-                    std::pmr::memory_resource *mr)
+                    keel::Allocator *mr)
 {
     imdiffusefilt_argcheck(I, connectivity, conduction);
 
-    const std::size_t M = I.dims().rows();
-    const std::size_t W = I.dims().cols();
+    const keel::usize M = I.dims().rows();
+    const keel::usize W = I.dims().cols();
     if (M == 0 || W == 0) return I;
 
     // Default GradientThreshold based on input class.
@@ -3212,12 +3167,12 @@ Value imdiffusefilt(const Value &I,
     };
 
     // Resolve gradientThreshold vector (length nThresh).
-    std::pmr::vector<double> threshVec(mr);
+    keel::Array<double> threshVec(mr);
     if (thresh.numel() == 0) {
         threshVec.push_back(0.1 * class_range_diff());
     } else {
         threshVec.reserve(thresh.numel());
-        for (std::size_t i = 0; i < thresh.numel(); ++i) {
+        for (keel::usize i = 0; i < thresh.numel(); ++i) {
             const double v = thresh.elemAsDouble(i);
             if (!(v > 0) || !std::isfinite(v))
                 throw Error("imdiffusefilt: GradientThreshold must be a "
@@ -3229,7 +3184,7 @@ Value imdiffusefilt(const Value &I,
     }
 
     // Default N.
-    std::size_t N = N_in;
+    keel::usize N = N_in;
     if (N == 0) {
         N = (threshVec.size() == 1) ? 5 : threshVec.size();
     }
@@ -3246,27 +3201,27 @@ Value imdiffusefilt(const Value &I,
     // Work in double precision (matches MATLAB for double; for
     // non-double inputs MATLAB uses single — we use double which
     // gives identical results for our integer-bit-comparison cases).
-    const std::size_t Npix = M * W;
-    std::pmr::vector<double> img(Npix, 0.0, mr);
-    for (std::size_t i = 0; i < Npix; ++i) img[i] = I.elemAsDouble(i);
+    const keel::usize Npix = M * W;
+    keel::Array<double> img(Npix, 0.0, mr);
+    for (keel::usize i = 0; i < Npix; ++i) img[i] = I.elemAsDouble(i);
 
     // Padded image with replicate border: (M+2) x (W+2).
-    const std::size_t Mp = M + 2;
-    const std::size_t Wp = W + 2;
-    std::pmr::vector<double> pad(Mp * Wp, 0.0, mr);
+    const keel::usize Mp = M + 2;
+    const keel::usize Wp = W + 2;
+    keel::Array<double> pad(Mp * Wp, 0.0, mr);
 
-    auto refresh_padded = [&](const std::pmr::vector<double> &src) {
+    auto refresh_padded = [&](const keel::Array<double> &src) {
         // Interior: pad(r+1, c+1) = src(r, c) for r=0..M-1, c=0..W-1.
-        for (std::size_t c = 0; c < W; ++c)
-            for (std::size_t r = 0; r < M; ++r)
+        for (keel::usize c = 0; c < W; ++c)
+            for (keel::usize r = 0; r < M; ++r)
                 pad[(c + 1) * Mp + (r + 1)] = src[c * M + r];
         // Top/bottom rows replicate.
-        for (std::size_t c = 0; c < W; ++c) {
+        for (keel::usize c = 0; c < W; ++c) {
             pad[(c + 1) * Mp + 0]      = src[c * M + 0];
             pad[(c + 1) * Mp + Mp - 1] = src[c * M + M - 1];
         }
         // Left/right cols replicate (including corners).
-        for (std::size_t r = 0; r < Mp; ++r) {
+        for (keel::usize r = 0; r < Mp; ++r) {
             pad[0 * Mp + r]            = pad[1 * Mp + r];
             pad[(Wp - 1) * Mp + r]     = pad[(W) * Mp + r];
         }
@@ -3282,19 +3237,19 @@ Value imdiffusefilt(const Value &I,
     const double diffusionRate = isMax ? (1.0 / 8.0) : (1.0 / 4.0);
     const double inv_dd2 = 0.5;  // 1 / dd² = 1/2 for diagonal
 
-    for (std::size_t it = 0; it < N; ++it) {
+    for (keel::usize it = 0; it < N; ++it) {
         const double K = threshVec[it];
         refresh_padded(img);
 
         // Accessor: padded(r, c) → pad[c * Mp + r].
-        auto P = [&](std::size_t r, std::size_t c) {
+        auto P = [&](keel::usize r, keel::usize c) {
             return pad[c * Mp + r];
         };
 
-        std::pmr::vector<double> upd(Npix, 0.0, mr);
+        keel::Array<double> upd(Npix, 0.0, mr);
 
-        for (std::size_t c = 0; c < W; ++c) {
-            for (std::size_t r = 0; r < M; ++r) {
+        for (keel::usize c = 0; c < W; ++c) {
+            for (keel::usize r = 0; r < M; ++r) {
                 // 0-indexed in image; padded coords = (r+1, c+1).
                 const double ci = img[c * M + r];
                 // diffNorth at this pixel = above - center =
@@ -3325,14 +3280,14 @@ Value imdiffusefilt(const Value &I,
                 upd[c * M + r] = ci + diffusionRate * delta;
             }
         }
-        img.swap(upd);
+        keel::swap(img, upd);
     }
 
     // Cast back to input class.
     Value out;
     if (inT == ValueType::DOUBLE) {
         out = Value::matrix(M, W, ValueType::DOUBLE, mr);
-        for (std::size_t i = 0; i < Npix; ++i) out.doubleDataMut()[i] = img[i];
+        for (keel::usize i = 0; i < Npix; ++i) out.doubleDataMut()[i] = img[i];
         return out;
     }
     out = Value::matrix(M, W, inT, mr);
@@ -3342,16 +3297,16 @@ Value imdiffusefilt(const Value &I,
         if (v > hi) v = hi;
         return v;
     };
-    for (std::size_t i = 0; i < Npix; ++i) {
+    for (keel::usize i = 0; i < Npix; ++i) {
         const double v = img[i];
         switch (inT) {
             case ValueType::SINGLE:  out.singleDataMut()[i] = static_cast<float>(v); break;
-            case ValueType::UINT8:   out.uint8DataMut()[i]  = static_cast<std::uint8_t>(saturate(v, 0.0, 255.0)); break;
-            case ValueType::UINT16:  out.uint16DataMut()[i] = static_cast<std::uint16_t>(saturate(v, 0.0, 65535.0)); break;
-            case ValueType::UINT32:  out.uint32DataMut()[i] = static_cast<std::uint32_t>(saturate(v, 0.0, 4294967295.0)); break;
-            case ValueType::INT8:    out.int8DataMut()[i]   = static_cast<std::int8_t>(saturate(v, -128.0, 127.0)); break;
-            case ValueType::INT16:   out.int16DataMut()[i]  = static_cast<std::int16_t>(saturate(v, -32768.0, 32767.0)); break;
-            case ValueType::INT32:   out.int32DataMut()[i]  = static_cast<std::int32_t>(saturate(v, -2147483648.0, 2147483647.0)); break;
+            case ValueType::UINT8:   out.uint8DataMut()[i]  = static_cast<keel::u8>(saturate(v, 0.0, 255.0)); break;
+            case ValueType::UINT16:  out.uint16DataMut()[i] = static_cast<keel::u16>(saturate(v, 0.0, 65535.0)); break;
+            case ValueType::UINT32:  out.uint32DataMut()[i] = static_cast<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
+            case ValueType::INT8:    out.int8DataMut()[i]   = static_cast<keel::i8>(saturate(v, -128.0, 127.0)); break;
+            case ValueType::INT16:   out.int16DataMut()[i]  = static_cast<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
+            case ValueType::INT32:   out.int32DataMut()[i]  = static_cast<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
             default: out.doubleDataMut()[i] = v; break;
         }
     }
@@ -3381,12 +3336,12 @@ Value imdiffusefilt(const Value &I,
 void imgaborfilt(const Value &A_in, double wavelength, double orientation,
                  double sfb, double aspect,
                  Value &mag_out, Value &phase_out,
-                 std::pmr::memory_resource *mr)
+                 keel::Allocator *mr)
 {
     imgaborfilt_argcheck(A_in, wavelength, sfb, aspect);
 
-    const std::size_t M = A_in.dims().rows();
-    const std::size_t N = A_in.dims().cols();
+    const keel::usize M = A_in.dims().rows();
+    const keel::usize N = A_in.dims().cols();
     const ValueType outT = (A_in.type() == ValueType::SINGLE)
                             ? ValueType::SINGLE : ValueType::DOUBLE;
 
@@ -3400,44 +3355,44 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
     const long r = std::max(Rx, Ry);
 
     // Pad A to (M + 2r) x (N + 2r) with replicate.
-    const std::size_t Mp = M + 2 * r;
-    const std::size_t Np = N + 2 * r;
+    const keel::usize Mp = M + 2 * r;
+    const keel::usize Np = N + 2 * r;
     // Use existing padarray (filter.cpp) if available; fall back to manual.
     Value Ad = Value::matrix(M, N, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < M * N; ++i) Ad.doubleDataMut()[i] = A_in.elemAsDouble(i);
+    for (keel::usize i = 0; i < M * N; ++i) Ad.doubleDataMut()[i] = A_in.elemAsDouble(i);
     std::vector<int> pad{static_cast<int>(r), static_cast<int>(r)};
     Value Apad = padarray(Ad, pad, PadMode::Replicate, 0.0, "both", mr);
 
     // FFT-2D of padded image.
     Value Afft = signal::fft2(Apad, -1, -1, mr);
     // Normalise Afft to COMPLEX storage.
-    const std::size_t Np_pix = Mp * Np;
-    std::pmr::vector<Complex> Afc(Np_pix, Complex{0, 0}, mr);
+    const keel::usize Np_pix = Mp * Np;
+    keel::Array<keel::c64> Afc(Np_pix, keel::c64{0, 0}, mr);
     if (Afft.isComplex()) {
-        const Complex *src = Afft.complexData();
-        for (std::size_t i = 0; i < Np_pix; ++i) Afc[i] = src[i];
+        const keel::c64 *src = Afft.complexData();
+        for (keel::usize i = 0; i < Np_pix; ++i) Afc[i] = src[i];
     } else {
-        for (std::size_t i = 0; i < Np_pix; ++i)
-            Afc[i] = Complex{Afft.elemAsDouble(i), 0.0};
+        for (keel::usize i = 0; i < Np_pix; ++i)
+            Afc[i] = keel::c64{Afft.elemAsDouble(i), 0.0};
     }
 
     // Normalised frequency vectors u (length Np), v (length Mp).
-    auto freq_vec = [&](std::size_t Nlen, std::pmr::vector<double> &out) {
+    auto freq_vec = [&](keel::usize Nlen, keel::Array<double> &out) {
         out.resize(Nlen);
         if (Nlen == 1) { out[0] = 0.0; return; }
         if (Nlen % 2 == 1) {
             const double lo = -0.5 + 1.0 / (2.0 * Nlen);
             const double hi =  0.5 - 1.0 / (2.0 * Nlen);
             const double step = (hi - lo) / (Nlen - 1);
-            for (std::size_t i = 0; i < Nlen; ++i) out[i] = lo + step * i;
+            for (keel::usize i = 0; i < Nlen; ++i) out[i] = lo + step * i;
         } else {
             const double lo = -0.5;
             const double hi = 0.5 - 1.0 / Nlen;
             const double step = (hi - lo) / (Nlen - 1);
-            for (std::size_t i = 0; i < Nlen; ++i) out[i] = lo + step * i;
+            for (keel::usize i = 0; i < Nlen; ++i) out[i] = lo + step * i;
         }
     };
-    std::pmr::vector<double> u(mr), v(mr);
+    keel::Array<double> u(mr), v(mr);
     freq_vec(Np, u);
     freq_vec(Mp, v);
 
@@ -3451,10 +3406,10 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
 
     // Build H in COMPLEX domain (real values; imag = 0). Stored col-major:
     // H(r, c) → c*Mp + r.
-    std::pmr::vector<double> H(Np_pix, 0.0, mr);
-    for (std::size_t c = 0; c < Np; ++c) {
+    keel::Array<double> H(Np_pix, 0.0, mr);
+    for (keel::usize c = 0; c < Np; ++c) {
         const double uc = u[c];
-        for (std::size_t r2 = 0; r2 < Mp; ++r2) {
+        for (keel::usize r2 = 0; r2 < Mp; ++r2) {
             const double vc = v[r2];
             const double Upr = uc * cosT - vc * sinT;
             const double Vpr = uc * sinT + vc * cosT;
@@ -3468,55 +3423,55 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
     // ifftshift is the inverse of fftshift; for even N it's identical.
     // Easy impl: cyclic shift each dim by -floor(N/2) (which equals
     // shift right by ceil(N/2) when going from "0 at center" to "0 at origin").
-    auto ifftshift_2d = [&](const std::pmr::vector<double> &in,
-                            std::pmr::vector<double> &out) {
+    auto ifftshift_2d = [&](const keel::Array<double> &in,
+                            keel::Array<double> &out) {
         out.resize(Np_pix);
-        const std::size_t shR_eff = Mp / 2;          // floor(Mp/2) for fftshift
-        const std::size_t shC_eff = Np / 2;
+        const keel::usize shR_eff = Mp / 2;          // floor(Mp/2) for fftshift
+        const keel::usize shC_eff = Np / 2;
         // ifftshift = inverse of fftshift. For ifftshift, the shift amount equals (N - floor(N/2)) = ceil(N/2):
-        const std::size_t aR = Mp - shR_eff;
-        const std::size_t aC = Np - shC_eff;
-        for (std::size_t c = 0; c < Np; ++c) {
-            const std::size_t cs = (c + aC) % Np;
-            for (std::size_t r2 = 0; r2 < Mp; ++r2) {
-                const std::size_t rs = (r2 + aR) % Mp;
+        const keel::usize aR = Mp - shR_eff;
+        const keel::usize aC = Np - shC_eff;
+        for (keel::usize c = 0; c < Np; ++c) {
+            const keel::usize cs = (c + aC) % Np;
+            for (keel::usize r2 = 0; r2 < Mp; ++r2) {
+                const keel::usize rs = (r2 + aR) % Mp;
                 out[c * Mp + r2] = in[cs * Mp + rs];
             }
         }
     };
-    std::pmr::vector<double> Hshift(mr);
+    keel::Array<double> Hshift(mr);
     ifftshift_2d(H, Hshift);
 
     // Multiply: prod = Afc .* Hshift (real-valued H).
-    std::pmr::vector<Complex> prod(Np_pix, Complex{0, 0}, mr);
-    for (std::size_t i = 0; i < Np_pix; ++i) {
-        prod[i] = Complex{Afc[i].real() * Hshift[i],
+    keel::Array<keel::c64> prod(Np_pix, keel::c64{0, 0}, mr);
+    for (keel::usize i = 0; i < Np_pix; ++i) {
+        prod[i] = keel::c64{Afc[i].real() * Hshift[i],
                           Afc[i].imag() * Hshift[i]};
     }
 
     // ifft2.
     Value Prod = Value::matrix(Mp, Np, ValueType::COMPLEX, mr);
-    Complex *pp = Prod.complexDataMut();
-    for (std::size_t i = 0; i < Np_pix; ++i) pp[i] = prod[i];
+    keel::c64 *pp = Prod.complexDataMut();
+    for (keel::usize i = 0; i < Np_pix; ++i) pp[i] = prod[i];
     Value Out = signal::ifft2(Prod, -1, -1, mr);
 
     // Output is complex; if accidentally collapsed to DOUBLE (real-symmetric),
     // pad imag = 0.
-    auto out_at = [&](std::size_t i) -> Complex {
+    auto out_at = [&](keel::usize i) -> keel::c64 {
         if (Out.isComplex()) return Out.complexData()[i];
-        return Complex{Out.elemAsDouble(i), 0.0};
+        return keel::c64{Out.elemAsDouble(i), 0.0};
     };
 
     // Unpad: take rows [r, r+M-1] cols [r, r+N-1].
     mag_out = Value::matrix(M, N, outT, mr);
     phase_out = Value::matrix(M, N, outT, mr);
-    for (std::size_t c = 0; c < N; ++c) {
-        for (std::size_t rr = 0; rr < M; ++rr) {
-            const std::size_t src = (c + r) * Mp + (rr + r);
-            const Complex z = out_at(src);
+    for (keel::usize c = 0; c < N; ++c) {
+        for (keel::usize rr = 0; rr < M; ++rr) {
+            const keel::usize src = (c + r) * Mp + (rr + r);
+            const keel::c64 z = out_at(src);
             const double m = std::hypot(z.real(), z.imag());
             const double p = std::atan2(z.imag(), z.real());
-            const std::size_t dst = c * M + rr;
+            const keel::usize dst = c * M + rr;
             if (outT == ValueType::DOUBLE) {
                 mag_out.doubleDataMut()[dst]   = m;
                 phase_out.doubleDataMut()[dst] = p;
@@ -3552,30 +3507,30 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
 // 2-D grayscale only.
 namespace {
 
-double immerkaer_dos(const Value &I, std::pmr::memory_resource * /*mr*/) {
-    const std::size_t H = I.dims().rows();
-    const std::size_t W = I.dims().cols();
+double immerkaer_dos(const Value &I, keel::Allocator * /*mr*/) {
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
     if (H < 3 || W < 3) return 1.0;
 
     // MATLAB always casts to single in estimateDegreeOfSmoothing.m, so
     // we do the same to bit-match (matters at the ~1e-8 level).
     const float K[3][3] = {{1, -2, 1}, {-2, 4, -2}, {1, -2, 1}};
-    const std::size_t Mp = H + 2;
-    const std::size_t Wp = W + 2;
-    auto Ival = [&](std::size_t r, std::size_t c) -> float {
+    const keel::usize Mp = H + 2;
+    const keel::usize Wp = W + 2;
+    auto Ival = [&](keel::usize r, keel::usize c) -> float {
         return static_cast<float>(I.elemAsDouble(c * H + r));
     };
     float sum_abs = 0.0f;
-    for (std::size_t oc = 0; oc < Wp; ++oc) {
-        for (std::size_t orr = 0; orr < Mp; ++orr) {
+    for (keel::usize oc = 0; oc < Wp; ++oc) {
+        for (keel::usize orr = 0; orr < Mp; ++orr) {
             float s = 0.0f;
             for (int i = 0; i < 3; ++i) {
                 for (int j = 0; j < 3; ++j) {
                     const long ir = static_cast<long>(orr) - i;
                     const long ic = static_cast<long>(oc) - j;
                     if (ir < 0 || ic < 0
-                     || static_cast<std::size_t>(ir) >= H
-                     || static_cast<std::size_t>(ic) >= W) continue;
+                     || static_cast<keel::usize>(ir) >= H
+                     || static_cast<keel::usize>(ic) >= W) continue;
                     s += K[i][j] * Ival(ir, ic);
                 }
             }
@@ -3594,8 +3549,8 @@ void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
     if (I.dims().is3D())
         throw Error("imnlmfilt: RGB / colour inputs not yet supported",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:dim");
-    const std::size_t H = I.dims().rows();
-    const std::size_t W = I.dims().cols();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
     if (H < 21 || W < 21)
         throw Error("imnlmfilt: image must be at least 21x21",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:size");
@@ -3611,7 +3566,7 @@ void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
         throw Error("imnlmfilt: ComparisonWindowSize must be <= "
                     "SearchWindowSize",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:cwsTooLarge");
-    if (static_cast<std::size_t>(swsize) > std::min(H, W))
+    if (static_cast<keel::usize>(swsize) > std::min(H, W))
         throw Error("imnlmfilt: SearchWindowSize must be <= min(H, W)",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:swsTooLarge");
 }
@@ -3621,24 +3576,24 @@ void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
 void imnlmfilt(const Value &I, double dos,
                int swsize, int cwsize,
                Value &J_out, double &est_out,
-               std::pmr::memory_resource *mr)
+               keel::Allocator *mr)
 {
     imnlmfilt_argcheck(I, swsize, cwsize);
-    const std::size_t H = I.dims().rows();
-    const std::size_t W = I.dims().cols();
+    const keel::usize H = I.dims().rows();
+    const keel::usize W = I.dims().cols();
 
     const ValueType outT = I.type();
-    const std::size_t N = H * W;
+    const keel::usize N = H * W;
 
     // Cast I to DOUBLE.
-    std::pmr::vector<double> Iv(N, 0.0, mr);
-    for (std::size_t i = 0; i < N; ++i) Iv[i] = I.elemAsDouble(i);
+    keel::Array<double> Iv(N, 0.0, mr);
+    for (keel::usize i = 0; i < N; ++i) Iv[i] = I.elemAsDouble(i);
 
     // Resolve h.
     double h = dos;
     if (h < 0) {
         Value Ivv = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        for (std::size_t i = 0; i < N; ++i) Ivv.doubleDataMut()[i] = Iv[i];
+        for (keel::usize i = 0; i < N; ++i) Ivv.doubleDataMut()[i] = Iv[i];
         h = immerkaer_dos(Ivv, mr);
     }
     est_out = h;
@@ -3646,19 +3601,19 @@ void imnlmfilt(const Value &I, double dos,
     const int sh = (swsize - 1) / 2;
     const int ch = (cwsize - 1) / 2;
     const int pad = sh + ch;
-    const std::size_t Mp = H + 2 * pad;
-    const std::size_t Wp = W + 2 * pad;
+    const keel::usize Mp = H + 2 * pad;
+    const keel::usize Wp = W + 2 * pad;
 
     // Build replicate-padded image.
-    std::pmr::vector<double> P(Mp * Wp, 0.0, mr);
-    for (std::size_t c = 0; c < Wp; ++c) {
-        for (std::size_t r = 0; r < Mp; ++r) {
+    keel::Array<double> P(Mp * Wp, 0.0, mr);
+    for (keel::usize c = 0; c < Wp; ++c) {
+        for (keel::usize r = 0; r < Mp; ++r) {
             const long ir = static_cast<long>(r) - pad;
             const long ic = static_cast<long>(c) - pad;
             const long irc = std::clamp(ir, 0L, static_cast<long>(H - 1));
             const long icc = std::clamp(ic, 0L, static_cast<long>(W - 1));
-            P[c * Mp + r] = Iv[static_cast<std::size_t>(icc) * H
-                              + static_cast<std::size_t>(irc)];
+            P[c * Mp + r] = Iv[static_cast<keel::usize>(icc) * H
+                              + static_cast<keel::usize>(irc)];
         }
     }
 
@@ -3666,12 +3621,12 @@ void imnlmfilt(const Value &I, double dos,
     const double inv_cwsq = 1.0 / static_cast<double>(cwsize * cwsize);
 
     // Build output.
-    std::pmr::vector<double> Out(N, 0.0, mr);
+    keel::Array<double> Out(N, 0.0, mr);
 
-    for (std::size_t c = 0; c < W; ++c) {
-        for (std::size_t r = 0; r < H; ++r) {
-            const std::size_t pr = r + pad;
-            const std::size_t pc = c + pad;
+    for (keel::usize c = 0; c < W; ++c) {
+        for (keel::usize r = 0; r < H; ++r) {
+            const keel::usize pr = r + pad;
+            const keel::usize pc = c + pad;
             double sum_w = 0.0;
             double sum_wI = 0.0;
             double max_w = 0.0;
@@ -3680,8 +3635,8 @@ void imnlmfilt(const Value &I, double dos,
             for (int dc = -sh; dc <= sh; ++dc) {
                 for (int dr = -sh; dr <= sh; ++dr) {
                     if (dr == 0 && dc == 0) continue;  // skip self
-                    const std::size_t qr = pr + dr;
-                    const std::size_t qc = pc + dc;
+                    const keel::usize qr = pr + dr;
+                    const keel::usize qc = pc + dc;
                     // Compute squared patch distance.
                     double d2 = 0.0;
                     for (int ac = -ch; ac <= ch; ++ac) {
@@ -3711,10 +3666,10 @@ void imnlmfilt(const Value &I, double dos,
     J_out = Value::matrix(H, W, outT, mr);
     if (outT == ValueType::DOUBLE) {
         double *p = J_out.doubleDataMut();
-        for (std::size_t i = 0; i < N; ++i) p[i] = Out[i];
+        for (keel::usize i = 0; i < N; ++i) p[i] = Out[i];
     } else if (outT == ValueType::SINGLE) {
         float *p = J_out.singleDataMut();
-        for (std::size_t i = 0; i < N; ++i) p[i] = static_cast<float>(Out[i]);
+        for (keel::usize i = 0; i < N; ++i) p[i] = static_cast<float>(Out[i]);
     } else {
         auto saturate = [&](double v, double lo, double hi) {
             v = std::round(v);
@@ -3722,15 +3677,15 @@ void imnlmfilt(const Value &I, double dos,
             if (v > hi) v = hi;
             return v;
         };
-        for (std::size_t i = 0; i < N; ++i) {
+        for (keel::usize i = 0; i < N; ++i) {
             const double v = Out[i];
             switch (outT) {
-                case ValueType::UINT8:  J_out.uint8DataMut()[i]  = static_cast<std::uint8_t>(saturate(v, 0.0, 255.0)); break;
-                case ValueType::UINT16: J_out.uint16DataMut()[i] = static_cast<std::uint16_t>(saturate(v, 0.0, 65535.0)); break;
-                case ValueType::INT8:   J_out.int8DataMut()[i]   = static_cast<std::int8_t>(saturate(v, -128.0, 127.0)); break;
-                case ValueType::INT16:  J_out.int16DataMut()[i]  = static_cast<std::int16_t>(saturate(v, -32768.0, 32767.0)); break;
-                case ValueType::INT32:  J_out.int32DataMut()[i]  = static_cast<std::int32_t>(saturate(v, -2147483648.0, 2147483647.0)); break;
-                case ValueType::UINT32: J_out.uint32DataMut()[i] = static_cast<std::uint32_t>(saturate(v, 0.0, 4294967295.0)); break;
+                case ValueType::UINT8:  J_out.uint8DataMut()[i]  = static_cast<keel::u8>(saturate(v, 0.0, 255.0)); break;
+                case ValueType::UINT16: J_out.uint16DataMut()[i] = static_cast<keel::u16>(saturate(v, 0.0, 65535.0)); break;
+                case ValueType::INT8:   J_out.int8DataMut()[i]   = static_cast<keel::i8>(saturate(v, -128.0, 127.0)); break;
+                case ValueType::INT16:  J_out.int16DataMut()[i]  = static_cast<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
+                case ValueType::INT32:  J_out.int32DataMut()[i]  = static_cast<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
+                case ValueType::UINT32: J_out.uint32DataMut()[i] = static_cast<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
                 default: J_out.doubleDataMut()[i] = v; break;
             }
         }

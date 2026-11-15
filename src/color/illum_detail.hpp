@@ -10,9 +10,9 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
-#include <memory_resource>
 #include <vector>
 
 namespace numkit::image {
@@ -21,6 +21,6 @@ namespace numkit::image {
 // illumgray() forwards here with norm_exp = 1.0.
 Value illumgray_impl(const Value &A, const std::vector<double> &P,
                      const Value &mask, double norm_exp,
-                     std::pmr::memory_resource *mr);
+                     keel::Allocator *mr);
 
 } // namespace numkit::image

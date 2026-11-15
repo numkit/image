@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -26,41 +28,41 @@ namespace numkit::image {
 
 namespace detail {
 
-void fsamp2_reg(Span<const Value> args, std::size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void fsamp2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "fsamp2");
     // no max: name-value tail in the reference
     if (args.size() == 1) {
         outs[0] = fsamp2(args[0], Value::Empty, Value::Empty, {},
-                         ctx.engine->resource());
+                         ctx.engine->allocator());
         return;
     }
     if (args.size() == 4) {
         // (f1, f2, Hd, siz) — non-uniform form (not supported).
         outs[0] = fsamp2(args[2], args[0], args[1], {},
-                         ctx.engine->resource());
+                         ctx.engine->allocator());
         return;
     }
     throw Error("fsamp2: requires 1 or 4 arguments",
                 0, 0, "fsamp2", "", "numkit:fsamp2:nargin");
 }
 
-void ftrans2_reg(Span<const Value> args, std::size_t /*nargout*/,
-                 Span<Value> outs, CallContext &ctx)
+void ftrans2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "ftrans2");
     // no max: name-value tail in the reference
     Value t = (args.size() >= 2) ? args[1] : Value::Empty;
-    outs[0] = ftrans2(args[0], t, ctx.engine->resource());
+    outs[0] = ftrans2(args[0], t, ctx.engine->allocator());
 }
 
-void fwind1_reg(Span<const Value> args, std::size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void fwind1_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "fwind1");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     if (args.size() == 2) {
         // (Hd, win) — Huang's method.
         outs[0] = fwind1(args[0], args[1], Value::Empty, mr);
@@ -74,12 +76,12 @@ void fwind1_reg(Span<const Value> args, std::size_t /*nargout*/,
     }
 }
 
-void fwind2_reg(Span<const Value> args, std::size_t /*nargout*/,
-                Span<Value> outs, CallContext &ctx)
+void fwind2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, "fwind2");
     // no max: name-value tail in the reference
-    auto *mr = ctx.engine->resource();
+    auto *mr = ctx.engine->allocator();
     if (args.size() == 2) {
         outs[0] = fwind2(args[0], args[1], mr);
     } else {

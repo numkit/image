@@ -6,6 +6,8 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/core.h>
+#include <keel/ref.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -19,20 +21,20 @@ namespace numkit::image {
 
 namespace detail {
 
-void raw2planar_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void raw2planar_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "raw2planar");
     // no max: name-value tail in the reference
-    outs[0] = raw2planar(args[0], ctx.engine->resource());
+    outs[0] = raw2planar(args[0], ctx.engine->allocator());
 }
 
-void planar2raw_reg(Span<const Value> args, size_t /*nargout*/,
-                    Span<Value> outs, CallContext &ctx)
+void planar2raw_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, "planar2raw");
     // no max: name-value tail in the reference
-    outs[0] = planar2raw(args[0], ctx.engine->resource());
+    outs[0] = planar2raw(args[0], ctx.engine->allocator());
 }
 
 } // namespace detail

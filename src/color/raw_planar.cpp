@@ -13,11 +13,14 @@
 // planar2raw is the exact inverse. Both round-trip with equality on
 // any class accepted by Value (numeric and logical).
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -27,7 +30,7 @@ namespace numkit::image {
 namespace {
 
 // Copy one element from src[si] to dst[di] preserving class.
-inline void copyElem(Value &dst, size_t di, const Value &src, size_t si)
+inline void copyElem(Value &dst, keel::usize di, const Value &src, keel::usize si)
 {
     switch (src.type()) {
         case ValueType::DOUBLE:  dst.doubleDataMut()[di]  = src.doubleData()[si];  break;
@@ -53,8 +56,8 @@ void raw2planar_argcheck(const Value &cfa)
     if (d.ndims() < 2)
         throw Error("raw2planar: cfa must be 2-D",
                     0, 0, "raw2planar", "", "numkit:raw2planar:rank");
-    const size_t M = d.dim(0);
-    const size_t N = d.dim(1);
+    const keel::usize M = d.dim(0);
+    const keel::usize N = d.dim(1);
     if (cfa.numel() != M * N)
         throw Error("raw2planar: cfa must be a 2-D matrix",
                     0, 0, "raw2planar", "", "numkit:raw2planar:shape");
@@ -69,8 +72,8 @@ void planar2raw_argcheck(const Value &I)
     if (d.ndims() < 3 || d.dim(2) != 4)
         throw Error("planar2raw: I must be (M)×(N)×4",
                     0, 0, "planar2raw", "", "numkit:planar2raw:shape");
-    const size_t Mp = d.dim(0);
-    const size_t Np = d.dim(1);
+    const keel::usize Mp = d.dim(0);
+    const keel::usize Np = d.dim(1);
     if (I.numel() != Mp * Np * 4)
         throw Error("planar2raw: I must be (M)×(N)×4",
                     0, 0, "planar2raw", "", "numkit:planar2raw:shape");
@@ -78,15 +81,15 @@ void planar2raw_argcheck(const Value &I)
 
 } // anonymous
 
-Value raw2planar(const Value &cfa, std::pmr::memory_resource *mr)
+Value raw2planar(const Value &cfa, keel::Allocator *mr)
 {
     raw2planar_argcheck(cfa);
     const auto &d = cfa.dims();
     if (d.ndims() < 2)
         throw Error("raw2planar: cfa must be 2-D",
                     0, 0, "raw2planar", "", "numkit:raw2planar:rank");
-    const size_t M = d.dim(0);
-    const size_t N = d.dim(1);
+    const keel::usize M = d.dim(0);
+    const keel::usize N = d.dim(1);
     if (cfa.numel() != M * N)
         throw Error("raw2planar: cfa must be a 2-D matrix",
                     0, 0, "raw2planar", "", "numkit:raw2planar:shape");
@@ -94,18 +97,18 @@ Value raw2planar(const Value &cfa, std::pmr::memory_resource *mr)
         throw Error("raw2planar: cfa dimensions must both be even",
                     0, 0, "raw2planar", "", "numkit:raw2planar:DimsMustBeEven");
 
-    const size_t Mp = M / 2;
-    const size_t Np = N / 2;
+    const keel::usize Mp = M / 2;
+    const keel::usize Np = N / 2;
     const ValueType T = cfa.type();
-    Value P = Value::matrixND(std::array<size_t,3>{Mp, Np, 4}.data(), 3, T, mr);
+    Value P = Value::matrixND(std::array<keel::usize,3>{Mp, Np, 4}.data(), 3, T, mr);
 
     // Column-major index: cfa(r,c) = r + c*M  (0-indexed).
     //                     P(r,c,k) = r + c*Mp + k*Mp*Np.
-    for (size_t cp = 0; cp < Np; ++cp) {
-        for (size_t rp = 0; rp < Mp; ++rp) {
-            const size_t r2 = 2 * rp;
-            const size_t c2 = 2 * cp;
-            const size_t baseP = rp + cp * Mp;
+    for (keel::usize cp = 0; cp < Np; ++cp) {
+        for (keel::usize rp = 0; rp < Mp; ++rp) {
+            const keel::usize r2 = 2 * rp;
+            const keel::usize c2 = 2 * cp;
+            const keel::usize baseP = rp + cp * Mp;
             // plane 1: (odd row, odd col)  — 0-indexed (r2, c2)
             copyElem(P, baseP + 0 * Mp * Np, cfa, r2     + c2     * M);
             // plane 2: (odd row, even col) — (r2, c2+1)
@@ -119,29 +122,29 @@ Value raw2planar(const Value &cfa, std::pmr::memory_resource *mr)
     return P;
 }
 
-Value planar2raw(const Value &I, std::pmr::memory_resource *mr)
+Value planar2raw(const Value &I, keel::Allocator *mr)
 {
     planar2raw_argcheck(I);
     const auto &d = I.dims();
     if (d.ndims() < 3 || d.dim(2) != 4)
         throw Error("planar2raw: I must be (M)×(N)×4",
                     0, 0, "planar2raw", "", "numkit:planar2raw:shape");
-    const size_t Mp = d.dim(0);
-    const size_t Np = d.dim(1);
+    const keel::usize Mp = d.dim(0);
+    const keel::usize Np = d.dim(1);
     if (I.numel() != Mp * Np * 4)
         throw Error("planar2raw: I must be (M)×(N)×4",
                     0, 0, "planar2raw", "", "numkit:planar2raw:shape");
 
-    const size_t M = 2 * Mp;
-    const size_t N = 2 * Np;
+    const keel::usize M = 2 * Mp;
+    const keel::usize N = 2 * Np;
     const ValueType T = I.type();
     Value cfa = Value::matrix(M, N, T, mr);
 
-    for (size_t cp = 0; cp < Np; ++cp) {
-        for (size_t rp = 0; rp < Mp; ++rp) {
-            const size_t r2 = 2 * rp;
-            const size_t c2 = 2 * cp;
-            const size_t baseP = rp + cp * Mp;
+    for (keel::usize cp = 0; cp < Np; ++cp) {
+        for (keel::usize rp = 0; rp < Mp; ++rp) {
+            const keel::usize r2 = 2 * rp;
+            const keel::usize c2 = 2 * cp;
+            const keel::usize baseP = rp + cp * Mp;
             copyElem(cfa, r2     + c2     * M, I, baseP + 0 * Mp * Np);
             copyElem(cfa, r2     + (c2+1) * M, I, baseP + 1 * Mp * Np);
             copyElem(cfa, (r2+1) + c2     * M, I, baseP + 2 * Mp * Np);
