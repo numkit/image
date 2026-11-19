@@ -9,6 +9,7 @@
 #include <keel/core.h>
 #include <keel/ref.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/region/region.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -17,7 +18,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -91,8 +91,7 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::String dir = args[i].toString();
         keel::String dlo;
         for (char ch : dir)
-            dlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            dlo.push_back(keel::to_ascii_lower(ch));
         if (dlo == "largest")        keep_largest = true;
         else if (dlo == "smallest")  keep_largest = false;
         else throw Error("bwpropfilt: keep direction must be "

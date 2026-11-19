@@ -12,6 +12,7 @@
 #include <keel/ref.h>
 #include <keel/array.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/object/object.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -23,7 +24,6 @@
 #include "object/object_detail.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <utility>
@@ -38,7 +38,7 @@ keel::String parse_method(keel::ArrayRef<Value> args, keel::usize i, keel::Strin
         // MATLAB method names ('Canny', 'Sobel', 'Roberts', …) are
         // case-insensitive; downstream comparisons are all lowercase.
         keel::String s = args[i].toString();
-        for (char &ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        for (char &ch : s) ch = keel::to_ascii_lower(ch);
         return s;
     }
     return keel::String::from(def);
@@ -145,8 +145,7 @@ void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::String m = args[i].toString();
         keel::String mlo;
         for (char ch : m)
-            mlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            mlo.push_back(keel::to_ascii_lower(ch));
         if (m == "Harris" || m == "MinimumEigenvalue") {
             method = keel::move(m);
             ++i;
@@ -166,8 +165,7 @@ void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "filtercoefficients") {
             filter_coef = args[i + 1];
         } else if (nlo == "sensitivityfactor") {
@@ -221,7 +219,7 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "qualitylevel") {
             quality = args[i + 1].toScalar();
         } else if (nlo == "sensitivityfactor") {
@@ -253,8 +251,7 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo.starts_with("rhor")) {
             rho_res = args[i + 1].toScalar();
         } else if (nlo == "theta") {
@@ -298,8 +295,7 @@ void houghlines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "fillgap") {
             fillgap = args[i + 1].toScalar();
         } else if (nlo == "minlength") {
@@ -343,8 +339,7 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "threshold") {
             threshold = args[i + 1].toScalar();
             if (!(threshold >= 0.0))
@@ -416,7 +411,7 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         keel::String name = args[i].toString();
         keel::String nlo = name.clone();
         for (char &ch : nlo) {
-            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            ch = keel::to_ascii_lower(ch);
         }
         if (!nlo.empty() && keel::StringRef("objectpolarity").starts_with(nlo)) {
             if (!is_string(args[i + 1])) {

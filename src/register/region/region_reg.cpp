@@ -13,6 +13,7 @@
 #include <keel/ref.h>
 #include <keel/math.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/region/region.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -21,7 +22,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -140,8 +140,7 @@ void cc2bw_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "objectstokeep") {
             objs = args[i + 1];
         } else {
@@ -272,7 +271,7 @@ void bwdist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
         method = args[1].toString();
         for (char &c : method)
-            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            c = keel::to_ascii_lower(c);
     }
 
     int metric;
@@ -345,7 +344,7 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             const keel::String s = a.toString();
             keel::String lo_s;
             lo_s.reserve(s.size());
-            for (char c : s) lo_s.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+            for (char c : s) lo_s.push_back(keel::to_ascii_lower(c));
             if      (lo_s == "largest")  keep_largest = true;
             else if (lo_s == "smallest") keep_largest = false;
             else throw Error("bwareafilt: keep must be 'largest' or 'smallest'",

@@ -7,6 +7,7 @@
 #include <keel/array.h>
 #include <keel/math.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/contrast/contrast.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -17,7 +18,6 @@
 #include <numkit/value/value_type.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <tuple>
 #include <cmath>
 #include <cstdint>
@@ -191,7 +191,7 @@ void wcodemat_argcheck(int nb, keel::StringRef opt)
                     0, 0, "wcodemat", "", "numkit:wcodemat:nb");
     keel::String lo;
     lo.reserve(opt.size());
-    for (char c : opt) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    for (char c : opt) lo.push_back(keel::to_ascii_lower(c));
     if (lo.empty()) lo.assign("mat");
     if (lo != "mat" && lo != "row" && lo != "col")
         throw Error("wcodemat: opt must be 'mat', 'row', or 'col'",
@@ -1441,7 +1441,7 @@ Value wcodemat(const Value &X, int nb, keel::StringRef opt, int absol, keel::All
 
     keel::String lo;
     lo.reserve(opt.size());
-    for (char c : opt) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    for (char c : opt) lo.push_back(keel::to_ascii_lower(c));
     if (lo.empty()) lo.assign("mat");
 
     // MATLAB R2025b formula: y = floor((v - mn) / span * nb) + 1, with the

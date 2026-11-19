@@ -11,6 +11,7 @@
 #include <keel/array.h>
 #include <keel/ref.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/object/object.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -25,7 +26,6 @@
 #include <algorithm>
 #include <tuple>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -611,7 +611,7 @@ Value edge(const Value &I, keel::StringRef methodRaw, double thresh_lo, double /
 {
     // Method names are case-insensitive (MATLAB-compatible).
     keel::String method = keel::String::from(methodRaw);
-    for (char &ch : method) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    for (char &ch : method) ch = keel::to_ascii_lower(ch);
 
     // Sobel / Prewitt / Roberts threshold the gradient magnitude; Canny does
     // full non-max suppression + hysteresis; log / zerocross mark zero
@@ -1419,7 +1419,7 @@ keel::String toLowerAscii(keel::StringRef s)
 {
     keel::String out = keel::String::from(s);
     for (char &ch : out) {
-        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        ch = keel::to_ascii_lower(ch);
     }
     return out;
 }

@@ -11,6 +11,7 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/io/io.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -19,7 +20,6 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -35,7 +35,7 @@ inline keel::String lowerExt(keel::StringRef path) {
     auto dot = path.rfind('.');
     if (dot == keel::kInvalidIndex) return {};
     keel::String e = keel::String::from(path.substr(dot + 1));
-    for (char &c : e) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (char &c : e) c = keel::to_ascii_lower(c);
     return e;
 }
 
@@ -148,7 +148,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
             keel::String s = args[2].toString();
             keel::String lo;
             lo.reserve(s.size());
-            for (char c : s) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+            for (char c : s) lo.push_back(keel::to_ascii_lower(c));
             if (lo == "tif" || lo == "tiff") nvStart = 3;
         }
         for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
@@ -158,16 +158,16 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
             keel::String key = args[i].toString();
             keel::String lkey;
             lkey.reserve(key.size());
-            for (char c : key) lkey.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+            for (char c : key) lkey.push_back(keel::to_ascii_lower(c));
             const Value &v = args[i + 1];
             if (lkey == "compression") {
                 compression = v.toString();
                 for (auto &c : compression)
-                    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                    c = keel::to_ascii_lower(c);
             } else if (lkey == "writemode") {
                 keel::String m = v.toString();
                 keel::String lo;
-                for (char c : m) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+                for (char c : m) lo.push_back(keel::to_ascii_lower(c));
                 appendMode = (lo == "append");
             } else {
                 throw Error(keel::format("imwrite TIFF: unknown NV key '{}'", key),

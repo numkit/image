@@ -11,6 +11,7 @@
 #include <keel/ref.h>
 #include <keel/array.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/segment/segment.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -20,7 +21,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -178,8 +178,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
         keel::String name = a[i].toString();
         keel::String nlo = name.clone();
         for (auto &ch : nlo)
-            ch = static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            ch = keel::to_ascii_lower(ch);
         // Allow MATLAB-style abbreviation.
         if (nlo.starts_with("roll"))
             rolloff = a[i + 1].toScalar();
@@ -245,8 +244,7 @@ void gradientweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
         keel::String name = a[i].toString();
         keel::String nlo = name.clone();
         for (auto &ch : nlo)
-            ch = static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            ch = keel::to_ascii_lower(ch);
         // MATLAB-style abbreviation: "RolloffFactor" / "WeightCutoff".
         if (nlo.starts_with("roll"))
             rolloff = a[i + 1].toScalar();
@@ -425,8 +423,7 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
         for (char &ch : method)
-            ch = static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            ch = keel::to_ascii_lower(ch);
         --nargs;
     }
 
@@ -507,8 +504,7 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
         for (char &ch : method)
-            ch = static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            ch = keel::to_ascii_lower(ch);
         --nargs;
     }
 

@@ -11,6 +11,7 @@
 #include <keel/format.h>
 #include <keel/ref.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/quality/quality.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -19,7 +20,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -99,8 +99,7 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "numscales") {
             num_scales = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "NumScales", "multissim3"),
@@ -155,8 +154,7 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         keel::String name = args[i].toString();
         keel::String nlo;
         for (char ch : name)
-            nlo.push_back(static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch))));
+            nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "numscales") {
             num_scales = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "NumScales", "multissim"),

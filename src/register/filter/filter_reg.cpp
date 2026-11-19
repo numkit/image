@@ -15,6 +15,7 @@
 #include <keel/ref.h>
 #include <keel/array.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 
@@ -26,7 +27,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -218,8 +218,7 @@ Value colfilt(const Value &A,
     if (block_type.empty())
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
-    const char first = static_cast<char>(
-        std::tolower(static_cast<unsigned char>(block_type[0])));
+    const char first = keel::to_ascii_lower(block_type[0]);
     if (first != 's' && first != 'd')
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
@@ -370,7 +369,7 @@ keel::String to_lower_ascii(keel::StringRef s) {
     keel::String out;
     out.reserve(s.size());
     for (char ch : s)
-        out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+        out.push_back(keel::to_ascii_lower(ch));
     return out;
 }
 

@@ -27,6 +27,7 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -39,7 +40,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -2105,7 +2105,7 @@ keel::String lower(keel::StringRef s)
     keel::String lo;
     lo.reserve(s.size());
     for (char ch : s)
-        lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+        lo.push_back(keel::to_ascii_lower(ch));
     return lo;
 }
 

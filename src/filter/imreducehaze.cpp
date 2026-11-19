@@ -37,6 +37,7 @@
 #include <keel/math.h>
 #include <keel/ref.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/morph/morph.hpp>
 #include <numkit/image/contrast/contrast.hpp>
@@ -46,7 +47,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -61,7 +61,7 @@ inline keel::String lower_str(keel::StringRef s)
     keel::String lo;
     lo.reserve(s.size());
     for (char ch : s)
-        lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+        lo.push_back(keel::to_ascii_lower(ch));
     return lo;
 }
 

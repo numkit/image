@@ -14,6 +14,7 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/contrast/contrast.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -22,8 +23,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
-
-#include <cctype>
 #include <cstddef>
 #include <cstring>
 #include <limits>
@@ -194,7 +193,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // Method-string form: imbinarize(I, 'global') | imbinarize(I, 'adaptive', ...).
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
         keel::String m = args[1].toString();
-        for (char &c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        for (char &c : m) c = keel::to_ascii_lower(c);
         if (m == "global") {
             auto [t, em] = graythresh(args[0], mr);
             (void)em;
@@ -211,13 +210,13 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                                 0, 0, "imbinarize", "", "numkit:imbinarize:nv");
                 keel::String raw = args[i].toString();
                 keel::String nm = raw.clone();
-                for (char &c : nm) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                for (char &c : nm) c = keel::to_ascii_lower(c);
                 if (nm == "sensitivity")
                     sens = args[i + 1].toScalar();
                 else if (nm == "foregroundpolarity") {
                     polarity = args[i + 1].toString();
                     for (char &c : polarity)
-                        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                        c = keel::to_ascii_lower(c);
                 } else
                     throw Error(keel::format("imbinarize: unknown option '{}'", raw),
                                 0, 0, "imbinarize", "", "numkit:imbinarize:opt");

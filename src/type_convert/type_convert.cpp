@@ -5,14 +5,13 @@
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/type_convert/type_convert.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <tuple>
-#include <cctype>
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -430,7 +429,7 @@ void imcast_argcheck(keel::StringRef type, keel::String &lo)
 {
     lo.clear();
     lo.reserve(type.size());
-    for (char c : type) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    for (char c : type) lo.push_back(keel::to_ascii_lower(c));
     if (lo != "double" && lo != "single" && lo != "uint8" &&
         lo != "uint16" && lo != "int16" && lo != "logical")
         throw Error("imcast: unsupported TYPE", 0, 0, "imcast", "",

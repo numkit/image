@@ -19,7 +19,6 @@
 #include "texture/texture_detail.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>

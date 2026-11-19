@@ -13,6 +13,7 @@
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/image/transform/transform.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/filter/filter.hpp>
@@ -27,8 +28,6 @@
 #include <array>
 #include <cstring>
 #include <tuple>
-#include <cctype>
-
 #include <cmath>
 
 #ifndef M_PI
@@ -258,7 +257,7 @@ Value phantom_argcheck(const Value &model_or_E, keel::Allocator *mr)
         const keel::String m = model_or_E.toString();
         keel::String lo;
         lo.reserve(m.size());
-        for (char c : m) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        for (char c : m) lo.push_back(keel::to_ascii_lower(c));
         if (lo == "shepp-logan")
             return make_ellipse_matrix(kSheppLogan, 10, mr);
         else if (lo == "modified shepp-logan")
@@ -516,7 +515,7 @@ Value fftconv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allo
 
     keel::String sh;
     sh.reserve(shape.size());
-    for (char c : shape) sh.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    for (char c : shape) sh.push_back(keel::to_ascii_lower(c));
     if (sh.empty()) sh.assign("full");
     if (sh == "full") return Y;
 
