@@ -174,7 +174,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     }
     // Allocate per-label column vectors (1-based indices).
     keel::Array<Value> bufs;
-    bufs.reserve(static_cast<keel::usize>(maxLab));
+    bufs.reserve(maxLab);
     keel::Array<double *> wptr(static_cast<keel::usize>(maxLab) + 1);
     keel::Array<keel::usize> cur(static_cast<keel::usize>(maxLab) + 1, 0);
     for (long long k = 1; k <= maxLab; ++k) {
@@ -1296,7 +1296,7 @@ keel::Array<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
 template <typename T>
 keel::Array<int> rdpRun(const Value &P, int n, double tol)
 {
-    keel::Array<T> xs(static_cast<keel::usize>(n)), ys(static_cast<keel::usize>(n));
+    keel::Array<T> xs(n), ys(static_cast<keel::usize>(n));
     for (int i = 0; i < n; ++i) {
         xs[static_cast<keel::usize>(i)] = static_cast<T>(P.elemAsDouble(static_cast<keel::usize>(i)));
         ys[static_cast<keel::usize>(i)] = static_cast<T>(P.elemAsDouble(static_cast<keel::usize>(i) + static_cast<keel::usize>(n)));

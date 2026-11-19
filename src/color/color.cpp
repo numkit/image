@@ -924,9 +924,9 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
                     0, 0, "colorgradient", "", "numkit:colorgradient:n");
 
     keel::Array<double> wv;
-    wv.reserve(static_cast<keel::usize>(K - 1));
+    wv.reserve(K - 1);
     if (w.numel() == 0) {
-        wv.resize(static_cast<keel::usize>(K - 1), 1.0);
+        wv.resize(K - 1, 1.0);
     } else {
         if (static_cast<int>(w.numel()) != K - 1)
             throw Error("colorgradient: must have one weight per interval",
@@ -938,7 +938,7 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
     double total = 0.0;
     for (double x : wv) total += x;
     if (total == 0.0) total = 1.0;
-    keel::Array<int> wpos(static_cast<keel::usize>(K), 0);
+    keel::Array<int> wpos(K, 0);
     double acc = 0.0;
     wpos[0] = 1;
     for (int i = 0; i < K - 1; ++i) {
@@ -1584,7 +1584,7 @@ Value contrast(const Value &x, int m, keel::Allocator *mr)
 
     // f = 1-based positions where sorted[i+1] != sorted[i].
     keel::Array<double> f;
-    f.reserve(static_cast<keel::usize>(m));
+    f.reserve(m);
     for (keel::usize i = 0; i + 1 < sorted.size(); ++i)
         if (sorted[i + 1] != sorted[i])
             f.push_back(static_cast<double>(i + 1));
@@ -1666,14 +1666,12 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, keel::Allocator 
     const auto &d2 = I2.dims();
 
     // Determine output shape based on input dims.
-    enum Shape { COLORMAP, IMAGE } shape;
     keel::usize out_h, out_w;
     if (!d1.is3D() && !d2.is3D()) {
         if (d1.cols() != 3 || d2.cols() != 3 ||
             d1.rows() != d2.rows())
             throw Error("deltaE: M-by-3 inputs must agree in row count",
                         0, 0, "deltaE", "", "numkit:deltaE:size");
-        shape = COLORMAP;
         out_h = d1.rows();
         out_w = 1;
     } else if (d1.is3D() && d2.is3D()) {
@@ -1681,7 +1679,6 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, keel::Allocator 
             d1.rows() != d2.rows() || d1.cols() != d2.cols())
             throw Error("deltaE: H-by-W-by-3 inputs must agree in size",
                         0, 0, "deltaE", "", "numkit:deltaE:size");
-        shape = IMAGE;
         out_h = d1.rows();
         out_w = d1.cols();
     } else {

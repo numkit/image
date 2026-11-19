@@ -139,7 +139,7 @@ keel::Array<RkContrib> rkBuild(keel::usize outLen, double scale, double (*k)(dou
         const int    left = static_cast<int>(std::floor(u - kw / 2.0));
         RkContrib &  r    = rows[o];
         r.first = left - 1;
-        r.w.assign(static_cast<keel::usize>(P), 0.0);
+        r.w.assign(P, 0.0);
         double sum = 0.0;
         for (int j = 0; j < P; ++j) { const double w = scl * k(scl * (u - double(left + j))); r.w[j] = w; sum += w; }
         if (sum != 0.0) for (auto &w : r.w) w /= sum;
@@ -808,7 +808,7 @@ R3Kernel parseR3Kernel(keel::StringRef m) {
 struct ContribRow { int firstIdx; keel::Array<double> w; };  // firstIdx 0-indexed
 
 keel::Array<ContribRow>
-buildContrib(keel::usize inLen, keel::usize outLen, double scale,
+buildContrib(keel::usize /*inLen*/, keel::usize outLen, double scale,
              const R3Kernel &k, bool aa)
 {
     // `scale` is the user-supplied scale (NOT outLen/inLen) — MATLAB

@@ -281,7 +281,7 @@ double attr_perimeter(const Comp &c, int H, int W)
     // Pad by 1 on each side for the 2×2 lookup.
     const int hp = h + 2;
     const int wp = w + 2;
-    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         const int r = c.rs[i] - c.rmin + 1;
         const int cc_ = c.cs[i] - c.cmin + 1;
@@ -314,7 +314,7 @@ double attr_perimeter_old(const Comp &c, int H, int W)
     const int w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
     const int hp = h + 2, wp = w + 2;
-    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         mask[static_cast<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
@@ -349,7 +349,7 @@ double attr_euler_number(const Comp &c, int conn)
     const int w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
     const int hp = h + 2, wp = w + 2;
-    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         mask[static_cast<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
@@ -384,14 +384,14 @@ double attr_filled_area(const Comp &c)
     const int w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
     const int hp = h + 2, wp = w + 2;
-    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i)
         mask[static_cast<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
     keel::Array<keel::u8> visited(mask.size(), 0);
     // BFS from every border-cell that is background.
     keel::Array<int> queue;
-    queue.reserve(static_cast<keel::usize>(hp * wp));
+    queue.reserve(hp * wp);
     auto push_if = [&](int r, int cc_) {
         if (r < 0 || cc_ < 0 || r >= hp || cc_ >= wp) return;
         const keel::usize idx = static_cast<keel::usize>(r * wp + cc_);

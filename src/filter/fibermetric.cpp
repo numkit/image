@@ -112,7 +112,7 @@ Buf to_double_buf(const Value &V)
 keel::Array<double> gauss1d(double sigma, int radius)
 {
     const int n = 2 * radius + 1;
-    keel::Array<double> k(static_cast<keel::usize>(n));
+    keel::Array<double> k(n);
     double s = 0.0;
     for (int i = 0; i < n; ++i) {
         const double x = i - radius;

@@ -2345,7 +2345,7 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
         return A.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
     };
 
-    keel::Array<double> nb(static_cast<keel::usize>(M));
+    keel::Array<double> nb(M);
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             for (int k = 0; k < M; ++k) {
@@ -2599,7 +2599,7 @@ static keel::Array<double> gauss1d_kernel(double sigma) {
     int half = static_cast<int>(std::ceil(2.0 * sigma));
     if (half < 1) half = 1;
     const int K = 2 * half + 1;
-    keel::Array<double> k(static_cast<keel::usize>(K));
+    keel::Array<double> k(K);
     double sum = 0.0;
     const double inv2s2 = 0.5 / (sigma * sigma);
     for (int i = -half; i <= half; ++i) {
@@ -2818,7 +2818,7 @@ Value entropyfilt(const Value &I, const Value &domain, keel::Allocator *mr)
     if (M == 0) return out;
 
     double *od = out.doubleDataMut();
-    keel::Array<int> hist(static_cast<keel::usize>(nbins), 0);
+    keel::Array<int> hist(nbins, 0);
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             std::fill(hist.begin(), hist.end(), 0);

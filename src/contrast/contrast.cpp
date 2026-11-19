@@ -211,7 +211,7 @@ std::tuple<Value, Value>
 imhist(const Value &I, int n, keel::Allocator *mr)
 {
     if (n <= 0) n = default_nbins(I);
-    keel::Array<keel::i64> counts(static_cast<keel::usize>(n), 0);
+    keel::Array<keel::i64> counts(n, 0);
     const keel::usize N = I.numel();
     for (keel::usize i = 0; i < N; ++i) {
         const double u = element_to_unit(I, i);
@@ -273,8 +273,8 @@ Value stretchlim(const Value &I, double low_tol, double high_tol, keel::Allocato
     // stretchlim([0.1 0.2 0.9 0.95]) returned [26/255 242/255] instead of
     // [6554/65535 62258/65535].)
     const int NBINS = (I.type() == ValueType::UINT8) ? 256 : 65536;
-    keel::Array<keel::usize> hist(static_cast<keel::usize>(NBINS), 0);
-    keel::Array<keel::usize> cumhist(static_cast<keel::usize>(NBINS), 0);
+    keel::Array<keel::usize> hist(NBINS, 0);
+    keel::Array<keel::usize> cumhist(NBINS, 0);
     const double N = static_cast<double>(plane);
 
     for (int ch = 0; ch < channels; ++ch) {
@@ -353,7 +353,7 @@ Value histeq(const Value &I, int n, keel::Allocator *mr)
     auto [counts_v, bins_v] = imhist(I, n, mr);
     const double *counts = counts_v.doubleData();
     // Cumulative distribution.
-    keel::Array<double> cdf(static_cast<keel::usize>(n));
+    keel::Array<double> cdf(n);
     double total = 0.0;
     for (int i = 0; i < n; ++i) total += counts[i];
     if (total <= 0.0) return I;
@@ -650,7 +650,7 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts,
         + std::round(opts.clipLimit * (numPix - minClipLimit));
     // luts: nTiles consecutive LUTs of nBins entries each.
     keel::Array<double> luts(static_cast<keel::usize>(nTiles) * nBins, arena.allocator());
-    keel::Array<double> hist(static_cast<keel::usize>(nBins), arena.allocator());
+    keel::Array<double> hist(nBins, arena.allocator());
 
     for (int tr = 0; tr < numTilesR; ++tr) {
         for (int tc = 0; tc < numTilesC; ++tc) {
@@ -781,7 +781,7 @@ std::pair<double, double> otsu_one_level(keel::ArrayRef<double> counts) {
     if (total <= 0.0) return {0.0, 0.0};
 
     // First pass: find max sigma_b^2.
-    keel::Array<double> sigma_b(static_cast<keel::usize>(L), 0.0);
+    keel::Array<double> sigma_b(L, 0.0);
     {
         double w0 = 0.0, sum0 = 0.0;
         for (int t = 0; t < L - 1; ++t) {
@@ -901,7 +901,7 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
         return clampBin(std::lround(s * 255.0));
     };
 
-    keel::Array<double> counts(static_cast<keel::usize>(B), 0.0);
+    keel::Array<double> counts(B, 0.0);
     double total = 0.0;
     for (keel::usize i = 0; i < M; ++i) {
         const int b = toBin(I.elemAsDouble(i));
@@ -917,8 +917,8 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
     }
 
     // omega = cumsum(p); mu = cumsum(p .* (1:B)'); mu_t = mu(end).
-    keel::Array<double> omega(static_cast<keel::usize>(B));
-    keel::Array<double> mu(static_cast<keel::usize>(B));
+    keel::Array<double> omega(B);
+    keel::Array<double> mu(B);
     double cum = 0.0, cumm = 0.0;
     for (int j = 0; j < B; ++j) {
         const double p = counts[j] / total;
@@ -929,7 +929,7 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
     }
     const double mu_t = mu[B - 1];
 
-    keel::Array<double> threshBins(static_cast<keel::usize>(N), 0.0);   // 0-based bin thresholds
+    keel::Array<double> threshBins(N, 0.0);   // 0-based bin thresholds
     double bestVar = 0.0;
 
     if (N == 1) {
@@ -985,8 +985,8 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
         // histogram (maximise sum_k s_k^2 / w_k). This is correct-scale and
         // a valid set of thresholds, but — being global rather than
         // fminsearch's local optimum — may differ from MATLAB for N >= 3.
-        keel::Array<double> Omega(static_cast<keel::usize>(B + 1), 0.0);
-        keel::Array<double> Mu(static_cast<keel::usize>(B + 1), 0.0);
+        keel::Array<double> Omega(B + 1, 0.0);
+        keel::Array<double> Mu(B + 1, 0.0);
         for (int j = 0; j < B; ++j) {
             Omega[j + 1] = omega[j];
             Mu[j + 1] = mu[j];
@@ -1000,8 +1000,8 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
         const int K = N + 1;                              // number of classes
         const double NEG = -std::numeric_limits<double>::infinity();
         // dp[k*B + t] = best score for first k classes, class k ending at bin t.
-        keel::Array<double> dp(static_cast<keel::usize>((K + 1) * B), NEG);
-        keel::Array<int> back(static_cast<keel::usize>((K + 1) * B), -1);
+        keel::Array<double> dp((K + 1) * B, NEG);
+        keel::Array<int> back((K + 1) * B, -1);
         for (int t = 0; t < B; ++t) dp[1 * B + t] = segScore(0, t);
         for (int k = 2; k <= K; ++k) {
             for (int t = k - 1; t < B; ++t) {
@@ -1016,7 +1016,7 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
             }
         }
         // Last class must end at bin B-1; backtrack the N boundaries.
-        keel::Array<int> bounds(static_cast<keel::usize>(K), 0);
+        keel::Array<int> bounds(K, 0);
         bounds[K - 1] = B - 1;
         for (int k = K; k >= 2; --k)
             bounds[k - 2] = back[k * B + bounds[k - 1]];

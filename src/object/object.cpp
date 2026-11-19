@@ -65,7 +65,7 @@ imgradientxy(const Value &I, keel::StringRef method, keel::Allocator *mr)
 {
     // Choose kernels (Gx for horizontal, Gy for vertical).
     keel::Array<double> kx, ky;
-    int rows = 3, cols = 3;
+    int cols = 3;
     // Kernel sign convention matches MATLAB imgradientxy: Gx is positive
     // where intensity increases left→right (negative on the left column,
     // positive on the right), Gy positive where intensity increases
@@ -79,10 +79,10 @@ imgradientxy(const Value &I, keel::StringRef method, keel::Allocator *mr)
                1, 1, 1 };
     } else if (method == "central") {
         // 1×3 / 3×1 central difference.
-        kx = {-0.5, 0, 0.5}; rows = 1; cols = 3;
+        kx = {-0.5, 0, 0.5}; cols = 3;
         ky = {-0.5, 0, 0.5};
     } else if (method == "intermediate") {
-        kx = {-1, 1}; rows = 1; cols = 2;
+        kx = {-1, 1}; cols = 2;
         ky = {-1, 1};
     } else {  // sobel default
         kx = {-1, 0, 1,
@@ -496,7 +496,7 @@ Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
     const double sigma = std::sqrt(2.0);
     const int hw = std::max(1, static_cast<int>(std::ceil(3.0 * sigma)));
     const int L = 2 * hw + 1;
-    keel::Array<double> g(static_cast<keel::usize>(L)), dg(static_cast<keel::usize>(L));
+    keel::Array<double> g(L), dg(static_cast<keel::usize>(L));
     double gsum = 0.0;
     for (int i = 0; i < L; ++i) {
         const double x = i - hw;

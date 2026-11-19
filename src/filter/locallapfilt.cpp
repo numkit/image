@@ -289,20 +289,20 @@ Plane llf_core(const Plane &input, float sigma, float alpha, float beta,
     }
 
     // ── Gaussian pyramid of input ───────────────────────────────
-    keel::Array<Plane> inG(static_cast<keel::usize>(numPyramidLevels));
+    keel::Array<Plane> inG(numPyramidLevels);
     inG[0] = input.clone();
     for (int i = 1; i < numPyramidLevels; ++i)
         inG[i] = pyrdownsample(inG[i - 1]);
 
     // ── Output Laplacian pyramid; top level = top Gaussian ──────
-    keel::Array<Plane> outL(static_cast<keel::usize>(numPyramidLevels));
+    keel::Array<Plane> outL(numPyramidLevels);
     outL[numPyramidLevels - 1] = inG[numPyramidLevels - 1].clone();
     for (int i = 0; i < numPyramidLevels - 1; ++i)
         outL[i] = Plane(inG[i].H, inG[i].W);   // zeroed
 
     // ── Sequentially accumulate over N intensity samples ───────
     const float delta = (maxVal - minVal) / float(numIntensityLevels - 1);
-    keel::Array<Plane> rG(static_cast<keel::usize>(numPyramidLevels));
+    keel::Array<Plane> rG(numPyramidLevels);
     for (int k = 0; k < numIntensityLevels; ++k) {
         const float refVal = minVal + float(k) * delta;
         rG[0] = remap_image(input, refVal, sigma, alpha, beta);

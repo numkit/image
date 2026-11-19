@@ -277,7 +277,7 @@ double class_dynamic_range(ValueType t)
 keel::Array<double> default_scale_weights(int N)
 {
     if (N < 1) N = 1;
-    keel::Array<double> w(static_cast<keel::usize>(N));
+    keel::Array<double> w(N);
     if (N == 1) { w[0] = 1.0; return w; }
     const double half = (N - 1) / 2.0;
     double s = 0.0;
@@ -627,7 +627,7 @@ Value vol_to_value(const Vol &V, keel::Allocator *mr)
 // Build a 1-D Gaussian kernel with `filtSize` elements, mean = (filtSize-1)/2.
 keel::Array<double> gauss1d(double sigma, int filtSize)
 {
-    keel::Array<double> k(static_cast<keel::usize>(filtSize));
+    keel::Array<double> k(filtSize);
     const double half = (filtSize - 1) / 2.0;
     double s = 0.0;
     for (int i = 0; i < filtSize; ++i) {

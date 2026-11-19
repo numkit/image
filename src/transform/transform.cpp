@@ -790,7 +790,8 @@ Value to_double_pmr(const Value &I, keel::Allocator *mr)
             for (keel::usize i = 0; i < N; ++i) od[i] = I.uint16Data()[i] / 65535.0; break;
         case ValueType::INT16:
             for (keel::usize i = 0; i < N; ++i)
-                od[i] = (I.int16Data()[i] + 32768.0) / 65535.0; break;
+                od[i] = (I.int16Data()[i] + 32768.0) / 65535.0;
+            break;
         default:
             throw Error("deconvwnr: unsupported image class",
                         0, 0, "deconvwnr", "", "numkit:deconvwnr:cls");
@@ -827,16 +828,20 @@ Value real_back_to_class(const Value &Jd, ValueType outT,
             std::memcpy(out.doubleDataMut(), src, N * sizeof(double)); break;
         case ValueType::SINGLE:
             for (keel::usize i = 0; i < N; ++i)
-                out.singleDataMut()[i] = static_cast<float>(src[i]); break;
+                out.singleDataMut()[i] = static_cast<float>(src[i]);
+            break;
         case ValueType::UINT8:
             for (keel::usize i = 0; i < N; ++i)
-                out.uint8DataMut()[i] = sat_u8(src[i]); break;
+                out.uint8DataMut()[i] = sat_u8(src[i]);
+            break;
         case ValueType::UINT16:
             for (keel::usize i = 0; i < N; ++i)
-                out.uint16DataMut()[i] = sat_u16(src[i]); break;
+                out.uint16DataMut()[i] = sat_u16(src[i]);
+            break;
         case ValueType::INT16:
             for (keel::usize i = 0; i < N; ++i)
-                out.int16DataMut()[i] = sat_i16(src[i]); break;
+                out.int16DataMut()[i] = sat_i16(src[i]);
+            break;
         default:
             throw Error("deconvwnr: unsupported output class",
                         0, 0, "deconvwnr", "", "numkit:deconvwnr:cls");

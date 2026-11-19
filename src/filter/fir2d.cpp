@@ -68,7 +68,7 @@ Value rot90_2(const Value &A, keel::Allocator *mr)
 //
 // To compute output[c] we read from (c + ceil(N/2)) mod N.
 // For odd N this equals (c + floor(N/2)) mod N.
-Value ifftshift2d(const Value &A, keel::Allocator *mr)
+[[maybe_unused]] Value ifftshift2d(const Value &A, keel::Allocator *mr)
 {
     const keel::usize H = A.dims().rows();
     const keel::usize W = A.dims().cols();
@@ -109,7 +109,7 @@ Value ifftshift2d(const Value &A, keel::Allocator *mr)
 //
 // For ODD dims, fftshift == ifftshift. For EVEN dims they differ in
 // shift direction by 1.
-Value fftshift2d(const Value &A, keel::Allocator *mr)
+[[maybe_unused]] Value fftshift2d(const Value &A, keel::Allocator *mr)
 {
     const keel::usize H = A.dims().rows();
     const keel::usize W = A.dims().cols();
@@ -399,7 +399,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     keel::Array<double> bsh(L);
     for (keel::usize i = 0; i < L; ++i)
         bsh[i] = b_vec[(static_cast<long>(i) + shift) % static_cast<long>(L)];
-    keel::Array<double> a(static_cast<keel::usize>(n + 1));
+    keel::Array<double> a(n + 1);
     a[0] = bsh[0];
     for (long k = 1; k <= n; ++k) a[static_cast<keel::usize>(k)] = 2.0 * bsh[static_cast<keel::usize>(k)];
 

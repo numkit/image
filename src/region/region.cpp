@@ -544,8 +544,8 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
 
     // Start-pixel scan: first encounter of each label in row-major
     // order is its leftmost-topmost pixel. Cache that lookup.
-    keel::Array<int> startRow(static_cast<keel::usize>(K + 1), -1);
-    keel::Array<int> startCol(static_cast<keel::usize>(K + 1), -1);
+    keel::Array<int> startRow(K + 1, -1);
+    keel::Array<int> startCol(K + 1, -1);
     for (int r = 0; r < H && std::count(startRow.begin(),
                                          startRow.end(), -1) > 1; ++r)
         for (int c = 0; c < W; ++c) {
@@ -810,14 +810,14 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
 
     // Accumulators per label.
     const bool needMoments = wEllipse;
-    keel::Array<long long> area(static_cast<keel::usize>(K + 1), 0);
-    keel::Array<double> sumX(static_cast<keel::usize>(K + 1), 0.0), sumY(static_cast<keel::usize>(K + 1), 0.0);
+    keel::Array<long long> area(K + 1, 0);
+    keel::Array<double> sumX(K + 1, 0.0), sumY(static_cast<keel::usize>(K + 1), 0.0);
     // First pixel (row-major scan order = top-left-most) per label, the
     // boundary-trace start for Perimeter.
-    keel::Array<int> firstR(static_cast<keel::usize>(K + 1), -1), firstC(static_cast<keel::usize>(K + 1), -1);
-    keel::Array<double> sumXX(static_cast<keel::usize>(K + 1), 0.0), sumYY(static_cast<keel::usize>(K + 1), 0.0), sumXY(static_cast<keel::usize>(K + 1), 0.0);
-    keel::Array<int> minX(static_cast<keel::usize>(K + 1), INT_MAX), minY(static_cast<keel::usize>(K + 1), INT_MAX);
-    keel::Array<int> maxX(static_cast<keel::usize>(K + 1), INT_MIN), maxY(static_cast<keel::usize>(K + 1), INT_MIN);
+    keel::Array<int> firstR(K + 1, -1), firstC(static_cast<keel::usize>(K + 1), -1);
+    keel::Array<double> sumXX(K + 1, 0.0), sumYY(static_cast<keel::usize>(K + 1), 0.0), sumXY(static_cast<keel::usize>(K + 1), 0.0);
+    keel::Array<int> minX(K + 1, INT_MAX), minY(static_cast<keel::usize>(K + 1), INT_MAX);
+    keel::Array<int> maxX(K + 1, INT_MIN), maxY(static_cast<keel::usize>(K + 1), INT_MIN);
     // Column-major 1-based linear indices per label (for PixelIdxList /
     // PixelList). Collected in row-major visit order then sorted ascending
     // to match MATLAB's column-major ordering.
@@ -1277,7 +1277,7 @@ Value bwareafilt(const Value &BW, double lo, double hi, keel::usize n_keep, bool
     if (n_keep > 0) {
         // Top-N form. Sort labels [1..K] by area, ties by lower index.
         keel::Array<int> idx;
-        idx.reserve(static_cast<keel::usize>(K));
+        idx.reserve(K);
         for (int k = 1; k <= K; ++k) idx.push_back(k);
         if (keep_largest) {
             std::sort(idx.begin(), idx.end(), [&](int a, int b) {

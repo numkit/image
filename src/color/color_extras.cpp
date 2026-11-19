@@ -1831,9 +1831,9 @@ Value resolve_named_colormap(keel::StringRef name, int N,
 keel::Array<int> matlab_default_randperm(int N)
 {
     ::numkit::ops::MatlabMT19937 rng;   // seed 0 → state[0] = 5489
-    keel::Array<double> u(static_cast<keel::usize>(N));
+    keel::Array<double> u(N);
     for (int i = 0; i < N; ++i) u[i] = rng.genRes53();
-    keel::Array<int> p(static_cast<keel::usize>(N));
+    keel::Array<int> p(N);
     for (int i = 0; i < N; ++i) p[i] = i;          // 0-based for sort
     std::stable_sort(p.begin(), p.end(),
                      [&](int a, int b) { return u[a] < u[b]; });
@@ -1899,7 +1899,7 @@ EdgeSet build_8conn_edges(const Value &L)
         }
     std::sort(s.edges.begin(), s.edges.end());
     auto *end_it = std::unique(s.edges.begin(), s.edges.end());
-    s.edges.resize(static_cast<keel::usize>(end_it - s.edges.begin()));
+    s.edges.resize(end_it - s.edges.begin());
     return s;
 }
 
@@ -2010,12 +2010,12 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     // Build adjacency lists (sorted ascending to match std::set iteration order).
     const int numNodes = g.maxLabel;
     keel::Array<keel::Array<int>> adj;
-    adj.resize(static_cast<keel::usize>(numNodes + 1));
+    adj.resize(numNodes + 1);
     for (auto [a, b] : g.edges) { adj[a].push_back(b); adj[b].push_back(a); }
     for (keel::usize i = 0; i < adj.size(); ++i) {
         std::sort(adj[i].begin(), adj[i].end());
         auto *uend = std::unique(adj[i].begin(), adj[i].end());
-        adj[i].resize(static_cast<keel::usize>(uend - adj[i].begin()));
+        adj[i].resize(uend - adj[i].begin());
     }
 
     Value palette = select_maximally_distinct(cmap_used, ub, mr);
@@ -2030,10 +2030,10 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     }
     if (firstNode == std::numeric_limits<int>::max()) return cmap_used;
 
-    keel::Array<int> coloredIdx(static_cast<keel::usize>(numNodes + 1), 0);
-    keel::Array<char> visited(static_cast<keel::usize>(numNodes + 1), 0);
+    keel::Array<int> coloredIdx(numNodes + 1, 0);
+    keel::Array<char> visited(numNodes + 1, 0);
     keel::Array<int> queue;
-    queue.reserve(static_cast<keel::usize>(numNodes));
+    queue.reserve(numNodes);
     queue.push_back(firstNode);
     visited[firstNode] = 1;
     keel::usize head = 0;
