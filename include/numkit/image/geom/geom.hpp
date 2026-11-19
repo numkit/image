@@ -10,8 +10,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
-#include <string>
 
 namespace numkit::image {
 
@@ -29,7 +29,7 @@ namespace numkit::image {
 /// @return        Resampled image; element type preserved.
 ///
 /// @see imcrop, imrotate
-Value imresize(const Value &A, keel::f64 scale, const std::string &method,
+Value imresize(const Value &A, keel::f64 scale, keel::StringRef method,
                keel::Allocator *mr = nullptr);
 
 /// @brief Resample an image to an explicit output size
@@ -46,7 +46,7 @@ Value imresize(const Value &A, keel::f64 scale, const std::string &method,
 /// @return        Resampled image; element type preserved.
 /// @see imcrop, imrotate
 Value imresize(const Value &A, keel::usize outH, keel::usize outW,
-               const std::string &method,
+               keel::StringRef method,
                keel::Allocator *mr = nullptr);
 
 /// @brief Crop a rectangular region
@@ -97,8 +97,8 @@ Value imcrop3(const Value &V, const Value &cuboid,
 ///                that fall outside).
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Rotated image; pixels outside source filled with 0.
-Value imrotate(const Value &A, keel::f64 angle, const std::string &method,
-               const std::string &bbox,
+Value imrotate(const Value &A, keel::f64 angle, keel::StringRef method,
+               keel::StringRef bbox,
                keel::Allocator *mr = nullptr);
 
 /// @brief Shift an image by an arbitrary `(dx, dy)` translation
@@ -160,13 +160,13 @@ Value axes2pix(keel::f64 n, const Value &extent, const Value &axesCoord,
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          Resampled volume; element type preserved with clip.
 Value imresize3(const Value &V, keel::usize outR, keel::usize outC, keel::usize outD,
-                const std::string &method, bool antialias,
+                keel::StringRef method, bool antialias,
                 keel::Allocator *mr = nullptr);
 
 /// @brief Resample a 3-D volume by a uniform scale factor
 /// (`B = imresize3(V, scale, ...)`). See size-vector overload.
 Value imresize3(const Value &V, keel::f64 scale,
-                const std::string &method, bool antialias,
+                keel::StringRef method, bool antialias,
                 keel::Allocator *mr = nullptr);
 
 /// @brief Rotate a 3-D volume around an arbitrary axis
@@ -197,7 +197,7 @@ Value imresize3(const Value &V, keel::f64 scale,
 /// @return           Rotated volume; element type preserved.
 Value imrotate3(const Value &V, keel::f64 angle_deg,
                 keel::f64 Wx, keel::f64 Wy, keel::f64 Wz,
-                const std::string &method, const std::string &bbox,
+                keel::StringRef method, keel::StringRef bbox,
                 keel::f64 fill,
                 keel::Allocator *mr = nullptr);
 
@@ -212,7 +212,7 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
 ///              or `"expand"` (output (2M-1)×(2N-1) after zero-stuff).
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Downsampled / upsampled image.
-Value impyramid(const Value &A, const std::string &type,
+Value impyramid(const Value &A, keel::StringRef type,
                 keel::Allocator *mr = nullptr);
 
 

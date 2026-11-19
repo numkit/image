@@ -3,6 +3,7 @@
 // Image arithmetic. Saturating element-wise operations for integer
 // classes; pass-through for floating types. Output class = X's class.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
@@ -173,8 +174,8 @@ void imarith_argcheck(const Value &x)
     }
 }
 
-void imlincomb_argcheck(const std::vector<double> &coefs,
-                        const std::vector<Value> &images,
+void imlincomb_argcheck(keel::ArrayRef<double> coefs,
+                        keel::ArrayRef<Value> images,
                         ValueType output_class)
 {
     if (coefs.size() != images.size() && coefs.size() != images.size() + 1)
@@ -262,7 +263,7 @@ Value imcomplement(const Value &x, keel::Allocator *mr) {
     return unop(x, [=](double v){ return cmax - v; }, mr);
 }
 
-Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &images, ValueType output_class, keel::Allocator *mr)
+Value imlincomb(keel::ArrayRef<double> coefs, keel::ArrayRef<Value> images, ValueType output_class, keel::Allocator *mr)
 {
     imlincomb_argcheck(coefs, images, output_class);
     if (coefs.size() != images.size() && coefs.size() != images.size() + 1)
@@ -279,7 +280,7 @@ Value imlincomb(const std::vector<double> &coefs, const std::vector<Value> &imag
     else          out = Value::matrix(d.rows(), d.cols(), output_class, mr);
 
     // Accumulate in double, then cast at the end.
-    std::vector<double> acc(n, 0.0);
+    keel::Array<double> acc(n, 0.0);
     const double bias = (coefs.size() == images.size() + 1) ? coefs.back() : 0.0;
     for (keel::usize k = 0; k < images.size(); ++k) {
         const Value &xk = images[k];

@@ -9,7 +9,9 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 #include <numkit/image/geom/geom.hpp>
@@ -23,10 +25,8 @@
 #include "color/color_extras_detail.hpp"
 
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
-#include <string>
 #include <utility>
 
 namespace numkit::image {
@@ -105,8 +105,8 @@ void rgbwide2xyz_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const int bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "rgbwide2xyz"),
             {8, 10, 12, 16}, 2, "bps", "rgbwide2xyz");
-    std::string cs = "BT.2020";
-    std::string lin = "PQ";
+    keel::String cs = keel::String::from("BT.2020");
+    keel::String lin = keel::String::from("PQ");
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     keel::usize i = 2;
     while (i + 1 < args.size()) {
@@ -114,16 +114,14 @@ void rgbwide2xyz_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("rgbwide2xyz: expected NV-pair name string",
                         0, 0, "rgbwide2xyz", "",
                         "numkit:rgbwide2xyz:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name) nlo += static_cast<char>(std::tolower(
-            static_cast<unsigned char>(ch)));
-        if (nlo == "colorspace") cs = args[i + 1].toString();
-        else if (nlo == "linearizationfcn") lin = args[i + 1].toString();
-        else if (nlo == "whitepoint") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("colorspace")) cs = args[i + 1].toString();
+        else if (nref.equals_ignore_ascii_case("linearizationfcn")) lin = args[i + 1].toString();
+        else if (nref.equals_ignore_ascii_case("whitepoint")) {
             // Accepted-but-ignored — only D65 path is implemented this cycle.
         } else {
-            throw Error("rgbwide2xyz: unknown option '" + name + "'",
+            throw Error(keel::format("rgbwide2xyz: unknown option '{}'", name),
                         0, 0, "rgbwide2xyz", "",
                         "numkit:rgbwide2xyz:unknownNv");
         }
@@ -141,8 +139,8 @@ void xyz2rgbwide_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const int bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "xyz2rgbwide"),
             {8, 10, 12, 16}, 2, "bps", "xyz2rgbwide");
-    std::string cs = "BT.2020";
-    std::string lin = "PQ";
+    keel::String cs = keel::String::from("BT.2020");
+    keel::String lin = keel::String::from("PQ");
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     keel::usize i = 2;
     while (i + 1 < args.size()) {
@@ -150,16 +148,14 @@ void xyz2rgbwide_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("xyz2rgbwide: expected NV-pair name string",
                         0, 0, "xyz2rgbwide", "",
                         "numkit:xyz2rgbwide:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name) nlo += static_cast<char>(std::tolower(
-            static_cast<unsigned char>(ch)));
-        if (nlo == "colorspace") cs = args[i + 1].toString();
-        else if (nlo == "linearizationfcn") lin = args[i + 1].toString();
-        else if (nlo == "whitepoint") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("colorspace")) cs = args[i + 1].toString();
+        else if (nref.equals_ignore_ascii_case("linearizationfcn")) lin = args[i + 1].toString();
+        else if (nref.equals_ignore_ascii_case("whitepoint")) {
             // Accepted-but-ignored — only D65 path is implemented this cycle.
         } else {
-            throw Error("xyz2rgbwide: unknown option '" + name + "'",
+            throw Error(keel::format("xyz2rgbwide: unknown option '{}'", name),
                         0, 0, "xyz2rgbwide", "",
                         "numkit:xyz2rgbwide:unknownNv");
         }
@@ -202,30 +198,23 @@ void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const Value &B = args[1];
 
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
-    std::string method = "falsecolor";
-    std::string scaling = "independent";
+    keel::String method = keel::String::from("falsecolor");
+    keel::String scaling = keel::String::from("independent");
     Value channels;  // empty → default (green-magenta)
     keel::usize i = 2;
     if (i < args.size() && is_string(args[i])) {
-        std::string m(args[i].toString().as_ref());
+        keel::String m = args[i].toString();
         static const std::array<const char *, 5> mset{
             "falsecolor", "blend", "diff", "checkerboard", "montage"};
-        static const std::array<const char *, 2> nvset{
-            "Scaling", "ColorChannels"};
         bool is_method = false;
         for (auto mm : mset) if (m == mm) { is_method = true; break; }
-        bool is_nv = false;
-        // Case-insensitive NV-name check.
-        std::string mlo;
-        for (char ch : m)
-            mlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (mlo == "scaling" || mlo == "colorchannels") is_nv = true;
-        if (is_method) { method = m; ++i; }
+        bool is_nv = m.as_ref().equals_ignore_ascii_case("scaling") ||
+                     m.as_ref().equals_ignore_ascii_case("colorchannels");
+        if (is_method) { method = std::move(m); ++i; }
         else if (!is_nv)
-            throw Error("imfuse: unknown METHOD '" + m + "' (allowed: "
-                        "falsecolor / blend / diff / checkerboard / "
-                        "montage)",
+            throw Error(keel::format("imfuse: unknown METHOD '{}' (allowed: "
+                                     "falsecolor / blend / diff / checkerboard / "
+                                     "montage)", m),
                         0, 0, "imfuse", "", "numkit:imfuse:method");
         // else: leave i=2 so it gets parsed as NV pair below.
     }
@@ -233,45 +222,32 @@ void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("imfuse: expected NV-pair name string",
                         0, 0, "imfuse", "", "numkit:imfuse:badNvArg");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "scaling") {
-            scaling = args[i + 1].toString();
+        keel::String name = args[i].toString();
+        if (name.as_ref().equals_ignore_ascii_case("scaling")) {
             // MATLAB lowercases for switch — replicate.
-            std::string slo;
-            for (char ch : scaling)
-                slo += static_cast<char>(std::tolower(
-                    static_cast<unsigned char>(ch)));
-            scaling = slo;
-        } else if (nlo == "colorchannels") {
+            scaling = lower(args[i + 1].toString());
+        } else if (name.as_ref().equals_ignore_ascii_case("colorchannels")) {
             const Value &v = args[i + 1];
             if (is_string(v)) {
-                std::string s(v.toString().as_ref());
-                std::string slo;
-                for (char ch : s)
-                    slo += static_cast<char>(std::tolower(
-                        static_cast<unsigned char>(ch)));
+                keel::String s = v.toString();
                 channels = Value::matrix(1, 3, ValueType::DOUBLE, mr);
-                if (slo == "red-cyan") {
+                if (s.as_ref().equals_ignore_ascii_case("red-cyan")) {
                     channels.doubleDataMut()[0] = 1;
                     channels.doubleDataMut()[1] = 2;
                     channels.doubleDataMut()[2] = 2;
-                } else if (slo == "green-magenta") {
+                } else if (s.as_ref().equals_ignore_ascii_case("green-magenta")) {
                     channels.doubleDataMut()[0] = 2;
                     channels.doubleDataMut()[1] = 1;
                     channels.doubleDataMut()[2] = 2;
                 } else {
-                    throw Error("imfuse: unknown ColorChannels '" + s + "'",
+                    throw Error(keel::format("imfuse: unknown ColorChannels '{}'", s),
                                 0, 0, "imfuse", "", "numkit:imfuse:channels");
                 }
             } else {
                 channels = v;
             }
         } else {
-            throw Error("imfuse: unknown option '" + name + "'",
+            throw Error(keel::format("imfuse: unknown option '{}'", name),
                         0, 0, "imfuse", "", "numkit:imfuse:unknownNv");
         }
         i += 2;
@@ -296,21 +272,18 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("tonemap: expected NV-pair name",
                         0, 0, "tonemap", "", "numkit:tonemap:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "adjustlightness") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("adjustlightness")) {
             const Value &v = args[i + 1];
             if (v.numel() != 2)
                 throw Error("tonemap: AdjustLightness must be [lo hi]",
                             0, 0, "tonemap", "", "numkit:tonemap:adjustLen");
             lo = v.elemAsDouble(0);
             hi = v.elemAsDouble(1);
-        } else if (nlo == "adjustsaturation") {
+        } else if (nref.equals_ignore_ascii_case("adjustsaturation")) {
             saturation = args[i + 1].toScalar();
-        } else if (nlo == "numberoftiles") {
+        } else if (nref.equals_ignore_ascii_case("numberoftiles")) {
             const Value &v = args[i + 1];
             if (v.numel() == 1) {
                 ntilesR = ntilesC = argcheck::expectedPositiveInteger(
@@ -325,7 +298,7 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                             0, 0, "tonemap", "", "numkit:tonemap:tilesLen");
             }
         } else {
-            throw Error("tonemap: unknown option '" + name + "'",
+            throw Error(keel::format("tonemap: unknown option '{}'", name),
                         0, 0, "tonemap", "", "numkit:tonemap:unknownNv");
         }
         i += 2;
@@ -346,7 +319,7 @@ void labeloverlay_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     Value cmap;             // empty → default 'jet'
-    std::string ca = "auto";
+    keel::String ca = keel::String::from("auto");
     Value included;         // empty → default 1:maxLabel
     double transparency = 0.5;
 
@@ -356,21 +329,18 @@ void labeloverlay_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("labeloverlay: expected NV-pair name string",
                         0, 0, "labeloverlay", "",
                         "numkit:labeloverlay:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "colormap") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("colormap")) {
             cmap = args[i + 1];
-        } else if (nlo == "colorassignment") {
+        } else if (nref.equals_ignore_ascii_case("colorassignment")) {
             ca = args[i + 1].toString();
-        } else if (nlo == "includedlabels") {
+        } else if (nref.equals_ignore_ascii_case("includedlabels")) {
             included = args[i + 1];
-        } else if (nlo == "transparency") {
+        } else if (nref.equals_ignore_ascii_case("transparency")) {
             transparency = args[i + 1].toScalar();
         } else {
-            throw Error("labeloverlay: unknown option '" + name + "'",
+            throw Error(keel::format("labeloverlay: unknown option '{}'", name),
                         0, 0, "labeloverlay", "",
                         "numkit:labeloverlay:unknownNv");
         }
@@ -426,7 +396,7 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     // ── order (4th positional): only 'noshuffle' supported ─────────
     if (args.size() >= 4 && (args[3].isChar() || args[3].isString())) {
-        const std::string ord = lower(args[3].toString());
+        const keel::String ord = lower(args[3].toString());
         if (ord == "shuffle")
             throw Error("label2rgb: order 'shuffle' is not yet supported "
                         "(requires the reference swb2712 random stream)",
@@ -442,9 +412,9 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (args[2].isChar() || args[2].isString()) {
             double rgb[3];
-            if (!parseColorSpec(args[2].toString(), rgb))
-                throw Error("label2rgb: invalid zerocolor string '" +
-                            std::string(args[2].toString().as_ref()) + "'",
+            keel::String zc = args[2].toString();
+            if (!parseColorSpec(zc, rgb))
+                throw Error(keel::format("label2rgb: invalid zerocolor string '{}'", zc),
                             0, 0, "label2rgb", "",
                             "numkit:label2rgb:zerocolor");
             bg = Value::matrix(1, 3, ValueType::DOUBLE, mr);

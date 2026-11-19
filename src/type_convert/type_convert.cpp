@@ -1,8 +1,10 @@
 // toolboxes/image/src/type_convert/type_convert.cpp
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/image/type_convert/type_convert.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -15,7 +17,6 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <vector>
 
 namespace numkit::image {
 
@@ -425,11 +426,11 @@ void iptnum2ordinal_argcheck(double n)
                     0, 0, "iptnum2ordinal", "", "numkit:iptnum2ordinal:n");
 }
 
-void imcast_argcheck(const std::string &type, std::string &lo)
+void imcast_argcheck(keel::StringRef type, keel::String &lo)
 {
     lo.clear();
     lo.reserve(type.size());
-    for (char c : type) lo.push_back(static_cast<char>(std::tolower(c)));
+    for (char c : type) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
     if (lo != "double" && lo != "single" && lo != "uint8" &&
         lo != "uint16" && lo != "int16" && lo != "logical")
         throw Error("imcast: unsupported TYPE", 0, 0, "imcast", "",
@@ -452,24 +453,24 @@ Value iptnum2ordinal(double n, keel::Allocator *mr)
     };
 
     const long long ll = static_cast<long long>(n);
-    std::string s;
+    keel::String s;
     if (ll >= 1 && ll <= 20) {
-        s = kWords[ll];
+        s.assign(kWords[ll]);
     } else {
-        s = std::to_string(ll);
+        s = keel::format("{}", ll);
         const char last = s.back();
         const char *suffix = "th";
         if      (last == '1') suffix = "st";
         else if (last == '2') suffix = "nd";
         else if (last == '3') suffix = "rd";
-        s += suffix;
+        s.append(suffix);
     }
     return Value::fromString(s, mr);
 }
 
-Value imcast(const Value &I, const std::string &type, keel::Allocator *mr)
+Value imcast(const Value &I, keel::StringRef type, keel::Allocator *mr)
 {
-    std::string lo;
+    keel::String lo;
     imcast_argcheck(type, lo);
 
     auto cls_of = [](ValueType t) -> const char * {
@@ -842,7 +843,7 @@ Value getrangefromclass(const Value &I, keel::Allocator *mr)
     return r;
 }
 
-Value isbw(const Value &BW, const std::string &mode, keel::Allocator *mr)
+Value isbw(const Value &BW, keel::StringRef mode, keel::Allocator *mr)
 {
     if (!spatial_pages_eq(BW, 1)) return bool_scalar(false, mr);
     if (BW.numel() == 0)          return bool_scalar(false, mr);

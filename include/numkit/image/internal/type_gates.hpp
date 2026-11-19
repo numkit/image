@@ -22,9 +22,10 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
-#include <string>
-#include <string_view>
+#include <keel/ref.h>
+#include <keel/string.h>
 
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
@@ -36,13 +37,12 @@ namespace numkit::image::internal {
 /// @{
 
 /// Render "2x3x4" for got-clauses.
-inline std::string shapeOf(const Value &v)
+inline keel::String shapeOf(const Value &v)
 {
     const Dims &d = v.dims();
-    std::string s = std::to_string(d.dim(0));
+    keel::String s = keel::format("{}", d.dim(0));
     for (int k = 1; k < d.ndim(); ++k) {
-        s += "x";
-        s += std::to_string(d.dim(k));
+        keel::format_into(s, "x{}", d.dim(k));
     }
     return s;
 }
@@ -89,7 +89,7 @@ inline bool classAllowed(const Value &v, unsigned mask)
 }
 
 /// Human listing of a mask's classes (message text).
-inline std::string describeClasses(unsigned mask)
+inline keel::StringRef describeClasses(unsigned mask)
 {
     if (mask == ImgClasses::DoubleOnly)
         return "double";
@@ -113,26 +113,24 @@ inline std::string describeClasses(unsigned mask)
 /// :expectedReal (the reference's validator wording, probed per entry);
 /// cell/string/struct/char always land in :inputType — char CODE-value
 /// coercion is NOT an image contract anywhere in the probed set.
-inline void requireImageClass(const Value &v, std::string_view fn,
-                              std::string_view argName, int argNum,
+inline void requireImageClass(const Value &v, keel::StringRef fn,
+                              keel::StringRef argName, int argNum,
                               unsigned mask)
 {
     const ValueType t = v.type();
     if (t == ValueType::COMPLEX) {
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName) + ") must be real — "
-                        + "complex images are rejected here (got a "
-                        + shapeOf(v) + " complex array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":expectedReal");
+        throw Error(keel::format("{}: input {} ({}) must be real — "
+                                 "complex images are rejected here (got a {} complex array).",
+                                 fn, argNum, argName, shapeOf(v)),
+                    0, 0, fn, "",
+                    keel::format("numkit:{}:expectedReal", fn));
     }
     if (!classAllowed(v, mask)) {
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName) + ") must be one of: "
-                        + describeClasses(mask) + " (got a " + shapeOf(v)
-                        + " " + mtypeName(t) + " array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":inputType");
+        throw Error(keel::format("{}: input {} ({}) must be one of: {} (got a {} {} array).",
+                                 fn, argNum, argName, describeClasses(mask), shapeOf(v),
+                                 mtypeName(t)),
+                    0, 0, fn, "",
+                    keel::format("numkit:{}:inputType", fn));
     }
 }
 
@@ -141,8 +139,8 @@ inline void requireImageClass(const Value &v, std::string_view fn,
 /// im2col, imnoise, immse): class check as above but complex input
 /// passes the gate — the caller either supports it or raises its own
 /// :complexUnsupported stub.
-inline void requireImageClassAllowComplex(const Value &v, std::string_view fn,
-                                          std::string_view argName, int argNum,
+inline void requireImageClassAllowComplex(const Value &v, keel::StringRef fn,
+                                          keel::StringRef argName, int argNum,
                                           unsigned mask)
 {
     if (v.type() == ValueType::COMPLEX)
@@ -154,94 +152,90 @@ inline void requireImageClassAllowComplex(const Value &v, std::string_view fn,
 /// reference computes a complex result; this kernel is double-only, so
 /// refuse instead of dropping imaginary parts
 /// (bugs/opened/image/complex-kernels.md).
-inline void requireRealKernelImage(const Value &v, std::string_view fn,
-                                   std::string_view argName, int argNum)
+inline void requireRealKernelImage(const Value &v, keel::StringRef fn,
+                                   keel::StringRef argName, int argNum)
 {
     if (v.type() != ValueType::COMPLEX)
         return;
-    throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                    + " (" + std::string(argName) + ") is complex — complex "
-                    + "kernels are not supported yet; the reference "
-                    + "computes a complex result here, so refusing beats "
-                    + "returning a wrong real one (got a " + shapeOf(v)
-                    + " complex array).",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":complexUnsupported");
+    throw Error(keel::format("{}: input {} ({}) is complex — complex "
+                             "kernels are not supported yet; the reference "
+                             "computes a complex result here, so refusing beats "
+                             "returning a wrong real one (got a {} complex array).",
+                             fn, argNum, argName, shapeOf(v)),
+                0, 0, fn, "",
+                keel::format("numkit:{}:complexUnsupported", fn));
 }
 
 /// @brief Nonempty gate (imadjust's auto stretchlim, entropyfilt):
 /// the reference rejects empty images with expectedNonempty.
-inline void requireNonemptyImage(const Value &v, std::string_view fn,
-                                 std::string_view argName, int argNum)
+inline void requireNonemptyImage(const Value &v, keel::StringRef fn,
+                                 keel::StringRef argName, int argNum)
 {
     if (v.numel() > 0)
         return;
-    throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                    + " (" + std::string(argName) + ") must be nonempty.",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":expectedNonempty");
+    throw Error(keel::format("{}: input {} ({}) must be nonempty.",
+                             fn, argNum, argName),
+                0, 0, fn, "",
+                keel::format("numkit:{}:expectedNonempty", fn));
 }
 
 /// @brief Real-valued check for DOUBLE-only auxiliary args (seeds,
 /// P points, colors): complex → math:mustBeReal in the reference.
-inline void requireRealDoubleArg(const Value &v, std::string_view fn,
-                                 std::string_view argName, int argNum)
+inline void requireRealDoubleArg(const Value &v, keel::StringRef fn,
+                                 keel::StringRef argName, int argNum)
 {
     if (v.type() == ValueType::COMPLEX)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName) + ") must be real.",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":mustBeReal");
+        throw Error(keel::format("{}: input {} ({}) must be real.",
+                                 fn, argNum, argName),
+                    0, 0, fn, "",
+                    keel::format("numkit:{}:mustBeReal", fn));
     if (v.type() != ValueType::DOUBLE)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName) + ") must be double "
-                        + "(got a " + mtypeName(v.type()) + " array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":inputType");
+        throw Error(keel::format("{}: input {} ({}) must be double (got a {} array).",
+                                 fn, argNum, argName, mtypeName(v.type())),
+                    0, 0, fn, "",
+                    keel::format("numkit:{}:inputType", fn));
 }
 
 /// @brief Colormap gate (label2rgb/ind2rgb/ind2gray map, imfuse):
 /// double M×3, real. single/uint8 maps are rejected by the reference
 /// (invalidMapType / badMapMatrix — probed R2025b).
-inline void requireColormap(const Value &v, std::string_view fn,
+inline void requireColormap(const Value &v, keel::StringRef fn,
                             int argNum = 2)
 {
     if (v.type() == ValueType::DOUBLE && !v.isComplex()
         && !v.dims().is3D() && v.dims().cols() == 3)
         return;
-    throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                    + " (map) must be a real double M-by-3 colormap "
-                    + "(got a " + shapeOf(v) + " " + mtypeName(v.type())
-                    + " array).",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":invalidColormap");
+    throw Error(keel::format("{}: input {} (map) must be a real double M-by-3 colormap "
+                             "(got a {} {} array).",
+                             fn, argNum, shapeOf(v), mtypeName(v.type())),
+                0, 0, fn, "",
+                keel::format("numkit:{}:invalidColormap", fn));
 }
 
 /// @brief Same-class pair gate for the quality family (immse/psnr/
 /// ssim/multissim): the reference requires class(A) == class(B)
 /// (images:validate:differentClassMatrices).
 inline void requireSameClassPair(const Value &A, const Value &B,
-                                 std::string_view fn)
+                                 keel::StringRef fn)
 {
     if (A.type() == B.type())
         return;
-    throw Error(std::string(fn) + ": A and B must have the same class "
-                    + "(got " + mtypeName(A.type()) + " and "
-                    + mtypeName(B.type()) + ").",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":differentClass");
+    throw Error(keel::format("{}: A and B must have the same class (got {} and {}).",
+                             fn, mtypeName(A.type()), mtypeName(B.type())),
+                0, 0, fn, "",
+                keel::format("numkit:{}:differentClass", fn));
 }
 
 /// @brief Packed-binary gate (bwunpack): BWP must be uint32
 /// (the reference rejects even logical with invalidType — probed).
-inline void requireUint32Packed(const Value &v, std::string_view fn)
+inline void requireUint32Packed(const Value &v, keel::StringRef fn)
 {
     if (v.type() == ValueType::UINT32)
         return;
-    throw Error(std::string(fn) + ": input 1 (BWP) must be uint32 "
-                    + "(got a " + mtypeName(v.type()) + " array).",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":inputType");
+    throw Error(keel::format("{}: input 1 (BWP) must be uint32 (got a {} array).",
+                             fn, mtypeName(v.type())),
+                0, 0, fn, "",
+                keel::format("numkit:{}:inputType", fn));
 }
 
 /// @brief Coerce a gated image (single / logical / integer / char when

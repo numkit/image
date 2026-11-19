@@ -23,7 +23,6 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
-#include <string>
 
 namespace numkit::image {
 

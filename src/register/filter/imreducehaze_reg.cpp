@@ -7,7 +7,9 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -16,13 +18,10 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -37,9 +36,9 @@ void imreducehaze_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 
     const Value &I = args[0];
     double amount = 1.0;
-    std::string method = "simpledcp";
+    keel::String method = keel::String::from("simpledcp");
     Value atmLight;
-    std::string ce = "global";
+    keel::String ce = keel::String::from("global");
     double boostAmount = 0.0;  // sentinel: default-on-demand
     bool boostExplicitlySet = false;
 
@@ -53,22 +52,19 @@ void imreducehaze_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             throw Error("imreducehaze: expected NV-pair name string",
                         0, 0, "imreducehaze", "",
                         "numkit:imreducehaze:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "method") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("method")) {
             method = args[i + 1].toString();
-        } else if (nlo == "atmosphericlight") {
+        } else if (nref.equals_ignore_ascii_case("atmosphericlight")) {
             atmLight = args[i + 1];
-        } else if (nlo == "contrastenhancement") {
+        } else if (nref.equals_ignore_ascii_case("contrastenhancement")) {
             ce = args[i + 1].toString();
-        } else if (nlo == "boostamount") {
+        } else if (nref.equals_ignore_ascii_case("boostamount")) {
             boostAmount = args[i + 1].toScalar();
             boostExplicitlySet = true;
         } else {
-            throw Error("imreducehaze: unknown option '" + name + "'",
+            throw Error(keel::format("imreducehaze: unknown option '{}'", name),
                         0, 0, "imreducehaze", "",
                         "numkit:imreducehaze:unknownNv");
         }
@@ -76,11 +72,7 @@ void imreducehaze_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     }
     if (boostExplicitlySet) {
         // Match MATLAB: BoostAmount only allowed with boost contrast.
-        std::string celo;
-        for (char ch : ce)
-            celo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (celo != "boost")
+        if (!ce.as_ref().equals_ignore_ascii_case("boost"))
             throw Error("imreducehaze: BoostAmount may only be specified "
                         "when ContrastEnhancement is 'boost'",
                         0, 0, "imreducehaze", "",

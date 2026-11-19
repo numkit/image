@@ -1,8 +1,12 @@
 // toolboxes/image/src/region/region.cpp
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/math.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/region/region.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -16,8 +20,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <string>
-#include <vector>
 
 namespace numkit::image {
 
@@ -25,11 +27,11 @@ namespace {
 
 // Two-pass union-find labelling. Returns labels image (row-major) and
 // the maximum label value (= number of components).
-std::pair<std::vector<int>, int>
-label_components(const std::vector<keel::u8> &fg, int H, int W, int conn)
+std::pair<keel::Array<int>, int>
+label_components(keel::ArrayRef<keel::u8> fg, int H, int W, int conn)
 {
-    std::vector<int> L((keel::usize)H * (keel::usize)W, 0);
-    std::vector<int> parent;
+    keel::Array<int> L((keel::usize)H * (keel::usize)W, 0);
+    keel::Array<int> parent;
     parent.reserve(64);
     parent.push_back(0);  // index 0 = "background"
 
@@ -80,7 +82,7 @@ label_components(const std::vector<keel::u8> &fg, int H, int W, int conn)
     // already holds remapped labels (1..K), and feeding those back through
     // find()/remap (which are keyed on the ORIGINAL provisional labels)
     // corrupts the result (returned count K stops matching max(L)).
-    std::vector<int> remap(parent.size(), 0);
+    keel::Array<int> remap(parent.size(), 0);
     int K = 0;
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
@@ -91,13 +93,13 @@ label_components(const std::vector<keel::u8> &fg, int H, int W, int conn)
             L[i] = remap[(keel::usize)root];
         }
     }
-    return {L, K};
+    return {keel::move(L), K};
 }
 
-std::vector<keel::u8> read_bw(const Value &BW) {
+keel::Array<keel::u8> read_bw(const Value &BW) {
     const keel::usize H = BW.dims().rows();
     const keel::usize W = BW.dims().cols();
-    std::vector<keel::u8> out(H * W);
+    keel::Array<keel::u8> out(H * W);
     // Convert column-major Value into row-major flat buffer.
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < W; ++c)
@@ -154,9 +156,9 @@ bwlabeln(const Value &BW, int conn, keel::Allocator *mr)
         ? ((conn == 6) ? 1 : (conn == 18 ? 2 : 3))
         : ((conn == 4) ? 1 : 2);
     const keel::usize N = BW.numel();
-    std::vector<int> L(N, 0);
-    std::vector<int> parent(1, 0);
-    std::vector<int> sz(1, 0);
+    keel::Array<int> L(N, 0);
+    keel::Array<int> parent(1, 0);
+    keel::Array<int> sz(1, 0);
     auto find = [&](int x) {
         while (parent[x] != x) x = parent[x];
         return x;
@@ -198,7 +200,7 @@ bwlabeln(const Value &BW, int conn, keel::Allocator *mr)
             }
         }
     }
-    std::vector<int> remap(parent.size(), 0);
+    keel::Array<int> remap(parent.size(), 0);
     int K = 0;
     for (keel::usize k = 1; k < parent.size(); ++k) {
         if (parent[k] == (int)k) remap[k] = ++K;
@@ -243,7 +245,7 @@ Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
     // Build PixelIdxList: 1xK cell of column-vector indices.
     Value pixList = Value::cell(1, static_cast<keel::usize>(K), mr);
     if (K > 0) {
-        std::vector<std::vector<int>> lists((keel::usize)K);
+        keel::Array<keel::Array<int>> lists((keel::usize)K);
         for (int c = 0; c < W; ++c)
             for (int r = 0; r < H; ++r) {
                 const int lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
@@ -286,23 +288,21 @@ CCInfo parse_cc(const Value &CC, const char *fn)
 {
     CCInfo info;
     if (!CC.isStruct() || CC.numel() != 1)
-        throw Error(std::string(fn) + ": CC must be a 1×1 struct from "
-                    "bwconncomp",
-                    0, 0, fn, "", std::string("numkit:") + fn + ":notStruct");
+        throw Error(keel::format("{}: CC must be a 1×1 struct from bwconncomp", fn),
+                    0, 0, fn, "", keel::format("numkit:{}:notStruct", fn));
     const auto &el = CC.structArrayElem(0);
     auto need = [&](const char *name) -> const Value & {
         const Value *v = el.get(name);
         if (!v)
-            throw Error(std::string(fn) + ": CC missing field '"
-                        + name + "'", 0, 0, fn, "",
-                        std::string("numkit:") + fn + ":noField");
+            throw Error(keel::format("{}: CC missing field '{}'", fn, name), 0, 0, fn, "",
+                        keel::format("numkit:{}:noField", fn));
         return *v;
     };
     const Value &sz = need("ImageSize");
     if (sz.numel() < 2)
-        throw Error(std::string(fn) + ": CC.ImageSize must have >= 2 dims",
+        throw Error(keel::format("{}: CC.ImageSize must have >= 2 dims", fn),
                     0, 0, fn, "",
-                    std::string("numkit:") + fn + ":sizeDim");
+                    keel::format("numkit:{}:sizeDim", fn));
     info.H = static_cast<keel::usize>(sz.elemAsDouble(0));
     info.W = static_cast<keel::usize>(sz.elemAsDouble(1));
     const Value &nob = need("NumObjects");
@@ -317,7 +317,7 @@ CCInfo labelmatrix_argcheck(const Value &CC)
     return parse_cc(CC, "labelmatrix");
 }
 
-CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, std::vector<char> &keep)
+CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, keel::Array<char> &keep)
 {
     CCInfo info = parse_cc(CC, "cc2bw");
     const keel::usize K = info.K;
@@ -404,7 +404,7 @@ Value labelmatrix(const Value &CC, keel::Allocator *mr)
 Value cc2bw(const Value &CC, const Value &objects_to_keep,
             keel::Allocator *mr)
 {
-    std::vector<char> keep;
+    keel::Array<char> keep;
     const CCInfo info = cc2bw_argcheck(CC, objects_to_keep, keep);
     const keel::usize H = info.H, W = info.W, K = info.K;
 
@@ -472,7 +472,7 @@ Value bwareaopen(const Value &BW, int P, int conn, keel::Allocator *mr)
     const int H = (int)BW.dims().rows();
     const int W = (int)BW.dims().cols();
     auto [L, K] = label_components(read_bw(BW), H, W, conn);
-    std::vector<int> count((keel::usize)K + 1, 0);
+    keel::Array<int> count((keel::usize)K + 1, 0);
     for (int v : L) if (v > 0) ++count[(keel::usize)v];
 
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
@@ -545,7 +545,8 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
 
     // Start-pixel scan: first encounter of each label in row-major
     // order is its leftmost-topmost pixel. Cache that lookup.
-    std::vector<int> startRow(K + 1, -1), startCol(K + 1, -1);
+    keel::Array<int> startRow(static_cast<keel::usize>(K + 1), -1);
+    keel::Array<int> startCol(static_cast<keel::usize>(K + 1), -1);
     for (int r = 0; r < H && std::count(startRow.begin(),
                                          startRow.end(), -1) > 1; ++r)
         for (int c = 0; c < W; ++c) {
@@ -559,7 +560,7 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
     for (int lab = 1; lab <= K; ++lab) {
         const int r0 = startRow[lab];
         const int c0 = startCol[lab];
-        std::vector<int> rows, cols;
+        keel::Array<int> rows, cols;
         rows.push_back(r0); cols.push_back(c0);
 
         // Single-pixel object: emit just the start point.
@@ -641,7 +642,7 @@ namespace {
 // start/direction, so we start at the region's top-left-most pixel (r0,c0) and
 // go clockwise. Outer boundary only (holes not traced — MATLAB likewise warns
 // Perimeter is meant for hole-free regions). Single-pixel regions return 0.
-double regionPerimeter(const std::vector<int> &L, int H, int W,
+double regionPerimeter(keel::ArrayRef<int> L, int H, int W,
                        int lab, int r0, int c0)
 {
     static const int Dr8[8] = {-1, -1,  0,  1,  1,  1,  0, -1};
@@ -650,7 +651,7 @@ double regionPerimeter(const std::vector<int> &L, int H, int W,
         return r >= 0 && r < H && c >= 0 && c < W &&
                L[(keel::usize)r * (keel::usize)W + (keel::usize)c] == lab;
     };
-    std::vector<int> br, bc;
+    keel::Array<int> br, bc;
     br.reserve(64);
     bc.reserve(64);
     br.push_back(r0);
@@ -691,7 +692,7 @@ double regionPerimeter(const std::vector<int> &L, int H, int W,
     return 0.980 * (double)Ne + 1.406 * (double)No - 0.091 * (double)Nc;
 }
 
-void regionprops_argcheck(const Value &BW_or_L, const std::vector<std::string> &propsIn)
+void regionprops_argcheck(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn)
 {
     internal::requireImageClass(BW_or_L, "regionprops", "BW", 1,
                                 internal::ImgClasses::AnyNumericReal);
@@ -704,15 +705,14 @@ void regionprops_argcheck(const Value &BW_or_L, const std::vector<std::string> &
         "weightedcentroid", "pixelvalues",
     };
     for (const auto &q : propsIn) {
-        std::string lc = q;
+        keel::String lc = q.clone();
         for (char &ch : lc)
             if (ch >= 'A' && ch <= 'Z') ch = char(ch + 32);
         bool ok = false;
         for (const char *k : kKnown)
             if (lc == k) { ok = true; break; }
         if (!ok)
-            throw Error("regionprops: property '" + q +
-                            "' is not supported in this revision",
+            throw Error(keel::format("regionprops: property '{}' is not supported in this revision", q),
                         0, 0, "regionprops", "",
                         "numkit:regionprops:badProperty");
     }
@@ -724,7 +724,7 @@ void regionprops_argcheck(const Value &BW_or_L, const std::vector<std::string> &
 // regionprops — basic descriptors per labelled region
 // ════════════════════════════════════════════════════════════════════
 
-Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn, const Value &intensity, keel::Allocator *mr)
+Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, const Value &intensity, keel::Allocator *mr)
 {
     regionprops_argcheck(BW_or_L, propsIn);
     const bool haveI = !intensity.isEmpty() && intensity.numel() > 0;
@@ -732,7 +732,7 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
     // else binary → run bwlabel internally.
     const int H = (int)BW_or_L.dims().rows();
     const int W = (int)BW_or_L.dims().cols();
-    std::vector<int> L((keel::usize)H * (keel::usize)W, 0);
+    keel::Array<int> L((keel::usize)H * (keel::usize)W, 0);
     int K = 0;
     bool looksLabelled = false;
     {
@@ -811,18 +811,18 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
 
     // Accumulators per label.
     const bool needMoments = wEllipse;
-    std::vector<long long> area(K + 1, 0);
-    std::vector<double> sumX(K + 1, 0.0), sumY(K + 1, 0.0);
+    keel::Array<long long> area(static_cast<keel::usize>(K + 1), 0);
+    keel::Array<double> sumX(static_cast<keel::usize>(K + 1), 0.0), sumY(static_cast<keel::usize>(K + 1), 0.0);
     // First pixel (row-major scan order = top-left-most) per label, the
     // boundary-trace start for Perimeter.
-    std::vector<int> firstR(K + 1, -1), firstC(K + 1, -1);
-    std::vector<double> sumXX(K + 1, 0.0), sumYY(K + 1, 0.0), sumXY(K + 1, 0.0);
-    std::vector<int> minX(K + 1, INT_MAX), minY(K + 1, INT_MAX);
-    std::vector<int> maxX(K + 1, INT_MIN), maxY(K + 1, INT_MIN);
+    keel::Array<int> firstR(static_cast<keel::usize>(K + 1), -1), firstC(static_cast<keel::usize>(K + 1), -1);
+    keel::Array<double> sumXX(static_cast<keel::usize>(K + 1), 0.0), sumYY(static_cast<keel::usize>(K + 1), 0.0), sumXY(static_cast<keel::usize>(K + 1), 0.0);
+    keel::Array<int> minX(static_cast<keel::usize>(K + 1), INT_MAX), minY(static_cast<keel::usize>(K + 1), INT_MAX);
+    keel::Array<int> maxX(static_cast<keel::usize>(K + 1), INT_MIN), maxY(static_cast<keel::usize>(K + 1), INT_MIN);
     // Column-major 1-based linear indices per label (for PixelIdxList /
     // PixelList). Collected in row-major visit order then sorted ascending
     // to match MATLAB's column-major ordering.
-    std::vector<std::vector<long long>> pixIdx(needPixels ? (K + 1) : 0);
+    keel::Array<keel::Array<long long>> pixIdx(needPixels ? static_cast<keel::usize>(K + 1) : 0);
     for (int r = 0; r < H; ++r)
         for (int c = 0; c < W; ++c) {
             const int lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
@@ -1018,12 +1018,12 @@ Value regionprops(const Value &BW_or_L, const std::vector<std::string> &propsIn,
 
 namespace {
 
-void dt1D(const std::vector<double> &f, std::vector<double> &d, keel::usize n)
+void dt1D(keel::ArrayRef<double> f, keel::Array<double> &d, keel::usize n)
 {
     // v[k] is the index of the k-th parabola in the lower envelope;
     // z[k] is the boundary between parabolas k-1 and k.
-    std::vector<long long> v(n);
-    std::vector<double> z(n + 1);
+    keel::Array<long long> v(n);
+    keel::Array<double> z(n + 1);
     long long k = 0;
     v[0] = 0;
     z[0] = -std::numeric_limits<double>::infinity();
@@ -1108,7 +1108,7 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
 
     const double INF = std::numeric_limits<double>::infinity();
     // Pull BW into a flat row-major foreground/background buffer.
-    std::vector<double> f(H * W, 0.0);
+    keel::Array<double> f(H * W, 0.0);
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < W; ++c) {
             // nk storage is column-major: idx = c*H + r.
@@ -1117,8 +1117,8 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
         }
 
     // Pass 1: distance transform along each row (horizontal DT).
-    std::vector<double> rowIn(W), rowOut(W);
-    std::vector<double> g(H * W, 0.0);
+    keel::Array<double> rowIn(W), rowOut(W);
+    keel::Array<double> g(H * W, 0.0);
     for (keel::usize r = 0; r < H; ++r) {
         for (keel::usize c = 0; c < W; ++c) rowIn[c] = f[r * W + c];
         dt1D(rowIn, rowOut, W);
@@ -1127,7 +1127,7 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
 
     // Pass 2: distance transform along each column (vertical DT)
     // operating on the squared-distance result of pass 1.
-    std::vector<double> colIn(H), colOut(H);
+    keel::Array<double> colIn(H), colOut(H);
     for (keel::usize c = 0; c < W; ++c) {
         for (keel::usize r = 0; r < H; ++r) colIn[r] = g[r * W + c];
         dt1D(colIn, colOut, H);
@@ -1199,7 +1199,7 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     };
 
     // Read bound rows into vectors r, c.
-    std::vector<double> rs(K), cs(K);
+    keel::Array<double> rs(K), cs(K);
     for (keel::usize k = 0; k < K; ++k) {
         // Column-major: bound[k, 0] = data[0*K + k]; bound[k, 1] = data[1*K + k].
         rs[k] = bound.elemAsDouble(0 * K + k);
@@ -1267,17 +1267,17 @@ Value bwareafilt(const Value &BW, double lo, double hi, keel::usize n_keep, bool
     if (K == 0) return out;
 
     // Compute area per label (1-based labels in L).
-    std::vector<keel::usize> area(static_cast<keel::usize>(K) + 1, 0);
+    keel::Array<keel::usize> area(static_cast<keel::usize>(K) + 1, 0);
     for (keel::usize i = 0; i < L.size(); ++i) {
         const int k = L[i];
         if (k > 0) ++area[static_cast<keel::usize>(k)];
     }
 
     // Decide kept labels.
-    std::vector<keel::u8> keep(static_cast<keel::usize>(K) + 1, 0);
+    keel::Array<keel::u8> keep(static_cast<keel::usize>(K) + 1, 0);
     if (n_keep > 0) {
         // Top-N form. Sort labels [1..K] by area, ties by lower index.
-        std::vector<int> idx;
+        keel::Array<int> idx;
         idx.reserve(static_cast<keel::usize>(K));
         for (int k = 1; k <= K; ++k) idx.push_back(k);
         if (keep_largest) {
@@ -1333,7 +1333,7 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::
     if (K == 0) return std::make_tuple(std::move(out), std::move(idx_out));
 
     const keel::usize Nseed = std::min(cols.numel(), rows.numel());
-    std::vector<keel::u8> keep(static_cast<keel::usize>(K) + 1, 0);
+    keel::Array<keel::u8> keep(static_cast<keel::usize>(K) + 1, 0);
     for (keel::usize s = 0; s < Nseed; ++s) {
         const int c = static_cast<int>(cols.elemAsDouble(s)) - 1;
         const int r = static_cast<int>(rows.elemAsDouble(s)) - 1;
@@ -1343,7 +1343,7 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::
     }
 
     keel::u8 *od = out.logicalDataMut();
-    std::vector<double> idx_v;
+    keel::Array<double> idx_v;
     for (int c = 0; c < W; ++c)
         for (int r = 0; r < H; ++r) {
             const int k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];

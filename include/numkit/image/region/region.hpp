@@ -8,11 +8,11 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <string>
 #include <tuple>
-#include <vector>
 
 namespace numkit::image {
 
@@ -144,7 +144,7 @@ Value cc2bw(const Value &CC, const Value &objects_to_keep,
 ///                        CC input.
 /// @see bwconncomp, bwareafilt, cc2bw, labelmatrix
 Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
-                 const std::string &attribute,
+                 keel::StringRef attribute,
                  keel::f64 p_min, keel::f64 p_max,
                  keel::usize keep_n, bool keep_largest,
                  int conn,
@@ -229,7 +229,7 @@ Value bwboundaries(const Value &BW, int conn,
 ///   measurements (MeanIntensity / MaxIntensity / MinIntensity /
 ///   WeightedCentroid / PixelValues). Pass `Value{}` (Unset) for none.
 Value regionprops(const Value &BW_or_L,
-                  const std::vector<std::string> &props,
+                  keel::ArrayRef<keel::String> props,
                   const Value &intensity,
                   keel::Allocator *mr = nullptr);
 

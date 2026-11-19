@@ -6,8 +6,11 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/quality/quality.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -23,10 +26,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -86,7 +87,7 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     int num_scales = 5;
-    std::vector<double> scale_weights;
+    keel::Array<double> scale_weights;
     double sigma = 1.5;
     double dynamic_range = -1.0;
 
@@ -95,11 +96,11 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("multissim3: expected NV-pair name string",
                         0, 0, "multissim3", "", "numkit:multissim3:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            nlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (nlo == "numscales") {
             num_scales = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "NumScales", "multissim3"),
@@ -115,13 +116,13 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         } else if (nlo == "dynamicrange") {
             dynamic_range = args[i + 1].toScalar();
         } else {
-            throw Error("multissim3: unknown option '" + name + "'",
+            throw Error(keel::format("multissim3: unknown option '{}'", name),
                         0, 0, "multissim3", "",
                         "numkit:multissim3:unknownNv");
         }
         i += 2;
     }
-    std::vector<Value> qmaps;
+    keel::Array<Value> qmaps;
     outs[0] = multissim3(args[0], args[1], num_scales, scale_weights,
                          sigma, dynamic_range,
                          nargout >= 2 ? &qmaps : nullptr, mr);
@@ -142,7 +143,7 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     int num_scales = 5;
-    std::vector<double> scale_weights;
+    keel::Array<double> scale_weights;
     double sigma = 1.5;
     double dynamic_range = -1.0;
 
@@ -151,11 +152,11 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("multissim: expected NV-pair name string",
                         0, 0, "multissim", "", "numkit:multissim:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            nlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (nlo == "numscales") {
             num_scales = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "NumScales", "multissim"),
@@ -171,13 +172,13 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         } else if (nlo == "dynamicrange") {
             dynamic_range = args[i + 1].toScalar();
         } else {
-            throw Error("multissim: unknown option '" + name + "'",
+            throw Error(keel::format("multissim: unknown option '{}'", name),
                         0, 0, "multissim", "",
                         "numkit:multissim:unknownNv");
         }
         i += 2;
     }
-    std::vector<Value> qmaps;
+    keel::Array<Value> qmaps;
     outs[0] = multissim(args[0], args[1], num_scales, scale_weights,
                         sigma, dynamic_range,
                         nargout >= 2 ? &qmaps : nullptr, mr);

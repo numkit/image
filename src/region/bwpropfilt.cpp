@@ -63,6 +63,9 @@
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/morph/morph.hpp>
 
+#include <keel/array.h>
+#include <keel/format.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <cctype>
@@ -73,8 +76,6 @@
 #include <climits>
 #include <cstring>
 #include <limits>
-#include <string>
-#include <vector>
 
 #ifndef M_PI
 #  define M_PI 3.14159265358979323846
@@ -83,19 +84,19 @@
 namespace numkit::image {
 namespace {
 
-inline std::string lower_str(const std::string &s)
+inline keel::String lower_str(keel::StringRef s)
 {
-    std::string lo;
+    keel::String lo;
     lo.reserve(s.size());
     for (char ch : s)
-        lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
     return lo;
 }
 
 // Pixel extraction per component.
 struct Comp {
-    std::vector<int> rs;    // 0-based row indices
-    std::vector<int> cs;    // 0-based col indices
+    keel::Array<int> rs;    // 0-based row indices
+    keel::Array<int> cs;    // 0-based col indices
     int rmin = 0, rmax = 0, cmin = 0, cmax = 0;  // inclusive
 };
 
@@ -103,29 +104,29 @@ struct Comp {
 struct CCInfoBPF {
     int H = 0, W = 0;
     int conn = 8;
-    std::vector<Comp> comps;
+    keel::Array<Comp> comps;
 };
 
 CCInfoBPF parse_cc(const Value &CC, const char *fn)
 {
     CCInfoBPF info;
     if (!CC.isStruct() || CC.numel() != 1)
-        throw Error(std::string(fn) + ": CC must be a 1×1 struct",
-                    0, 0, fn, "", std::string("numkit:") + fn + ":notStruct");
+        throw Error(keel::format("{}: CC must be a 1×1 struct", fn),
+                    0, 0, fn, "", keel::format("numkit:{}:notStruct", fn));
     const auto &el = CC.structArrayElem(0);
     auto need = [&](const char *name) -> const Value & {
         const Value *v = el.get(name);
         if (!v)
-            throw Error(std::string(fn) + ": CC missing '" + name + "'",
+            throw Error(keel::format("{}: CC missing '{}'", fn, name),
                         0, 0, fn, "",
-                        std::string("numkit:") + fn + ":noField");
+                        keel::format("numkit:{}:noField", fn));
         return *v;
     };
     const Value &sz = need("ImageSize");
     if (sz.numel() < 2)
-        throw Error(std::string(fn) + ": CC.ImageSize too short",
+        throw Error(keel::format("{}: CC.ImageSize too short", fn),
                     0, 0, fn, "",
-                    std::string("numkit:") + fn + ":sizeDim");
+                    keel::format("numkit:{}:sizeDim", fn));
     info.H = static_cast<int>(sz.elemAsDouble(0));
     info.W = static_cast<int>(sz.elemAsDouble(1));
     if (const Value *vConn = el.get("Connectivity")) info.conn = static_cast<int>(vConn->toScalar());
@@ -281,7 +282,7 @@ double attr_perimeter(const Comp &c, int H, int W)
     // Pad by 1 on each side for the 2×2 lookup.
     const int hp = h + 2;
     const int wp = w + 2;
-    std::vector<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         const int r = c.rs[i] - c.rmin + 1;
         const int cc_ = c.cs[i] - c.cmin + 1;
@@ -314,7 +315,7 @@ double attr_perimeter_old(const Comp &c, int H, int W)
     const int w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
     const int hp = h + 2, wp = w + 2;
-    std::vector<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         mask[static_cast<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
@@ -349,7 +350,7 @@ double attr_euler_number(const Comp &c, int conn)
     const int w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
     const int hp = h + 2, wp = w + 2;
-    std::vector<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         mask[static_cast<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
@@ -384,13 +385,13 @@ double attr_filled_area(const Comp &c)
     const int w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
     const int hp = h + 2, wp = w + 2;
-    std::vector<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
+    keel::Array<keel::u8> mask(static_cast<keel::usize>(hp * wp), 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i)
         mask[static_cast<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
-    std::vector<keel::u8> visited(mask.size(), 0);
+    keel::Array<keel::u8> visited(mask.size(), 0);
     // BFS from every border-cell that is background.
-    std::vector<int> queue;
+    keel::Array<int> queue;
     queue.reserve(static_cast<keel::usize>(hp * wp));
     auto push_if = [&](int r, int cc_) {
         if (r < 0 || cc_ < 0 || r >= hp || cc_ >= wp) return;
@@ -433,7 +434,7 @@ double attr_filled_area(const Comp &c)
 // the 4 corners of every foreground pixel (i.e. each pixel
 // contributes 4 corners offset by ±0.5). The polygon area via
 // shoelace gives the exact convex area in pixels.
-double polygon_area(const std::vector<std::pair<double,double>> &pts)
+double polygon_area(keel::ArrayRef<std::pair<double,double>> pts)
 {
     const keel::usize N = pts.size();
     if (N < 3) return 0.0;
@@ -446,13 +447,13 @@ double polygon_area(const std::vector<std::pair<double,double>> &pts)
     return 0.5 * std::fabs(s);
 }
 
-std::vector<std::pair<double,double>>
-convex_hull(std::vector<std::pair<double,double>> pts)
+keel::Array<std::pair<double,double>>
+convex_hull(keel::Array<std::pair<double,double>> pts)
 {
     const keel::usize N = pts.size();
     if (N < 3) return pts;
     std::sort(pts.begin(), pts.end());
-    std::vector<std::pair<double,double>> H;
+    keel::Array<std::pair<double,double>> H;
     H.reserve(2 * N);
     auto cross = [](const std::pair<double,double> &O,
                     const std::pair<double,double> &A,
@@ -485,7 +486,7 @@ double attr_convex_area(const Comp &c)
     // Build pixel-corner point list. Each pixel (r, c) contributes
     // 4 corners at (c±0.5, r±0.5). For convex-hull purposes we just
     // dump all 4N points and rely on the hull to keep extremes.
-    std::vector<std::pair<double,double>> pts;
+    keel::Array<std::pair<double,double>> pts;
     pts.reserve(4 * N);
     for (keel::usize i = 0; i < N; ++i) {
         const double r = c.rs[i];
@@ -546,12 +547,12 @@ double attr_max_intensity(const Comp &c, const Value &marker)
 }
 
 // ── Compute attribute vector for all components ──────────────────
-std::vector<double>
-compute_attribute(const std::vector<Comp> &comps,
-                  const std::string &attrib_lower,
+keel::Array<double>
+compute_attribute(keel::ArrayRef<Comp> comps,
+                  keel::StringRef attrib_lower,
                   const Value &marker, int conn, int H, int W)
 {
-    std::vector<double> v(comps.size(), 0.0);
+    keel::Array<double> v(comps.size(), 0.0);
     if (attrib_lower == "area") {
         for (keel::usize i = 0; i < comps.size(); ++i)
             v[i] = attr_area(comps[i]);
@@ -613,12 +614,13 @@ compute_attribute(const std::vector<Comp> &comps,
         for (keel::usize i = 0; i < comps.size(); ++i)
             v[i] = attr_mean_intensity(comps[i], marker);
     } else {
-        throw Error("bwpropfilt: unknown attribute '" + attrib_lower
-                    + "' (supported: Area, Circularity, ConvexArea, "
-                      "Eccentricity, EquivDiameter, EulerNumber, Extent, "
-                      "FilledArea, MajorAxisLength, MaxIntensity, "
-                      "MeanIntensity, MinIntensity, MinorAxisLength, "
-                      "Orientation, Perimeter, PerimeterOld, Solidity)",
+        throw Error(keel::format("bwpropfilt: unknown attribute '{}' "
+                                 "(supported: Area, Circularity, ConvexArea, "
+                                 "Eccentricity, EquivDiameter, EulerNumber, Extent, "
+                                 "FilledArea, MajorAxisLength, MaxIntensity, "
+                                 "MeanIntensity, MinIntensity, MinorAxisLength, "
+                                 "Orientation, Perimeter, PerimeterOld, Solidity)",
+                                 attrib_lower),
                     0, 0, "bwpropfilt", "", "numkit:bwpropfilt:badAttr");
     }
     return v;
@@ -635,7 +637,7 @@ void bwpropfilt_argcheck(const Value &BW, const Value &CC)
 }  // namespace
 
 Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
-                 const std::string &attribute,
+                 keel::StringRef attribute,
                  double p_min, double p_max,
                  keel::usize keep_n, bool keep_largest,
                  int conn,
@@ -646,7 +648,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
     // struct.
     bwpropfilt_argcheck(BW, CC);
     const bool from_cc = !CC.isEmpty();
-    const std::string attrib_lo = lower_str(attribute);
+    const keel::String attrib_lo = lower_str(attribute);
 
     // Build / parse CC.
     Value cc_owned;
@@ -675,16 +677,16 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
     }
 
     // Compute attribute per component.
-    std::vector<double> vals = compute_attribute(info.comps, attrib_lo,
+    keel::Array<double> vals = compute_attribute(info.comps, attrib_lo,
                                                   marker, info.conn,
                                                   info.H, info.W);
 
     // Decide kept components.
     const keel::usize K = info.comps.size();
-    std::vector<keel::u8> keep(K, 0);
+    keel::Array<keel::u8> keep(K, 0);
     if (keep_n > 0) {
         // Top-N mode.
-        std::vector<keel::usize> idx(K);
+        keel::Array<keel::usize> idx(K);
         for (keel::usize i = 0; i < K; ++i) idx[i] = i;
         if (keep_largest) {
             std::stable_sort(idx.begin(), idx.end(),

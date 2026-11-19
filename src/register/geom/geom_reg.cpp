@@ -9,9 +9,12 @@
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <cmath>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -33,20 +36,18 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
 namespace detail {
 
-static std::string argString(const Value &v) {
+static keel::String argString(const Value &v) {
     if (!v.isChar() && !v.isString())
         throw Error("image geom: expected a string argument",
                     0, 0, "geom", "", "numkit:image:geom:type");
-    return std::string(v.toString().as_ref());
+    return v.toString();
 }
 
 void imresize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutArrayRef<Value> outs,
@@ -55,7 +56,7 @@ void imresize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mut
     argcheck::checkNargin(args.size(), 2, "imresize");
     // no max: name-value tail in the reference
     auto *mr = ctx.engine->allocator();
-    std::string method = "bicubic";   // MATLAB default
+    keel::String method = keel::String::from("bicubic");   // MATLAB default
     if (args.size() >= 3 && !args[2].isEmpty()) method = argString(args[2]);
     if (args[1].numel() == 1) {
         outs[0] = imresize(args[0], args[1].toScalar(), method, mr);
@@ -94,17 +95,17 @@ void imrotate_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mut
     // MATLAB R2025b default method is 'nearest' (not bilinear), and the
     // 3rd argument may be EITHER a method or a bbox keyword:
     //   imrotate(A, angle, method [, bbox])   or   imrotate(A, angle, bbox)
-    std::string method = "nearest";
-    std::string bbox   = "loose";
-    auto isBboxKw = [](const std::string &s) {
+    keel::String method = keel::String::from("nearest");
+    keel::String bbox   = keel::String::from("loose");
+    auto isBboxKw = [](keel::StringRef s) {
         return s == "loose" || s == "Loose" || s == "crop" || s == "Crop";
     };
     if (args.size() >= 3 && !args[2].isEmpty()) {
-        const std::string s3 = argString(args[2]);
+        keel::String s3 = argString(args[2]);
         if (isBboxKw(s3)) {
-            bbox = s3;                       // imrotate(A, angle, bbox)
+            bbox = keel::move(s3);           // imrotate(A, angle, bbox)
         } else {
-            method = s3;                     // imrotate(A, angle, method [, bbox])
+            method = keel::move(s3);         // imrotate(A, angle, method [, bbox])
             if (args.size() >= 4 && !args[3].isEmpty()) bbox = argString(args[3]);
         }
     }
@@ -134,7 +135,7 @@ void impyramid_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
                    CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 2, "impyramid");
-    const std::string type = argString(args[1]);
+    const keel::String type = argString(args[1]);
     outs[0] = impyramid(args[0], type, ctx.engine->allocator());
 }
 
@@ -263,7 +264,7 @@ double samp_tricubic(const Value &V, keel::usize H, keel::usize W, keel::usize D
 
 Value imrotate3(const Value &V, double angle_deg,
                 double Wx, double Wy, double Wz,
-                const std::string &method, const std::string &bbox,
+                keel::StringRef method, keel::StringRef bbox,
                 double fill,
                 keel::Allocator *mr)
 {
@@ -362,12 +363,12 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
     const Value &V = args[0];
 
     // Defaults
-    std::string method = "cubic";
+    keel::String method = keel::String::from("cubic");
     bool antialiasSet  = false;
     bool antialias     = true;        // initial — recomputed once scale known
     bool haveScaleNum  = false;       // scalar Scale OR per-axis Scale
     double scaleScalar = 1.0;
-    std::vector<double> scaleVec3;    // length 3 if 3-vec scale provided
+    keel::Array<double> scaleVec3;    // length 3 if 3-vec scale provided
     bool haveSize3     = false;
     keel::usize outRows = 0, outCols = 0, outDeps = 0;
 
@@ -391,7 +392,7 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
         i = 2;
     }
     if (i < args.size() && (args[i].isChar() || args[i].isString())) {
-        const std::string s = argString(args[i]);
+        keel::String s = argString(args[i]);
         // First trailing string is the method positional. Subsequent
         // strings are NV-pair names handled in the loop below.
         // Heuristic: only treat as positional method if it's NOT a
@@ -400,12 +401,12 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
                            s == "Method"       || s == "method" ||
                            s == "OutputSize"   || s == "outputsize" ||
                            s == "Scale"        || s == "scale");
-        if (!isNV) { method = s; ++i; }
+        if (!isNV) { method = keel::move(s); ++i; }
     }
 
     // NV pairs.
     while (i + 1 < args.size()) {
-        const std::string name = argString(args[i]);
+        const keel::String name = argString(args[i]);
         const Value &val = args[i + 1];
         if (name == "Antialiasing" || name == "antialiasing") {
             antialiasSet = true;
@@ -424,17 +425,17 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
             if (val.numel() == 1) {
                 haveScaleNum = true; scaleScalar = val.toScalar();
             } else if (val.numel() == 3) {
-                scaleVec3.assign({val.elemAsDouble(0),
-                                  val.elemAsDouble(1),
-                                  val.elemAsDouble(2)});
+                const double sv[3] = {val.elemAsDouble(0),
+                                      val.elemAsDouble(1),
+                                      val.elemAsDouble(2)};
+                scaleVec3.assign(keel::ArrayRef<double>(sv, 3));
             } else {
                 throw Error("imresize3: Scale must be a positive number "
                             "or a 3-element vector",
                             0, 0, "imresize3", "", "numkit:imresize3:scaleNV");
             }
         } else {
-            throw Error("imresize3: unknown name-value parameter '"
-                        + name + "'",
+            throw Error(keel::format("imresize3: unknown name-value parameter '{}'", name),
                         0, 0, "imresize3", "", "numkit:imresize3:nv");
         }
         i += 2;
@@ -506,25 +507,25 @@ void imrotate3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const double Wy = args[2].elemAsDouble(1);
     const double Wz = args[2].elemAsDouble(2);
 
-    std::string method = "linear";
-    std::string bbox   = "loose";
+    keel::String method = keel::String::from("linear");
+    keel::String bbox   = keel::String::from("loose");
     double fill        = 0.0;
     keel::usize i = 3;
     if (i < args.size() && (args[i].isChar() || args[i].isString())) {
-        const std::string s = argString(args[i]);
-        if (s != "FillValues" && s != "fillvalues") { method = s; ++i; }
+        keel::String s = argString(args[i]);
+        if (s != "FillValues" && s != "fillvalues") { method = keel::move(s); ++i; }
     }
     if (i < args.size() && (args[i].isChar() || args[i].isString())) {
-        const std::string s = argString(args[i]);
-        if (s != "FillValues" && s != "fillvalues") { bbox = s; ++i; }
+        keel::String s = argString(args[i]);
+        if (s != "FillValues" && s != "fillvalues") { bbox = keel::move(s); ++i; }
     }
     while (i + 1 < args.size()) {
-        const std::string name = argString(args[i]);
+        const keel::String name = argString(args[i]);
         const Value &val = args[i + 1];
         if (name == "FillValues" || name == "fillvalues") {
             fill = val.toScalar();
         } else {
-            throw Error("imrotate3: unknown name-value parameter '" + name + "'",
+            throw Error(keel::format("imrotate3: unknown name-value parameter '{}'", name),
                         0, 0, "imrotate3", "", "numkit:imrotate3:nv");
         }
         i += 2;

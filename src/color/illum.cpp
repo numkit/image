@@ -43,8 +43,12 @@
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <cmath>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -58,11 +62,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <vector>
 
 namespace numkit::image {
 
@@ -76,21 +78,22 @@ inline double pixel_at(const Value &A, keel::usize H, keel::usize W,
 
 void validate_image_and_mask(const Value &A, const Value &mask,
                              keel::usize &H, keel::usize &W,
-                             std::vector<unsigned char> &maskFlat,
+                             keel::Array<unsigned char> &maskFlat,
                              const char *fn)
 {
     if (!A.dims().is3D() || A.dims().pages() != 3)
-        throw Error(std::string(fn) + ": input must be H×W×3",
+        throw Error(keel::format("{}: input must be H×W×3", fn),
                     0, 0, fn, "", "numkit:image:shape");
     H = A.dims().rows();
     W = A.dims().cols();
     if (mask.isEmpty()) {
-        maskFlat.assign(H * W, 1);
+        maskFlat.clear();
+        maskFlat.resize(H * W, 1);
         return;
     }
     const auto &md = mask.dims();
     if (md.rows() != H || md.cols() != W || md.pages() > 1)
-        throw Error(std::string(fn) + ": Mask must be H×W matching the image",
+        throw Error(keel::format("{}: Mask must be H×W matching the image", fn),
                     0, 0, fn, "", "numkit:image:maskShape");
     maskFlat.resize(H * W);
     for (keel::usize k = 0; k < H * W; ++k)
@@ -98,8 +101,8 @@ void validate_image_and_mask(const Value &A, const Value &mask,
 }
 
 void collect_channel(const Value &A, keel::usize H, keel::usize W,
-                     keel::usize c, const std::vector<unsigned char> &mask,
-                     std::vector<double> &out)
+                     keel::usize c, const keel::Array<unsigned char> &mask,
+                     keel::Array<double> &out)
 {
     out.clear();
     out.reserve(H * W);
@@ -127,14 +130,14 @@ void illumwhite_argcheck(const Value &A, double P, const Value &mask)
         throw Error("illumwhite: percentile must satisfy 0 <= P < 100",
                     0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
     keel::usize H = 0, W = 0;
-    std::vector<unsigned char> maskFlat;
+    keel::Array<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumwhite");
     if (H == 0 || W == 0)
         throw Error("illumwhite: image is empty",
                     0, 0, "illumwhite", "", "numkit:illumwhite:empty");
 }
 
-void illumgray_argcheck(const Value &A, const std::vector<double> &P,
+void illumgray_argcheck(const Value &A, keel::ArrayRef<double> P,
                         const Value &mask, double norm_exp)
 {
     double p_lo = 1.0, p_hi = 1.0;
@@ -155,7 +158,7 @@ void illumgray_argcheck(const Value &A, const std::vector<double> &P,
         throw Error("illumgray: Norm must be a positive scalar",
                     0, 0, "illumgray", "", "numkit:illumgray:norm");
     keel::usize H = 0, W = 0;
-    std::vector<unsigned char> maskFlat;
+    keel::Array<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumgray");
     if (H == 0 || W == 0)
         throw Error("illumgray: image is empty",
@@ -168,7 +171,7 @@ void illumpca_argcheck(const Value &A, double P, const Value &mask)
         throw Error("illumpca: percentage must satisfy 0 < P <= 50",
                     0, 0, "illumpca", "", "numkit:illumpca:percentage");
     keel::usize H = 0, W = 0;
-    std::vector<unsigned char> maskFlat;
+    keel::Array<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumpca");
     if (H == 0 || W == 0)
         throw Error("illumpca: image is empty",
@@ -176,14 +179,12 @@ void illumpca_argcheck(const Value &A, double P, const Value &mask)
 }
 
 void imcolordiff_argcheck(const Value &I1, const Value &I2,
-                          const std::string &standard,
+                          keel::StringRef standard,
                           double kL, double kC, double kH, double K1, double K2)
 {
-    std::string std_lo = standard;
-    for (auto &c : std_lo)
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    const bool is_2000 = (std_lo == "ciede2000" || std_lo == "cie2000");
-    if (!is_2000 && std_lo != "cie94")
+    const bool is_2000 = standard.equals_ignore_ascii_case("ciede2000") ||
+                         standard.equals_ignore_ascii_case("cie2000");
+    if (!is_2000 && !standard.equals_ignore_ascii_case("cie94"))
         throw Error("imcolordiff: Standard must be 'CIE94' or 'CIEDE2000'",
                     0, 0, "imcolordiff", "", "numkit:imcolordiff:standard");
     if (!(kL > 0.0) || !(kC > 0.0) || !(kH > 0.0)
@@ -220,14 +221,14 @@ Value illumwhite(const Value &A, double P, const Value &mask,
                     0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
 
     keel::usize H = 0, W = 0;
-    std::vector<unsigned char> maskFlat;
+    keel::Array<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumwhite");
     if (H == 0 || W == 0)
         throw Error("illumwhite: image is empty",
                     0, 0, "illumwhite", "", "numkit:illumwhite:empty");
 
     double out[3] = {0.0, 0.0, 0.0};
-    std::vector<double> plane;
+    keel::Array<double> plane;
     for (keel::usize c = 0; c < 3; ++c) {
         collect_channel(A, H, W, c, maskFlat, plane);
         if (plane.empty())
@@ -254,7 +255,7 @@ Value illumwhite(const Value &A, double P, const Value &mask,
 // optional Mask + Norm exponent. We expose Norm via the engine
 // adapter's name-value parser below; the typed entry-point fixes
 // `norm_exp = 1` (the default).
-Value illumgray_impl(const Value &A, const std::vector<double> &P,
+Value illumgray_impl(const Value &A, keel::ArrayRef<double> P,
                             const Value &mask, double norm_exp,
                             keel::Allocator *mr)
 {
@@ -278,14 +279,14 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
                     0, 0, "illumgray", "", "numkit:illumgray:norm");
 
     keel::usize H = 0, W = 0;
-    std::vector<unsigned char> maskFlat;
+    keel::Array<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumgray");
     if (H == 0 || W == 0)
         throw Error("illumgray: image is empty",
                     0, 0, "illumgray", "", "numkit:illumgray:empty");
 
     double out[3] = {0.0, 0.0, 0.0};
-    std::vector<double> plane;
+    keel::Array<double> plane;
     for (keel::usize c = 0; c < 3; ++c) {
         collect_channel(A, H, W, c, maskFlat, plane);
         if (plane.empty())
@@ -322,7 +323,7 @@ Value illumgray_impl(const Value &A, const std::vector<double> &P,
     return make_row3(out[0], out[1], out[2], mr);
 }
 
-Value illumgray(const Value &A, const std::vector<double> &P,
+Value illumgray(const Value &A, keel::ArrayRef<double> P,
                 const Value &mask, keel::Allocator *mr)
 {
     illumgray_argcheck(A, P, mask, 1.0);
@@ -436,14 +437,14 @@ Value illumpca(const Value &A, double P, const Value &mask,
                     0, 0, "illumpca", "", "numkit:illumpca:percentage");
 
     keel::usize H = 0, W = 0;
-    std::vector<unsigned char> maskFlat;
+    keel::Array<unsigned char> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumpca");
     if (H == 0 || W == 0)
         throw Error("illumpca: image is empty",
                     0, 0, "illumpca", "", "numkit:illumpca:empty");
 
     // Step 1: gather masked rows as Mx3 (column-major flat).
-    std::vector<double> rows; // length = 3 * M
+    keel::Array<double> rows; // length = 3 * M
     rows.reserve(3 * H * W);
     for (keel::usize j = 0; j < W; ++j) {
         for (keel::usize i = 0; i < H; ++i) {
@@ -475,8 +476,8 @@ Value illumpca(const Value &A, double P, const Value &mask,
                     0, 0, "illumpca", "", "numkit:illumpca:nonfinite");
 
     // Step 3: projection magnitude.
-    std::vector<keel::usize> idx(M);
-    std::vector<double> proj(M);
+    keel::Array<keel::usize> idx(M);
+    keel::Array<double> proj(M);
     if (normA02 > 0.0) {
         for (keel::usize k = 0; k < M; ++k) {
             proj[k] = (rows[3*k+0]*A0[0] + rows[3*k+1]*A0[1]
@@ -495,7 +496,7 @@ Value illumpca(const Value &A, double P, const Value &mask,
     //   else lo = max(1, floor(p/100 * M));
     //        hi_start = M - lo + 1  (1-based) → 0-based M - lo
     //        selected = [sorted(0:lo-1, :) ; sorted(M-lo:M-1, :)]
-    std::vector<double> selected; // 3 * Msel
+    keel::Array<double> selected; // 3 * Msel
     if (P >= 50.0 || M == 1) {
         selected.reserve(3 * M);
         for (keel::usize k = 0; k < M; ++k) {
@@ -729,17 +730,15 @@ double delta_e_2000(const Triplet &p1, const Triplet &p2,
 } // anonymous
 
 Value imcolordiff(const Value &I1, const Value &I2,
-                  const std::string &standard, bool is_input_lab,
+                  keel::StringRef standard, bool is_input_lab,
                   double kL, double kC, double kH, double K1, double K2,
                   keel::Allocator *mr)
 {
     imcolordiff_argcheck(I1, I2, standard, kL, kC, kH, K1, K2);
     // Normalise the Standard string.
-    std::string std_lo = standard;
-    for (auto &c : std_lo)
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    const bool is_2000 = (std_lo == "ciede2000" || std_lo == "cie2000");
-    if (!is_2000 && std_lo != "cie94")
+    const bool is_2000 = standard.equals_ignore_ascii_case("ciede2000") ||
+                         standard.equals_ignore_ascii_case("cie2000");
+    if (!is_2000 && !standard.equals_ignore_ascii_case("cie94"))
         throw Error("imcolordiff: Standard must be 'CIE94' or 'CIEDE2000'",
                     0, 0, "imcolordiff", "", "numkit:imcolordiff:standard");
     if (!(kL > 0.0) || !(kC > 0.0) || !(kH > 0.0)

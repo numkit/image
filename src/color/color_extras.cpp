@@ -20,9 +20,13 @@
 //     equivalent to 'nodither' (no error diffusion).
 
 #include <keel/core.h>
+#include <keel/format.h>
+#include <keel/hash_map.h>
+#include <keel/hash_set.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -41,10 +45,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <map>
-#include <set>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -792,13 +793,12 @@ inline double hlg_lin2rgb(double v)
 }
 
 void rgbwide2xyz_argcheck(const Value &RGB, int bits_per_sample,
-                          const std::string &color_space)
+                          keel::StringRef color_space)
 {
-    std::string cs_lo;
-    for (char ch : color_space)
-        cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    bool is_bt2020 = (cs_lo == "bt.2020" || cs_lo == "bt2020");
-    bool is_bt2100 = (cs_lo == "bt.2100" || cs_lo == "bt2100");
+    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
+                      color_space.equals_ignore_ascii_case("bt2020"));
+    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
+                      color_space.equals_ignore_ascii_case("bt2100"));
     if (!is_bt2020 && !is_bt2100)
         throw Error("rgbwide2xyz: ColorSpace must be 'BT.2020' or 'BT.2100'",
                     0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:cs");
@@ -811,13 +811,12 @@ void rgbwide2xyz_argcheck(const Value &RGB, int bits_per_sample,
 }
 
 void xyz2rgbwide_argcheck(const Value &XYZ, int bits_per_sample,
-                          const std::string &color_space)
+                          keel::StringRef color_space)
 {
-    std::string cs_lo;
-    for (char ch : color_space)
-        cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    bool is_bt2020 = (cs_lo == "bt.2020" || cs_lo == "bt2020");
-    bool is_bt2100 = (cs_lo == "bt.2100" || cs_lo == "bt2100");
+    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
+                      color_space.equals_ignore_ascii_case("bt2020"));
+    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
+                      color_space.equals_ignore_ascii_case("bt2100"));
     if (!is_bt2020 && !is_bt2100)
         throw Error("xyz2rgbwide: ColorSpace must be 'BT.2020' or 'BT.2100'",
                     0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:cs");
@@ -832,23 +831,19 @@ void xyz2rgbwide_argcheck(const Value &XYZ, int bits_per_sample,
 }  // namespace
 
 Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
-                  const std::string &color_space,
-                  const std::string &linearization,
+                  keel::StringRef color_space,
+                  keel::StringRef linearization,
                   keel::Allocator *mr)
 {
     rgbwide2xyz_argcheck(RGB, bits_per_sample, color_space);
-    std::string cs_lo;
-    for (char ch : color_space)
-        cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    std::string tf_lo;
-    for (char ch : linearization)
-        tf_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    bool is_bt2020 = (cs_lo == "bt.2020" || cs_lo == "bt2020");
-    bool is_bt2100 = (cs_lo == "bt.2100" || cs_lo == "bt2100");
+    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
+                      color_space.equals_ignore_ascii_case("bt2020"));
+    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
+                      color_space.equals_ignore_ascii_case("bt2100"));
     if (!is_bt2020 && !is_bt2100)
         throw Error("rgbwide2xyz: ColorSpace must be 'BT.2020' or 'BT.2100'",
                     0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:cs");
-    bool use_hlg = (is_bt2100 && tf_lo == "hlg");
+    bool use_hlg = (is_bt2100 && linearization.equals_ignore_ascii_case("hlg"));
 
     BTParams P = is_bt2020 ? bt2020_params(bits_per_sample)
                             : bt2100_params(bits_per_sample);
@@ -920,23 +915,19 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
 }
 
 Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
-                  const std::string &color_space,
-                  const std::string &linearization,
+                  keel::StringRef color_space,
+                  keel::StringRef linearization,
                   keel::Allocator *mr)
 {
     xyz2rgbwide_argcheck(XYZ, bits_per_sample, color_space);
-    std::string cs_lo;
-    for (char ch : color_space)
-        cs_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    std::string tf_lo;
-    for (char ch : linearization)
-        tf_lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    bool is_bt2020 = (cs_lo == "bt.2020" || cs_lo == "bt2020");
-    bool is_bt2100 = (cs_lo == "bt.2100" || cs_lo == "bt2100");
+    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
+                      color_space.equals_ignore_ascii_case("bt2020"));
+    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
+                      color_space.equals_ignore_ascii_case("bt2100"));
     if (!is_bt2020 && !is_bt2100)
         throw Error("xyz2rgbwide: ColorSpace must be 'BT.2020' or 'BT.2100'",
                     0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:cs");
-    bool use_hlg = (is_bt2100 && tf_lo == "hlg");
+    bool use_hlg = (is_bt2100 && linearization.equals_ignore_ascii_case("hlg"));
 
     BTParams P = is_bt2020 ? bt2020_params(bits_per_sample)
                             : bt2100_params(bits_per_sample);
@@ -1132,7 +1123,7 @@ void scale_two_grayscale_images(Value &A, Value &B,
     B = rescale(B);
 }
 
-void make_similar(Value &A, Value &B, const std::string &scaling,
+void make_similar(Value &A, Value &B, keel::StringRef scaling,
                   keel::Allocator *mr)
 {
     const bool aIsRGB = A.dims().is3D();
@@ -1174,7 +1165,7 @@ void make_similar(Value &A, Value &B, const std::string &scaling,
     }
 }
 
-void imfuse_argcheck(const std::string &method, const std::string &scaling,
+void imfuse_argcheck(keel::StringRef method, keel::StringRef scaling,
                      const Value &channels)
 {
     static const std::array<const char *, 5> methods{
@@ -1182,12 +1173,12 @@ void imfuse_argcheck(const std::string &method, const std::string &scaling,
     bool method_ok = false;
     for (auto m : methods) if (method == m) { method_ok = true; break; }
     if (!method_ok)
-        throw Error("imfuse: unknown METHOD '" + method
-                  + "' (allowed: falsecolor / blend / diff / "
-                    "checkerboard / montage)",
+        throw Error(keel::format("imfuse: unknown METHOD '{}' "
+                                 "(allowed: falsecolor / blend / diff / "
+                                 "checkerboard / montage)", method),
                     0, 0, "imfuse", "", "numkit:imfuse:method");
     if (scaling != "independent" && scaling != "joint" && scaling != "none")
-        throw Error("imfuse: unknown SCALING '" + scaling + "'",
+        throw Error(keel::format("imfuse: unknown SCALING '{}'", scaling),
                     0, 0, "imfuse", "", "numkit:imfuse:scaling");
     if (method == "falsecolor" && channels.numel() == 3) {
         for (int k = 0; k < 3; ++k) {
@@ -1224,8 +1215,8 @@ void tonemap_argcheck(const Value &HDR, double lremap_lo, double lremap_hi,
 } // anonymous (imfuse helpers)
 
 Value imfuse(const Value &Ain, const Value &Bin,
-             const std::string &method,
-             const std::string &scaling,
+             keel::StringRef method,
+             keel::StringRef scaling,
              const Value &channels,
              keel::Allocator *mr)
 {
@@ -1235,12 +1226,12 @@ Value imfuse(const Value &Ain, const Value &Bin,
     bool method_ok = false;
     for (auto m : methods) if (method == m) { method_ok = true; break; }
     if (!method_ok)
-        throw Error("imfuse: unknown METHOD '" + method
-                  + "' (allowed: falsecolor / blend / diff / "
-                    "checkerboard / montage)",
+        throw Error(keel::format("imfuse: unknown METHOD '{}' "
+                                 "(allowed: falsecolor / blend / diff / "
+                                 "checkerboard / montage)", method),
                     0, 0, "imfuse", "", "numkit:imfuse:method");
     if (scaling != "independent" && scaling != "joint" && scaling != "none")
-        throw Error("imfuse: unknown SCALING '" + scaling + "'",
+        throw Error(keel::format("imfuse: unknown SCALING '{}'", scaling),
                     0, 0, "imfuse", "", "numkit:imfuse:scaling");
 
     keel::usize Ha, Wa, Hb, Wb;
@@ -1817,20 +1808,18 @@ Value bone_colormap(int m, keel::Allocator *mr)
 Value resolve_named_colormap(keel::StringRef name, int N,
                              keel::Allocator *mr)
 {
-    std::string lo;
-    for (char ch : name)
-        lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    if (lo == "jet")     return jet_colormap(N, mr);
-    if (lo == "hsv")     return hsv_colormap(N, mr);
-    if (lo == "parula")  return parula_colormap(N, mr);
-    if (lo == "gray" || lo == "grey")
-                         return gray_colormap(N, mr);
-    if (lo == "hot")     return hot_colormap(N, mr);
-    if (lo == "cool")    return cool_colormap(N, mr);
-    if (lo == "bone")    return bone_colormap(N, mr);
-    throw Error("labeloverlay: unsupported colormap name '" +
-                std::string(name.data(), name.size()) +
-                "' (supported: jet, hsv, parula, gray, hot, cool, bone)",
+    if (name.equals_ignore_ascii_case("jet"))     return jet_colormap(N, mr);
+    if (name.equals_ignore_ascii_case("hsv"))     return hsv_colormap(N, mr);
+    if (name.equals_ignore_ascii_case("parula"))  return parula_colormap(N, mr);
+    if (name.equals_ignore_ascii_case("gray") ||
+        name.equals_ignore_ascii_case("grey"))
+                                                  return gray_colormap(N, mr);
+    if (name.equals_ignore_ascii_case("hot"))     return hot_colormap(N, mr);
+    if (name.equals_ignore_ascii_case("cool"))    return cool_colormap(N, mr);
+    if (name.equals_ignore_ascii_case("bone"))    return bone_colormap(N, mr);
+    throw Error(keel::format("labeloverlay: unsupported colormap name '{}' "
+                             "(supported: jet, hsv, parula, gray, hot, cool, bone)",
+                             name),
                 0, 0, "labeloverlay", "", "numkit:labeloverlay:cmapName");
 }
 
@@ -1839,12 +1828,12 @@ Value resolve_named_colormap(keel::StringRef name, int N,
 // Strategy: MATLAB's randperm(N) for N == k internally does
 // `[~, p] = sort(rand(1, N))`. Using genRes53() draws, the indices
 // after a stable sort give the permutation.
-std::vector<int> matlab_default_randperm(int N)
+keel::Array<int> matlab_default_randperm(int N)
 {
     ::numkit::ops::MatlabMT19937 rng;   // seed 0 → state[0] = 5489
-    std::vector<double> u(static_cast<keel::usize>(N));
+    keel::Array<double> u(static_cast<keel::usize>(N));
     for (int i = 0; i < N; ++i) u[i] = rng.genRes53();
-    std::vector<int> p(static_cast<keel::usize>(N));
+    keel::Array<int> p(static_cast<keel::usize>(N));
     for (int i = 0; i < N; ++i) p[i] = i;          // 0-based for sort
     std::stable_sort(p.begin(), p.end(),
                      [&](int a, int b) { return u[a] < u[b]; });
@@ -1853,7 +1842,7 @@ std::vector<int> matlab_default_randperm(int N)
 }
 
 // Permute rows of an Nx3 cmap by `perm` (1-based).
-Value permute_cmap_rows(const Value &cmap, const std::vector<int> &perm,
+Value permute_cmap_rows(const Value &cmap, keel::ArrayRef<int> perm,
                         keel::Allocator *mr)
 {
     const keel::usize N = cmap.dims().rows();
@@ -1876,7 +1865,7 @@ Value permute_cmap_rows(const Value &cmap, const std::vector<int> &perm,
 //
 // Reference: `images.internal.greedyGraphColoring.m` (R2025b).
 struct EdgeSet {
-    std::vector<std::pair<int, int>> edges;  // unordered (a < b)
+    keel::Array<std::pair<int, int>> edges;  // unordered (a < b)
     int maxLabel = 0;
 };
 
@@ -1888,8 +1877,6 @@ EdgeSet build_8conn_edges(const Value &L)
     auto lab = [&](keel::usize r, keel::usize c) -> int {
         return static_cast<int>(L.elemAsDouble(c * H + r));
     };
-    // Dedup with set<pair>.
-    std::set<std::pair<int, int>> uniq;
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < W; ++c) {
             const int a = lab(r, c);
@@ -1907,18 +1894,23 @@ EdgeSet build_8conn_edges(const Value &L)
                 if (a == b) continue;
                 int x = a, y = b;
                 if (x > y) std::swap(x, y);
-                uniq.emplace(x, y);
+                s.edges.push_back({x, y});
             }
         }
-    s.edges.assign(uniq.begin(), uniq.end());
+    std::sort(s.edges.begin(), s.edges.end());
+    auto *end_it = std::unique(s.edges.begin(), s.edges.end());
+    s.edges.resize(static_cast<keel::usize>(end_it - s.edges.begin()));
     return s;
 }
 
 int chromatic_upper_bound(const EdgeSet &s)
 {
     // Brooke's theorem: ub = max degree + 1.
-    std::map<int, int> deg;
-    for (auto [a, b] : s.edges) { deg[a]++; deg[b]++; }
+    keel::HashMap<int, int> deg;
+    for (auto [a, b] : s.edges) {
+        if (auto *p = deg.get(a)) ++(*p); else deg.put(a, 1);
+        if (auto *p = deg.get(b)) ++(*p); else deg.put(b, 1);
+    }
     int md = 0;
     for (auto [_, d] : deg) if (d > md) md = d;
     return md + 1;
@@ -1938,8 +1930,8 @@ Value select_maximally_distinct(const Value &cmap, int K,
     Value out = Value::matrix(K, 3, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     const double *cd = cmap.doubleData();
-    std::vector<char> picked(N, 0);
-    std::vector<double> dist_sum(N, 0.0);
+    keel::Array<char> picked(N, 0);
+    keel::Array<double> dist_sum(N, 0.0);
     // First pick: last row of cmap (matches MATLAB).
     int last = static_cast<int>(N - 1);
     picked[last] = 1;
@@ -2015,10 +2007,16 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     if (g.edges.empty()) return cmap_used;
     const int ub = chromatic_upper_bound(g);
 
-    // Build adjacency lists.
+    // Build adjacency lists (sorted ascending to match std::set iteration order).
     const int numNodes = g.maxLabel;
-    std::vector<std::set<int>> adj(static_cast<keel::usize>(numNodes + 1));
-    for (auto [a, b] : g.edges) { adj[a].insert(b); adj[b].insert(a); }
+    keel::Array<keel::Array<int>> adj;
+    adj.resize(static_cast<keel::usize>(numNodes + 1));
+    for (auto [a, b] : g.edges) { adj[a].push_back(b); adj[b].push_back(a); }
+    for (keel::usize i = 0; i < adj.size(); ++i) {
+        std::sort(adj[i].begin(), adj[i].end());
+        auto *uend = std::unique(adj[i].begin(), adj[i].end());
+        adj[i].resize(static_cast<keel::usize>(uend - adj[i].begin()));
+    }
 
     Value palette = select_maximally_distinct(cmap_used, ub, mr);
     const keel::usize paletteN = palette.dims().rows();
@@ -2032,9 +2030,9 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     }
     if (firstNode == std::numeric_limits<int>::max()) return cmap_used;
 
-    std::vector<int> coloredIdx(static_cast<keel::usize>(numNodes + 1), 0);
-    std::vector<char> visited(static_cast<keel::usize>(numNodes + 1), 0);
-    std::vector<int> queue;
+    keel::Array<int> coloredIdx(static_cast<keel::usize>(numNodes + 1), 0);
+    keel::Array<char> visited(static_cast<keel::usize>(numNodes + 1), 0);
+    keel::Array<int> queue;
     queue.reserve(static_cast<keel::usize>(numNodes));
     queue.push_back(firstNode);
     visited[firstNode] = 1;
@@ -2048,7 +2046,7 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     while (head < queue.size()) {
         int cur = queue[head++];
         // Enqueue unvisited neighbours.
-        std::vector<int> visitedNeighbors;
+        keel::Array<int> visitedNeighbors;
         for (int n : adj[cur]) {
             if (!visited[n]) {
                 visited[n] = 1;
@@ -2062,11 +2060,11 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
             newIdx = 1;
         } else {
             // Find lowest palette index not used by coloured neighbours.
-            std::set<int> usedColors;
+            keel::HashSet<int> usedColors;
             for (int n : visitedNeighbors)
                 if (coloredIdx[n] != 0) usedColors.insert(coloredIdx[n]);
             newIdx = 1;
-            while (usedColors.count(newIdx)) ++newIdx;
+            while (usedColors.contains(newIdx)) ++newIdx;
             if (newIdx > static_cast<int>(paletteN))
                 newIdx = static_cast<int>(paletteN);
         }
@@ -2102,12 +2100,12 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
 }
 
 // ── Lowercase helper ──────────────────────────────────────────────
-std::string lower(keel::StringRef s)
+keel::String lower(keel::StringRef s)
 {
-    std::string lo;
+    keel::String lo;
     lo.reserve(s.size());
     for (char ch : s)
-        lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
     return lo;
 }
 
@@ -2116,7 +2114,7 @@ std::string lower(keel::StringRef s)
 // Returns false if the string is not a recognized color.
 bool parseColorSpec(keel::StringRef name, double rgb[3])
 {
-    const std::string lo = lower(name);
+    const keel::String lo = lower(name);
     auto set = [&](double r, double g, double b) {
         rgb[0] = r; rgb[1] = g; rgb[2] = b; return true;
     };
@@ -2168,7 +2166,7 @@ void labeloverlay_argcheck(const Value &A_in, const Value &L_in,
 
 Value labeloverlay(const Value &A_in, const Value &L_in,
                    const Value &colormap,
-                   const std::string &color_assignment,
+                   keel::StringRef color_assignment,
                    const Value &included_labels,
                    double transparency,
                    keel::Allocator *mr)
@@ -2242,10 +2240,10 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
     }
 
     // ── Resolve ColorAssignment ───────────────────────────────────
-    std::string ca = lower(color_assignment.empty() ? "auto"
+    keel::String ca = lower(color_assignment.empty() ? keel::StringRef("auto")
                                                      : color_assignment);
     if (ca == "auto") {
-        ca = cmap_was_string ? "shuffle" : "noshuffle";
+        ca.assign(cmap_was_string ? "shuffle" : "noshuffle");
     } else if (ca != "shuffle" && ca != "noshuffle"
                && ca != "contrasting-neighbors") {
         throw Error("labeloverlay: ColorAssignment must be auto / shuffle / "
@@ -2256,14 +2254,14 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
 
     if (ca == "shuffle") {
         const int N = static_cast<int>(cmap.dims().rows());
-        std::vector<int> p = matlab_default_randperm(N);
+        keel::Array<int> p = matlab_default_randperm(N);
         cmap = permute_cmap_rows(cmap, p, mr);
     } else if (ca == "contrasting-neighbors") {
         cmap = greedy_graph_coloring(L_in, cmap, mr);
     }
 
     // ── Resolve IncludedLabels ────────────────────────────────────
-    std::vector<int> included;
+    keel::Array<int> included;
     if (included_labels.isEmpty()) {
         for (int k = 1; k <= maxLabel; ++k) included.push_back(k);
     } else {
@@ -2298,7 +2296,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
     // ── Build alphamap ────────────────────────────────────────────
     bool zero_in_included = false;
     for (int v : included) if (v == 0) { zero_in_included = true; break; }
-    std::vector<double> alphamap(cmap.dims().rows(), 0.0);
+    keel::Array<double> alphamap(cmap.dims().rows(), 0.0);
     if (zero_in_included) {
         for (int k : included) {
             const int idx = k + 1;
@@ -2322,7 +2320,10 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
                 cd2[ch * (N + 1) + (i + 1)] = cd[ch * N + i];
         }
         cmap = std::move(c2);
-        alphamap.insert(alphamap.begin(), 0.0);
+        keel::Array<double> shifted(alphamap.size() + 1, 0.0);
+        for (keel::usize i = 0; i < alphamap.size(); ++i)
+            shifted[i + 1] = alphamap[i];
+        alphamap = std::move(shifted);
     }
 
     // ── Convert A to single in [0, 1] via im2single equivalent ────

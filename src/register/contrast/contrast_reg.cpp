@@ -9,9 +9,11 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/image/contrast/contrast.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -25,7 +27,6 @@
 #include <cstddef>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <utility>
 
 namespace numkit::image {
@@ -128,17 +129,14 @@ void adapthisteq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // no max: name-value tail in the reference
     AdaptHistEqOptions opts;
 
-    auto eqIgnoreCase = [](const std::string &a, const char *b) {
-        if (a.size() != std::strlen(b)) return false;
-        for (keel::usize i = 0; i < a.size(); ++i)
-            if (std::tolower(a[i]) != std::tolower(b[i])) return false;
-        return true;
+    auto eqIgnoreCase = [](keel::StringRef a, const char *b) {
+        return a.equals_ignore_ascii_case(b);
     };
     for (keel::usize i = 1; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar())
             throw Error("adapthisteq: NV-pair name must be a string",
                          0, 0, "adapthisteq", "", "numkit:adapthisteq:badNVName");
-        const std::string key(args[i].toString().as_ref());
+        const keel::String key = args[i].toString();
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumTiles")) {
             if (v.numel() < 2)
@@ -152,7 +150,7 @@ void adapthisteq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         else if (eqIgnoreCase(key, "Alpha"))          opts.alpha        = v.toScalar();
         else if (eqIgnoreCase(key, "Range"))          opts.range        = v.toString();
         else {
-            throw Error("adapthisteq: unknown NV-pair key '" + key + "'",
+            throw Error(keel::format("adapthisteq: unknown NV-pair key '{}'", key),
                          0, 0, "adapthisteq", "", "numkit:adapthisteq:badNVKey");
         }
     }
@@ -195,7 +193,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     // Method-string form: imbinarize(I, 'global') | imbinarize(I, 'adaptive', ...).
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
-        std::string m(args[1].toString().as_ref());
+        keel::String m = args[1].toString();
         for (char &c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         if (m == "global") {
             auto [t, em] = graythresh(args[0], mr);
@@ -206,12 +204,13 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (m == "adaptive") {
             // imbinarize(I,'adaptive') = binarize(I, adaptthresh(I, sens, polarity)).
             double sens = 0.5;
-            std::string polarity = "bright";
+            keel::String polarity = keel::String::from("bright");
             for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
                 if (!args[i].isChar() && !args[i].isString())
                     throw Error("imbinarize: expected a Name-Value pair",
                                 0, 0, "imbinarize", "", "numkit:imbinarize:nv");
-                std::string nm(args[i].toString().as_ref());
+                keel::String raw = args[i].toString();
+                keel::String nm = raw.clone();
                 for (char &c : nm) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
                 if (nm == "sensitivity")
                     sens = args[i + 1].toScalar();
@@ -220,7 +219,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     for (char &c : polarity)
                         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
                 } else
-                    throw Error("imbinarize: unknown option '" + std::string(args[i].toString().as_ref()) + "'",
+                    throw Error(keel::format("imbinarize: unknown option '{}'", raw),
                                 0, 0, "imbinarize", "", "numkit:imbinarize:opt");
             }
             if (polarity != "bright")
@@ -286,7 +285,7 @@ void adaptthresh_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const int nbh     = (args.size() >= 3 && !args[2].isEmpty())
                         ? argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[2], 3, "nh_size", "adaptthresh"), 3, "nh_size", "adaptthresh") : 0;
-    std::string stat  = "mean";
+    keel::String stat = keel::String::from("mean");
     if (args.size() >= 4 && !args[3].isEmpty()) {
         if (!args[3].isChar() && !args[3].isString())
             throw Error("adaptthresh: statistic must be a string",
@@ -312,7 +311,7 @@ void wcodemat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 1, 4, "wcodemat");
     int nb = (args.size() >= 2 && !args[1].isEmpty())
              ? static_cast<int>(argcheck::roundLength(args[1], 2, "nb", "wcodemat")) : 16;
-    std::string opt = "mat";
+    keel::String opt = keel::String::from("mat");
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (!args[2].isChar() && !args[2].isString())
             throw Error("wcodemat: opt must be a string",

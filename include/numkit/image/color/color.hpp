@@ -4,12 +4,14 @@
 
 #pragma once
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <string>
-#include <vector>
+#include <utility>
 
 namespace numkit::image {
 
@@ -42,7 +44,7 @@ namespace numkit::image {
 /// @param I       Input image.
 /// @param planes  Output vector (resized in-place).
 /// @param mr      Memory resource (nullptr → process default).
-void imsplit(const Value &I, std::vector<Value> &planes,
+void imsplit(const Value &I, keel::Array<Value> &planes,
              keel::Allocator *mr = nullptr);
 
 // ── RGB ↔ HSV / YCbCr / NTSC / XYZ / Lab ─────────────────────────────
@@ -244,7 +246,7 @@ Value colorgradient(const Value &C, const Value &w, int n,
 /// @param gamma       Gamma correction (default 0.8).
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            RGB image / colormap of the requested class.
-Value wavelength2rgb(const Value &wavelength, const std::string &out_class,
+Value wavelength2rgb(const Value &wavelength, keel::StringRef out_class,
                      keel::f64 gamma, keel::Allocator *mr = nullptr);
 
 /// @brief Angle between two RGB colours
@@ -534,7 +536,7 @@ Value ycbcr2rgbwide(const Value &YCBCR, int bits_per_sample,
 /// @param mr            Memory resource (nullptr → process default).
 /// @return              Per-pixel colour difference (channel dim removed).
 Value imcolordiff(const Value &I1, const Value &I2,
-                  const std::string &standard, bool is_input_lab,
+                  keel::StringRef standard, bool is_input_lab,
                   keel::f64 kL, keel::f64 kC, keel::f64 kH, keel::f64 K1, keel::f64 K2,
                   keel::Allocator *mr = nullptr);
 
@@ -563,7 +565,7 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab,
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            `1 × 3` XYZ tristimulus.
 /// @throws Error  Unknown illuminant code.
-Value whitepoint(const std::string &illuminant,
+Value whitepoint(keel::StringRef illuminant,
                  keel::Allocator *mr = nullptr);
 
 /// @brief RGB colormap → grayscale colormap (`gmap = cmap2gray(cmap)`).
@@ -641,7 +643,7 @@ Value illumpca(const Value &A, keel::f64 P, const Value &mask,
 /// @param mask  Optional `H × W` mask; empty → all.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `1 × 3` DOUBLE illuminant.
-Value illumgray(const Value &A, const std::vector<keel::f64> &P,
+Value illumgray(const Value &A, keel::ArrayRef<keel::f64> P,
                 const Value &mask, keel::Allocator *mr = nullptr);
 
 /// @brief Colourise a labelled image
@@ -713,8 +715,8 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background,
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          UINT8 composite image.
 Value imfuse(const Value &A, const Value &B,
-             const std::string &method,
-             const std::string &scaling,
+             keel::StringRef method,
+             keel::StringRef scaling,
              const Value &channels,
              keel::Allocator *mr = nullptr);
 
@@ -811,7 +813,7 @@ Value tonemap(const Value &HDR,
 /// @return                   UINT8 `H × W × 3` overlay image.
 Value labeloverlay(const Value &A, const Value &L,
                    const Value &colormap,
-                   const std::string &color_assignment,
+                   keel::StringRef color_assignment,
                    const Value &included_labels,
                    keel::f64 transparency,
                    keel::Allocator *mr = nullptr);
@@ -872,8 +874,8 @@ Value labeloverlay(const Value &A, const Value &L,
 ///     University of Bradford.
 ///   - Hunt, R. W. G. (2005). The Reproduction of Colour, 6th ed.
 Value chromadapt(const Value &A, const Value &illuminant,
-                 const std::string &method,
-                 const std::string &color_space,
+                 keel::StringRef method,
+                 keel::StringRef color_space,
                  keel::Allocator *mr = nullptr);
 
 /// @brief Narrow-range wide-gamut RGB → CIE 1931 XYZ
@@ -916,8 +918,8 @@ Value chromadapt(const Value &A, const Value &illuminant,
 /// @param mr               Memory resource.
 /// @return                 DOUBLE XYZ values.
 Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
-                  const std::string &color_space,
-                  const std::string &linearization,
+                  keel::StringRef color_space,
+                  keel::StringRef linearization,
                   keel::Allocator *mr = nullptr);
 
 /// @brief CIE 1931 XYZ → narrow-range wide-gamut RGB
@@ -934,8 +936,8 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
 /// @param mr               Memory resource.
 /// @return                 UINT16 narrow-range RGB.
 Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
-                  const std::string &color_space,
-                  const std::string &linearization,
+                  keel::StringRef color_space,
+                  keel::StringRef linearization,
                   keel::Allocator *mr = nullptr);
 
 /// @brief Convert a Bayer-encoded mosaic to a truecolor RGB image
@@ -967,7 +969,7 @@ Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
 /// References:
 ///   - Malvar, He, Cutler. "High-Quality Linear Interpolation for
 ///     Demosaicing of Bayer-Patterned Color Images", IEEE ICASSP 2004.
-Value demosaic(const Value &I, const std::string &sensorAlignment,
+Value demosaic(const Value &I, keel::StringRef sensorAlignment,
                int bitsPerSample = 0,
                keel::Allocator *mr = nullptr);
 

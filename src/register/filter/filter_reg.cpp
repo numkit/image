@@ -10,9 +10,11 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 
@@ -28,10 +30,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -192,7 +191,7 @@ Value nlfilter(const Value &A,
 // Output class equals the class of fun()'s return value.
 Value colfilt(const Value &A,
               keel::usize m, keel::usize n,
-              const std::string &block_type, FnHandle fun,
+              keel::StringRef block_type, FnHandle fun,
               bool indexed,
               keel::Allocator *mr)
 {
@@ -216,13 +215,11 @@ Value colfilt(const Value &A,
         return std::move(o[0]);
     };
 
-    std::string kind = block_type;
-    for (auto &c : kind) c = static_cast<char>(
-        std::tolower(static_cast<unsigned char>(c)));
-    if (kind.empty())
+    if (block_type.empty())
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
-    const char first = kind[0];
+    const char first = static_cast<char>(
+        std::tolower(static_cast<unsigned char>(block_type[0])));
     if (first != 's' && first != 'd')
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
@@ -369,6 +366,14 @@ Value colfilt(const Value &A,
 namespace detail {
 
 namespace {
+keel::String to_lower_ascii(keel::StringRef s) {
+    keel::String out;
+    out.reserve(s.size());
+    for (char ch : s)
+        out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    return out;
+}
+
 PadMode parse_pad_mode(const Value &v, double &pad_value, bool &is_value) {
     is_value = false;
     pad_value = 0.0;
@@ -391,7 +396,7 @@ void padarray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 4, "padarray");
-    std::vector<int> padsize;
+    keel::Array<int> padsize;
     {
         const Value &p = args[1];
         const keel::usize n = p.numel();
@@ -401,15 +406,15 @@ void padarray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     PadMode mode = PadMode::Constant;
     double pad_value = 0.0;
-    std::string direction = "both";
+    keel::String direction = keel::String::from("both");
 
     // Parse optional trailing args: pad_value-or-mode (one) and/or direction.
     for (keel::usize i = 2; i < args.size(); ++i) {
         const Value &a = args[i];
         if (a.isChar() || a.isString()) {
-            auto s = a.toString();
+            keel::String s = a.toString();
             if (s == "pre" || s == "post" || s == "both") {
-                direction = s;
+                direction = std::move(s);
             } else {
                 bool dummy;
                 mode = parse_pad_mode(a, pad_value, dummy);
@@ -428,11 +433,11 @@ void fspecial_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "fspecial");
-    std::string type = "gaussian";
+    keel::String type = keel::String::from("gaussian");
     if (!args.empty() && (args[0].isChar() || args[0].isString()))
         type = args[0].toString();
 
-    std::vector<double> params;
+    keel::Array<double> params;
     if (type == "motion") {
         // 'motion' takes two INDEPENDENT scalars [len, theta]; do NOT
         // size-double the 2nd arg the way the size-based filters do.
@@ -476,15 +481,14 @@ void imfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     for (keel::usize i = 2; i < args.size(); ++i) {
         const Value &a = args[i];
         if (a.isChar() || a.isString()) {
-            std::string s(a.toString().as_ref());
-            for (char &ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-            if      (s.rfind("rep", 0) == 0)  boundary = PadMode::Replicate;
-            else if (s.rfind("sym", 0) == 0)  boundary = PadMode::Symmetric;
-            else if (s.rfind("circ", 0) == 0) boundary = PadMode::Circular;
-            else if (s.rfind("full", 0) == 0) full = true;
-            else if (s.rfind("same", 0) == 0) full = false;
-            else if (s.rfind("conv", 0) == 0) flip_kernel = true;
-            else if (s.rfind("corr", 0) == 0) flip_kernel = false;
+            keel::String s = to_lower_ascii(a.toString());
+            if      (s.as_ref().starts_with("rep"))  boundary = PadMode::Replicate;
+            else if (s.as_ref().starts_with("sym"))  boundary = PadMode::Symmetric;
+            else if (s.as_ref().starts_with("circ")) boundary = PadMode::Circular;
+            else if (s.as_ref().starts_with("full")) full = true;
+            else if (s.as_ref().starts_with("same")) full = false;
+            else if (s.as_ref().starts_with("conv")) flip_kernel = true;
+            else if (s.as_ref().starts_with("corr")) flip_kernel = false;
         } else {
             pad_value = a.toScalar();
             boundary = PadMode::Constant;
@@ -527,7 +531,7 @@ void modefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // Defaults adapt to input rank — MATLAB picks [3 3] for 2-D, [3 3 3] for 3-D.
     const bool input3D = (args[0].dims().ndim() == 3);
     int fH = 3, fW = 3, fD = input3D ? 3 : 0;
-    std::string padopt = "symmetric";
+    keel::String padopt = keel::String::from("symmetric");
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].isChar() || args[1].isString()) {
             padopt = args[1].toString();
@@ -591,13 +595,11 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter: name-value name must be a string",
                         0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badNVName");
-        const std::string key(args[i].toString().as_ref());
-        std::string lower = key;
-        for (auto &ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-        if (lower == "normalizationfactor") {
+        const keel::String key = args[i].toString();
+        if (key.as_ref().equals_ignore_ascii_case("normalizationfactor")) {
             normFactor = args[i + 1].toScalar();
         } else {
-            throw Error("integralBoxFilter: unknown name-value key '" + key + "'",
+            throw Error(keel::format("integralBoxFilter: unknown name-value key '{}'", key),
                         0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badNVKey");
         }
     }
@@ -635,9 +637,8 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter3: name-value name must be a string",
                         0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badNVName");
-        std::string lower(args[i].toString().as_ref());
-        for (auto &ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-        if (lower == "normalizationfactor") {
+        const keel::String key = args[i].toString();
+        if (key.as_ref().equals_ignore_ascii_case("normalizationfactor")) {
             normFactor = args[i + 1].toScalar();
         } else {
             throw Error("integralBoxFilter3: unknown name-value key",
@@ -782,7 +783,7 @@ void im2col_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         throw Error("im2col: block size must be scalar or 2-vector",
                     0, 0, "im2col", "", "numkit:im2col:size");
     }
-    std::string mode = "sliding";
+    keel::String mode = keel::String::from("sliding");
     if (args.size() >= 3 && (args[2].isChar() || args[2].isString()))
         mode = args[2].toString();
     outs[0] = im2col(args[0], m, n, mode, ctx.engine->allocator());
@@ -842,7 +843,7 @@ void col2im_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         mm = (int)s.elemAsDouble(0);
         nn = (s.numel() >= 2) ? (int)s.elemAsDouble(1) : mm;
     }
-    std::string mode = "sliding";
+    keel::String mode = keel::String::from("sliding");
     if (args.size() >= 4 && (args[3].isChar() || args[3].isString()))
         mode = args[3].toString();
     outs[0] = col2im(args[0], m, n, mm, nn, mode, ctx.engine->allocator());
@@ -852,7 +853,7 @@ void imnoise_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "imnoise");
-    std::string mode = "gaussian";
+    keel::String mode = keel::String::from("gaussian");
     if (args.size() >= 2) {
         if (!(args[1].isChar() || args[1].isString()))
             throw Error("imnoise: mode must be a string",
@@ -877,15 +878,15 @@ void imsharpen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     while (i < args.size()) {
         if (args[i].isChar() || args[i].isString()) {
             sawNV = true;
-            const std::string nm(args[i].toString().as_ref());
+            const keel::String nm = args[i].toString();
             if (i + 1 >= args.size())
-                throw Error("imsharpen: missing value for '" + nm + "'",
+                throw Error(keel::format("imsharpen: missing value for '{}'", nm),
                             0, 0, "imsharpen", "", "numkit:imsharpen:nv");
             const double v = args[i + 1].toScalar();
             if (nm == "Radius" || nm == "radius") radius = v;
             else if (nm == "Amount" || nm == "amount") amount = v;
             else if (nm == "Threshold" || nm == "threshold") threshold = v;
-            else throw Error("imsharpen: unknown option '" + nm + "'",
+            else throw Error(keel::format("imsharpen: unknown option '{}'", nm),
                              0, 0, "imsharpen", "", "numkit:imsharpen:opt");
             i += 2;
         } else {
@@ -926,7 +927,7 @@ void imsmooth_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 1, "imsmooth");
     // no max: absent from the R2025b reference build
     auto *mr = ctx.engine->allocator();
-    std::string name = "Gaussian";
+    keel::String name = keel::String::from("Gaussian");
     double sigma = 0.5;
     // imsmooth(I, scalar) — Octave shorthand: scalar is sigma, name=Gaussian.
     if (args.size() >= 2 && !args[1].isEmpty()) {
@@ -1052,12 +1053,9 @@ void nlfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     bool indexed = false;
     keel::usize k = 1;
     if (args[1].isChar() || args[1].isString()) {
-        std::string s(args[1].toString().as_ref());
-        for (auto &c : s) c = static_cast<char>(
-            std::tolower(static_cast<unsigned char>(c)));
-        if (s != "indexed")
-            throw Error("nlfilter: unknown literal '" + std::string(args[1].toString().as_ref())
-                      + "' (expected 'indexed')",
+        keel::String s = args[1].toString();
+        if (!s.as_ref().equals_ignore_ascii_case("indexed"))
+            throw Error(keel::format("nlfilter: unknown literal '{}' (expected 'indexed')", s),
                         0, 0, "nlfilter", "", "numkit:nlfilter:badLiteral");
         indexed = true;
         k = 2;
@@ -1095,12 +1093,9 @@ void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     bool indexed = false;
     keel::usize k = 1;
     if (args[1].isChar() || args[1].isString()) {
-        std::string s(args[1].toString().as_ref());
-        for (auto &c : s) c = static_cast<char>(
-            std::tolower(static_cast<unsigned char>(c)));
-        if (s != "indexed")
-            throw Error("colfilt: unknown literal '" + std::string(args[1].toString().as_ref())
-                      + "' (expected 'indexed')",
+        keel::String s = args[1].toString();
+        if (!s.as_ref().equals_ignore_ascii_case("indexed"))
+            throw Error(keel::format("colfilt: unknown literal '{}' (expected 'indexed')", s),
                         0, 0, "colfilt", "", "numkit:colfilt:badLiteral");
         indexed = true;
         k = 2;
@@ -1133,7 +1128,7 @@ void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[bi].isChar() && !args[bi].isString())
         throw Error("colfilt: block_type must be 'sliding' or 'distinct'",
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
-    const std::string kind(args[bi].toString().as_ref());
+    const keel::String kind = args[bi].toString();
     const Value &fn = args[bi + 1];
     if (!fn.isFuncHandle())
         throw Error("colfilt: fun must be a function handle",
@@ -1162,26 +1157,23 @@ void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("imnlmfilt: expected NV-pair name",
                         0, 0, "imnlmfilt", "", "numkit:imnlmfilt:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "degreeofsmoothing") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("degreeofsmoothing")) {
             dos = args[i + 1].toScalar();
             if (!(dos > 0))
                 throw Error("imnlmfilt: DegreeOfSmoothing must be positive",
                             0, 0, "imnlmfilt", "", "numkit:imnlmfilt:dos");
-        } else if (nlo == "searchwindowsize") {
+        } else if (nref.equals_ignore_ascii_case("searchwindowsize")) {
             swsize = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "SearchWindowSize", "imnlmfilt"),
                 int(i) + 2, "SearchWindowSize", "imnlmfilt");
-        } else if (nlo == "comparisonwindowsize") {
+        } else if (nref.equals_ignore_ascii_case("comparisonwindowsize")) {
             cwsize = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "ComparisonWindowSize", "imnlmfilt"),
                 int(i) + 2, "ComparisonWindowSize", "imnlmfilt");
         } else {
-            throw Error("imnlmfilt: unknown option '" + name + "'",
+            throw Error(keel::format("imnlmfilt: unknown option '{}'", name),
                         0, 0, "imnlmfilt", "",
                         "numkit:imnlmfilt:unknownNv");
         }
@@ -1213,17 +1205,14 @@ void imgaborfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("imgaborfilt: expected NV-pair name",
                         0, 0, "imgaborfilt", "", "numkit:imgaborfilt:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "spatialfrequencybandwidth")
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("spatialfrequencybandwidth"))
             sfb = args[i + 1].toScalar();
-        else if (nlo == "spatialaspectratio")
+        else if (nref.equals_ignore_ascii_case("spatialaspectratio"))
             aspect = args[i + 1].toScalar();
         else
-            throw Error("imgaborfilt: unknown option '" + name + "'",
+            throw Error(keel::format("imgaborfilt: unknown option '{}'", name),
                         0, 0, "imgaborfilt", "",
                         "numkit:imgaborfilt:unknownNv");
         i += 2;
@@ -1244,8 +1233,8 @@ void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     Value thresh;
     keel::usize N = 0;
-    std::string connectivity = "maximal";
-    std::string conduction = "exponential";
+    keel::String connectivity = keel::String::from("maximal");
+    keel::String conduction = keel::String::from("exponential");
 
     keel::usize i = 1;
     while (i + 1 < args.size()) {
@@ -1253,14 +1242,11 @@ void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("imdiffusefilt: expected NV-pair name",
                         0, 0, "imdiffusefilt", "",
                         "numkit:imdiffusefilt:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "gradientthreshold") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("gradientthreshold")) {
             thresh = args[i + 1];
-        } else if (nlo == "numberofiterations") {
+        } else if (nref.equals_ignore_ascii_case("numberofiterations")) {
             const double v = args[i + 1].toScalar();
             if (!(v > 0) || v != std::floor(v))
                 throw Error("imdiffusefilt: NumberOfIterations must be a "
@@ -1268,22 +1254,12 @@ void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                             0, 0, "imdiffusefilt", "",
                             "numkit:imdiffusefilt:n");
             N = static_cast<keel::usize>(v);
-        } else if (nlo == "connectivity") {
-            connectivity = args[i + 1].toString();
-            std::string lo;
-            for (char ch : connectivity)
-                lo += static_cast<char>(std::tolower(
-                    static_cast<unsigned char>(ch)));
-            connectivity = lo;
-        } else if (nlo == "conductionmethod") {
-            conduction = args[i + 1].toString();
-            std::string lo;
-            for (char ch : conduction)
-                lo += static_cast<char>(std::tolower(
-                    static_cast<unsigned char>(ch)));
-            conduction = lo;
+        } else if (nref.equals_ignore_ascii_case("connectivity")) {
+            connectivity = to_lower_ascii(args[i + 1].toString());
+        } else if (nref.equals_ignore_ascii_case("conductionmethod")) {
+            conduction = to_lower_ascii(args[i + 1].toString());
         } else {
-            throw Error("imdiffusefilt: unknown option '" + name + "'",
+            throw Error(keel::format("imdiffusefilt: unknown option '{}'", name),
                         0, 0, "imdiffusefilt", "",
                         "numkit:imdiffusefilt:unknownNv");
         }
@@ -1314,12 +1290,9 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("imguidedfilter: expected NV-pair name",
                         0, 0, "imguidedfilter", "",
                         "numkit:imguidedfilter:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "neighborhoodsize") {
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if (nref.equals_ignore_ascii_case("neighborhoodsize")) {
             const Value &v = args[i + 1];
             if (v.numel() == 1) {
                 nhood = argcheck::expectedPositiveInteger(
@@ -1340,7 +1313,7 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                             0, 0, "imguidedfilter", "",
                             "numkit:imguidedfilter:nhoodSize");
             }
-        } else if (nlo == "degreeofsmoothing") {
+        } else if (nref.equals_ignore_ascii_case("degreeofsmoothing")) {
             eps = args[i + 1].toScalar();
             if (!(eps > 0) || !std::isfinite(eps))
                 throw Error("imguidedfilter: DegreeOfSmoothing must be a "
@@ -1348,7 +1321,7 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                             0, 0, "imguidedfilter", "",
                             "numkit:imguidedfilter:dos");
         } else {
-            throw Error("imguidedfilter: unknown option '" + name + "'",
+            throw Error(keel::format("imguidedfilter: unknown option '{}'", name),
                         0, 0, "imguidedfilter", "",
                         "numkit:imguidedfilter:unknownNv");
         }

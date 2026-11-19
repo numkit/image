@@ -35,8 +35,10 @@
 //
 // PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
 
@@ -49,7 +51,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <vector>
 
 namespace numkit::image {
 namespace {
@@ -57,15 +58,12 @@ namespace {
 // ── Color-space tags ─────────────────────────────────────────────
 enum class CS { sRGB, AdobeRGB1998, ProPhotoRGB, LinearRGB };
 
-CS parse_color_space(const std::string &s)
+CS parse_color_space(keel::StringRef s)
 {
-    std::string lo;
-    for (char ch : s) lo += static_cast<char>(std::tolower(
-        static_cast<unsigned char>(ch)));
-    if (lo == "srgb")            return CS::sRGB;
-    if (lo == "adobe-rgb-1998")  return CS::AdobeRGB1998;
-    if (lo == "prophoto-rgb")    return CS::ProPhotoRGB;
-    if (lo == "linear-rgb")      return CS::LinearRGB;
+    if (s.equals_ignore_ascii_case("srgb"))           return CS::sRGB;
+    if (s.equals_ignore_ascii_case("adobe-rgb-1998")) return CS::AdobeRGB1998;
+    if (s.equals_ignore_ascii_case("prophoto-rgb"))   return CS::ProPhotoRGB;
+    if (s.equals_ignore_ascii_case("linear-rgb"))     return CS::LinearRGB;
     throw Error("chromadapt: ColorSpace must be 'srgb', "
                 "'adobe-rgb-1998', 'prophoto-rgb', or 'linear-rgb'",
                 0, 0, "chromadapt", "", "numkit:chromadapt:colorSpace");
@@ -310,7 +308,7 @@ void xyz_d65_to_rgb(const double xyz_d65[3], CS cs, double rgb[3])
 // decodes inside rgb_to_xyz_d65).
 struct RGBPlane {
     keel::usize H = 0, W = 0;
-    std::vector<double> v;  // 3 channels, column-major: ch*H*W + c*H + r
+    keel::Array<double> v;  // 3 channels, column-major: ch*H*W + c*H + r
 };
 
 RGBPlane to_double_rgb01(const Value &A)
@@ -373,8 +371,8 @@ Value rgb_to_value(const RGBPlane &P, ValueType outClass,
 }
 
 void chromadapt_argcheck(const Value &A, const Value &illuminant_in,
-                         const std::string &method,
-                         const std::string &color_space)
+                         keel::StringRef method,
+                         keel::StringRef color_space)
 {
     const auto &dA = A.dims();
     if (!dA.is3D() || dA.pages() != 3)
@@ -395,10 +393,9 @@ void chromadapt_argcheck(const Value &A, const Value &illuminant_in,
         throw Error("chromadapt: A must be uint8 / uint16 / single / double",
                     0, 0, "chromadapt", "", "numkit:chromadapt:class");
 
-    std::string m;
-    for (char ch : method) m += static_cast<char>(std::tolower(
-        static_cast<unsigned char>(ch)));
-    if (m != "bradford" && m != "vonkries" && m != "simple")
+    if (!method.equals_ignore_ascii_case("bradford") &&
+        !method.equals_ignore_ascii_case("vonkries") &&
+        !method.equals_ignore_ascii_case("simple"))
         throw Error("chromadapt: Method must be 'bradford', 'vonkries', "
                     "or 'simple'",
                     0, 0, "chromadapt", "", "numkit:chromadapt:method");
@@ -409,8 +406,8 @@ void chromadapt_argcheck(const Value &A, const Value &illuminant_in,
 }  // namespace
 
 Value chromadapt(const Value &A, const Value &illuminant_in,
-                 const std::string &method,
-                 const std::string &color_space,
+                 keel::StringRef method,
+                 keel::StringRef color_space,
                  keel::Allocator *mr)
 {
     chromadapt_argcheck(A, illuminant_in, method, color_space);
@@ -434,10 +431,9 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
                     0, 0, "chromadapt", "", "numkit:chromadapt:class");
 
     // Resolve method.
-    std::string m;
-    for (char ch : method) m += static_cast<char>(std::tolower(
-        static_cast<unsigned char>(ch)));
-    if (m != "bradford" && m != "vonkries" && m != "simple")
+    if (!method.equals_ignore_ascii_case("bradford") &&
+        !method.equals_ignore_ascii_case("vonkries") &&
+        !method.equals_ignore_ascii_case("simple"))
         throw Error("chromadapt: Method must be 'bradford', 'vonkries', "
                     "or 'simple'",
                     0, 0, "chromadapt", "", "numkit:chromadapt:method");
@@ -473,7 +469,7 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
     RGBPlane out_rgb; out_rgb.H = H; out_rgb.W = W;
     out_rgb.v.resize(H * W * 3, 0.0);
 
-    if (m == "simple") {
+    if (method.equals_ignore_ascii_case("simple")) {
         // illuminant_rgb01_normalized = xyz_d65_to_rgb(ill_xyz, cs)
         double ill_rgb_norm[3];
         xyz_d65_to_rgb(ill_xyz, cs, ill_rgb_norm);
@@ -489,8 +485,9 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
     } else {
         // Bradford / vonKries adaptation matrix.
         double M_adapt[9];
-        const double *Madapt_mat = (m == "bradford") ? kMBradford
-                                                     : kMVonKries;
+        const double *Madapt_mat = method.equals_ignore_ascii_case("bradford")
+                                       ? kMBradford
+                                       : kMVonKries;
         make_adapt(ill_xyz, kD65, Madapt_mat, M_adapt);
         // For each pixel: A_RGB → linear → XYZ (D65) → adapted XYZ →
         // linear RGB → encoded RGB.

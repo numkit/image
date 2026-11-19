@@ -7,6 +7,7 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/ref.h>
 #include <numkit/image/arithmetic/arithmetic.hpp>
@@ -17,7 +18,6 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <cstddef>
-#include <vector>
 
 namespace numkit::image {
 namespace detail {
@@ -81,8 +81,8 @@ void imlincomb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         throw Error("imlincomb: arguments must come in (coef, image) pairs",
                     0, 0, "imlincomb", "", "numkit:imlincomb:nargin");
 
-    std::vector<double> coefs;
-    std::vector<Value>  images;
+    keel::Array<double> coefs;
+    keel::Array<Value>  images;
     for (keel::usize i = 0; i + 1 < end; i += 2) {
         coefs.push_back(args[i].toScalar());
         images.push_back(args[i + 1]);

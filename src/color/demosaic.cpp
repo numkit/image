@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <string>
 
 namespace numkit::image {
 
@@ -125,7 +124,7 @@ inline void writeNativeInt(Value &out, keel::usize idx, double v, ValueType T)
     }
 }
 
-void demosaic_argcheck(const Value &I, const std::string &sensorAlignment)
+void demosaic_argcheck(const Value &I, keel::StringRef sensorAlignment)
 {
     const auto &dims = I.dims();
     if (dims.ndims() < 2)
@@ -155,7 +154,7 @@ void demosaic_argcheck(const Value &I, const std::string &sensorAlignment)
 
 } // anonymous
 
-Value demosaic(const Value &I, const std::string &sensorAlignment,
+Value demosaic(const Value &I, keel::StringRef sensorAlignment,
                int bitsPerSample, keel::Allocator *mr)
 {
     demosaic_argcheck(I, sensorAlignment);

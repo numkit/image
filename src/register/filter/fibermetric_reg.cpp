@@ -6,8 +6,11 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -16,13 +19,10 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -36,7 +36,7 @@ void fibermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     const Value &I = args[0];
-    std::vector<double> thickness;
+    keel::Array<double> thickness;
     double c = -1.0;
     bool bright = true;
 
@@ -54,32 +54,24 @@ void fibermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("fibermetric: expected NV-pair name string",
                         0, 0, "fibermetric", "",
                         "numkit:fibermetric:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "structuresensitivity") {
+        keel::String name = args[i].toString();
+        if (name.as_ref().equals_ignore_ascii_case("structuresensitivity")) {
             c = args[i + 1].toScalar();
             if (!std::isfinite(c) || c <= 0.0)
                 throw Error("fibermetric: StructureSensitivity must be "
                             "a positive finite scalar",
                             0, 0, "fibermetric", "",
                             "numkit:fibermetric:sens");
-        } else if (nlo == "objectpolarity") {
-            std::string s(args[i + 1].toString().as_ref());
-            std::string slo;
-            for (char ch : s)
-                slo += static_cast<char>(std::tolower(
-                    static_cast<unsigned char>(ch)));
-            if (slo == "bright")    bright = true;
-            else if (slo == "dark") bright = false;
+        } else if (name.as_ref().equals_ignore_ascii_case("objectpolarity")) {
+            keel::String s = args[i + 1].toString();
+            if (s.as_ref().equals_ignore_ascii_case("bright"))    bright = true;
+            else if (s.as_ref().equals_ignore_ascii_case("dark")) bright = false;
             else throw Error("fibermetric: ObjectPolarity must be "
                              "'bright' or 'dark'",
                              0, 0, "fibermetric", "",
                              "numkit:fibermetric:polarity");
         } else {
-            throw Error("fibermetric: unknown option '" + name + "'",
+            throw Error(keel::format("fibermetric: unknown option '{}'", name),
                         0, 0, "fibermetric", "",
                         "numkit:fibermetric:unknownNv");
         }

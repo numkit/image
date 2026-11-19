@@ -7,7 +7,9 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/texture/texture.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -24,21 +26,16 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
 namespace detail {
 
-static bool eqIgnoreCase(const std::string &a, const char *b)
+static bool eqIgnoreCase(keel::StringRef a, const char *b)
 {
-    if (a.size() != std::strlen(b)) return false;
-    for (keel::usize i = 0; i < a.size(); ++i)
-        if (std::tolower(a[i]) != std::tolower(b[i])) return false;
-    return true;
+    return a.equals_ignore_ascii_case(b);
 }
 
 void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -61,7 +58,7 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("graycomatrix: NV-pair name must be a string",
                          0, 0, "graycomatrix", "",
                          "numkit:graycomatrix:badNVName");
-        const std::string key(args[i].toString().as_ref());
+        const keel::String key = args[i].toString();
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumLevels"))
             numLevels = argcheck::expectedPositiveInteger(
@@ -96,7 +93,7 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             symmetric = (v.toScalar() != 0.0);
         }
         else
-            throw Error("graycomatrix: unknown NV-pair key '" + key + "'",
+            throw Error(keel::format("graycomatrix: unknown NV-pair key '{}'", key),
                          0, 0, "graycomatrix", "",
                          "numkit:graycomatrix:badNVKey");
     }

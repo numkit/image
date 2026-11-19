@@ -6,8 +6,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -193,7 +193,7 @@ Value iptnum2ordinal(keel::f64 n, keel::Allocator *mr = nullptr);
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Image cast to `type`.
 /// @throws Error  Unknown / unsupported type name.
-Value imcast(const Value &I, const std::string &type,
+Value imcast(const Value &I, keel::StringRef type,
              keel::Allocator *mr = nullptr);
 
 /// @brief Binary-image predicate (`tf = isbw(BW, mode)`).
@@ -209,7 +209,7 @@ Value imcast(const Value &I, const std::string &type,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL scalar.
 /// @see isgray, isind, isrgb
-Value isbw(const Value &BW, const std::string &mode,
+Value isbw(const Value &BW, keel::StringRef mode,
            keel::Allocator *mr = nullptr);
 
 /// @brief Grayscale-image predicate (`tf = isgray(I)`).

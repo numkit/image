@@ -8,6 +8,7 @@
 
 #include <keel/core.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/region/region.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -23,10 +24,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -61,7 +60,7 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (i >= args.size() || !is_string(args[i]))
         throw Error("bwpropfilt: expected attribute string",
                     0, 0, "bwpropfilt", "", "numkit:bwpropfilt:noAttr");
-    const std::string attrib(args[i].toString().as_ref());
+    const keel::String attrib = args[i].toString();
     ++i;
     // range or n.
     if (i >= args.size())
@@ -89,11 +88,11 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     int conn = 8;
     // Optional 'keep' direction (only with scalar n).
     if (i < args.size() && is_string(args[i])) {
-        std::string dir(args[i].toString().as_ref());
-        std::string dlo;
+        keel::String dir = args[i].toString();
+        keel::String dlo;
         for (char ch : dir)
-            dlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            dlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (dlo == "largest")        keep_largest = true;
         else if (dlo == "smallest")  keep_largest = false;
         else throw Error("bwpropfilt: keep direction must be "

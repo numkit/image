@@ -8,6 +8,7 @@
 
 #include <keel/core.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -16,13 +17,10 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -35,7 +33,7 @@ void fspecial3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[0].isChar() && !args[0].isString())
         throw Error("fspecial3: type must be a string",
                     0, 0, "fspecial3", "", "numkit:fspecial3:BadType");
-    const std::string type(args[0].toString().as_ref());
+    const keel::String type = args[0].toString();
     Value empty;
     // Positional layout per MATLAB R2025b:
     //   sobel/prewitt:  a1 = direction        (no hsize — fixed 3×3×3)

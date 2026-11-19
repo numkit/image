@@ -5,6 +5,7 @@
 // bwlabel / regionprops infrastructure.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/math.h>
@@ -22,14 +23,36 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <queue>
 #include <utility>
-#include <vector>
-#include <vector>
 
 namespace numkit::image {
 
 namespace {
+
+template <typename T, typename Cmp>
+class ArrayPriorityQueue {
+public:
+    explicit ArrayPriorityQueue(Cmp cmp = Cmp{}, keel::Allocator *alloc = nullptr)
+        : m_data(alloc), m_cmp(cmp) {}
+    bool empty() const noexcept { return m_data.empty(); }
+    const T &top() const noexcept { return m_data.front(); }
+    template <typename... Args>
+    void emplace(Args &&...args) {
+        m_data.emplace_back(std::forward<Args>(args)...);
+        std::push_heap(m_data.begin(), m_data.end(), m_cmp);
+    }
+    void push(const T &v) {
+        m_data.push_back(v);
+        std::push_heap(m_data.begin(), m_data.end(), m_cmp);
+    }
+    void pop() {
+        std::pop_heap(m_data.begin(), m_data.end(), m_cmp);
+        m_data.pop_back();
+    }
+private:
+    keel::Array<T> m_data;
+    Cmp m_cmp;
+};
 
 bool nonZero(double v) { return v != 0.0; }
 
@@ -37,7 +60,7 @@ void requireSameShape(const Value &A, const Value &B, const char *fn) {
     if (A.numel() != B.numel() ||
         A.dims().rows() != B.dims().rows() ||
         A.dims().cols() != B.dims().cols())
-        throw Error(std::string(fn) + ": inputs must have the same shape",
+        throw Error(keel::format("{}: inputs must have the same shape", fn),
                     0, 0, fn, "", "numkit:image:segment:shape");
 }
 
@@ -143,17 +166,17 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     if (maxLab == 0) return cell;
 
     // First pass: count per label.
-    std::vector<keel::usize> counts(static_cast<keel::usize>(maxLab) + 1, 0);
+    keel::Array<keel::usize> counts(static_cast<keel::usize>(maxLab) + 1, 0);
     for (keel::usize i = 0; i < N; ++i) {
         const long long v = static_cast<long long>(
             std::round(L.elemAsDouble(i)));
         if (v > 0) ++counts[static_cast<keel::usize>(v)];
     }
     // Allocate per-label column vectors (1-based indices).
-    std::vector<Value> bufs;
+    keel::Array<Value> bufs;
     bufs.reserve(static_cast<keel::usize>(maxLab));
-    std::vector<double *> wptr(static_cast<keel::usize>(maxLab) + 1, nullptr);
-    std::vector<keel::usize> cur(static_cast<keel::usize>(maxLab) + 1, 0);
+    keel::Array<double *> wptr(static_cast<keel::usize>(maxLab) + 1);
+    keel::Array<keel::usize> cur(static_cast<keel::usize>(maxLab) + 1, 0);
     for (long long k = 1; k <= maxLab; ++k) {
         Value v = Value::matrix(counts[static_cast<keel::usize>(k)], 1,
                                 ValueType::DOUBLE, mr);
@@ -212,11 +235,11 @@ Value grayconnected(const Value &I, int row, int col, double tol, keel::Allocato
     };
     const double seedVal = I.elemAsDouble(idxAt(r0, c0));
     keel::u8 *od = out.logicalDataMut();
-    std::vector<keel::u8> visited(static_cast<keel::usize>(H) *
+    keel::Array<keel::u8> visited(static_cast<keel::usize>(H) *
                                        static_cast<keel::usize>(W), 0);
 
     // BFS with an explicit deque (vector + read head).
-    std::vector<std::pair<int, int>> q;
+    keel::Array<std::pair<int, int>> q;
     q.reserve(static_cast<keel::usize>(H) * static_cast<keel::usize>(W) / 4 + 4);
     q.emplace_back(r0, c0);
     visited[static_cast<keel::usize>(r0) * static_cast<keel::usize>(W) +
@@ -867,7 +890,7 @@ Value roipoly(double xdata_lo, double xdata_hi,
 // Reference: Soille, *Morphological Image Analysis*, 2nd ed.,
 //   Springer, §4.4 (chamfer geodesic distance transform).
 Value graydist(const Value &I, const Value &seeds,
-               const std::string &method,
+               keel::StringRef method,
                keel::Allocator *mr)
 {
     internal::requireImageClass(I, "graydist", "A", 1,
@@ -912,10 +935,10 @@ Value graydist(const Value &I, const Value &seeds,
     keel::Array<double> Idata(N, 0.0, mr);
     for (keel::usize i = 0; i < N; ++i) Idata[i] = I.elemAsDouble(i);
 
-    // Min-heap as (dist, index) pairs. Use std::priority_queue.
+    // Min-heap as (dist, index) pairs.
     using PQNode = std::pair<double, keel::usize>;
     auto cmp = [](const PQNode &a, const PQNode &b) { return a.first > b.first; };
-    std::priority_queue<PQNode, std::vector<PQNode>, decltype(cmp)> pq(cmp);
+    ArrayPriorityQueue<PQNode, decltype(cmp)> pq(cmp, mr);
 
     // Seed pixels: T = 0, push.
     for (keel::usize k = 0; k < seeds.numel(); ++k) {
@@ -1005,7 +1028,7 @@ Value graydist(const Value &I, const Value &seeds,
 //
 // Reference: P. Soille, *Morphological Image Analysis* §4.4.
 Value bwdistgeodesic(const Value &BW, const Value &seeds,
-                     const std::string &method,
+                     keel::StringRef method,
                      keel::Allocator *mr)
 {
     internal::requireImageClass(BW, "bwdistgeodesic", "BW", 1,
@@ -1053,7 +1076,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
 
     using PQNode = std::pair<double, keel::usize>;
     auto cmp = [](const PQNode &a, const PQNode &b) { return a.first > b.first; };
-    std::priority_queue<PQNode, std::vector<PQNode>, decltype(cmp)> pq(cmp);
+    ArrayPriorityQueue<PQNode, decltype(cmp)> pq(cmp, mr);
 
     // Seeds: validate, then set dist=0.
     for (keel::usize k = 0; k < seeds.numel(); ++k) {
@@ -1234,7 +1257,7 @@ namespace {
 // [lo, hi]. Mirrors douglasPeucker in reducepoly.m, including the
 // first-farthest tie-break and the degenerate near-zero-chord branch.
 template <typename T>
-std::vector<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
+keel::Array<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
 {
     const int n = hi - lo + 1;
     if (n <= 2) {
@@ -1262,18 +1285,18 @@ std::vector<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
         if (d > maxd) { maxd = d; far = g; }  // strict > keeps FIRST farthest
     }
     if (maxd > tolEff) {
-        std::vector<int> r1 = rdpKeep(xs, ys, lo, far, tolEff);
-        std::vector<int> r2 = rdpKeep(xs, ys, far, hi, tolEff);
-        r1.insert(r1.end(), r2.begin() + 1, r2.end());  // drop duplicate `far`
+        keel::Array<int> r1 = rdpKeep(xs, ys, lo, far, tolEff);
+        keel::Array<int> r2 = rdpKeep(xs, ys, far, hi, tolEff);
+        r1.append(r2.slice(1));  // drop duplicate `far`
         return r1;
     }
     return {lo, hi};
 }
 
 template <typename T>
-std::vector<int> rdpRun(const Value &P, int n, double tol)
+keel::Array<int> rdpRun(const Value &P, int n, double tol)
 {
-    std::vector<T> xs(static_cast<keel::usize>(n)), ys(static_cast<keel::usize>(n));
+    keel::Array<T> xs(static_cast<keel::usize>(n)), ys(static_cast<keel::usize>(n));
     for (int i = 0; i < n; ++i) {
         xs[static_cast<keel::usize>(i)] = static_cast<T>(P.elemAsDouble(static_cast<keel::usize>(i)));
         ys[static_cast<keel::usize>(i)] = static_cast<T>(P.elemAsDouble(static_cast<keel::usize>(i) + static_cast<keel::usize>(n)));
@@ -1333,7 +1356,7 @@ Value reducepoly(const Value &P, double tolerance, keel::Allocator *mr)
 
     // Compute in double for DOUBLE input, single otherwise (matches MATLAB,
     // which casts non-float to single and keeps single/double as-is).
-    const std::vector<int> keep = (cls == ValueType::DOUBLE)
+    const keel::Array<int> keep = (cls == ValueType::DOUBLE)
         ? rdpRun<double>(P, n, tolerance)
         : rdpRun<float>(P, n, tolerance);
 
@@ -1365,8 +1388,7 @@ void watershed_argcheck(const Value &A, int conn)
         }
     }
     if (conn != 4 && conn != 8) {
-        throw Error("watershed: input 2 (conn) must be 4 or 8 (got "
-                        + std::to_string(conn) + ").",
+        throw Error(keel::format("watershed: input 2 (conn) must be 4 or 8 (got {}).", conn),
                     0, 0, "watershed", "", "numkit:watershed:badConn");
     }
 }
@@ -1384,7 +1406,7 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
         return Value::matrix(H, W, ValueType::UINT8, mr);
     }
 
-    std::vector<double> aval(N);
+    keel::Array<double> aval(N);
     for (keel::usize i = 0; i < N; ++i) {
         aval[i] = A.elemAsDouble(i);
     }
@@ -1401,10 +1423,10 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
     const int Wi  = static_cast<int>(W);
 
     // Step 1: Identify regional minima plateaus under conn-connectivity.
-    std::vector<keel::u8> visited(N, 0);
-    std::vector<keel::u8> regmin(N, 0);
-    std::vector<keel::usize> comp;
-    std::vector<keel::usize> q;
+    keel::Array<keel::u8> visited(N, 0);
+    keel::Array<keel::u8> regmin(N, 0);
+    keel::Array<keel::usize> comp;
+    keel::Array<keel::usize> q;
     comp.reserve(64);
     q.reserve(64);
 
@@ -1445,7 +1467,7 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
     }
 
     // Step 2: Label connected components of regmin in column-major order.
-    std::vector<keel::u32> L(N, 0);
+    keel::Array<keel::u32> L(N, 0);
     keel::u32 numBasins = 0;
     for (keel::usize i = 0; i < N; ++i) {
         if (regmin[i] && L[i] == 0) {
@@ -1483,8 +1505,9 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
             return ord > other.ord;
         }
     };
-    std::priority_queue<PQEntry, std::vector<PQEntry>, std::greater<PQEntry>> pq;
-    std::vector<keel::u8> inPQ(N, 0);
+    auto pqCmp = [](const PQEntry &a, const PQEntry &b) { return a > b; };
+    ArrayPriorityQueue<PQEntry, decltype(pqCmp)> pq(pqCmp, mr);
+    keel::Array<keel::u8> inPQ(N, 0);
     for (keel::usize i = 0; i < N; ++i) {
         if (L[i] > 0) inPQ[i] = 1;
     }

@@ -10,6 +10,7 @@
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/image/transform/transform.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -25,10 +26,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -142,7 +141,7 @@ void fftconv2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "fftconv2");
     // no max: absent from the R2025b reference build
-    std::string shape = "full";
+    keel::String shape = keel::String::from("full");
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (!args[2].isChar() && !args[2].isString())
             throw Error("fftconv2: shape must be a string",

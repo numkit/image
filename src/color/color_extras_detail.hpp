@@ -14,8 +14,6 @@
 #include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <string>
-
 namespace numkit::image {
 
 // MATLAB-canonical jet(N) colormap (N x 3, double in [0,1]).
@@ -26,7 +24,7 @@ Value resolve_named_colormap(keel::StringRef name, int N,
                              keel::Allocator *mr);
 
 // Lower-case a string (ASCII).
-std::string lower(keel::StringRef s);
+keel::String lower(keel::StringRef s);
 
 // Parse a MATLAB ColorSpec (single letter or full name) into RGB in [0,1].
 // Returns false if unrecognised.

@@ -11,15 +11,14 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
-
-#include <vector>
 
 namespace numkit::image {
 
 // Grey-world illuminant estimate with an explicit Minkowski norm exponent.
 // illumgray() forwards here with norm_exp = 1.0.
-Value illumgray_impl(const Value &A, const std::vector<double> &P,
+Value illumgray_impl(const Value &A, keel::ArrayRef<double> P,
                      const Value &mask, double norm_exp,
                      keel::Allocator *mr);
 

@@ -1,6 +1,8 @@
 // toolboxes/image/src/quality/quality.cpp
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <numkit/image/quality/quality.hpp>
@@ -15,7 +17,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <vector>
 
 namespace numkit::image {
 
@@ -66,10 +67,8 @@ void immse_argcheck(const Value &A, const Value &B) {
                                               : v.type();
     };
     if (eff(A) != eff(B)) {
-        throw Error("immse: A and B must have the same class "
-                    + std::string("(got ")
-                    + mtypeName(A.type()) + " and "
-                    + mtypeName(B.type()) + ").",
+        throw Error(keel::format("immse: A and B must have the same class (got {} and {}).",
+                                 mtypeName(A.type()), mtypeName(B.type())),
                     0, 0, "immse", "", "numkit:immse:differentClass");
     }
     if (A.numel() != B.numel())
@@ -133,7 +132,7 @@ Value ssim(const Value &A, const Value &B, keel::Allocator *mr) {
 
     // Convert to DOUBLE in [0, 1] for stable SSIM computation.
     auto unit = [&](const Value &X) {
-        std::vector<double> out(X.numel());
+        keel::Array<double> out(X.numel());
         const double scale = 1.0 / class_peak(X.type());
         for (keel::usize i = 0; i < X.numel(); ++i)
             out[i] = X.elemAsDouble(i) * scale;
@@ -145,7 +144,7 @@ Value ssim(const Value &A, const Value &B, keel::Allocator *mr) {
     Value gK = fspecial("gaussian", { 11.0, 11.0, 1.5 }, mr);
 
     // Wrap Au and Bu back as Values so we can re-use imfilter.
-    auto pack = [&](const std::vector<double> &v) {
+    auto pack = [&](keel::ArrayRef<double> v) {
         Value V = Value::matrix(H, W, ValueType::DOUBLE, mr);
         double *vd = V.doubleDataMut();
         // Au is in column-major (because Value is column-major and we
@@ -275,10 +274,10 @@ double class_dynamic_range(ValueType t)
 // gaussian at positions (0..N-1) - (N-1)/2 with σ=1, normalised to
 // sum to 1. For N=1 returns [1.0]. For N=5 returns
 // [0.0545, 0.2442, 0.4026, 0.2442, 0.0545].
-std::vector<double> default_scale_weights(int N)
+keel::Array<double> default_scale_weights(int N)
 {
     if (N < 1) N = 1;
-    std::vector<double> w(static_cast<keel::usize>(N));
+    keel::Array<double> w(static_cast<keel::usize>(N));
     if (N == 1) { w[0] = 1.0; return w; }
     const double half = (N - 1) / 2.0;
     double s = 0.0;
@@ -460,9 +459,9 @@ void multissim_argcheck(const Value &A, const Value &Iref, int num_scales, doubl
 
 Value multissim(const Value &A, const Value &Iref,
                 int num_scales,
-                const std::vector<double> &scale_weights_in,
+                keel::ArrayRef<double> scale_weights_in,
                 double sigma, double dynamic_range_in,
-                std::vector<Value> *quality_maps_out,
+                keel::Array<Value> *quality_maps_out,
                 keel::Allocator *mr)
 {
     multissim_argcheck(A, Iref, num_scales, sigma);
@@ -476,8 +475,7 @@ Value multissim(const Value &A, const Value &Iref,
         keel::usize h = H, w = W;
         for (int i = 1; i < num_scales; ++i) {
             if (h <= 1 || w <= 1)
-                throw Error("multissim: image too small for NumScales="
-                            + std::to_string(num_scales),
+                throw Error(keel::format("multissim: image too small for NumScales={}", num_scales),
                             0, 0, "multissim", "",
                             "numkit:multissim:tooSmall");
             h = (h + 1) / 2;
@@ -493,9 +491,9 @@ Value multissim(const Value &A, const Value &Iref,
     const double C2 = (0.03 * L) * (0.03 * L);
 
     // ── Resolve / normalize scale weights ───────────────────────
-    std::vector<double> sw = scale_weights_in.empty()
+    keel::Array<double> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
-        : scale_weights_in;
+        : keel::Array<double>::from(scale_weights_in);
     if (static_cast<int>(sw.size()) != num_scales)
         throw Error("multissim: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim", "",
@@ -588,7 +586,7 @@ namespace {
 // Volume buffer mirror of the 2-D "image-in-DOUBLE" used by multissim.
 struct Vol {
     keel::usize H = 0, W = 0, D = 0;
-    std::vector<double> v;  // column-major: idx = z*H*W + c*H + r
+    keel::Array<double> v;  // column-major: idx = z*H*W + c*H + r
     Vol() = default;
     Vol(keel::usize h, keel::usize w, keel::usize d)
         : H(h), W(w), D(d), v(h * w * d, 0.0) {}
@@ -627,9 +625,9 @@ Value vol_to_value(const Vol &V, keel::Allocator *mr)
 }
 
 // Build a 1-D Gaussian kernel with `filtSize` elements, mean = (filtSize-1)/2.
-std::vector<double> gauss1d(double sigma, int filtSize)
+keel::Array<double> gauss1d(double sigma, int filtSize)
 {
-    std::vector<double> k(static_cast<keel::usize>(filtSize));
+    keel::Array<double> k(static_cast<keel::usize>(filtSize));
     const double half = (filtSize - 1) / 2.0;
     double s = 0.0;
     for (int i = 0; i < filtSize; ++i) {
@@ -651,7 +649,7 @@ inline keel::usize reflect_clamp(long i, keel::usize n)
 
 // Separable 3-D Gaussian: convolve along rows, then cols, then slices.
 // All passes use replicate boundary.
-Vol gauss3d_filter(const Vol &In, const std::vector<double> &k)
+Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
 {
     const keel::usize H = In.H;
     const keel::usize W = In.W;
@@ -739,7 +737,7 @@ Vol downsample_2x2x2(const Vol &In)
 
 // 3-D SSIM map. Same formula as ssim_map_double but operates on Vol.
 Vol ssim_map_vol(const Vol &A, const Vol &B,
-                 const std::vector<double> &k,
+                 keel::ArrayRef<double> k,
                  double C1, double C2, bool include_luminance)
 {
     const keel::usize H = A.H, W = A.W, D = A.D;
@@ -811,9 +809,9 @@ void multissim3_argcheck(const Value &V, const Value &Vref, int num_scales, doub
 
 Value multissim3(const Value &V, const Value &Vref,
                  int num_scales,
-                 const std::vector<double> &scale_weights_in,
+                 keel::ArrayRef<double> scale_weights_in,
                  double sigma, double dynamic_range_in,
-                 std::vector<Value> *quality_maps_out,
+                 keel::Array<Value> *quality_maps_out,
                  keel::Allocator *mr)
 {
     multissim3_argcheck(V, Vref, num_scales, sigma);
@@ -827,8 +825,7 @@ Value multissim3(const Value &V, const Value &Vref,
         keel::usize h = Ad.H, w = Ad.W, d = Ad.D;
         for (int i = 1; i < num_scales; ++i) {
             if (h <= 1 || w <= 1 || d <= 1)
-                throw Error("multissim3: volume too small for NumScales="
-                            + std::to_string(num_scales),
+                throw Error(keel::format("multissim3: volume too small for NumScales={}", num_scales),
                             0, 0, "multissim3", "",
                             "numkit:multissim3:tooSmall");
             h = (h + 1) / 2;
@@ -843,9 +840,9 @@ Value multissim3(const Value &V, const Value &Vref,
     const double C1 = (0.01 * L) * (0.01 * L);
     const double C2 = (0.03 * L) * (0.03 * L);
 
-    std::vector<double> sw = scale_weights_in.empty()
+    keel::Array<double> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
-        : scale_weights_in;
+        : keel::Array<double>::from(scale_weights_in);
     if (static_cast<int>(sw.size()) != num_scales)
         throw Error("multissim3: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim3", "", "numkit:multissim3:swLen");
@@ -864,7 +861,7 @@ Value multissim3(const Value &V, const Value &Vref,
 
     const int filtRadius = static_cast<int>(std::ceil(sigma * 3.0));
     const int filtSize = 2 * filtRadius + 1;
-    std::vector<double> gk = gauss1d(sigma, filtSize);
+    keel::Array<double> gk = gauss1d(sigma, filtSize);
 
     if (quality_maps_out) quality_maps_out->clear();
 

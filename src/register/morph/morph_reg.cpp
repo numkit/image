@@ -9,9 +9,11 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/morph/morph.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -25,10 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <memory>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -62,9 +61,9 @@ void strel_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         outs[0] = strel("square", {3.0}, Value(), ctx.engine->allocator());
         return;
     }
-    std::string shape = "square";
+    keel::String shape = keel::String::from("square");
     if (args[0].isChar() || args[0].isString()) shape = args[0].toString();
-    std::vector<double> params;
+    keel::Array<double> params;
     Value arbitrary;
     for (keel::usize i = 1; i < args.size(); ++i) {
         if (!(args[i].isChar() || args[i].isString())) {
@@ -320,7 +319,8 @@ void bwmorph3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!(args[1].isChar() || args[1].isString()))
         throw Error("bwmorph3: requires (V, operation)",
                     0, 0, "bwmorph3", "", "numkit:bwmorph3:nargin");
-    outs[0] = bwmorph3(args[0], std::string(args[1].toString().as_ref()), ctx.engine->allocator());
+    keel::String op = args[1].toString();
+    outs[0] = bwmorph3(args[0], op, ctx.engine->allocator());
 }
 
 void bwhitmiss_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -362,11 +362,11 @@ void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[1].isChar())
         throw Error("bwmorph: op must be a string",
                     0, 0, "bwmorph", "", "numkit:bwmorph:badOp");
-    std::string op(args[1].toString().as_ref());
+    keel::String op = args[1].toString();
     // Normalise to lowercase.
-    for (auto &ch : op) ch = static_cast<char>(std::tolower(ch));
+    for (auto &ch : op) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     // MATLAB accepts "skel" as a prefix-match for "skeleton".
-    if (op == "skel") op = "skeleton";
+    if (op == "skel") op.assign("skeleton");
 
     int n = 1;
     if (args.size() >= 3 && !args[2].isEmpty()) {
@@ -386,7 +386,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         throw Error("bwtraceboundary: FSTEP must be a string",
                     0, 0, "bwtraceboundary", "",
                     "numkit:bwtraceboundary:fstep");
-    std::string fstep(args[2].toString().as_ref());
+    keel::String fstep = args[2].toString();
     // Upper-case fstep.
     for (auto &ch : fstep)
         ch = static_cast<char>(std::toupper(
@@ -394,7 +394,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     int conn = 8;
     keel::usize m_max = std::numeric_limits<keel::usize>::max();
-    std::string dir = "clockwise";
+    keel::String dir = keel::String::from("clockwise");
     if (args.size() >= 4 && !args[3].isEmpty())
         conn = argcheck::expectedOneOf(
         argcheck::expectedReal(args[3], 4, "conn", "bwtraceboundary"),
@@ -415,11 +415,9 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                         0, 0, "bwtraceboundary", "",
                         "numkit:bwtraceboundary:dirArg");
         dir = args[5].toString();
-        std::string dlo;
-        for (char ch : dir)
-            dlo += static_cast<char>(std::tolower(
+        for (char &ch : dir)
+            ch = static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
-        dir = dlo;
     }
     outs[0] = bwtraceboundary(args[0], args[1], fstep, conn,
                               m_max, dir, mr);

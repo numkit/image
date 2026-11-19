@@ -3,9 +3,12 @@
 // Colour-space conversions. Portable scalar implementation; SIMD
 // optimisation deferred to a later phase.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/math.h>
+#include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -14,7 +17,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <array>
 
 #ifndef M_PI
@@ -24,7 +26,6 @@
 #include <cstdint>
 #include <cstring>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -55,8 +56,8 @@ Layout detect_layout(const Value &x, const char *fn) {
         lay.s_chan = lay.npix;
         lay.is_3d = false;
     } else {
-        throw Error(std::string(fn) + ": input must be H×W×3 or N×3",
-                    0, 0, fn, "", std::string("numkit:") + fn + ":size");
+        throw Error(keel::format("{}: input must be H×W×3 or N×3", fn),
+                    0, 0, fn, "", keel::format("numkit:{}:size", fn));
     }
     return lay;
 }
@@ -463,7 +464,7 @@ inline void copy_plane(const Value &src, keel::usize plane,
 
 } // anonymous
 
-void imsplit(const Value &I, std::vector<Value> &planes, keel::Allocator *mr)
+void imsplit(const Value &I, keel::Array<Value> &planes, keel::Allocator *mr)
 {
     const auto &d = I.dims();
     const keel::usize H = d.rows();
@@ -483,21 +484,21 @@ namespace {
 // Normalise an RGB-vector argument to an N×3 row-of-triplets layout.
 // Accepts 3-element vectors of any orientation (1×3, 3×1, or 3-D
 // linear) and N×3 matrices. Returns the data flattened into a
-// std::vector<double> of length 3*N (row-major: per-colour triple
+// keel::Array<double> of length 3*N (row-major: per-colour triple
 // stored consecutively).
-std::vector<double> rgb_rows(const Value &v, const char *name) {
+keel::Array<double> rgb_rows(const Value &v, const char *name) {
     const auto &d = v.dims();
     const keel::usize H = d.rows();
     const keel::usize W = d.cols();
     if (v.numel() == 3) {
-        std::vector<double> out(3);
+        keel::Array<double> out(3);
         for (keel::usize i = 0; i < 3; ++i) out[i] = v.elemAsDouble(i);
         return out;
     }
     if (W != 3)
-        throw Error(std::string(name) + " must be a 3-element or N-by-3 array",
+        throw Error(keel::format("{} must be a 3-element or N-by-3 array", name),
                     0, 0, "colorangle", "", "numkit:colorangle:shape");
-    std::vector<double> out(3 * H);
+    keel::Array<double> out(3 * H);
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < 3; ++c)
             // col-major source: idx = c*H + r → row-major dest: r*3 + c.
@@ -529,8 +530,8 @@ LabLayout detect_lab_layout(const Value &v, const char *fn) {
         L.npix = d.rows();
         L.is_3d = false;
     } else {
-        throw Error(std::string(fn) + ": LAB must be Mx3 or MxNx3",
-                    0, 0, fn, "", std::string("numkit:") + fn + ":size");
+        throw Error(keel::format("{}: LAB must be Mx3 or MxNx3", fn),
+                    0, 0, fn, "", keel::format("numkit:{}:size", fn));
     }
     return L;
 }
@@ -557,8 +558,8 @@ void lab_layout_argcheck(const Value &lab, const char *fn)
         case ValueType::UINT16:
             break;
         default:
-            throw Error(std::string(fn) + ": unsupported LAB class",
-                        0, 0, fn, "", std::string("numkit:") + fn + ":cls");
+            throw Error(keel::format("{}: unsupported LAB class", fn),
+                        0, 0, fn, "", keel::format("numkit:{}:cls", fn));
     }
 }
 
@@ -761,16 +762,17 @@ void colorgradient_argcheck(const Value &C, const Value &w, int n)
                     0, 0, "colorgradient", "", "numkit:colorgradient:w");
 }
 
-void wavelength2rgb_argcheck(double gamma, const std::string &out_class)
+void wavelength2rgb_argcheck(double gamma, keel::StringRef out_class)
 {
     if (!(gamma >= 0.0 && gamma <= 1.0))
         throw Error("wavelength2rgb: gamma must be in [0, 1]",
                     0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:gamma");
-    std::string lo;
-    lo.reserve(out_class.size());
-    for (char c : out_class) lo.push_back(static_cast<char>(std::tolower(c)));
-    if (lo != "double" && !lo.empty() && lo != "single" &&
-        lo != "uint8" && lo != "uint16" && lo != "int16")
+    if (!out_class.empty() &&
+        !out_class.equals_ignore_ascii_case("double") &&
+        !out_class.equals_ignore_ascii_case("single") &&
+        !out_class.equals_ignore_ascii_case("uint8") &&
+        !out_class.equals_ignore_ascii_case("uint16") &&
+        !out_class.equals_ignore_ascii_case("int16"))
         throw Error("wavelength2rgb: unsupported class",
                     0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:cls");
 }
@@ -856,16 +858,19 @@ void deltaE_argcheck(const Value &I1, const Value &I2)
     }
 }
 
-void whitepoint_argcheck(const std::string &illuminant)
+void whitepoint_argcheck(keel::StringRef illuminant)
 {
-    std::string lo;
-    lo.reserve(illuminant.size());
-    for (char c : illuminant) lo.push_back(static_cast<char>(std::tolower(c)));
-
-    if (lo != "a" && lo != "c" && lo != "d50" && lo != "d55" &&
-        lo != "d65" && lo != "e" && !lo.empty() && lo != "icc")
-        throw Error("whitepoint: unsupported illuminant '" + illuminant +
-                    "' (use a, c, d50, d55, d65, e, or icc)",
+    if (!illuminant.empty() &&
+        !illuminant.equals_ignore_ascii_case("a") &&
+        !illuminant.equals_ignore_ascii_case("c") &&
+        !illuminant.equals_ignore_ascii_case("d50") &&
+        !illuminant.equals_ignore_ascii_case("d55") &&
+        !illuminant.equals_ignore_ascii_case("d65") &&
+        !illuminant.equals_ignore_ascii_case("e") &&
+        !illuminant.equals_ignore_ascii_case("icc"))
+        throw Error(keel::format("whitepoint: unsupported illuminant '{}' "
+                                 "(use a, c, d50, d55, d65, e, or icc)",
+                                 illuminant),
                     0, 0, "whitepoint", "", "numkit:whitepoint:illum");
 }
 
@@ -918,10 +923,10 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
         throw Error("colorgradient: n must be >= 2",
                     0, 0, "colorgradient", "", "numkit:colorgradient:n");
 
-    std::vector<double> wv;
+    keel::Array<double> wv;
     wv.reserve(static_cast<keel::usize>(K - 1));
     if (w.numel() == 0) {
-        wv.assign(static_cast<keel::usize>(K - 1), 1.0);
+        wv.resize(static_cast<keel::usize>(K - 1), 1.0);
     } else {
         if (static_cast<int>(w.numel()) != K - 1)
             throw Error("colorgradient: must have one weight per interval",
@@ -933,7 +938,7 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
     double total = 0.0;
     for (double x : wv) total += x;
     if (total == 0.0) total = 1.0;
-    std::vector<int> wpos(static_cast<keel::usize>(K), 0);
+    keel::Array<int> wpos(static_cast<keel::usize>(K), 0);
     double acc = 0.0;
     wpos[0] = 1;
     for (int i = 0; i < K - 1; ++i) {
@@ -969,7 +974,7 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
     return map;
 }
 
-Value wavelength2rgb(const Value &wavelength, const std::string &out_class, double gamma, keel::Allocator *mr)
+Value wavelength2rgb(const Value &wavelength, keel::StringRef out_class, double gamma, keel::Allocator *mr)
 {
     wavelength2rgb_argcheck(gamma, out_class);
     if (!(gamma >= 0.0 && gamma <= 1.0))
@@ -1013,14 +1018,11 @@ Value wavelength2rgb(const Value &wavelength, const std::string &out_class, doub
     }
 
     // Cast to requested class.
-    std::string lo;
-    lo.reserve(out_class.size());
-    for (char c : out_class) lo.push_back(static_cast<char>(std::tolower(c)));
-    if (lo == "double" || lo.empty()) return out;
-    if (lo == "single") return im2single(out, mr);
-    if (lo == "uint8")  return im2uint8(out, mr);
-    if (lo == "uint16") return im2uint16(out, mr);
-    if (lo == "int16")  return im2int16(out, mr);
+    if (out_class.empty() || out_class.equals_ignore_ascii_case("double")) return out;
+    if (out_class.equals_ignore_ascii_case("single")) return im2single(out, mr);
+    if (out_class.equals_ignore_ascii_case("uint8"))  return im2uint8(out, mr);
+    if (out_class.equals_ignore_ascii_case("uint16")) return im2uint16(out, mr);
+    if (out_class.equals_ignore_ascii_case("int16"))  return im2int16(out, mr);
     throw Error("wavelength2rgb: unsupported class",
                 0, 0, "wavelength2rgb", "", "numkit:wavelength2rgb:cls");
 }
@@ -1254,7 +1256,7 @@ Value pink_cmap(int n, keel::Allocator *mr)
     const int IDX = static_cast<int>(std::floor(3.0 / 8.0 * n));
     const double base = 1.0 / (3.0 * IDX);
     const double inv  = 1.0 / static_cast<double>(n - 1);
-    std::vector<double> r(n), g(n), b(n);
+    keel::Array<double> r(n), g(n), b(n);
 
     // R channel.
     const double r_end = (2.0 / 3.0) * (IDX - 1) * inv + 1.0 / 3.0;
@@ -1418,7 +1420,7 @@ Value bone_cmap(int n, keel::Allocator *mr)
     // n > 2.
     const double inv = 1.0 / static_cast<double>(n - 1);
     auto x = [&](int i) { return static_cast<double>(i) * inv; };
-    std::vector<double> r(n), g(n), b(n);
+    keel::Array<double> r(n), g(n), b(n);
 
     // R channel.
     const int IDX_R = static_cast<int>(std::floor(0.75 * n));
@@ -1569,7 +1571,7 @@ Value contrast(const Value &x, int m, keel::Allocator *mr)
         throw Error("contrast: image must have non-zero intensity range",
                     0, 0, "contrast", "", "numkit:contrast:flat");
 
-    std::vector<double> sorted;
+    keel::Array<double> sorted;
     sorted.reserve(Nx + static_cast<keel::usize>(m + 1));
     const double inv_range = 1.0 / range;
     for (keel::usize i = 0; i < Nx; ++i) {
@@ -1581,7 +1583,7 @@ Value contrast(const Value &x, int m, keel::Allocator *mr)
     std::sort(sorted.begin(), sorted.end());
 
     // f = 1-based positions where sorted[i+1] != sorted[i].
-    std::vector<double> f;
+    keel::Array<double> f;
     f.reserve(static_cast<keel::usize>(m));
     for (keel::usize i = 0; i + 1 < sorted.size(); ++i)
         if (sorted[i + 1] != sorted[i])
@@ -1716,27 +1718,25 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, keel::Allocator 
     return out;
 }
 
-Value whitepoint(const std::string &illuminant, keel::Allocator *mr)
+Value whitepoint(keel::StringRef illuminant, keel::Allocator *mr)
 {
     whitepoint_argcheck(illuminant);
-    std::string lo;
-    lo.reserve(illuminant.size());
-    for (char c : illuminant) lo.push_back(static_cast<char>(std::tolower(c)));
 
     double X = 0.0, Y = 0.0, Z = 0.0;
-    if (lo == "a")        { X = 1.0985; Y = 1.0; Z = 0.3558; }
-    else if (lo == "c")   { X = 0.9807; Y = 1.0; Z = 1.1823; }
-    else if (lo == "d50") { X = 0.96419865576090109; Y = 1.0;
-                            Z = 0.82511648321920425; }
-    else if (lo == "d55") { X = 0.9568; Y = 1.0; Z = 0.9214; }
-    else if (lo == "d65") { X = 0.95047; Y = 1.0; Z = 1.08883; }
-    else if (lo == "e")   { X = 1.0; Y = 1.0; Z = 1.0; }
-    else if (lo.empty() || lo == "icc")
-                          { X = 0.96420288085938; Y = 1.0;
-                            Z = 0.82489013671875; }
+    if (illuminant.equals_ignore_ascii_case("a"))        { X = 1.0985; Y = 1.0; Z = 0.3558; }
+    else if (illuminant.equals_ignore_ascii_case("c"))   { X = 0.9807; Y = 1.0; Z = 1.1823; }
+    else if (illuminant.equals_ignore_ascii_case("d50")) { X = 0.96419865576090109; Y = 1.0;
+                                                           Z = 0.82511648321920425; }
+    else if (illuminant.equals_ignore_ascii_case("d55")) { X = 0.9568; Y = 1.0; Z = 0.9214; }
+    else if (illuminant.equals_ignore_ascii_case("d65")) { X = 0.95047; Y = 1.0; Z = 1.08883; }
+    else if (illuminant.equals_ignore_ascii_case("e"))   { X = 1.0; Y = 1.0; Z = 1.0; }
+    else if (illuminant.empty() || illuminant.equals_ignore_ascii_case("icc"))
+                                                         { X = 0.96420288085938; Y = 1.0;
+                                                           Z = 0.82489013671875; }
     else
-        throw Error("whitepoint: unsupported illuminant '" + illuminant +
-                    "' (use a, c, d50, d55, d65, e, or icc)",
+        throw Error(keel::format("whitepoint: unsupported illuminant '{}' "
+                                 "(use a, c, d50, d55, d65, e, or icc)",
+                                 illuminant),
                     0, 0, "whitepoint", "", "numkit:whitepoint:illum");
 
     Value out = Value::matrix(1, 3, ValueType::DOUBLE, mr);

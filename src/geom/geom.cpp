@@ -12,10 +12,13 @@
 //   bilinear for the resampling factors that show up in
 //   typical nk pipelines.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <keel/ref.h>
 #include <numkit/image/geom/geom.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -26,8 +29,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <string>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -99,7 +100,7 @@ Value makeOut(keel::usize H, keel::usize W, keel::usize C, ValueType t, keel::Al
     return Value::matrix3d(H, W, C, t, mr);
 }
 
-bool methodIsNearest(const std::string &m) {
+bool methodIsNearest(keel::StringRef m) {
     return m == "nearest" || m == "Nearest" || m == "NEAREST" ||
            m == "near"    || m == "n";
 }
@@ -123,22 +124,22 @@ inline int rkMirror(int i, int N) {
     if (m >= N) m = c - 1 - m;
     return m;
 }
-struct RkContrib { int first; std::vector<double> w; };  // first 0-indexed
+struct RkContrib { int first; keel::Array<double> w; };  // first 0-indexed
 
 // Per-output-pixel taps: pixel-centre map u, kernel `k` (total support `kw`),
 // antialiasing stretch when `aa && scale<1`, normalised weights.
-std::vector<RkContrib> rkBuild(keel::usize outLen, double scale, double (*k)(double),
+keel::Array<RkContrib> rkBuild(keel::usize outLen, double scale, double (*k)(double),
                                double kw, bool aa) {
     double scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = kw / scale; }
     const int P = static_cast<int>(std::ceil(kw)) + 2;
-    std::vector<RkContrib> rows(outLen);
+    keel::Array<RkContrib> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
         const double u    = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
         const int    left = static_cast<int>(std::floor(u - kw / 2.0));
         RkContrib &  r    = rows[o];
         r.first = left - 1;
-        r.w.assign(P, 0.0);
+        r.w.assign(static_cast<keel::usize>(P), 0.0);
         double sum = 0.0;
         for (int j = 0; j < P; ++j) { const double w = scl * k(scl * (u - double(left + j))); r.w[j] = w; sum += w; }
         if (sum != 0.0) for (auto &w : r.w) w /= sum;
@@ -157,7 +158,7 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
     const auto cx = rkBuild(outW, scaleX, k, kw, antialias);
     Value B = makeOut(outH, outW, s.C, t, mr);
     Shape sd{outH, outW, s.C};
-    std::vector<double> tmp(outH * s.W);   // outH × W intermediate (per channel)
+    keel::Array<double> tmp(outH * s.W);   // outH × W intermediate (per channel)
     for (keel::usize c = 0; c < s.C; ++c) {
         for (int x = 0; x < W; ++x)            // pass 1: rows  → tmp[outH × W]
             for (keel::usize y = 0; y < outH; ++y) {
@@ -181,7 +182,7 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
 }
 
 // Map a method string to (kernel fn, total support). Returns fn=nullptr for nearest.
-bool methodKernel(const std::string &m, double (*&k)(double), double &kw) {
+bool methodKernel(keel::StringRef m, double (*&k)(double), double &kw) {
     if (m == "bilinear" || m == "Bilinear" || m == "linear" || m == "Linear" ||
         m == "triangle" || m == "Triangle") { k = rkTriangle; kw = 2.0; return true; }
     if (m == "bicubic"  || m == "Bicubic"  || m == "cubic"  || m == "Cubic") {
@@ -224,7 +225,7 @@ void axes2pix_argcheck(const Value &ext)
                     0, 0, "axes2pix", "", "numkit:axes2pix:extent");
 }
 
-void impyramid_argcheck(const std::string &type, bool &reduce_out)
+void impyramid_argcheck(keel::StringRef type, bool &reduce_out)
 {
     if      (type == "reduce" || type == "Reduce") reduce_out = true;
     else if (type == "expand" || type == "Expand") reduce_out = false;
@@ -234,7 +235,7 @@ void impyramid_argcheck(const std::string &type, bool &reduce_out)
 
 } // anonymous
 
-Value imresize(const Value &A, keel::usize outH, keel::usize outW, const std::string &method, keel::Allocator *mr)
+Value imresize(const Value &A, keel::usize outH, keel::usize outW, keel::StringRef method, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -270,7 +271,7 @@ Value imresize(const Value &A, keel::usize outH, keel::usize outW, const std::st
                           k, kw, /*antialias=*/true, t, mr);
 }
 
-Value imresize(const Value &A, double scale, const std::string &method, keel::Allocator *mr)
+Value imresize(const Value &A, double scale, keel::StringRef method, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     imresize_scale_argcheck(scale);
@@ -421,7 +422,7 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
     return B;
 }
 
-Value imrotate(const Value &A, double angle, const std::string &method, const std::string &bbox, keel::Allocator *mr)
+Value imrotate(const Value &A, double angle, keel::StringRef method, keel::StringRef bbox, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -615,7 +616,7 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, keel::Allo
     return internal::castResultToClass(out, ext.type(), mr);
 }
 
-Value impyramid(const Value &A, const std::string &type, keel::Allocator *mr)
+Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
 {
     // Binomial 5-tap kernel [1 4 6 4 1]/16 (MATLAB / Octave default).
     static constexpr double kBurt[5] = {1.0 / 16, 4.0 / 16, 6.0 / 16,
@@ -656,7 +657,7 @@ Value impyramid(const Value &A, const std::string &type, keel::Allocator *mr)
     if (reduce) {
         for (keel::usize c = 0; c < s.C; ++c) {
             // Pass 1: horizontal filter at every (r, cc).
-            std::vector<double> tmp(s.H * s.W);
+            keel::Array<double> tmp(s.H * s.W);
             for (keel::usize r = 0; r < s.H; ++r) {
                 for (keel::usize cc = 0; cc < s.W; ++cc) {
                     double acc = 0;
@@ -688,7 +689,7 @@ Value impyramid(const Value &A, const std::string &type, keel::Allocator *mr)
         // ×2 compensation per axis (×4 total).
         for (keel::usize c = 0; c < s.C; ++c) {
             // Zero-stuff into Hout × Wout double buffer.
-            std::vector<double> stuffed(Hout * Wout, 0.0);
+            keel::Array<double> stuffed(Hout * Wout, 0.0);
             for (keel::usize r = 0; r < s.H; ++r)
                 for (keel::usize cc = 0; cc < s.W; ++cc)
                     stuffed[(2 * cc) * Hout + 2 * r] =
@@ -701,7 +702,7 @@ Value impyramid(const Value &A, const std::string &type, keel::Allocator *mr)
             };
 
             // Horizontal filter (zero-pad boundary), ×2 compensation.
-            std::vector<double> tmp(Hout * Wout);
+            keel::Array<double> tmp(Hout * Wout);
             for (keel::usize r = 0; r < Hout; ++r) {
                 for (keel::usize cc = 0; cc < Wout; ++cc) {
                     double acc = 0;
@@ -788,7 +789,7 @@ inline double k_lanczos3(double x) {
 
 struct R3Kernel { double (*fn)(double); double width; bool isNearest; };
 
-R3Kernel parseR3Kernel(const std::string &m) {
+R3Kernel parseR3Kernel(keel::StringRef m) {
     auto eq = [&](const char *s) { return m == s; };
     if (eq("nearest") || eq("Nearest"))   return {nullptr,      0.0, true};
     if (eq("box") || eq("Box"))           return {k_box,        1.0, false};
@@ -800,13 +801,13 @@ R3Kernel parseR3Kernel(const std::string &m) {
         eq("bicubic") || eq("Bicubic"))   return {k_cubic,      4.0, false};
     if (eq("lanczos2") || eq("Lanczos2")) return {k_lanczos2,   4.0, false};
     if (eq("lanczos3") || eq("Lanczos3")) return {k_lanczos3,   6.0, false};
-    throw Error("imresize3: unknown method '" + m + "'",
+    throw Error(keel::format("imresize3: unknown method '{}'", m),
                 0, 0, "imresize3", "", "numkit:imresize3:method");
 }
 
-struct ContribRow { int firstIdx; std::vector<double> w; };  // firstIdx 0-indexed
+struct ContribRow { int firstIdx; keel::Array<double> w; };  // firstIdx 0-indexed
 
-std::vector<ContribRow>
+keel::Array<ContribRow>
 buildContrib(keel::usize inLen, keel::usize outLen, double scale,
              const R3Kernel &k, bool aa)
 {
@@ -818,7 +819,7 @@ buildContrib(keel::usize inLen, keel::usize outLen, double scale,
     if (aa && scale < 1.0) { scl = scale; kw = k.width / scale; }
     const int P = static_cast<int>(std::ceil(kw)) + 2;
 
-    std::vector<ContribRow> rows(outLen);
+    keel::Array<ContribRow> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
         // MATLAB 1-indexed input center
         const double u = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
@@ -875,7 +876,7 @@ void imresize3_scale_argcheck(double scale)
 Value imresize3_core(const Value &V,
                      keel::usize outR, keel::usize outC, keel::usize outD,
                      double scaleY, double scaleX, double scaleZ,
-                     const std::string &method, bool antialias,
+                     keel::StringRef method, bool antialias,
                      keel::Allocator *mr)
 {
     imresize3_argcheck(V);
@@ -923,7 +924,7 @@ Value imresize3_core(const Value &V,
     auto cz = buildContrib(inD, outD, scaleZ, k, antialias);
 
     // Pass 1: along rows.   tmp1[outR × inC × inD]
-    std::vector<double> tmp1(outR * inC * inD);
+    keel::Array<double> tmp1(outR * inC * inD);
     for (keel::usize z = 0; z < inD; ++z) {
         for (keel::usize x = 0; x < inC; ++x) {
             for (keel::usize y = 0; y < outR; ++y) {
@@ -940,7 +941,7 @@ Value imresize3_core(const Value &V,
     }
 
     // Pass 2: along cols.   tmp2[outR × outC × inD]
-    std::vector<double> tmp2(outR * outC * inD);
+    keel::Array<double> tmp2(outR * outC * inD);
     for (keel::usize z = 0; z < inD; ++z) {
         for (keel::usize x = 0; x < outC; ++x) {
             const ContribRow &r = cx[x];
@@ -976,7 +977,7 @@ Value imresize3_core(const Value &V,
 
 Value imresize3(const Value &V,
                 keel::usize outR, keel::usize outC, keel::usize outD,
-                const std::string &method, bool antialias,
+                keel::StringRef method, bool antialias,
                 keel::Allocator *mr)
 {
     // Size-vector entry: use outLen/inLen as the per-axis scale.
@@ -992,7 +993,7 @@ Value imresize3(const Value &V,
 }
 
 Value imresize3(const Value &V, double scale,
-                const std::string &method, bool antialias,
+                keel::StringRef method, bool antialias,
                 keel::Allocator *mr)
 {
     imresize3_scale_argcheck(scale);

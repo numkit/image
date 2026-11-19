@@ -14,12 +14,12 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 
 namespace numkit::image {
 
@@ -62,7 +62,7 @@ inline void writeNative(Value &out, keel::usize i, double v, ValueType t) {
 Value imresize3_core(const Value &V,
                      keel::usize outR, keel::usize outC, keel::usize outD,
                      double scaleY, double scaleX, double scaleZ,
-                     const std::string &method, bool antialias,
+                     keel::StringRef method, bool antialias,
                      keel::Allocator *mr);
 
 } // namespace numkit::image

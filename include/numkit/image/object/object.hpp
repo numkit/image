@@ -8,9 +8,9 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
-#include <string>
 #include <tuple>
 
 namespace numkit::image {
@@ -40,7 +40,7 @@ namespace numkit::image {
 ///
 /// @see imgradient, edge
 std::tuple<Value, Value>
-imgradientxy(const Value &I, const std::string &method,
+imgradientxy(const Value &I, keel::StringRef method,
              keel::Allocator *mr = nullptr);
 
 /// Gradient magnitude and direction (`[Gmag, Gdir] = imgradient(I, method)`).
@@ -53,7 +53,7 @@ imgradientxy(const Value &I, const std::string &method,
 ///
 /// @see imgradientxy, edge
 std::tuple<Value, Value>
-imgradient(const Value &I, const std::string &method,
+imgradient(const Value &I, keel::StringRef method,
            keel::Allocator *mr = nullptr);
 
 /// 3-D component gradients
@@ -75,7 +75,7 @@ imgradient(const Value &I, const std::string &method,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Tuple `(Gx, Gy, Gz)` (same shape as `V`).
 std::tuple<Value, Value, Value>
-imgradientxyz(const Value &V, const std::string &method,
+imgradientxyz(const Value &V, keel::StringRef method,
               keel::Allocator *mr = nullptr);
 
 /// 3-D gradient magnitude + spherical direction
@@ -92,7 +92,7 @@ imgradientxyz(const Value &V, const std::string &method,
 ///
 /// @see imgradientxyz
 std::tuple<Value, Value, Value>
-imgradient3(const Value &V, const std::string &method,
+imgradient3(const Value &V, keel::StringRef method,
             keel::Allocator *mr = nullptr);
 std::tuple<Value, Value, Value>
 imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
@@ -123,7 +123,7 @@ imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
 /// @return           Logical edge map.
 ///
 /// @see imgradient
-Value edge(const Value &I, const std::string &method,
+Value edge(const Value &I, keel::StringRef method,
            keel::f64 thresh_lo, keel::f64 thresh_hi,
            keel::Allocator *mr = nullptr);
 
@@ -164,7 +164,7 @@ Value edge(const Value &I, const std::string &method,
 ///                           5-tap Gaussian.
 /// @param mr                 Memory resource (nullptr → process default).
 /// @return                   `H × W` DOUBLE corner-metric image.
-Value cornermetric(const Value &I, const std::string &method,
+Value cornermetric(const Value &I, keel::StringRef method,
                    keel::f64 sensitivity_factor,
                    const Value &filter_coef,
                    keel::Allocator *mr = nullptr);
@@ -187,7 +187,7 @@ Value cornermetric(const Value &I, const std::string &method,
 /// @param mr             Memory resource (nullptr → process default).
 /// @return               `K × 2` DOUBLE matrix of `[x y]` corner coordinates.
 /// @see cornermetric
-Value corner(const Value &I, const std::string &method, int maxN,
+Value corner(const Value &I, keel::StringRef method, int maxN,
              keel::f64 quality_level, keel::f64 sensitivity,
              const Value &filter_coef,
              keel::Allocator *mr = nullptr);
@@ -316,8 +316,8 @@ struct ImfindcirclesResult {
 /// @return                @ref ImfindcirclesResult sorted by descending metric.
 ImfindcirclesResult
 imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
-              const std::string &object_polarity = "bright",
-              const std::string &method = "PhaseCode",
+              keel::StringRef object_polarity = "bright",
+              keel::StringRef method = "PhaseCode",
               keel::f64 sensitivity = 0.85,
               keel::f64 edge_threshold = -1.0,
               keel::Allocator *mr = nullptr);

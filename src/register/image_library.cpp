@@ -5,6 +5,7 @@
 // `compat.<name>` so MATLAB-style scripts can call them flat.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
 #include <numkit/image/library.hpp>
 
@@ -306,7 +307,7 @@ namespace numkit {
 void ImageLibrary::install(PluginContext &engine)
 {
     auto reg = [&](const char *sub, const char *name, ExternalFunc fn) {
-        engine.registerFunction(std::string("image.") + sub, name, std::move(fn));
+        engine.registerFunction(keel::format("image.{}", sub), name, std::move(fn));
         // compat.* registration removed — bare-name resolver replaces it
     };
 

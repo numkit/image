@@ -5,9 +5,12 @@
 // thresholding; full Canny non-max suppression deferred.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/object/object.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -26,7 +29,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -37,7 +39,7 @@ namespace numkit::image {
 namespace {
 
 // Build a small 3×3 (or 2×2) kernel as a DOUBLE Value (column-major).
-Value make_kernel(const std::vector<double> &flat_rowmajor, int rows, int cols, keel::Allocator *mr)
+Value make_kernel(keel::ArrayRef<double> flat_rowmajor, int rows, int cols, keel::Allocator *mr)
 {
     Value k = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     double *kd = k.doubleDataMut();
@@ -59,10 +61,10 @@ Value apply_kernel(const Value &I, const Value &k, keel::Allocator *mr)
 } // anonymous
 
 std::tuple<Value, Value>
-imgradientxy(const Value &I, const std::string &method, keel::Allocator *mr)
+imgradientxy(const Value &I, keel::StringRef method, keel::Allocator *mr)
 {
     // Choose kernels (Gx for horizontal, Gy for vertical).
-    std::vector<double> kx, ky;
+    keel::Array<double> kx, ky;
     int rows = 3, cols = 3;
     // Kernel sign convention matches MATLAB imgradientxy: Gx is positive
     // where intensity increases left→right (negative on the left column,
@@ -194,7 +196,7 @@ Value zeros_like(const Value &V, ValueType t,
 } // anonymous
 
 std::tuple<Value, Value, Value>
-imgradientxyz(const Value &V, const std::string &method, keel::Allocator *mr)
+imgradientxyz(const Value &V, keel::StringRef method, keel::Allocator *mr)
 {
     if (!V.dims().is3D())
         throw Error("imgradientxyz: V must be 3-D",
@@ -404,14 +406,14 @@ imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
 }
 
 std::tuple<Value, Value, Value>
-imgradient3(const Value &V, const std::string &method, keel::Allocator *mr)
+imgradient3(const Value &V, keel::StringRef method, keel::Allocator *mr)
 {
     auto [Gx, Gy, Gz] = imgradientxyz(V, method, mr);
     return imgradient3_from_grads(Gx, Gy, Gz, mr);
 }
 
 std::tuple<Value, Value>
-imgradient(const Value &I, const std::string &method, keel::Allocator *mr)
+imgradient(const Value &I, keel::StringRef method, keel::Allocator *mr)
 {
     auto [Gx, Gy] = imgradientxy(I, method, mr);
     const keel::usize N = Gx.numel();
@@ -433,7 +435,7 @@ imgradient(const Value &I, const std::string &method, keel::Allocator *mr)
 // Magnitude-only variant — skips the per-pixel atan2 direction, which costs
 // nothing when the caller wants only Gmag (the common `m = imgradient(I)`).
 // Gmag is bit-identical to imgradient()'s first output.
-Value imgradient_mag(const Value &I, const std::string &method, keel::Allocator *mr)
+Value imgradient_mag(const Value &I, keel::StringRef method, keel::Allocator *mr)
 {
     auto [Gx, Gy] = imgradientxy(I, method, mr);
     const keel::usize N = Gx.numel();
@@ -494,7 +496,7 @@ Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
     const double sigma = std::sqrt(2.0);
     const int hw = std::max(1, static_cast<int>(std::ceil(3.0 * sigma)));
     const int L = 2 * hw + 1;
-    std::vector<double> g(L), dg(L);
+    keel::Array<double> g(static_cast<keel::usize>(L)), dg(static_cast<keel::usize>(L));
     double gsum = 0.0;
     for (int i = 0; i < L; ++i) {
         const double x = i - hw;
@@ -605,12 +607,11 @@ Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
 
 } // anonymous
 
-Value edge(const Value &I, const std::string &methodRaw, double thresh_lo, double /*thresh_hi*/, keel::Allocator *mr)
+Value edge(const Value &I, keel::StringRef methodRaw, double thresh_lo, double /*thresh_hi*/, keel::Allocator *mr)
 {
     // Method names are case-insensitive (MATLAB-compatible).
-    std::string method = methodRaw;
-    std::transform(method.begin(), method.end(), method.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    keel::String method = keel::String::from(methodRaw);
+    for (char &ch : method) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
 
     // Sobel / Prewitt / Roberts threshold the gradient magnitude; Canny does
     // full non-max suppression + hysteresis; log / zerocross mark zero
@@ -666,7 +667,7 @@ Value edge(const Value &I, const std::string &methodRaw, double thresh_lo, doubl
         return canny_edge(I, thresh_lo, mr);
     }
     // Default sobel / prewitt path: grad-magnitude threshold.
-    const std::string mth = (method == "prewitt") ? "prewitt" : "sobel";
+    const keel::StringRef mth = (method == "prewitt") ? "prewitt" : "sobel";
     auto [Gmag, _] = imgradient(I, mth, mr);
     if (std::isnan(thresh_lo)) thresh_lo = auto_threshold(Gmag, 0.4);
     return threshold_to_logical(Gmag, thresh_lo, mr);
@@ -690,7 +691,7 @@ Value edge(const Value &I, const std::string &methodRaw, double thresh_lo, doubl
 // References:
 //   Harris & Stephens, "A Combined Corner and Edge Detector", 1988.
 //   Shi & Tomasi,     "Good Features to Track",                1994.
-Value cornermetric(const Value &I, const std::string &method,
+Value cornermetric(const Value &I, keel::StringRef method,
                    double sensitivity_factor,
                    const Value &filter_coef,
                    keel::Allocator *mr)
@@ -792,10 +793,8 @@ Value cornermetric(const Value &I, const std::string &method,
     // convolution at the larger size. nk's `imfilter(full=true)`
     // uses zero-padding regardless of PadMode, so we pre-pad by
     // (Lc-1)/2 with `padarray` and run a 'same' convolution.
-    const std::vector<int> pad{static_cast<int>(halfLc),
-                               static_cast<int>(halfLc)};
     auto full_replicate = [&](Value X) {
-        X = padarray(X, pad, PadMode::Replicate, 0.0, "both", mr);
+        X = padarray(X, {static_cast<int>(halfLc), static_cast<int>(halfLc)}, PadMode::Replicate, 0.0, "both", mr);
         return imfilter(X, Wk, PadMode::Replicate, 0.0,
                         /*full=*/false, /*flip_kernel=*/true, mr);
     };
@@ -855,7 +854,7 @@ Value cornermetric(const Value &I, const std::string &method,
 // centroid, sort by strength (descending), and return up to N integer
 // [x y] = [col row] coordinates. Built on the shipped cornermetric; the
 // border is excluded naturally (the metric there is ≤ 0 < threshold).
-Value corner(const Value &I, const std::string &method, int maxN,
+Value corner(const Value &I, keel::StringRef method, int maxN,
              double quality_level, double sensitivity,
              const Value &filter_coef, keel::Allocator *mr)
 {
@@ -1416,9 +1415,9 @@ Value houghlines(const Value &BW, const Value &theta_deg,
 
 namespace {
 
-std::string toLowerAscii(const std::string &s)
+keel::String toLowerAscii(keel::StringRef s)
 {
-    std::string out = s;
+    keel::String out = keel::String::from(s);
     for (char &ch : out) {
         ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     }
@@ -1426,8 +1425,8 @@ std::string toLowerAscii(const std::string &s)
 }
 
 void imfindcircles_argcheck(const Value &A, double rmin, double rmax,
-                            const std::string &object_polarity,
-                            const std::string &method,
+                            keel::StringRef object_polarity,
+                            keel::StringRef method,
                             double sensitivity,
                             double edge_threshold)
 {
@@ -1455,17 +1454,17 @@ void imfindcircles_argcheck(const Value &A, double rmin, double rmax,
                     0, 0, "imfindcircles", "",
                     "numkit:imfindcircles:expectedInteger");
     }
-    const std::string pol = toLowerAscii(object_polarity);
+    const keel::String pol = toLowerAscii(object_polarity);
     if (pol != "bright" && pol != "dark") {
-        throw Error("imfindcircles: ObjectPolarity must be 'bright' or 'dark' "
-                    "(got '" + object_polarity + "').",
+        throw Error(keel::format("imfindcircles: ObjectPolarity must be 'bright' or 'dark' (got '{}').",
+                                 object_polarity),
                     0, 0, "imfindcircles", "",
                     "numkit:imfindcircles:unrecognizedObjectPolarity");
     }
-    const std::string mth = toLowerAscii(method);
+    const keel::String mth = toLowerAscii(method);
     if (mth != "phasecode" && mth != "twostage") {
-        throw Error("imfindcircles: Method must be 'PhaseCode' or 'TwoStage' "
-                    "(got '" + method + "').",
+        throw Error(keel::format("imfindcircles: Method must be 'PhaseCode' or 'TwoStage' (got '{}').",
+                                 method),
                     0, 0, "imfindcircles", "",
                     "numkit:imfindcircles:unrecognizedMethod");
     }
@@ -1487,8 +1486,8 @@ void imfindcircles_argcheck(const Value &A, double rmin, double rmax,
 
 ImfindcirclesResult
 imfindcircles(const Value &A, double rmin, double rmax,
-              const std::string &object_polarity,
-              const std::string &method,
+              keel::StringRef object_polarity,
+              keel::StringRef method,
               double sensitivity,
               double edge_threshold,
               keel::Allocator *mr)
@@ -1551,7 +1550,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
     Value GyVal = imfilter(G, hy, PadMode::Replicate, 0.0,
                            /*full=*/false, /*flip_kernel=*/true, mr);
 
-    std::vector<double> Gx(MN), Gy(MN), gradMag(MN);
+    keel::Array<double> Gx(MN), Gy(MN), gradMag(MN);
     double Gmax = 0.0;
     for (keel::usize i = 0; i < MN; ++i) {
         const double gx = GxVal.elemAsDouble(i);
@@ -1595,7 +1594,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
         double ux;
         double uy;
     };
-    std::vector<EdgePix> edges;
+    keel::Array<EdgePix> edges;
     edges.reserve(MN / 8);
     for (keel::usize c = 0; c < N; ++c) {
         for (keel::usize r = 0; r < M; ++r) {
@@ -1618,10 +1617,10 @@ imfindcircles(const Value &A, double rmin, double rmax,
     }
     if (edges.empty()) return emptyResult();
 
-    const std::string polLower = toLowerAscii(object_polarity);
-    const std::string methodLower = toLowerAscii(method);
+    const keel::String polLower = toLowerAscii(object_polarity);
+    const keel::String methodLower = toLowerAscii(method);
 
-    std::vector<double> radVec;
+    keel::Array<double> radVec;
     if (rmin < rmax) {
         for (double r = rmin; r <= rmax + 1e-9; r += 0.5) {
             radVec.push_back(r);
@@ -1632,7 +1631,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
     const keel::usize nR = radVec.size();
     const double polSign = (polLower == "bright") ? 1.0 : -1.0;
 
-    std::vector<double> RR(nR), w0_re(nR), w0_im(nR, 0.0);
+    keel::Array<double> RR(nR), w0_re(nR), w0_im(nR, 0.0);
     const double lnR1 = std::log(radVec.front());
     const double lnRend = std::log(radVec.back());
     for (keel::usize k = 0; k < nR; ++k) {
@@ -1648,7 +1647,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
         }
     }
 
-    std::vector<double> accumRe(MN, 0.0), accumIm(MN, 0.0);
+    keel::Array<double> accumRe(MN, 0.0), accumIm(MN, 0.0);
     const long Ml = static_cast<long>(M);
     const long Nl = static_cast<long>(N);
     for (const auto &ep : edges) {
@@ -1664,7 +1663,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
         }
     }
 
-    std::vector<double> accumAbs(MN, 0.0);
+    keel::Array<double> accumAbs(MN, 0.0);
     bool anyNonZero = false;
     for (keel::usize i = 0; i < MN; ++i) {
         accumAbs[i] = std::hypot(accumRe[i], accumIm[i]);
@@ -1722,8 +1721,8 @@ imfindcircles(const Value &A, double rmin, double rmax,
     // Find 8-connected regional maxima plateaus of Hd in column-major order.
     static constexpr int dr8[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
     static constexpr int dc8[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
-    std::vector<keel::u8> visited(MN, 0);
-    std::vector<keel::usize> comp, q;
+    keel::Array<keel::u8> visited(MN, 0);
+    keel::Array<keel::usize> comp, q;
     comp.reserve(32);
     q.reserve(32);
 
@@ -1732,7 +1731,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
         double yc;
         double metric;
     };
-    std::vector<Candidate> cands;
+    keel::Array<Candidate> cands;
 
     for (keel::usize i = 0; i < MN; ++i) {
         if (visited[i]) continue;
@@ -1825,7 +1824,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
             const long r1_int = static_cast<long>(std::lround(rmin));
             const long r2_int = static_cast<long>(std::lround(rmax));
             const keel::usize nBins = static_cast<keel::usize>(r2_int - r1_int + 1);
-            std::vector<double> hbin(nBins, 0.0);
+            keel::Array<double> hbin(nBins, 0.0);
             for (long cc = left; cc <= right; ++cc) {
                 for (long rr = top; rr <= bottom; ++rr) {
                     const long rbin = std::lround(std::hypot(

@@ -8,6 +8,7 @@
 
 #include <keel/core.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/type_convert/type_convert.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -23,10 +24,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -90,7 +89,8 @@ void imcast_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args[1].isChar() && !args[1].isString())
         throw Error("imcast: TYPE must be a string",
                     0, 0, "imcast", "", "numkit:imcast:type");
-    outs[0] = imcast(args[0], std::string(args[1].toString().as_ref()), ctx.engine->allocator());
+    keel::String targetType = args[1].toString();
+    outs[0] = imcast(args[0], targetType, ctx.engine->allocator());
 }
 
 void gray2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,
@@ -138,7 +138,7 @@ void isbw_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "isbw");
     // no max: absent from the R2025b reference build
-    std::string mode = "logical";
+    keel::String mode = keel::String::from("logical");
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (!args[1].isChar() && !args[1].isString())
             throw Error("isbw: MODE must be a string",

@@ -6,8 +6,11 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 #include "color/illum_detail.hpp"
 
@@ -16,10 +19,7 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/argcheck.hpp>
 
-#include <cctype>
 #include <cstddef>
-#include <string>
-#include <vector>
 
 namespace numkit::image {
 
@@ -34,23 +34,21 @@ static void parse_nv_pairs(keel::ArrayRef<Value> args, keel::usize start_idx,
 {
     while (start_idx + 1 < args.size()) {
         if (!args[start_idx].isChar() && !args[start_idx].isString())
-            throw Error(std::string(fn) + ": expected option name string",
+            throw Error(keel::format("{}: expected option name string", fn),
                         0, 0, fn, "", "numkit:image:badNvArg");
-        std::string name(args[start_idx].toString().as_ref());
-        for (auto &c : name) c = static_cast<char>(std::tolower(
-            static_cast<unsigned char>(c)));
-        if (name == "mask") {
+        keel::String name = args[start_idx].toString();
+        if (name.as_ref().equals_ignore_ascii_case("mask")) {
             mask = args[start_idx + 1];
-        } else if (allow_norm && name == "norm") {
+        } else if (allow_norm && name.as_ref().equals_ignore_ascii_case("norm")) {
             norm_exp = args[start_idx + 1].toScalar();
         } else {
-            throw Error(std::string(fn) + ": unknown option '" + name + "'",
+            throw Error(keel::format("{}: unknown option '{}'", fn, name),
                         0, 0, fn, "", "numkit:image:unknownNvArg");
         }
         start_idx += 2;
     }
     if (start_idx < args.size())
-        throw Error(std::string(fn) + ": trailing unpaired name-value arg",
+        throw Error(keel::format("{}: trailing unpaired name-value arg", fn),
                     0, 0, fn, "", "numkit:image:unpairedNv");
 }
 
@@ -77,7 +75,7 @@ void imcolordiff_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "imcolordiff");  // no max: name-value tail in the reference
     auto *mr = ctx.engine->allocator();
-    std::string standard = "CIE94";
+    keel::String standard = keel::String::from("CIE94");
     bool is_input_lab = false;
     double kL = 1.0, kC = 1.0, kH = 1.0, K1 = 0.045, K2 = 0.015;
     keel::usize i = 2;
@@ -85,19 +83,17 @@ void imcolordiff_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("imcolordiff: expected option name string",
                         0, 0, "imcolordiff", "", "numkit:imcolordiff:badNvArg");
-        std::string name(args[i].toString().as_ref());
-        std::string name_lo = name;
-        for (auto &c : name_lo)
-            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        if      (name_lo == "standard")  standard     = args[i + 1].toString();
-        else if (name_lo == "isinputlab") is_input_lab = (args[i + 1].toScalar() != 0.0);
-        else if (name_lo == "kl")        kL = args[i + 1].toScalar();
-        else if (name_lo == "kc")        kC = args[i + 1].toScalar();
-        else if (name_lo == "kh")        kH = args[i + 1].toScalar();
-        else if (name_lo == "k1")        K1 = args[i + 1].toScalar();
-        else if (name_lo == "k2")        K2 = args[i + 1].toScalar();
+        keel::String name = args[i].toString();
+        keel::StringRef nref = name.as_ref();
+        if      (nref.equals_ignore_ascii_case("standard"))   standard     = args[i + 1].toString();
+        else if (nref.equals_ignore_ascii_case("isinputlab")) is_input_lab = (args[i + 1].toScalar() != 0.0);
+        else if (nref.equals_ignore_ascii_case("kl"))         kL = args[i + 1].toScalar();
+        else if (nref.equals_ignore_ascii_case("kc"))         kC = args[i + 1].toScalar();
+        else if (nref.equals_ignore_ascii_case("kh"))         kH = args[i + 1].toScalar();
+        else if (nref.equals_ignore_ascii_case("k1"))         K1 = args[i + 1].toScalar();
+        else if (nref.equals_ignore_ascii_case("k2"))         K2 = args[i + 1].toScalar();
         else
-            throw Error("imcolordiff: unknown option '" + name + "'",
+            throw Error(keel::format("imcolordiff: unknown option '{}'", name),
                         0, 0, "imcolordiff", "", "numkit:imcolordiff:unknownNv");
         i += 2;
     }
@@ -131,7 +127,7 @@ void illumgray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, 6, "illumgray");
     auto *mr = ctx.engine->allocator();
-    std::vector<double> P;
+    keel::Array<double> P;
     keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
         const keel::usize n = args[1].numel();

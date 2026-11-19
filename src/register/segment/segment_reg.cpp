@@ -7,8 +7,10 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/image/segment/segment.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -25,10 +27,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -175,18 +175,18 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
             throw Error("graydiffweight: expected NV-pair name string",
                         0, 0, "graydiffweight", "",
                         "numkit:graydiffweight:badNvArg");
-        std::string name(a[i].toString().as_ref());
-        std::string nlo = name;
+        keel::String name = a[i].toString();
+        keel::String nlo = name.clone();
         for (auto &ch : nlo)
             ch = static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
         // Allow MATLAB-style abbreviation.
-        if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "roll") == 0)
+        if (nlo.starts_with("roll"))
             rolloff = a[i + 1].toScalar();
-        else if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "gray") == 0)
+        else if (nlo.starts_with("gray"))
             cutoff = a[i + 1].toScalar();
         else
-            throw Error("graydiffweight: unknown option '" + name + "'",
+            throw Error(keel::format("graydiffweight: unknown option '{}'", name),
                         0, 0, "graydiffweight", "",
                         "numkit:graydiffweight:unknownNv");
         i += 2;
@@ -242,19 +242,18 @@ void gradientweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
             throw Error("gradientweight: expected NV-pair name string",
                         0, 0, "gradientweight", "",
                         "numkit:gradientweight:badNvArg");
-        std::string name(a[i].toString().as_ref());
-        std::string nlo = name;
+        keel::String name = a[i].toString();
+        keel::String nlo = name.clone();
         for (auto &ch : nlo)
             ch = static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
         // MATLAB-style abbreviation: "RolloffFactor" / "WeightCutoff".
-        if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "roll") == 0)
+        if (nlo.starts_with("roll"))
             rolloff = a[i + 1].toScalar();
-        else if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 6), "weight") == 0
-              || nlo.compare(0, std::min<keel::usize>(nlo.size(), 3), "cut") == 0)
+        else if (nlo.starts_with("weight") || nlo.starts_with("cut"))
             cutoff = a[i + 1].toScalar();
         else
-            throw Error("gradientweight: unknown option '" + name + "'",
+            throw Error(keel::format("gradientweight: unknown option '{}'", name),
                         0, 0, "gradientweight", "",
                         "numkit:gradientweight:unknownNv");
         i += 2;
@@ -421,15 +420,13 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     // Strip trailing method string if present.
-    std::string method = "chessboard";
+    keel::String method = keel::String::from("chessboard");
     keel::usize nargs = a.size();
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
-        std::string lo;
-        for (char ch : method)
-            lo += static_cast<char>(std::tolower(
+        for (char &ch : method)
+            ch = static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
-        method = lo;
         --nargs;
     }
 
@@ -505,15 +502,13 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
         numkit::image::internal::requireRealDoubleArg(a[1], "bwdistgeodesic",
                                                   "seedlocs", 2);
 
-    std::string method = "chessboard";
+    keel::String method = keel::String::from("chessboard");
     keel::usize nargs = a.size();
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
-        std::string lo;
-        for (char ch : method)
-            lo += static_cast<char>(std::tolower(
+        for (char &ch : method)
+            ch = static_cast<char>(std::tolower(
                 static_cast<unsigned char>(ch)));
-        method = lo;
         --nargs;
     }
 

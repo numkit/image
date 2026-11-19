@@ -6,10 +6,13 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/math.h>
+#include <keel/string.h>
 #include <numkit/image/region/region.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -25,10 +28,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -49,7 +50,7 @@ Value bwdistChamfer(const Value &BW, double dOrth, double dDiag,
     if (H == 0 || W == 0) return out;
     const double INF = std::numeric_limits<double>::infinity();
 
-    std::vector<double> d(H * W, INF);          // row-major working buffer
+    keel::Array<double> d(H * W, INF);          // row-major working buffer
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < W; ++c)
             if (BW.elemAsDouble(c * H + r) != 0.0) d[r * W + c] = 0.0;
@@ -136,15 +137,15 @@ void cc2bw_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("cc2bw: expected NV-pair name string",
                         0, 0, "cc2bw", "", "numkit:cc2bw:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            nlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (nlo == "objectstokeep") {
             objs = args[i + 1];
         } else {
-            throw Error("cc2bw: unknown option '" + name + "'",
+            throw Error(keel::format("cc2bw: unknown option '{}'", name),
                         0, 0, "cc2bw", "",
                         "numkit:cc2bw:unknownNv");
         }
@@ -212,12 +213,12 @@ void regionprops_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         intensity = args[1];
         propStart = 2;
     }
-    std::vector<std::string> props;
+    keel::Array<keel::String> props;
     for (keel::usize i = propStart; i < args.size(); ++i) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("regionprops: property names must be strings",
                         0, 0, "regionprops", "", "numkit:regionprops:type");
-        props.emplace_back(args[i].toString().as_ref());
+        props.push_back(args[i].toString());
     }
     outs[0] = regionprops(args[0], props, intensity, ctx.engine->allocator());
 }
@@ -232,7 +233,7 @@ static Value bwdist_idx(const Value &BW, int metric, keel::Allocator *mr)
     Value out = Value::matrix(H, W, ValueType::UINT32, mr);
     if (H == 0 || W == 0) return out;
     struct FG { int r, c; keel::u32 lin; };
-    std::vector<FG> fg;
+    keel::Array<FG> fg;
     for (keel::usize c = 0; c < W; ++c)            // column-major → ascending linidx
         for (keel::usize r = 0; r < H; ++r)
             if (BW.elemAsDouble(c * H + r) != 0.0)
@@ -267,7 +268,7 @@ void bwdist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto *mr = ctx.engine->allocator();
 
     // Optional distance metric (default 'euclidean'), case-insensitive.
-    std::string method = "euclidean";
+    keel::String method = keel::String::from("euclidean");
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
         method = args[1].toString();
         for (char &c : method)
@@ -342,9 +343,9 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (a.isEmpty()) continue;
         if (a.isChar() || a.isString()) {
             const keel::String s = a.toString();
-            std::string lo_s;
+            keel::String lo_s;
             lo_s.reserve(s.size());
-            for (char c : s) lo_s.push_back(static_cast<char>(std::tolower(c)));
+            for (char c : s) lo_s.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
             if      (lo_s == "largest")  keep_largest = true;
             else if (lo_s == "smallest") keep_largest = false;
             else throw Error("bwareafilt: keep must be 'largest' or 'smallest'",

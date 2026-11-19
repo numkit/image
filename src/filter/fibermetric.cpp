@@ -36,8 +36,10 @@
 // PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
 
 #define _USE_MATH_DEFINES
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/value/value.hpp>
@@ -48,7 +50,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <vector>
 
 #ifndef M_PI
 #  define M_PI 3.14159265358979323846
@@ -81,10 +82,10 @@ double class_range(ValueType t)
     }
 }
 
-// ── Convert input to working buffer (vector of double) ────────────
+// ── Convert input to working buffer (array of double) ─────────────
 struct Buf {
     keel::usize H = 0, W = 0, D = 1;
-    std::vector<double> v;
+    keel::Array<double> v;
     bool is3d() const { return D > 1; }
     double &at(keel::usize r, keel::usize c, keel::usize z = 0) {
         return v[z * H * W + c * H + r];
@@ -108,10 +109,10 @@ Buf to_double_buf(const Value &V)
 }
 
 // ── 1-D Gaussian kernel, length = 2·radius+1 ─────────────────────
-std::vector<double> gauss1d(double sigma, int radius)
+keel::Array<double> gauss1d(double sigma, int radius)
 {
     const int n = 2 * radius + 1;
-    std::vector<double> k(static_cast<keel::usize>(n));
+    keel::Array<double> k(static_cast<keel::usize>(n));
     double s = 0.0;
     for (int i = 0; i < n; ++i) {
         const double x = i - radius;
@@ -127,10 +128,10 @@ std::vector<double> gauss1d(double sigma, int radius)
 Buf gauss2d(const Buf &In, double sigma)
 {
     const int rad = static_cast<int>(std::ceil(3.0 * sigma));
-    std::vector<double> k = gauss1d(sigma, rad);
+    keel::Array<double> k = gauss1d(sigma, rad);
     const keel::usize H = In.H, W = In.W;
-    Buf tmp; tmp.H = H; tmp.W = W; tmp.D = 1; tmp.v.assign(H * W, 0.0);
-    Buf out = tmp;
+    Buf tmp; tmp.H = H; tmp.W = W; tmp.D = 1; tmp.v.resize(H * W, 0.0);
+    Buf out; out.H = H; out.W = W; out.D = 1; out.v.resize(H * W, 0.0);
     // Rows pass.
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
@@ -160,10 +161,11 @@ Buf gauss2d(const Buf &In, double sigma)
 Buf gauss3d(const Buf &In, double sigma)
 {
     const int rad = static_cast<int>(std::ceil(3.0 * sigma));
-    std::vector<double> k = gauss1d(sigma, rad);
+    keel::Array<double> k = gauss1d(sigma, rad);
     const keel::usize H = In.H, W = In.W, D = In.D;
-    Buf tmp; tmp.H = H; tmp.W = W; tmp.D = D; tmp.v.assign(H * W * D, 0.0);
-    Buf tmp2 = tmp, out = tmp;
+    Buf tmp;  tmp.H = H;  tmp.W = W;  tmp.D = D;  tmp.v.resize(H * W * D, 0.0);
+    Buf tmp2; tmp2.H = H; tmp2.W = W; tmp2.D = D; tmp2.v.resize(H * W * D, 0.0);
+    Buf out;  out.H = H;  out.W = W;  out.D = D;  out.v.resize(H * W * D, 0.0);
     // Rows.
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
@@ -209,7 +211,7 @@ Buf gauss3d(const Buf &In, double sigma)
 Buf frangi2d(const Buf &Ig, double c, bool bright, double sigma)
 {
     const keel::usize H = Ig.H, W = Ig.W;
-    Buf out; out.H = H; out.W = W; out.D = 1; out.v.assign(H * W, 0.0);
+    Buf out; out.H = H; out.W = W; out.D = 1; out.v.resize(H * W, 0.0);
     const double beta_sq2 = 2.0 * kFrangiBeta * kFrangiBeta;
     const double c_sq2    = 2.0 * c * c;
     const double sigma2   = sigma * sigma;
@@ -294,7 +296,7 @@ void eigvals_3x3(double a11, double a22, double a33,
 Buf frangi3d(const Buf &Ig, double c, bool bright, double sigma)
 {
     const keel::usize H = Ig.H, W = Ig.W, D = Ig.D;
-    Buf out; out.H = H; out.W = W; out.D = D; out.v.assign(H * W * D, 0.0);
+    Buf out; out.H = H; out.W = W; out.D = D; out.v.resize(H * W * D, 0.0);
     const double alpha_sq2 = 2.0 * kFrangiAlpha * kFrangiAlpha;
     const double beta_sq2  = 2.0 * kFrangiBeta  * kFrangiBeta;
     const double c_sq2     = 2.0 * c * c;
@@ -367,7 +369,7 @@ Value buf_to_value(const Buf &B, ValueType targetClass,
     return out;
 }
 
-void fibermetric_argcheck(const Value &I, const std::vector<double> &thickness_in,
+void fibermetric_argcheck(const Value &I, keel::ArrayRef<double> thickness_in,
                           double structure_sensitivity)
 {
     const auto &d = I.dims();
@@ -396,7 +398,7 @@ void fibermetric_argcheck(const Value &I, const std::vector<double> &thickness_i
 
 }  // namespace
 
-Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
+Value fibermetric(const Value &I, keel::ArrayRef<double> thickness_in,
                   double structure_sensitivity, bool bright_polarity,
                   keel::Allocator *mr)
 {
@@ -411,8 +413,10 @@ Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
                     0, 0, "fibermetric", "", "numkit:fibermetric:slices");
 
     // Default thickness.
-    std::vector<double> thickness = thickness_in;
-    if (thickness.empty()) thickness = {4, 6, 8, 10, 12, 14};
+    static constexpr double kDefaultThickness[6] = {4.0, 6.0, 8.0, 10.0, 12.0, 14.0};
+    keel::ArrayRef<double> thickness = thickness_in.empty()
+        ? keel::ArrayRef<double>(kDefaultThickness, 6)
+        : thickness_in;
     for (double t : thickness)
         if (!std::isfinite(t) || t <= 0.0 || std::floor(t) != t)
             throw Error("fibermetric: thickness must be a vector of positive "
@@ -434,7 +438,7 @@ Value fibermetric(const Value &I, const std::vector<double> &thickness_in,
 
     Buf In = to_double_buf(I);
     Buf Out; Out.H = In.H; Out.W = In.W; Out.D = In.D;
-    Out.v.assign(In.v.size(), 0.0);
+    Out.v.resize(In.v.size(), 0.0);
 
     for (double t : thickness) {
         const double sigma = t / 6.0;

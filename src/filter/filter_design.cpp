@@ -33,7 +33,9 @@
 //     beyond v1 scope (MATLAB-OOP, blocked by §0).
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/value/value.hpp>
@@ -42,8 +44,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <string>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -124,7 +124,7 @@ Sig3 parseSemiaxes(const Value &v, double defv = 5.0)
                 0, 0, "fspecial3", "", "numkit:fspecial3:BadSemiaxes");
 }
 
-void fspecial3_argcheck(const std::string &type, const Value &a1, const Value &a2)
+void fspecial3_argcheck(keel::StringRef type, const Value &a1, const Value &a2)
 {
     if (type == "average") {
         (void)parseHsize(a1);
@@ -157,7 +157,7 @@ void fspecial3_argcheck(const std::string &type, const Value &a1, const Value &a
         return;
     }
     if (type == "sobel" || type == "prewitt") {
-        std::string dir = "X";
+        keel::String dir = keel::String::from("X");
         if (!a1.isEmpty() && !a1.isUnset() && (a1.isChar() || a1.isString()))
             dir = a1.toString();
         if (dir != "X" && dir != "x" && dir != "Y" && dir != "y" &&
@@ -166,7 +166,7 @@ void fspecial3_argcheck(const std::string &type, const Value &a1, const Value &a
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadDir");
         return;
     }
-    throw Error("fspecial3: unsupported type '" + type + "'",
+    throw Error(keel::format("fspecial3: unsupported type '{}'", type),
                 0, 0, "fspecial3", "", "numkit:fspecial3:BadType");
 }
 
@@ -190,7 +190,7 @@ void fwind2_argcheck(const Value &Hd, const Value &w)
 //   ellipsoid:      a1 = semiaxes
 //   laplacian:      a1 = gamma1,   a2 = gamma2
 //   prewitt/sobel:  a1 = direction
-Value fspecial3(const std::string &type, const Value &a1, const Value &a2,
+Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
                 keel::Allocator *mr)
 {
     fspecial3_argcheck(type, a1, a2);
@@ -338,7 +338,7 @@ Value fspecial3(const std::string &type, const Value &a1, const Value &a2,
         // Separable 3×3×3 gradient. Derivative [+1, 0, −1] along the chosen
         // axis (X→cols, Y→rows, Z→pages); smoothing [1 1 1] (prewitt) /
         // [1 2 1] (sobel) along the other two axes.
-        std::string dir = "X";
+        keel::String dir = keel::String::from("X");
         if (!a1.isEmpty() && !a1.isUnset() && (a1.isChar() || a1.isString()))
             dir = a1.toString();
         const bool isSobel = (type == "sobel");
@@ -358,7 +358,7 @@ Value fspecial3(const std::string &type, const Value &a1, const Value &a2,
         });
     }
 
-    throw Error("fspecial3: unsupported type '" + type + "'",
+    throw Error(keel::format("fspecial3: unsupported type '{}'", type),
                 0, 0, "fspecial3", "", "numkit:fspecial3:BadType");
 }
 

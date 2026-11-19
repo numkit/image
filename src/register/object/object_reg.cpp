@@ -8,8 +8,10 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/image/object/object.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -24,7 +26,6 @@
 #include <cctype>
 #include <cmath>
 #include <cstddef>
-#include <string>
 #include <utility>
 
 namespace numkit::image {
@@ -32,16 +33,15 @@ namespace numkit::image {
 namespace detail {
 
 namespace {
-std::string parse_method(keel::ArrayRef<Value> args, keel::usize i, const std::string &def) {
+keel::String parse_method(keel::ArrayRef<Value> args, keel::usize i, keel::StringRef def) {
     if (i < args.size() && (args[i].isChar() || args[i].isString())) {
         // MATLAB method names ('Canny', 'Sobel', 'Roberts', …) are
         // case-insensitive; downstream comparisons are all lowercase.
-        std::string s(args[i].toString().as_ref());
-        std::transform(s.begin(), s.end(), s.begin(),
-                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        keel::String s = args[i].toString();
+        for (char &ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         return s;
     }
-    return def;
+    return keel::String::from(def);
 }
 }
 
@@ -137,24 +137,24 @@ void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const Value &I = args[0];
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    std::string method = "Harris";
+    keel::String method = keel::String::from("Harris");
     double sensitivity = 0.04;
     Value filter_coef;
     keel::usize i = 1;
     if (i < args.size() && is_string(args[i])) {
-        std::string m(args[i].toString().as_ref());
-        std::string mlo;
+        keel::String m = args[i].toString();
+        keel::String mlo;
         for (char ch : m)
-            mlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            mlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (m == "Harris" || m == "MinimumEigenvalue") {
-            method = m;
+            method = keel::move(m);
             ++i;
         } else if (mlo == "sensitivityfactor" || mlo == "filtercoefficients") {
             // It's an NV pair name — leave i for NV parsing below.
         } else {
-            throw Error("cornermetric: METHOD must be 'Harris' or "
-                        "'MinimumEigenvalue' (got '" + m + "')",
+            throw Error(keel::format("cornermetric: METHOD must be 'Harris' or "
+                                     "'MinimumEigenvalue' (got '{}')", m),
                         0, 0, "cornermetric", "",
                         "numkit:cornermetric:method");
         }
@@ -163,17 +163,17 @@ void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("cornermetric: expected NV-pair name",
                         0, 0, "cornermetric", "", "numkit:cornermetric:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            nlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (nlo == "filtercoefficients") {
             filter_coef = args[i + 1];
         } else if (nlo == "sensitivityfactor") {
             sensitivity = args[i + 1].toScalar();
         } else {
-            throw Error("cornermetric: unknown option '" + name + "'",
+            throw Error(keel::format("cornermetric: unknown option '{}'", name),
                         0, 0, "cornermetric", "",
                         "numkit:cornermetric:unknownNv");
         }
@@ -191,7 +191,7 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const Value &I = args[0];
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    std::string method = "Harris";
+    keel::String method = keel::String::from("Harris");
     int maxN = 200;
     double quality = 0.01;
     double sensitivity = 0.04;
@@ -200,9 +200,9 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     // Optional positional METHOD.
     if (i < args.size() && is_string(args[i])) {
-        std::string m(args[i].toString().as_ref());
+        keel::String m = args[i].toString();
         if (m == "Harris" || m == "MinimumEigenvalue") {
-            method = m;
+            method = keel::move(m);
             ++i;
         }   // else: an NV-pair name — leave for the loop below.
     }
@@ -218,10 +218,10 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("corner: expected NV-pair name",
                         0, 0, "corner", "", "numkit:corner:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            nlo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
         if (nlo == "qualitylevel") {
             quality = args[i + 1].toScalar();
         } else if (nlo == "sensitivityfactor") {
@@ -229,7 +229,7 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         } else if (nlo == "filtercoefficients") {
             filter_coef = args[i + 1];
         } else {
-            throw Error("corner: unknown option '" + name + "'",
+            throw Error(keel::format("corner: unknown option '{}'", name),
                         0, 0, "corner", "", "numkit:corner:unknownNv");
         }
         i += 2;
@@ -250,16 +250,16 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!is_string(args[i]))
             throw Error("hough: expected NV-pair name",
                         0, 0, "hough", "", "numkit:hough:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 4), "rhor") == 0) {
+            nlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
+        if (nlo.starts_with("rhor")) {
             rho_res = args[i + 1].toScalar();
         } else if (nlo == "theta") {
             theta_deg = args[i + 1];
-        } else if (nlo.compare(0, std::min<keel::usize>(nlo.size(), 6), "thetar") == 0) {
+        } else if (nlo.starts_with("thetar")) {
             // 'ThetaResolution' (legacy): build theta = -90:tr:89.
             const double tr = args[i + 1].toScalar();
             const int n = static_cast<int>(std::ceil(90.0 / tr));
@@ -270,7 +270,7 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             for (keel::usize kk = 0; kk < tv.size(); ++kk)
                 theta_deg.doubleDataMut()[kk] = tv[kk];
         } else {
-            throw Error("hough: unknown option '" + name + "'",
+            throw Error(keel::format("hough: unknown option '{}'", name),
                         0, 0, "hough", "", "numkit:hough:unknownNv");
         }
         i += 2;
@@ -295,17 +295,17 @@ void houghlines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("houghlines: expected NV-pair name",
                         0, 0, "houghlines", "", "numkit:houghlines:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            nlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (nlo == "fillgap") {
             fillgap = args[i + 1].toScalar();
         } else if (nlo == "minlength") {
             minlength = args[i + 1].toScalar();
         } else {
-            throw Error("houghlines: unknown option '" + name + "'",
+            throw Error(keel::format("houghlines: unknown option '{}'", name),
                         0, 0, "houghlines", "",
                         "numkit:houghlines:unknownNv");
         }
@@ -340,11 +340,11 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!is_string(args[i]))
             throw Error("houghpeaks: expected NV-pair name",
                         0, 0, "houghpeaks", "", "numkit:houghpeaks:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
+        keel::String name = args[i].toString();
+        keel::String nlo;
         for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
+            nlo.push_back(static_cast<char>(std::tolower(
+                static_cast<unsigned char>(ch))));
         if (nlo == "threshold") {
             threshold = args[i + 1].toScalar();
             if (!(threshold >= 0.0))
@@ -372,7 +372,7 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         } else if (nlo == "theta") {
             theta_deg = args[i + 1];
         } else {
-            throw Error("houghpeaks: unknown option '" + name + "'",
+            throw Error(keel::format("houghpeaks: unknown option '{}'", name),
                         0, 0, "houghpeaks", "",
                         "numkit:houghpeaks:unknownNv");
         }
@@ -397,8 +397,8 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     const double rmin = rr.elemAsDouble(0);
     const double rmax = (rr.numel() == 2) ? rr.elemAsDouble(1) : rmin;
 
-    std::string object_polarity = "bright";
-    std::string method = "PhaseCode";
+    keel::String object_polarity = keel::String::from("bright");
+    keel::String method = keel::String::from("PhaseCode");
     double sensitivity = 0.85;
     double edge_threshold = -1.0;
 
@@ -409,37 +409,37 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     }
     for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
         if (!is_string(args[i])) {
-            throw Error("imfindcircles: expected option name string at argument "
-                            + std::to_string(i + 1) + ".",
+            throw Error(keel::format("imfindcircles: expected option name string at argument {}.",
+                                     i + 1),
                         0, 0, "imfindcircles", "", "numkit:imfindcircles:badNvName");
         }
-        std::string name(args[i].toString().as_ref());
-        std::string nlo = name;
+        keel::String name = args[i].toString();
+        keel::String nlo = name.clone();
         for (char &ch : nlo) {
             ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         }
-        if (!nlo.empty() && std::string("objectpolarity").find(nlo) == 0) {
+        if (!nlo.empty() && keel::StringRef("objectpolarity").starts_with(nlo)) {
             if (!is_string(args[i + 1])) {
                 throw Error("imfindcircles: ObjectPolarity must be a string.",
                             0, 0, "imfindcircles", "",
                             "numkit:imfindcircles:badObjectPolarity");
             }
             object_polarity = args[i + 1].toString();
-        } else if (!nlo.empty() && std::string("method").find(nlo) == 0) {
+        } else if (!nlo.empty() && keel::StringRef("method").starts_with(nlo)) {
             if (!is_string(args[i + 1])) {
                 throw Error("imfindcircles: Method must be a string.",
                             0, 0, "imfindcircles", "",
                             "numkit:imfindcircles:badMethod");
             }
             method = args[i + 1].toString();
-        } else if (!nlo.empty() && std::string("sensitivity").find(nlo) == 0) {
+        } else if (!nlo.empty() && keel::StringRef("sensitivity").starts_with(nlo)) {
             if (args[i + 1].numel() != 1 || !args[i + 1].isNumeric() || args[i + 1].isComplex()) {
                 throw Error("imfindcircles: Sensitivity must be a real numeric scalar.",
                             0, 0, "imfindcircles", "",
                             "numkit:imfindcircles:badSensitivity");
             }
             sensitivity = args[i + 1].toScalar();
-        } else if (!nlo.empty() && std::string("edgethreshold").find(nlo) == 0) {
+        } else if (!nlo.empty() && keel::StringRef("edgethreshold").starts_with(nlo)) {
             if (args[i + 1].isEmpty()) {
                 edge_threshold = -1.0;
             } else if (args[i + 1].numel() == 1 && args[i + 1].isNumeric() && !args[i + 1].isComplex()) {
@@ -450,7 +450,7 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                             "numkit:imfindcircles:badEdgeThreshold");
             }
         } else {
-            throw Error("imfindcircles: unrecognized parameter name '" + name + "'.",
+            throw Error(keel::format("imfindcircles: unrecognized parameter name '{}'.", name),
                         0, 0, "imfindcircles", "",
                         "numkit:imfindcircles:unknownOption");
         }

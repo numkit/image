@@ -7,7 +7,9 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/filter/filter.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -16,13 +18,10 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -59,20 +58,12 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             throw Error("locallapfilt: expected NV-pair name string",
                         0, 0, "locallapfilt", "",
                         "numkit:locallapfilt:badNv");
-        std::string name(args[i].toString().as_ref());
-        std::string nlo;
-        for (char ch : name)
-            nlo += static_cast<char>(std::tolower(
-                static_cast<unsigned char>(ch)));
-        if (nlo == "numintensitylevels") {
+        keel::String name = args[i].toString();
+        if (name.as_ref().equals_ignore_ascii_case("numintensitylevels")) {
             const Value &v = args[i + 1];
             if (is_string(v)) {
-                std::string s(v.toString().as_ref());
-                std::string slo;
-                for (char ch : s)
-                    slo += static_cast<char>(std::tolower(
-                        static_cast<unsigned char>(ch)));
-                if (slo != "auto")
+                keel::String s = v.toString();
+                if (!s.as_ref().equals_ignore_ascii_case("auto"))
                     throw Error("locallapfilt: NumIntensityLevels string "
                                 "must be 'auto'",
                                 0, 0, "locallapfilt", "",
@@ -86,20 +77,16 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                                 0, 0, "locallapfilt", "",
                                 "numkit:locallapfilt:nIntRange");
             }
-        } else if (nlo == "colormode") {
-            std::string s(args[i + 1].toString().as_ref());
-            std::string slo;
-            for (char ch : s)
-                slo += static_cast<char>(std::tolower(
-                    static_cast<unsigned char>(ch)));
-            if (slo == "luminance")     processLuminance = true;
-            else if (slo == "separate") processLuminance = false;
+        } else if (name.as_ref().equals_ignore_ascii_case("colormode")) {
+            keel::String s = args[i + 1].toString();
+            if (s.as_ref().equals_ignore_ascii_case("luminance"))     processLuminance = true;
+            else if (s.as_ref().equals_ignore_ascii_case("separate")) processLuminance = false;
             else throw Error("locallapfilt: ColorMode must be 'luminance' or "
                              "'separate'",
                              0, 0, "locallapfilt", "",
                              "numkit:locallapfilt:colorMode");
         } else {
-            throw Error("locallapfilt: unknown option '" + name + "'",
+            throw Error(keel::format("locallapfilt: unknown option '{}'", name),
                         0, 0, "locallapfilt", "",
                         "numkit:locallapfilt:unknownNv");
         }

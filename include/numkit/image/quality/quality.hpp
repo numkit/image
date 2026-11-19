@@ -6,9 +6,10 @@
 
 #pragma once
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
-#include <vector>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::image {
@@ -148,9 +149,9 @@ Value std2(const Value &A, keel::Allocator *mr = nullptr);
 ///                          `(-1, 1]` (1 = identical).
 Value multissim(const Value &A, const Value &Iref,
                 int num_scales,
-                const std::vector<keel::f64> &scale_weights,
+                keel::ArrayRef<keel::f64> scale_weights,
                 keel::f64 sigma, keel::f64 dynamic_range,
-                std::vector<Value> *quality_maps_out,
+                keel::Array<Value> *quality_maps_out,
                 keel::Allocator *mr = nullptr);
 
 /// @brief 3-D multi-scale SSIM
@@ -186,9 +187,9 @@ Value multissim(const Value &A, const Value &Iref,
 ///                          SINGLE otherwise).
 Value multissim3(const Value &V, const Value &Vref,
                  int num_scales,
-                 const std::vector<keel::f64> &scale_weights,
+                 keel::ArrayRef<keel::f64> scale_weights,
                  keel::f64 sigma, keel::f64 dynamic_range,
-                 std::vector<Value> *quality_maps_out,
+                 keel::Array<Value> *quality_maps_out,
                  keel::Allocator *mr = nullptr);
 
 

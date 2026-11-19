@@ -49,6 +49,7 @@
 //
 // PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <numkit/image/filter/filter.hpp>
@@ -61,7 +62,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <vector>
 
 namespace numkit::image {
 namespace {
@@ -85,9 +85,16 @@ constexpr float kU4 = 2.0f / 16.0f;
 // A 2-D plane buffer (single precision, column-major to match Value).
 struct Plane {
     keel::usize H = 0, W = 0;
-    std::vector<float> v;
+    keel::Array<float> v;
     Plane() = default;
     Plane(keel::usize h, keel::usize w) : H(h), W(w), v(h * w, 0.0f) {}
+    Plane clone() const {
+        Plane p;
+        p.H = H;
+        p.W = W;
+        p.v = v.clone();
+        return p;
+    }
     float &at(keel::usize r, keel::usize c) { return v[c * H + r]; }
     float at(keel::usize r, keel::usize c) const { return v[c * H + r]; }
 };
@@ -278,25 +285,24 @@ Plane llf_core(const Plane &input, float sigma, float alpha, float beta,
 
     // ── Special case 2: flat image ──────────────────────────────
     if (minVal == maxVal) {
-        Plane out = input;
-        return out;
+        return input.clone();
     }
 
     // ── Gaussian pyramid of input ───────────────────────────────
-    std::vector<Plane> inG(numPyramidLevels);
-    inG[0] = input;
+    keel::Array<Plane> inG(static_cast<keel::usize>(numPyramidLevels));
+    inG[0] = input.clone();
     for (int i = 1; i < numPyramidLevels; ++i)
         inG[i] = pyrdownsample(inG[i - 1]);
 
     // ── Output Laplacian pyramid; top level = top Gaussian ──────
-    std::vector<Plane> outL(numPyramidLevels);
-    outL[numPyramidLevels - 1] = inG[numPyramidLevels - 1];
+    keel::Array<Plane> outL(static_cast<keel::usize>(numPyramidLevels));
+    outL[numPyramidLevels - 1] = inG[numPyramidLevels - 1].clone();
     for (int i = 0; i < numPyramidLevels - 1; ++i)
         outL[i] = Plane(inG[i].H, inG[i].W);   // zeroed
 
     // ── Sequentially accumulate over N intensity samples ───────
     const float delta = (maxVal - minVal) / float(numIntensityLevels - 1);
-    std::vector<Plane> rG(numPyramidLevels);
+    keel::Array<Plane> rG(static_cast<keel::usize>(numPyramidLevels));
     for (int k = 0; k < numIntensityLevels; ++k) {
         const float refVal = minVal + float(k) * delta;
         rG[0] = remap_image(input, refVal, sigma, alpha, beta);
@@ -321,7 +327,7 @@ Plane llf_core(const Plane &input, float sigma, float alpha, float beta,
         for (keel::usize j = 0; j < outL[i].v.size(); ++j)
             outL[i].v[j] += up.v[j];
     }
-    return outL[0];
+    return std::move(outL[0]);
 }
 
 // ── Convert RGB → luminance with the MATLAB-specific weights ─────
@@ -338,7 +344,7 @@ RGBSplit rgb_to_gray_with_ratios(const Plane &R, const Plane &G, const Plane &B)
     const float eps_s = std::numeric_limits<float>::epsilon();
     RGBSplit s;
     s.gray = Plane(R.H, R.W);
-    s.r = R; s.g = G; s.b = B;
+    s.r = R.clone(); s.g = G.clone(); s.b = B.clone();
     s.ratio_r = Plane(R.H, R.W);
     s.ratio_g = Plane(R.H, R.W);
     s.ratio_b = Plane(R.H, R.W);

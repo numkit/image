@@ -33,15 +33,15 @@ inline Value maskImageByLogical(const Value &I, const Value &mask,
 #include <numkit/value/error.hpp>
 #include <numkit/value/fn_handle.hpp>
 
+#include <keel/format.h>
+#include <keel/hash_set.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <set>
 #include <utility>
-#include <vector>
 
 #include "bwmorph_luts.h"
 
@@ -53,7 +53,7 @@ namespace numkit::image {
 
 namespace {
 
-Value pack_logical(const std::vector<keel::u8> &mask, int rows, int cols, keel::Allocator *mr)
+Value pack_logical(keel::ArrayRef<keel::u8> mask, int rows, int cols, keel::Allocator *mr)
 {
     Value out = Value::matrix(rows, cols, ValueType::LOGICAL, mr);
     if (mask.empty()) return out;
@@ -68,21 +68,21 @@ Value pack_logical(const std::vector<keel::u8> &mask, int rows, int cols, keel::
 
 Value strel_square(int N, keel::Allocator *mr) {
     if (N < 1) N = 1;
-    std::vector<keel::u8> m((keel::usize)N * (keel::usize)N, 1);
+    keel::Array<keel::u8> m((keel::usize)N * (keel::usize)N, 1);
     return pack_logical(m, N, N, mr);
 }
 
 Value strel_rect(int rows, int cols, keel::Allocator *mr) {
     if (rows < 1) rows = 1;
     if (cols < 1) cols = 1;
-    std::vector<keel::u8> m((keel::usize)rows * (keel::usize)cols, 1);
+    keel::Array<keel::u8> m((keel::usize)rows * (keel::usize)cols, 1);
     return pack_logical(m, rows, cols, mr);
 }
 
 Value strel_diamond(int r, keel::Allocator *mr) {
     if (r < 1) r = 1;
     const int N = 2 * r + 1;
-    std::vector<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
+    keel::Array<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j)
             if (keel::abs(i - r) + keel::abs(j - r) <= r)
@@ -94,7 +94,7 @@ Value strel_diamond(int r, keel::Allocator *mr) {
 Value strel_disk_euclidean(double r, keel::Allocator *mr) {
     const int R = (int)std::ceil(r);
     const int N = 2 * R + 1;
-    std::vector<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
+    keel::Array<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
     const double r2 = r * r;
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j) {
@@ -105,13 +105,26 @@ Value strel_disk_euclidean(double r, keel::Allocator *mr) {
     return pack_logical(m, N, N, mr);
 }
 
+struct GridPt {
+    int r = 0, c = 0;
+    bool operator==(const GridPt &o) const noexcept { return r == o.r && c == o.c; }
+};
+struct GridPtHash {
+    keel::u64 operator()(const GridPt &p) const noexcept {
+        const keel::u64 k = (static_cast<keel::u64>(static_cast<keel::u32>(p.r)) << 32)
+                          | static_cast<keel::u64>(static_cast<keel::u32>(p.c));
+        return keel::Hash<keel::u64>{}(k);
+    }
+};
+using GridPtSet = keel::HashSet<GridPt, GridPtHash>;
+
 // Minkowski sum (morphological dilation of point sets): P ⊕ {j·v : -rp≤j≤rp}.
-void minksum_periodic(std::set<std::pair<int,int>> &P, int vr, int vc, int rp) {
-    std::set<std::pair<int,int>> out;
+void minksum_periodic(GridPtSet &P, int vr, int vc, int rp) {
+    GridPtSet out;
     for (const auto &p : P)
         for (int j = -rp; j <= rp; ++j)
-            out.emplace(p.first + j * vr, p.second + j * vc);
-    P.swap(out);
+            out.insert(GridPt{p.r + j * vr, p.c + j * vc});
+    P = keel::move(out);
 }
 
 // strel('disk', R, N): MATLAB R2025b. For R<3 or N==0 a true Euclidean
@@ -142,8 +155,8 @@ Value strel_disk(double r_in, int n, keel::Allocator *mr) {
     const double k = 2.0 * (double)r /
                      (1.0 / std::tan(theta) + 1.0 / std::sin(theta));
 
-    std::set<std::pair<int,int>> P;
-    P.emplace(0, 0);
+    GridPtSet P;
+    P.insert(GridPt{0, 0});
     for (int q = 0; q < nb; ++q) {
         const int vr = V[q].first, vc = V[q].second;
         const double norm = std::hypot((double)vr, (double)vc);
@@ -153,7 +166,7 @@ Value strel_disk(double r_in, int n, keel::Allocator *mr) {
 
     // The decomposition is a little small; pad with H/V line strels.
     int maxRow = 0;
-    for (const auto &p : P) maxRow = std::max(maxRow, keel::abs(p.first));
+    for (const auto &p : P) maxRow = std::max(maxRow, keel::abs(p.r));
     const int radial_difference = r - maxRow;
     const int len = 2 * (radial_difference - 1) + 1;
     if (len >= 3) {
@@ -163,12 +176,12 @@ Value strel_disk(double r_in, int n, keel::Allocator *mr) {
     }
 
     int R = 0, C = 0;
-    for (const auto &p : P) { R = std::max(R, keel::abs(p.first));
-                             C = std::max(C, keel::abs(p.second)); }
+    for (const auto &p : P) { R = std::max(R, keel::abs(p.r));
+                             C = std::max(C, keel::abs(p.c)); }
     const int H = 2 * R + 1, W = 2 * C + 1;
-    std::vector<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
+    keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
     for (const auto &p : P)
-        m[(keel::usize)(p.first + R) * (keel::usize)W + (keel::usize)(p.second + C)] = 1;
+        m[(keel::usize)(p.r + R) * (keel::usize)W + (keel::usize)(p.c + C)] = 1;
     return pack_logical(m, H, W, mr);
 }
 
@@ -179,7 +192,7 @@ Value strel_line(double len, double theta_deg, keel::Allocator *mr) {
     const double cy = (len - 1) * 0.5 * std::sin(th);
     const int W = std::max(1, (int)std::ceil(2.0 * std::fabs(cx) + 1.0));
     const int H = std::max(1, (int)std::ceil(2.0 * std::fabs(cy) + 1.0));
-    std::vector<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
+    keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
     const double r0 = (H - 1) * 0.5;
     const double c0 = (W - 1) * 0.5;
     const int Nstep = std::max(1, (int)std::ceil(len));
@@ -193,7 +206,7 @@ Value strel_line(double len, double theta_deg, keel::Allocator *mr) {
     return pack_logical(m, H, W, mr);
 }
 
-void strel_argcheck(const std::string &shape, const Value &arbitrary_nhood)
+void strel_argcheck(keel::StringRef shape, const Value &arbitrary_nhood)
 {
     if (shape == "arbitrary" || shape.empty()) {
         if (arbitrary_nhood.numel() == 0)
@@ -201,14 +214,14 @@ void strel_argcheck(const std::string &shape, const Value &arbitrary_nhood)
                         0, 0, "strel", "", "numkit:strel:nargin");
     } else if (shape != "square" && shape != "rectangle" &&
                shape != "diamond" && shape != "disk" && shape != "line") {
-        throw Error("strel: unknown shape '" + shape + "'", 0, 0, "strel", "",
+        throw Error(keel::format("strel: unknown shape '{}'", shape), 0, 0, "strel", "",
                     "numkit:strel:badshape");
     }
 }
 
 } // anonymous
 
-Value strel(const std::string &shape, const std::vector<double> &params, const Value &arbitrary_nhood, keel::Allocator *mr)
+Value strel(keel::StringRef shape, keel::ArrayRef<double> params, const Value &arbitrary_nhood, keel::Allocator *mr)
 {
     strel_argcheck(shape, arbitrary_nhood);
     // Compute the raw logical neighbourhood, then wrap it in a 1x1
@@ -239,7 +252,7 @@ Value strel(const std::string &shape, const std::vector<double> &params, const V
         const auto &d = arbitrary_nhood.dims();
         const int H = (int)d.rows();
         const int W = (int)d.cols();
-        std::vector<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
+        keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
         for (int c = 0; c < W; ++c)
             for (int r = 0; r < H; ++r) {
                 const double v = arbitrary_nhood.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
@@ -289,7 +302,7 @@ inline void store_classed_morph(Value &out, keel::usize i, double v, ValueType t
 struct SEInfo {
     int H, W;
     int half_r, half_c;
-    std::vector<keel::u8> mask;  // row-major
+    keel::Array<keel::u8> mask;  // row-major
 };
 
 SEInfo unpack_se(const Value &SE) {
@@ -333,7 +346,7 @@ Value morph_flat_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
 
     // Marked offsets (dr, dc) relative to centre, plus their extent.
     struct Off { int dr, dc; };
-    std::vector<Off> off;
+    keel::Array<Off> off;
     off.reserve((keel::usize)se.H * (keel::usize)se.W);
     int drMin = 0, drMax = 0, dcMin = 0, dcMax = 0;
     for (int kj = 0; kj < se.W; ++kj)
@@ -469,9 +482,9 @@ Value morph_vanherk_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
     // vertical reduce V once per DISTINCT run and reuse it for every column
     // that shares it — fewer of the (scalar) vertical passes.
     struct Run { int lo, hi; };
-    std::vector<Run> runs;
-    std::vector<int> colRun;   // SE-column index (with marked pixels) → run id
-    std::vector<int> colDc;    // …and its horizontal shift
+    keel::Array<Run> runs;
+    keel::Array<int> colRun;   // SE-column index (with marked pixels) → run id
+    keel::Array<int> colDc;    // …and its horizontal shift
     int maxK = 1;
     for (int kj = 0; kj < se.W; ++kj) {
         int kiLo = -1, kiHi = -1;
@@ -583,10 +596,9 @@ void imreconstruct_argcheck(const Value &marker, const Value &mask)
     internal::requireImageClass(mask, "imreconstruct", "mask", 2,
                                 internal::ImgClasses::AnyNumericReal);
     if (marker.type() != mask.type())
-        throw Error("imreconstruct: marker and mask must have the same "
-                        "class (got "
-                        + std::string(mtypeName(marker.type())) + " and "
-                        + std::string(mtypeName(mask.type())) + ").",
+        throw Error(keel::format("imreconstruct: marker and mask must have the same "
+                                 "class (got {} and {}).",
+                                 mtypeName(marker.type()), mtypeName(mask.type())),
                     0, 0, "imreconstruct", "",
                     "numkit:imreconstruct:notSameClass");
     if (mask.dims().rows() != marker.dims().rows()
@@ -1257,7 +1269,7 @@ void bwlookup_argcheck(const Value &lut)
                     0, 0, "bwlookup", "", "numkit:bwlookup:lutsize");
 }
 
-void bwmorph3_argcheck(const Value &V, const std::string &op, int &opIdx)
+void bwmorph3_argcheck(const Value &V, keel::StringRef op, int &opIdx)
 {
     if      (op == "branchpoints") opIdx = 0;
     else if (op == "clean")        opIdx = 1;
@@ -1265,7 +1277,7 @@ void bwmorph3_argcheck(const Value &V, const std::string &op, int &opIdx)
     else if (op == "fill")         opIdx = 3;
     else if (op == "majority")     opIdx = 4;
     else if (op == "remove")       opIdx = 5;
-    else throw Error("bwmorph3: unknown operation '" + op + "'",
+    else throw Error(keel::format("bwmorph3: unknown operation '{}'", op),
                      0, 0, "bwmorph3", "", "numkit:bwmorph3:badOp");
 
     if (V.dims().ndim() > 3)
@@ -1501,7 +1513,7 @@ Value bwlookup(const Value &BW, const Value &lut, keel::Allocator *mr)
 //   fill         : centre set  OR   faces6 == 6  (fill 6-conn holes)
 //   majority     : count > 13                    (≥14 of 27)
 //   remove       : centre set  AND  faces6 != 6  (strip interior voxels)
-Value bwmorph3(const Value &V, const std::string &op, keel::Allocator *mr)
+Value bwmorph3(const Value &V, keel::StringRef op, keel::Allocator *mr)
 {
     int opIdx = 0;
     bwmorph3_argcheck(V, op, opIdx);
@@ -1933,7 +1945,7 @@ void opBranchpoints(keel::u8 *bw, keel::usize R, keel::usize C,
 // Single-pass dispatch — runs ONE pass of `op` on `bw` in place.
 // Returns false if `op` is not a recognised operation.
 // ──────────────────────────────────────────────────────────────────
-bool runOnePass(const std::string &op, keel::u8 *bw,
+bool runOnePass(keel::StringRef op, keel::u8 *bw,
                 keel::usize R, keel::usize C, keel::u8 *tmp,
                 const keel::ArenaTemp &arena)
 {
@@ -2035,7 +2047,7 @@ bool runOnePass(const std::string &op, keel::u8 *bw,
     return false;  // unknown operation
 }
 
-void bwmorph_argcheck(const Value &BW, const std::string &op)
+void bwmorph_argcheck(const Value &BW, keel::StringRef op)
 {
     internal::requireImageClass(BW, "bwmorph", "BW", 1,
                                 internal::ImgClasses::AnyNumericReal);
@@ -2057,7 +2069,7 @@ void bwmorph_argcheck(const Value &BW, const std::string &op)
         }
     }
     if (!recognised)
-        throw numkit::Error("bwmorph: unknown operation '" + op + "'",
+        throw numkit::Error(keel::format("bwmorph: unknown operation '{}'", op),
                             0, 0, "bwmorph", "",
                             "numkit:bwmorph:badOp");
 }
@@ -2067,7 +2079,7 @@ void bwmorph_argcheck(const Value &BW, const std::string &op)
 // ──────────────────────────────────────────────────────────────────
 // The iteration framework — public entry point.
 // ──────────────────────────────────────────────────────────────────
-Value bwmorph(const Value &BW, const std::string &op, int n,
+Value bwmorph(const Value &BW, keel::StringRef op, int n,
               keel::Allocator *mr)
 {
     bwmorph_argcheck(BW, op);
@@ -2114,7 +2126,7 @@ Value bwmorph(const Value &BW, const std::string &op, int n,
         const bool ok =
             runOnePass(op, bw.data(), R, C, tmp.data(), passArena);
         if (!ok)
-            throw numkit::Error("bwmorph: unknown operation '" + op + "'",
+            throw numkit::Error(keel::format("bwmorph: unknown operation '{}'", op),
                                 0, 0, "bwmorph", "",
                                 "numkit:bwmorph:badOp");
 
@@ -2152,7 +2164,7 @@ const int kDc8[8] = { 0,  1,  1,  1,  0, -1, -1, -1};
 const int kDr4[4] = {-1,  0,  1,  0};
 const int kDc4[4] = { 0,  1,  0, -1};
 
-int name_to_dir8(const std::string &s) {
+int name_to_dir8(keel::StringRef s) {
     if (s == "N")  return 0;
     if (s == "NE") return 1;
     if (s == "E")  return 2;
@@ -2163,7 +2175,7 @@ int name_to_dir8(const std::string &s) {
     if (s == "NW") return 7;
     return -1;
 }
-int name_to_dir4(const std::string &s) {
+int name_to_dir4(keel::StringRef s) {
     if (s == "N") return 0;
     if (s == "E") return 1;
     if (s == "S") return 2;
@@ -2172,8 +2184,8 @@ int name_to_dir4(const std::string &s) {
 }
 
 void bwtraceboundary_argcheck(const Value &BW, const Value &P,
-                              const std::string &fstep, int conn,
-                              const std::string &dir,
+                              keel::StringRef fstep, int conn,
+                              keel::StringRef dir,
                               long &pr, long &pc, int &fidx)
 {
     internal::requireImageClass(BW, "bwtraceboundary", "BW", 1,
@@ -2234,8 +2246,8 @@ void makelut_argcheck(int n)
 } // anonymous
 
 Value bwtraceboundary(const Value &BW, const Value &P,
-                      const std::string &fstep, int conn,
-                      keel::usize m, const std::string &dir,
+                      keel::StringRef fstep, int conn,
+                      keel::usize m, keel::StringRef dir,
                       keel::Allocator *mr)
 {
     long pr = 0, pc = 0;

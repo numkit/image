@@ -11,7 +11,6 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
-#include <string>
 #include <tuple>
 
 namespace numkit::image {
@@ -130,7 +129,7 @@ Value psf2otf(const Value &PSF, keel::ArrayRef<keel::usize> outsize = {},
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       Convolution result.
 /// @throws Error  Unknown `shape` (`m:fftconv2:shape`).
-Value fftconv2(const Value &A, const Value &B, const std::string &shape,
+Value fftconv2(const Value &A, const Value &B, keel::StringRef shape,
                keel::Allocator *mr = nullptr);
 
 /// @brief Wiener deconvolution (`J = deconvwnr(I, PSF, NSR)` /

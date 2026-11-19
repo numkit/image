@@ -6,11 +6,9 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
-
-#include <string>
-#include <vector>
 
 namespace numkit::image {
 
@@ -47,7 +45,7 @@ namespace numkit::image {
 /// @return                 LOGICAL matrix (1 = neighbourhood pixel).
 /// @throws Error           Unknown shape (`m:strel:badShape`).
 /// @see imerode, imdilate
-Value strel(const std::string &shape, const std::vector<keel::f64> &params,
+Value strel(keel::StringRef shape, keel::ArrayRef<keel::f64> params,
             const Value &arbitrary_nhood,
             keel::Allocator *mr = nullptr);
 
@@ -403,7 +401,7 @@ Value makelut(FnHandle fun, int n,
 /// @return     LOGICAL volume, same size as `V`.
 /// @throws Error  Unknown operation, or rank > 3.
 /// @see bwmorph, bwskel, imerode, imdilate
-Value bwmorph3(const Value &V, const std::string &op,
+Value bwmorph3(const Value &V, keel::StringRef op,
                keel::Allocator *mr = nullptr);
 
 /// @brief Binary hit-or-miss transform (`J = bwhitmiss(BW, se1, se2)`).
@@ -444,7 +442,7 @@ Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Processed binary image.
 /// @throws Error  Unknown `op` (`m:bwmorph:badOp`).
-Value bwmorph(const Value &BW, const std::string &op, int n,
+Value bwmorph(const Value &BW, keel::StringRef op, int n,
               keel::Allocator *mr = nullptr);
 
 /// @brief Trace object boundary in a binary image
@@ -482,8 +480,8 @@ Value bwmorph(const Value &BW, const std::string &op, int n,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         `Q × 2` DOUBLE matrix of `[row, col]` pixels.
 Value bwtraceboundary(const Value &BW, const Value &P,
-                      const std::string &fstep, int conn,
-                      keel::usize m, const std::string &dir,
+                      keel::StringRef fstep, int conn,
+                      keel::usize m, keel::StringRef dir,
                       keel::Allocator *mr = nullptr);
 
 

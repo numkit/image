@@ -8,9 +8,9 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <string>
 #include <tuple>
 
 namespace numkit::image {
@@ -89,7 +89,7 @@ Value imadjust(const Value &I,
 ///
 /// @see imbinarize, graythresh
 Value adaptthresh(const Value &I, keel::f64 sensitivity, int neighborhood,
-                  const std::string &statistic,
+                  keel::StringRef statistic,
                   keel::Allocator *mr = nullptr);
 
 /// @brief Histogram equalisation (`J = histeq(I, n)`).
@@ -124,7 +124,7 @@ struct AdaptHistEqOptions {
     ///   - `"uniform"`     — flat (default)
     ///   - `"rayleigh"`    — bell-shaped (Rayleigh inverse CDF)
     ///   - `"exponential"` — curved (exponential inverse CDF)
-    std::string  distribution = "uniform";
+    keel::String distribution = keel::String::from("uniform");
 
     /// Shape parameter for the rayleigh / exponential distributions.
     keel::f64       alpha        = 0.4;
@@ -132,7 +132,7 @@ struct AdaptHistEqOptions {
     /// Output intensity range:
     ///   - `"full"`     — full range of the image class (default)
     ///   - `"original"` — limited to the input's actual [min, max]
-    std::string  range        = "full";
+    keel::String range        = keel::String::from("full");
 };
 
 /// Contrast Limited Adaptive Histogram Equalisation
@@ -298,7 +298,7 @@ Value imflatfield(const Value &I, keel::f64 sigma, const Value &mask,
 /// @param absol  1 → use `abs(X)` (default), 0 → use `X`.
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       DOUBLE matrix of integer codes in `[1, nb]`.
-Value wcodemat(const Value &X, int nb, const std::string &opt, int absol,
+Value wcodemat(const Value &X, int nb, keel::StringRef opt, int absol,
                keel::Allocator *mr = nullptr);
 
 /// @brief Shannon entropy of the image histogram

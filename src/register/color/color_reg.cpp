@@ -6,8 +6,11 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -16,12 +19,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -49,7 +49,7 @@ void imsplit_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, "imsplit");
     // no max: name-value tail in the reference
-    std::vector<Value> planes;
+    keel::Array<Value> planes;
     imsplit(args[0], planes, ctx.engine->allocator());
     const keel::usize M = std::min((keel::usize)outs.size(),
                                std::max(nargout, (keel::usize)1));
@@ -109,7 +109,7 @@ void wavelength2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 1, "wavelength2rgb");
     // no max: absent from the R2025b reference build
     auto *mr = ctx.engine->allocator();
-    std::string cls = "double";
+    keel::String cls = keel::String::from("double");
     double gamma = 0.8;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (!args[1].isChar() && !args[1].isString())
@@ -486,13 +486,11 @@ void deltaE_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!args[i].isChar() && !args[i].isString())
             throw Error("deltaE: name-value pairs require string keys",
                         0, 0, "deltaE", "", "numkit:deltaE:nv");
-        std::string key(args[i].toString().as_ref());
-        std::string lo;
-        for (char c : key) lo.push_back(static_cast<char>(std::tolower(c)));
-        if (lo == "isinputlab")
+        keel::String key = args[i].toString();
+        if (key.as_ref().equals_ignore_ascii_case("isinputlab"))
             isInputLab = (args[i + 1].toScalar() != 0.0);
         else
-            throw Error("deltaE: unknown name '" + key + "'",
+            throw Error(keel::format("deltaE: unknown name '{}'", key),
                         0, 0, "deltaE", "", "numkit:deltaE:nv");
     }
     outs[0] = deltaE(args[0], args[1], isInputLab, ctx.engine->allocator());
@@ -502,7 +500,7 @@ void whitepoint_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, "whitepoint");
-    std::string illum = "icc";  // default
+    keel::String illum = keel::String::from("icc");  // default
     if (args.size() >= 1 && !args[0].isEmpty()) {
         if (!args[0].isChar() && !args[0].isString())
             throw Error("whitepoint: illuminant must be a string",

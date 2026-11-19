@@ -9,13 +9,12 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
-#include <string>
 #include <tuple>
-#include <vector>
-#include <vector>
 
 namespace numkit {
 
@@ -49,9 +48,9 @@ enum class PadMode {
 /// @param direction `"both"` / `"pre"` / `"post"`.
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          Padded array.
-Value padarray(const Value &x, const std::vector<int> &padsize,
+Value padarray(const Value &x, keel::ArrayRef<int> padsize,
                PadMode mode, keel::f64 pad_value,
-               const std::string &direction,
+               keel::StringRef direction,
                keel::Allocator *mr = nullptr);
 
 /// @brief Build a 2-D filter kernel by name
@@ -66,7 +65,7 @@ Value padarray(const Value &x, const std::vector<int> &padsize,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        DOUBLE kernel matrix.
 /// @throws Error  Unknown type or wrong-shape params.
-Value fspecial(const std::string &type, const std::vector<keel::f64> &params,
+Value fspecial(keel::StringRef type, keel::ArrayRef<keel::f64> params,
                keel::Allocator *mr = nullptr);
 
 /// @brief Build a predefined 3-D filter kernel
@@ -103,7 +102,7 @@ Value fspecial(const std::string &type, const std::vector<keel::f64> &params,
 /// @return      DOUBLE 3-D kernel.
 /// @throws Error  Unknown type, bad shape, or invalid gamma.
 /// @see fspecial, imboxfilt3, imgaussfilt3
-Value fspecial3(const std::string &type, const Value &a1, const Value &a2,
+Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
                 keel::Allocator *mr = nullptr);
 
 /// @brief 2-D linear filtering (`B = imfilter(I, h, ...)`).
@@ -225,14 +224,14 @@ Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
 /// @return          Same-shape mode-filtered image, same class as `A`.
 /// @see medfilt2, imboxfilt
 Value modefilt(const Value &A, int fH, int fW,
-               const std::string &padopt,
+               keel::StringRef padopt,
                keel::Allocator *mr = nullptr);
 
 /// 3-D variant: `modefilt(V, [fH fW fD], padopt)`. Same algorithm
 /// extended over the third dimension. Default fD = 3 when called
 /// from MATLAB on a 3-D input.
 Value modefilt3D(const Value &A, int fH, int fW, int fD,
-                 const std::string &padopt,
+                 keel::StringRef padopt,
                  keel::Allocator *mr = nullptr);
 
 /// @brief Filter a region of interest (`J = roifilt2(h, I, BW)`).
@@ -343,8 +342,8 @@ Value imguidedfilter(const Value &A, const Value &G, int nhood,
 Value imdiffusefilt(const Value &I,
                     const Value &thresh,
                     keel::usize N,
-                    const std::string &connectivity,
-                    const std::string &conduction,
+                    keel::StringRef connectivity,
+                    keel::StringRef conduction,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Apply a single Gabor filter to a 2-D image
@@ -487,7 +486,7 @@ Value imsharpen(const Value &I, keel::f64 radius, keel::f64 amount, keel::f64 th
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            Column-stacked neighbourhood matrix.
 /// @see col2im
-Value im2col(const Value &A, int m, int n, const std::string &block_type,
+Value im2col(const Value &A, int m, int n, keel::StringRef block_type,
              keel::Allocator *mr = nullptr);
 
 /// @brief Inverse of @ref im2col
@@ -509,7 +508,7 @@ Value im2col(const Value &A, int m, int n, const std::string &block_type,
 /// @return            Reconstructed `mm × nn` image.
 /// @see im2col
 Value col2im(const Value &B, int m, int n, int mm, int nn,
-             const std::string &block_type,
+             keel::StringRef block_type,
              keel::Allocator *mr = nullptr);
 
 /// @brief Edge-preserving bilateral filter
@@ -549,7 +548,7 @@ Value imbilatfilt(const Value &I, keel::f64 degreeOfSmoothing, keel::f64 spatial
 /// @param p2   Second parameter (see table).
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Noisy image, same class as `I`.
-Value imnoise(::numkit::ops::RngContext &rng, const Value &I, const std::string &mode,
+Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mode,
               const Value &p1, const Value &p2,
               keel::Allocator *mr = nullptr);
 
@@ -597,7 +596,7 @@ Value rangefilt(const Value &I, const Value &domain,
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       Smoothed image, same class as `I`.
 /// @throws Error Unknown smoothing name.
-Value imsmooth(const Value &I, const std::string &name, keel::f64 sigma,
+Value imsmooth(const Value &I, keel::StringRef name, keel::f64 sigma,
                keel::Allocator *mr = nullptr);
 
 /// @brief 3-D box (mean) filter
@@ -810,7 +809,7 @@ Value nlfilter(const Value &A,
 ///                    same H × W as `A` in distinct, after cropping).
 Value colfilt(const Value &A,
               keel::usize m, keel::usize n,
-              const std::string &block_type, FnHandle fun,
+              keel::StringRef block_type, FnHandle fun,
               bool indexed,
               keel::Allocator *mr = nullptr);
 
@@ -970,9 +969,9 @@ Value locallapfilt(const Value &I, keel::f64 sigma, keel::f64 alpha,
 /// @param mr                  Memory resource (nullptr → default).
 /// @return                    Dehazed image `J`.
 Value imreducehaze(const Value &I, keel::f64 amount,
-                   const std::string &method,
+                   keel::StringRef method,
                    const Value &atmospheric_light,
-                   const std::string &contrast_enhancement,
+                   keel::StringRef contrast_enhancement,
                    keel::f64 boost_amount,
                    Value &t_out, Value &L_out,
                    keel::Allocator *mr = nullptr);
@@ -1029,7 +1028,7 @@ Value imreducehaze(const Value &I, keel::f64 amount,
 /// @param bright_polarity         `true` = bright (default).
 /// @param mr                      Memory resource (nullptr → default).
 /// @return                        Vesselness response, same shape as `I`.
-Value fibermetric(const Value &I, const std::vector<keel::f64> &thickness,
+Value fibermetric(const Value &I, keel::ArrayRef<keel::f64> thickness,
                   keel::f64 structure_sensitivity, bool bright_polarity,
                   keel::Allocator *mr = nullptr);
 
@@ -1061,7 +1060,7 @@ Value fibermetric(const Value &I, const std::vector<keel::f64> &thickness,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    DOUBLE filter, same shape as `Hd` (uniform) or `[m n]`.
 Value fsamp2(const Value &Hd, const Value &f1, const Value &f2,
-             const std::vector<keel::usize> &siz,
+             keel::ArrayRef<keel::usize> siz,
              keel::Allocator *mr = nullptr);
 
 /// @brief 2-D FIR filter via 1-D → 2-D frequency transformation

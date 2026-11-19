@@ -6,6 +6,7 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/math.h>
+#include <keel/string.h>
 #include <numkit/image/contrast/contrast.hpp>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/type_convert/type_convert.hpp>
@@ -21,10 +22,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <functional>
 #include <limits>
-#include <sstream>
-#include <vector>
 
 namespace numkit::image {
 
@@ -161,15 +159,15 @@ void imquantize_argcheck(const Value &I, const Value &levels)
 }
 
 void adaptthresh_argcheck(const Value &I, double sensitivity,
-                          const std::string &statistic)
+                          keel::StringRef statistic)
 {
     internal::requireImageClass(I, "adaptthresh", "I", 1,
                                 internal::ImgClasses::FloatInt);
     if (!(sensitivity >= 0.0 && sensitivity <= 1.0))
         throw Error("adaptthresh: sensitivity must be in [0, 1]",
                     0, 0, "adaptthresh", "", "numkit:adaptthresh:sens");
-    const std::string s = statistic.empty() ? std::string("mean")
-                                            : statistic;
+    const keel::StringRef s = statistic.empty() ? keel::StringRef("mean")
+                                                : statistic;
     if (s != "mean" && s != "Mean" && s != "MEAN" &&
         s != "gaussian" && s != "Gaussian" && s != "GAUSSIAN")
         throw Error("adaptthresh: statistic must be 'mean' or 'gaussian'",
@@ -186,15 +184,15 @@ void imflatfield_argcheck(const Value &I, const Value &mask)
                     0, 0, "imflatfield", "", "numkit:imflatfield:masksize");
 }
 
-void wcodemat_argcheck(int nb, const std::string &opt)
+void wcodemat_argcheck(int nb, keel::StringRef opt)
 {
     if (nb < 1)
         throw Error("wcodemat: NB must be a positive integer",
                     0, 0, "wcodemat", "", "numkit:wcodemat:nb");
-    std::string lo;
+    keel::String lo;
     lo.reserve(opt.size());
-    for (char c : opt) lo.push_back(static_cast<char>(std::tolower(c)));
-    if (lo.empty()) lo = "mat";
+    for (char c : opt) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    if (lo.empty()) lo.assign("mat");
     if (lo != "mat" && lo != "row" && lo != "col")
         throw Error("wcodemat: opt must be 'mat', 'row', or 'col'",
                     0, 0, "wcodemat", "", "numkit:wcodemat:opt");
@@ -213,7 +211,7 @@ std::tuple<Value, Value>
 imhist(const Value &I, int n, keel::Allocator *mr)
 {
     if (n <= 0) n = default_nbins(I);
-    std::vector<keel::i64> counts(n, 0);
+    keel::Array<keel::i64> counts(static_cast<keel::usize>(n), 0);
     const keel::usize N = I.numel();
     for (keel::usize i = 0; i < N; ++i) {
         const double u = element_to_unit(I, i);
@@ -275,8 +273,8 @@ Value stretchlim(const Value &I, double low_tol, double high_tol, keel::Allocato
     // stretchlim([0.1 0.2 0.9 0.95]) returned [26/255 242/255] instead of
     // [6554/65535 62258/65535].)
     const int NBINS = (I.type() == ValueType::UINT8) ? 256 : 65536;
-    std::vector<keel::usize> hist(NBINS, 0);
-    std::vector<keel::usize> cumhist(NBINS, 0);
+    keel::Array<keel::usize> hist(static_cast<keel::usize>(NBINS), 0);
+    keel::Array<keel::usize> cumhist(static_cast<keel::usize>(NBINS), 0);
     const double N = static_cast<double>(plane);
 
     for (int ch = 0; ch < channels; ++ch) {
@@ -355,7 +353,7 @@ Value histeq(const Value &I, int n, keel::Allocator *mr)
     auto [counts_v, bins_v] = imhist(I, n, mr);
     const double *counts = counts_v.doubleData();
     // Cumulative distribution.
-    std::vector<double> cdf(n);
+    keel::Array<double> cdf(static_cast<keel::usize>(n));
     double total = 0.0;
     for (int i = 0; i < n; ++i) total += counts[i];
     if (total <= 0.0) return I;
@@ -775,7 +773,7 @@ namespace {
 //   idx = mean(find(sigma_b_squared == max(sigma_b_squared)));
 // then level = (idx - 1) / (num_bins - 1).
 // We return the 0-based mean directly; the caller divides by L-1.
-std::pair<double, double> otsu_one_level(const std::vector<double> &counts) {
+std::pair<double, double> otsu_one_level(keel::ArrayRef<double> counts) {
     const int L = (int)counts.size();
     double total = 0.0;
     double sum_total = 0.0;
@@ -783,7 +781,7 @@ std::pair<double, double> otsu_one_level(const std::vector<double> &counts) {
     if (total <= 0.0) return {0.0, 0.0};
 
     // First pass: find max sigma_b^2.
-    std::vector<double> sigma_b(L, 0.0);
+    keel::Array<double> sigma_b(static_cast<keel::usize>(L), 0.0);
     {
         double w0 = 0.0, sum0 = 0.0;
         for (int t = 0; t < L - 1; ++t) {
@@ -825,7 +823,7 @@ std::pair<double, double> otsu_one_level(const std::vector<double> &counts) {
 std::tuple<Value, Value>
 otsuthresh(const Value &counts_v, keel::Allocator *mr) {
     const keel::usize L = counts_v.numel();
-    std::vector<double> c(L);
+    keel::Array<double> c(L);
     for (keel::usize i = 0; i < L; ++i) c[i] = counts_v.elemAsDouble(i);
     auto [lvl, em] = otsu_one_level(c);
     // MATLAB graythresh / otsuthresh convention: thresh = lvl / (L - 1),
@@ -903,7 +901,7 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
         return clampBin(std::lround(s * 255.0));
     };
 
-    std::vector<double> counts(B, 0.0);
+    keel::Array<double> counts(static_cast<keel::usize>(B), 0.0);
     double total = 0.0;
     for (keel::usize i = 0; i < M; ++i) {
         const int b = toBin(I.elemAsDouble(i));
@@ -919,7 +917,8 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
     }
 
     // omega = cumsum(p); mu = cumsum(p .* (1:B)'); mu_t = mu(end).
-    std::vector<double> omega(B), mu(B);
+    keel::Array<double> omega(static_cast<keel::usize>(B));
+    keel::Array<double> mu(static_cast<keel::usize>(B));
     double cum = 0.0, cumm = 0.0;
     for (int j = 0; j < B; ++j) {
         const double p = counts[j] / total;
@@ -930,13 +929,13 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
     }
     const double mu_t = mu[B - 1];
 
-    std::vector<double> threshBins(N, 0.0);   // 0-based bin thresholds
+    keel::Array<double> threshBins(static_cast<keel::usize>(N), 0.0);   // 0-based bin thresholds
     double bestVar = 0.0;
 
     if (N == 1) {
         // sigma_b^2(t) = (mu_t*omega - mu)^2 / (omega*(1-omega)); arg-max bin.
         double best = -std::numeric_limits<double>::infinity();
-        std::vector<int> ties;
+        keel::Array<int> ties;
         for (int t = 0; t < B; ++t) {
             const double o = omega[t];
             if (o <= 0.0 || o >= 1.0) continue;
@@ -952,7 +951,7 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
         bestVar = best;
     } else if (N == 2) {
         double best = -std::numeric_limits<double>::infinity();
-        std::vector<std::pair<int, int>> ties;
+        keel::Array<std::pair<int, int>> ties;
         for (int r = 0; r < B; ++r) {
             const double o0 = omega[r];
             if (o0 <= 0.0) continue;
@@ -986,7 +985,8 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
         // histogram (maximise sum_k s_k^2 / w_k). This is correct-scale and
         // a valid set of thresholds, but — being global rather than
         // fminsearch's local optimum — may differ from MATLAB for N >= 3.
-        std::vector<double> Omega(B + 1, 0.0), Mu(B + 1, 0.0);
+        keel::Array<double> Omega(static_cast<keel::usize>(B + 1), 0.0);
+        keel::Array<double> Mu(static_cast<keel::usize>(B + 1), 0.0);
         for (int j = 0; j < B; ++j) {
             Omega[j + 1] = omega[j];
             Mu[j + 1] = mu[j];
@@ -999,31 +999,29 @@ multithresh(const Value &I, int N, keel::Allocator *mr) {
         };
         const int K = N + 1;                              // number of classes
         const double NEG = -std::numeric_limits<double>::infinity();
-        // dp[k][t] = best score for first k classes, class k ending at bin t.
-        std::vector<std::vector<double>> dp(K + 1,
-            std::vector<double>(B, NEG));
-        std::vector<std::vector<int>> back(K + 1,
-            std::vector<int>(B, -1));
-        for (int t = 0; t < B; ++t) dp[1][t] = segScore(0, t);
+        // dp[k*B + t] = best score for first k classes, class k ending at bin t.
+        keel::Array<double> dp(static_cast<keel::usize>((K + 1) * B), NEG);
+        keel::Array<int> back(static_cast<keel::usize>((K + 1) * B), -1);
+        for (int t = 0; t < B; ++t) dp[1 * B + t] = segScore(0, t);
         for (int k = 2; k <= K; ++k) {
             for (int t = k - 1; t < B; ++t) {
                 double bestv = NEG; int bestp = -1;
                 for (int tp = k - 2; tp < t; ++tp) {
-                    if (dp[k - 1][tp] == NEG) continue;
-                    const double v = dp[k - 1][tp] + segScore(tp + 1, t);
+                    if (dp[(k - 1) * B + tp] == NEG) continue;
+                    const double v = dp[(k - 1) * B + tp] + segScore(tp + 1, t);
                     if (v > bestv) { bestv = v; bestp = tp; }
                 }
-                dp[k][t] = bestv;
-                back[k][t] = bestp;
+                dp[k * B + t] = bestv;
+                back[k * B + t] = bestp;
             }
         }
         // Last class must end at bin B-1; backtrack the N boundaries.
-        std::vector<int> bounds(K, 0);
+        keel::Array<int> bounds(static_cast<keel::usize>(K), 0);
         bounds[K - 1] = B - 1;
         for (int k = K; k >= 2; --k)
-            bounds[k - 2] = back[k][bounds[k - 1]];
+            bounds[k - 2] = back[k * B + bounds[k - 1]];
         for (int k = 0; k < N; ++k) threshBins[k] = bounds[k];
-        bestVar = dp[K][B - 1] - mu_t * mu_t;
+        bestVar = dp[K * B + (B - 1)] - mu_t * mu_t;
     }
 
     // map2OriginalScale: minA + thresh/255 * (maxA - minA). For integer
@@ -1104,7 +1102,7 @@ Value imquantize(const Value &I, const Value &levels, keel::Allocator *mr) {
     internal::requireImageClass(levels, "imquantize", "levels", 2,
                                 internal::ImgClasses::AnyNumericReal);
     const keel::usize Lcount = levels.numel();
-    std::vector<double> lv(Lcount);
+    keel::Array<double> lv(Lcount);
     for (keel::usize i = 0; i < Lcount; ++i) lv[i] = levels.elemAsDouble(i);
     std::sort(lv.begin(), lv.end());
 
@@ -1180,7 +1178,7 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
     };
 
     // 1. Reference histogram (raw counts) = imhist(ref, nbins); 2nd output.
-    std::vector<double> hgram((keel::usize)nbins, 0.0);
+    keel::Array<double> hgram((keel::usize)nbins, 0.0);
     for (keel::usize i = 0; i < Nr; ++i)
         hgram[(keel::usize)level_of(element_to_unit(ref, i), nbins)] += 1.0;
 
@@ -1188,7 +1186,7 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
     double sumH = 0.0;
     for (int b = 0; b < nbins; ++b) sumH += hgram[(keel::usize)b];
     const double scale = (sumH > 0.0) ? (double)Ni / sumH : 0.0;
-    std::vector<double> cumd((keel::usize)nbins, 0.0);
+    keel::Array<double> cumd((keel::usize)nbins, 0.0);
     {
         double acc = 0.0;
         for (int b = 0; b < nbins; ++b) { acc += hgram[(keel::usize)b] * scale;
@@ -1196,10 +1194,10 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
     }
 
     // 3. Input histogram at full resolution = imhist(I, NPTS), cumulated.
-    std::vector<double> nn((keel::usize)NPTS, 0.0);
+    keel::Array<double> nn((keel::usize)NPTS, 0.0);
     for (keel::usize i = 0; i < Ni; ++i)
         nn[(keel::usize)level_of(element_to_unit(I, i), NPTS)] += 1.0;
-    std::vector<double> cum((keel::usize)NPTS, 0.0);
+    keel::Array<double> cum((keel::usize)NPTS, 0.0);
     { double acc = 0.0;
       for (int j = 0; j < NPTS; ++j) { acc += nn[(keel::usize)j]; cum[(keel::usize)j] = acc; } }
 
@@ -1208,7 +1206,7 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
     // matching MATLAB's min); large-negative errors are clamped to +Ni.
     const double clampThr = -(double)Ni * std::sqrt(2.2204460492503131e-16);
     const double denom = (nbins > 1) ? (double)(nbins - 1) : 1.0;
-    std::vector<double> T((keel::usize)NPTS, 0.0);
+    keel::Array<double> T((keel::usize)NPTS, 0.0);
     for (int j = 0; j < NPTS; ++j) {
         const double tol = (j == 0 || j == NPTS - 1) ? 0.0
                                                      : nn[(keel::usize)j] * 0.5;
@@ -1255,7 +1253,7 @@ Value imhistmatch(const Value &I, const Value &ref, int nbins,
 // after binarize), lower raises it. (Verified exactly against MATLAB on
 // constant images across s ∈ {0, .25, .5, .75, 1}.)
 
-Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const std::string &statistic, keel::Allocator *mr)
+Value adaptthresh(const Value &I, double sensitivity, int neighborhood, keel::StringRef statistic, keel::Allocator *mr)
 {
     adaptthresh_argcheck(I, sensitivity, statistic);
     internal::requireImageClass(I, "adaptthresh", "I", 1,
@@ -1303,8 +1301,8 @@ Value adaptthresh(const Value &I, double sensitivity, int neighborhood, const st
 
     // Compute local statistic.
     Value localStat;
-    const std::string s = statistic.empty() ? std::string("mean")
-                                            : statistic;
+    const keel::StringRef s = statistic.empty() ? keel::StringRef("mean")
+                                                : statistic;
     if (s == "mean" || s == "Mean" || s == "MEAN") {
         localStat = imboxfilt(Inorm, neighborhood, mr);
     } else if (s == "gaussian" || s == "Gaussian" || s == "GAUSSIAN") {
@@ -1386,7 +1384,7 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, keel::Allocat
     if (have_mask && (mask.dims().rows() != H || mask.dims().cols() != W))
         throw Error("imflatfield: mask must match spatial dims of I",
                     0, 0, "imflatfield", "", "numkit:imflatfield:masksize");
-    std::vector<double> meanA(pages, 0.0);
+    keel::Array<double> meanA(pages, 0.0);
     for (keel::usize p = 0; p < pages; ++p) {
         const double *ap = idd + p * plane;
         if (have_mask) {
@@ -1419,7 +1417,7 @@ Value imflatfield(const Value &I, double sigma, const Value &mask, keel::Allocat
     return out;
 }
 
-Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, keel::Allocator *mr)
+Value wcodemat(const Value &X, int nb, keel::StringRef opt, int absol, keel::Allocator *mr)
 {
     wcodemat_argcheck(nb, opt);
     if (nb < 1)
@@ -1441,10 +1439,10 @@ Value wcodemat(const Value &X, int nb, const std::string &opt, int absol, keel::
         return absol ? keel::abs(v) : v;
     };
 
-    std::string lo;
+    keel::String lo;
     lo.reserve(opt.size());
-    for (char c : opt) lo.push_back(static_cast<char>(std::tolower(c)));
-    if (lo.empty()) lo = "mat";
+    for (char c : opt) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    if (lo.empty()) lo.assign("mat");
 
     // MATLAB R2025b formula: y = floor((v - mn) / span * nb) + 1, with the
     // upper edge (v == mx) clamped from nb+1 down to nb.
@@ -1529,7 +1527,7 @@ Value entropy(const Value &I, int nbins, keel::Allocator *mr)
 namespace {
 // Common quantisation tail: given a sorted threshold vector and the
 // resulting level count, build the output indexed image.
-Value graysliceQuantize(const Value &I, const std::vector<double> &thresh,
+Value graysliceQuantize(const Value &I, keel::ArrayRef<double> thresh,
                         keel::usize n_levels, keel::Allocator *mr)
 {
     const keel::usize N = I.numel();
@@ -1572,7 +1570,7 @@ Value grayslice(const Value &I, int N, keel::Allocator *mr)
     const bool isFloat = (ct == ValueType::DOUBLE || ct == ValueType::SINGLE);
     const double n_scalar = static_cast<double>(N);
     const keel::usize k_max = static_cast<keel::usize>(N - 1);
-    std::vector<double> thresh;
+    keel::Array<double> thresh;
     thresh.reserve(k_max);
     const double scale =
           (ct == ValueType::UINT8)  ? 255.0
@@ -1598,7 +1596,7 @@ Value grayslice(const Value &I, keel::ArrayRef<double> levels,
     const ValueType ct = I.type();
     const bool isFloat = (ct == ValueType::DOUBLE || ct == ValueType::SINGLE);
     const keel::usize M = levels.size();
-    std::vector<double> thresh(levels.begin(), levels.end());
+    keel::Array<double> thresh(levels);
     std::sort(thresh.begin(), thresh.end());
     const keel::usize N = I.numel();
     if (isFloat && N > 0) {

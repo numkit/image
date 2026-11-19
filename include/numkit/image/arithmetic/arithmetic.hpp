@@ -13,9 +13,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
-
-#include <vector>
 
 namespace numkit::image {
 
@@ -114,8 +113,8 @@ Value imcomplement(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr            Memory resource (nullptr → process default).
 /// @return              Linear combination cast to `output_class`.
 /// @throws              Error if sizes disagree or the vectors are empty.
-Value imlincomb(const std::vector<keel::f64> &coefs,
-                const std::vector<Value> &images,
+Value imlincomb(keel::ArrayRef<keel::f64> coefs,
+                keel::ArrayRef<Value> images,
                 ValueType output_class,
                 keel::Allocator *mr = nullptr);
 

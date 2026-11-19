@@ -15,10 +15,12 @@
 //
 // PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <keel/ref.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -34,7 +36,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <vector>
 
 namespace numkit::image {
 namespace {
@@ -280,7 +281,7 @@ void fwind2_argcheck(const Value &Hd, const Value &W)
 
 // ── fsamp2 ────────────────────────────────────────────────────────
 Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
-             const std::vector<keel::usize> & /*siz*/,
+             keel::ArrayRef<keel::usize> /*siz*/,
              keel::Allocator *mr)
 {
     Value Hd0 = (HdIn.type() == ValueType::CHAR)
@@ -391,14 +392,14 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     //                                         b(0), ..., b(n-1)].
     //   a = [shifted(1), 2*shifted(2:n+1)] (1-based).
     const long n = (static_cast<long>(L) - 1) / 2;
-    std::vector<double> b_vec(L);
+    keel::Array<double> b_vec(L);
     for (keel::usize i = 0; i < L; ++i) b_vec[i] = b.elemAsDouble(i);
     // ifftshift on 1-D: roll by floor(L/2).
     const long shift = static_cast<long>(L) / 2;
-    std::vector<double> bsh(L);
+    keel::Array<double> bsh(L);
     for (keel::usize i = 0; i < L; ++i)
         bsh[i] = b_vec[(static_cast<long>(i) + shift) % static_cast<long>(L)];
-    std::vector<double> a(static_cast<keel::usize>(n + 1));
+    keel::Array<double> a(static_cast<keel::usize>(n + 1));
     a[0] = bsh[0];
     for (long k = 1; k <= n; ++k) a[static_cast<keel::usize>(k)] = 2.0 * bsh[static_cast<keel::usize>(k)];
 
@@ -468,11 +469,11 @@ Value ftrans2(const Value &b_in, const Value &t_in,
 // ── fwind1 ───────────────────────────────────────────────────────
 // Linear interpolation utility used by Huang's method.
 template <typename T>
-T linear_interp_t(const std::vector<double> &xs,
-                  const std::vector<T> &ys, double q)
+T linear_interp_t(keel::ArrayRef<double> xs,
+                  keel::ArrayRef<T> ys, double q)
 {
-    if (q <= xs.front()) return ys.front();
-    if (q >= xs.back())  return ys.back();
+    if (q <= xs[0]) return ys[0];
+    if (q >= xs[xs.size() - 1])  return ys[ys.size() - 1];
     const double dx = xs[1] - xs[0];
     const double t = (q - xs[0]) / dx;
     const keel::usize i = static_cast<keel::usize>(std::floor(t));
@@ -498,11 +499,11 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
     keel::usize m_out, n_out;
     if (win2.isEmpty()) {
         m_out = n_out = n;
-        std::vector<double> t(n);
+        keel::Array<double> t(n);
         for (keel::usize i = 0; i < n; ++i)
             t[i] = (static_cast<double>(i) - (n - 1) / 2.0) * (2.0 / (n - 1));
         if (winComplex) {
-            std::vector<keel::c64> w1(n);
+            keel::Array<keel::c64> w1(n);
             for (keel::usize i = 0; i < n; ++i) w1[i] = getC(win1, i);
             for (keel::usize i = 0; i < n; ++i)
                 if (keel::abs(w1[i] - w1[n - 1 - i]) > sqrt_eps)
@@ -513,12 +514,12 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
             for (keel::usize c = 0; c < n; ++c)
                 for (keel::usize r = 0; r < n; ++r) {
                     const double rr = std::sqrt(t[c] * t[c] + t[r] * t[r]);
-                    wd[c * n + r] = (rr < t.front() || rr > t.back())
+                    wd[c * n + r] = (rr < t[0] || rr > t[n - 1])
                         ? keel::c64(0.0, 0.0)
-                        : linear_interp_t(t, w1, rr);
+                        : linear_interp_t<keel::c64>(t, w1, rr);
                 }
         } else {
-            std::vector<double> w1(n);
+            keel::Array<double> w1(n);
             for (keel::usize i = 0; i < n; ++i) w1[i] = win1.elemAsDouble(i);
             for (keel::usize i = 0; i < n; ++i)
                 if (std::fabs(w1[i] - w1[n - 1 - i]) > sqrt_eps)
@@ -529,9 +530,9 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
             for (keel::usize c = 0; c < n; ++c)
                 for (keel::usize r = 0; r < n; ++r) {
                     const double rr = std::sqrt(t[c] * t[c] + t[r] * t[r]);
-                    wd[c * n + r] = (rr < t.front() || rr > t.back())
+                    wd[c * n + r] = (rr < t[0] || rr > t[n - 1])
                         ? 0.0
-                        : linear_interp_t(t, w1, rr);
+                        : linear_interp_t<double>(t, w1, rr);
                 }
         }
     } else {

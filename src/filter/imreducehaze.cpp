@@ -31,9 +31,12 @@
 // imguidedfilter, rgb2gray, mat2gray, stretchlim, imadjust, im2*),
 // so the haze-physics layer is the only new code here.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/math.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/filter/filter.hpp>
 #include <numkit/image/morph/morph.hpp>
 #include <numkit/image/contrast/contrast.hpp>
@@ -48,18 +51,17 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <vector>
 
 namespace numkit::image {
 namespace {
 
 // Lowercase helper (mirrors the one in color_extras).
-inline std::string lower_str(const std::string &s)
+inline keel::String lower_str(keel::StringRef s)
 {
-    std::string lo;
+    keel::String lo;
     lo.reserve(s.size());
     for (char ch : s)
-        lo += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
     return lo;
 }
 
@@ -148,7 +150,7 @@ Value make_square_strel(int n, keel::Allocator *mr)
 // ── Dehaze: 1 - imopen(A./atm, strel) for approxdcp branch ────────
 // A is SINGLE, atm is the brightest RGB triple (1×3) or scalar; we
 // divide each plane and then min-across-pages.
-Value normalize_by_atm_then_min(const Value &A, const std::vector<float> &atm,
+Value normalize_by_atm_then_min(const Value &A, keel::ArrayRef<float> atm,
                                 keel::Allocator *mr)
 {
     const auto &d = A.dims();
@@ -226,7 +228,7 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
 
 // Compute atmospheric light using the simpledcp quadtree algorithm.
 // A is SINGLE (H×W×P).
-std::vector<float> simpledcp_atm_light(const Value &A,
+keel::Array<float> simpledcp_atm_light(const Value &A,
                                        keel::Allocator *mr)
 {
     const auto &d = A.dims();
@@ -262,7 +264,7 @@ std::vector<float> simpledcp_atm_light(const Value &A,
                 bestC = c;
             }
         }
-    std::vector<float> atm(P);
+    keel::Array<float> atm(P);
     for (keel::usize p = 0; p < P; ++p)
         atm[p] = src[p * H * W + bestC * H + bestR];
     return atm;
@@ -271,7 +273,7 @@ std::vector<float> simpledcp_atm_light(const Value &A,
 // approxdcp atm light estimation: 0.1% brightest pixels of the
 // (eroded) dark channel; among those, pick the one with the highest
 // grayscale luminance (rgb2gray for RGB, A for grayscale).
-std::vector<float> approxdcp_atm_light(const Value &A,
+keel::Array<float> approxdcp_atm_light(const Value &A,
                                        const Value &darkChannel,
                                        keel::Allocator *mr)
 {
@@ -282,7 +284,7 @@ std::vector<float> approxdcp_atm_light(const Value &A,
     const float *dc = darkChannel.singleData();
     // 256-bin imhist on the dark channel.
     constexpr int NBINS = 256;
-    std::vector<keel::usize> hist(NBINS, 0);
+    keel::Array<keel::usize> hist(NBINS, 0);
     for (keel::usize i = 0; i < H * W; ++i) {
         int b = static_cast<int>(std::floor(dc[i] * (NBINS - 1) + 0.5f));
         if (b < 0) b = 0;
@@ -322,7 +324,7 @@ std::vector<float> approxdcp_atm_light(const Value &A,
             }
         }
     }
-    std::vector<float> atm(P);
+    keel::Array<float> atm(P);
     if (bestIdx < 0) {
         // No pixel above cutoff (shouldn't happen for sane input);
         // fall back to the pixel with maximum dark-channel value.
@@ -350,7 +352,7 @@ std::vector<float> approxdcp_atm_light(const Value &A,
 //   B(x) = radiance(x) * t_new + atm * (1 - t_new)
 //   B = clip(B, 0, 1)
 Value recover_radiance(const Value &A, const Value &transmissionMap,
-                       const std::vector<float> &atm, double amount,
+                       keel::ArrayRef<float> atm, double amount,
                        double omega, keel::Allocator *mr)
 {
     const auto &d = A.dims();
@@ -419,7 +421,7 @@ Value extract_plane(const Value &A, keel::usize p,
 }
 
 // Stack P H×W single planes back into an H×W×P SINGLE.
-Value stack_planes(const std::vector<Value> &planes,
+Value stack_planes(keel::ArrayRef<Value> planes,
                    keel::Allocator *mr)
 {
     const keel::usize P = planes.size();
@@ -477,7 +479,7 @@ Value global_stretching(const Value &A, keel::Allocator *mr)
     // The mean is taken ACROSS CHANNELS (dim 2), so each row of
     // clipLimit (low / high) gets the same channel-mean value
     // broadcast across all P channels.  Then per-channel imadjust.
-    std::vector<double> lo_per(P), hi_per(P);
+    keel::Array<double> lo_per(P), hi_per(P);
     for (keel::usize p = 0; p < P; ++p) {
         Value plane = (P == 1) ? N : extract_plane(N, p, mr);
         Value cl = stretchlim(plane, 0.001, 0.999, mr);
@@ -491,7 +493,7 @@ Value global_stretching(const Value &A, keel::Allocator *mr)
     }
     const double mean_lo = sum_lo / static_cast<double>(P);
     const double mean_hi = sum_hi / static_cast<double>(P);
-    std::vector<Value> outPlanes;
+    keel::Array<Value> outPlanes;
     outPlanes.reserve(P);
     for (keel::usize p = 0; p < P; ++p) {
         Value plane = (P == 1) ? N : extract_plane(N, p, mr);
@@ -602,10 +604,10 @@ Value cast_back(const Value &B, ValueType origClass,
 }
 
 void imreducehaze_argcheck(const Value &I, double amount,
-                           const std::string &method,
-                           const std::string &contrast_enhancement,
+                           keel::StringRef method,
+                           keel::StringRef contrast_enhancement,
                            double boost_amount,
-                           std::string &m_out, std::string &ce_out,
+                           keel::String &m_out, keel::String &ce_out,
                            bool &isRGB_out)
 {
     if (!std::isfinite(amount) || amount < 0.0 || amount > 1.0)
@@ -626,11 +628,11 @@ void imreducehaze_argcheck(const Value &I, double amount,
         throw Error("imreducehaze: I must be uint8 / uint16 / single / double",
                     0, 0, "imreducehaze", "", "numkit:imreducehaze:class");
 
-    const std::string m = lower_str(method);
+    keel::String m = lower_str(method);
     if (m != "simpledcp" && m != "approxdcp")
         throw Error("imreducehaze: Method must be 'simpledcp' or 'approxdcp'",
                     0, 0, "imreducehaze", "", "numkit:imreducehaze:method");
-    const std::string ce = lower_str(contrast_enhancement);
+    keel::String ce = lower_str(contrast_enhancement);
     if (ce != "global" && ce != "boost" && ce != "none")
         throw Error("imreducehaze: ContrastEnhancement must be 'global', "
                     "'boost', or 'none'",
@@ -641,22 +643,22 @@ void imreducehaze_argcheck(const Value &I, double amount,
         throw Error("imreducehaze: BoostAmount must be in [0, 1]",
                     0, 0, "imreducehaze", "",
                     "numkit:imreducehaze:boostAmount");
-    m_out = m;
-    ce_out = ce;
+    m_out = std::move(m);
+    ce_out = std::move(ce);
     isRGB_out = isRGB;
 }
 
 }  // namespace
 
 Value imreducehaze(const Value &I, double amount,
-                   const std::string &method,
+                   keel::StringRef method,
                    const Value &atmospheric_light,
-                   const std::string &contrast_enhancement,
+                   keel::StringRef contrast_enhancement,
                    double boost_amount,
                    Value &t_out, Value &L_out,
                    keel::Allocator *mr)
 {
-    std::string m, ce;
+    keel::String m, ce;
     bool isRGB = false;
     imreducehaze_argcheck(I, amount, method, contrast_enhancement, boost_amount,
                           m, ce, isRGB);
@@ -676,7 +678,7 @@ Value imreducehaze(const Value &I, double amount,
     const keel::usize P = A.dims().is3D() ? A.dims().pages() : 1;
 
     // ── Resolve / estimate atmospheric light ─────────────────────
-    std::vector<float> atm;
+    keel::Array<float> atm;
     if (!atmospheric_light.isEmpty()) {
         const keel::usize N = atmospheric_light.numel();
         if (isRGB && N != 3)

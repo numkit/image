@@ -11,7 +11,6 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <numkit/value/value.hpp>
-#include <string>
 
 namespace numkit::image {
 

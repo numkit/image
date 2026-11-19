@@ -10,9 +10,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
-
-#include <string>
 
 namespace numkit::image {
 
@@ -336,7 +335,7 @@ Value roipoly(keel::f64 xdata_lo, keel::f64 xdata_hi,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         Distance transform `T`, same shape as `I`.
 Value graydist(const Value &I, const Value &seeds,
-               const std::string &method,
+               keel::StringRef method,
                keel::Allocator *mr = nullptr);
 
 /// @brief Geodesic distance transform of binary image
@@ -364,7 +363,7 @@ Value graydist(const Value &I, const Value &seeds,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         SINGLE distance transform, same shape as `BW`.
 Value bwdistgeodesic(const Value &BW, const Value &seeds,
-                     const std::string &method,
+                     keel::StringRef method,
                      keel::Allocator *mr = nullptr);
 
 /// Paint a binary mask onto an image with a colour

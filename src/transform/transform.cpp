@@ -7,10 +7,12 @@
 // nk's Value layout.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/string.h>
 #include <numkit/image/transform/transform.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 #include <numkit/image/filter/filter.hpp>
@@ -254,9 +256,9 @@ Value phantom_argcheck(const Value &model_or_E, keel::Allocator *mr)
         return make_ellipse_matrix(kModSheppLogan, 10, mr);
     } else if (model_or_E.isChar() || model_or_E.isString()) {
         const keel::String m = model_or_E.toString();
-        std::string lo;
+        keel::String lo;
         lo.reserve(m.size());
-        for (char c : m) lo.push_back(static_cast<char>(std::tolower(c)));
+        for (char c : m) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
         if (lo == "shepp-logan")
             return make_ellipse_matrix(kSheppLogan, 10, mr);
         else if (lo == "modified shepp-logan")
@@ -367,7 +369,7 @@ phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
     double *hd = head.doubleDataMut();
 
     // Build x grid: xvals[i] = -1 + 2i/(n-1) for n > 1; -1 for n == 1.
-    std::vector<double> xvals(n);
+    keel::Array<double> xvals(n);
     if (n == 1) xvals[0] = -1.0;
     else
         for (keel::usize i = 0; i < n; ++i)
@@ -452,7 +454,7 @@ Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
     return internal::castResultToClass(out, IMSu.type(), mr);
 }
 
-Value fftconv2(const Value &A, const Value &B, const std::string &shape, keel::Allocator *mr)
+Value fftconv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allocator *mr)
 {
     // fftconv2 is reference-absent (Octave image package API) — the
     // nk-defined contract takes the standard image class set.
@@ -512,10 +514,10 @@ Value fftconv2(const Value &A, const Value &B, const std::string &shape, keel::A
                 dst[c * Hf + r] = src[c * Hp + r];
     }
 
-    std::string sh;
+    keel::String sh;
     sh.reserve(shape.size());
-    for (char c : shape) sh.push_back(static_cast<char>(std::tolower(c)));
-    if (sh.empty()) sh = "full";
+    for (char c : shape) sh.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    if (sh.empty()) sh.assign("full");
     if (sh == "full") return Y;
 
     keel::usize r0 = 0, c0 = 0, outH = 0, outW = 0;
@@ -734,7 +736,7 @@ Value checkerboard(keel::usize side, keel::usize M, keel::usize N, keel::Allocat
     //   x[i] = -1 + 2 * i / (2*side - 1)
     // tile(r, c) = (x[r] * x[c]) < 0  → 1.0 in opposite-sign quadrants.
     const keel::usize S2 = 2 * side;
-    std::vector<double> x(S2);
+    keel::Array<double> x(S2);
     if (S2 == 1) x[0] = -1.0;
     else
         for (keel::usize i = 0; i < S2; ++i)
@@ -1032,9 +1034,8 @@ Value deconvwnr(const Value &I, const Value &PSF,
             }
             return {false, std::move(S)};
         }
-        throw Error(std::string("deconvwnr: ") + name
-                  + " must be a scalar or same size as I "
-                    "(1-D extrapolation form not supported)",
+        throw Error(keel::format("deconvwnr: {} must be a scalar or same size as I "
+                                 "(1-D extrapolation form not supported)", name),
                     0, 0, "deconvwnr", "", "numkit:deconvwnr:acf");
     };
 

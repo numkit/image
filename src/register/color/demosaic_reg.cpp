@@ -7,7 +7,9 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 
 #include <numkit/sys/plugin.hpp>   // CallContext, Span, ctx.engine->resource()
@@ -16,17 +18,16 @@
 #include <numkit/value/error.hpp>
 
 #include <cstddef>
-#include <string>
 
 namespace numkit::image {
 
 namespace detail {
 
-static std::string asString(const Value &v) {
+static keel::String asString(const Value &v) {
     if (!v.isChar() && !v.isString())
         throw Error("demosaic: expected a string argument",
                     0, 0, "demosaic", "", "numkit:demosaic:type");
-    return std::string(v.toString().as_ref());
+    return v.toString();
 }
 
 void demosaic_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -34,16 +35,16 @@ void demosaic_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "demosaic");  // no max: name-value tail in the reference
     auto *mr = ctx.engine->allocator();
-    const std::string align = asString(args[1]);
+    const keel::String align = asString(args[1]);
     int bps = 0;
     for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
-        const std::string name = asString(args[i]);
+        const keel::String name = asString(args[i]);
         if (name == "BitsPerSample" || name == "bitspersample")
             bps = argcheck::expectedOneOf(
                 argcheck::expectedReal(args[i + 1], int(i) + 2, "BitsPerSample", "demosaic"),
                 {8, 10, 12, 16}, int(i) + 2, "BitsPerSample", "demosaic");
         else
-            throw Error("demosaic: unknown name-value parameter '" + name + "'",
+            throw Error(keel::format("demosaic: unknown name-value parameter '{}'", name),
                         0, 0, "demosaic", "", "numkit:demosaic:nv");
     }
     outs[0] = demosaic(args[0], align, bps, mr);

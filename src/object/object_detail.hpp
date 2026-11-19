@@ -9,15 +9,14 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
-
-#include <string>
 
 namespace numkit::image {
 
 // Gradient magnitude only (skips the per-pixel atan2 direction). Bit-identical
 // to imgradient()'s first output.
-Value imgradient_mag(const Value &I, const std::string &method,
+Value imgradient_mag(const Value &I, keel::StringRef method,
                      keel::Allocator *mr);
 
 } // namespace numkit::image
