@@ -21,12 +21,12 @@
 #include <numkit/ops/parallel_for.hpp>
 #include "filter_detail.hpp"
 
+#include <keel/random.h>
 #include <algorithm>
 #include <tuple>
 #include <cmath>
 #include <cstring>
 #include <mutex>
-#include <random>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -1887,12 +1887,11 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         const auto *cd = I.complexData();
         if (mode == "salt & pepper" || mode == "salt&pepper") {
             const double d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
-            std::uniform_real_distribution<double> U(0.0, 1.0);
             Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
             auto *od = out.complexDataMut();
             for (keel::usize i = 0; i < N; ++i) {
                 keel::c64 z = cd[i];
-                const double u = U(rng);
+                const double u = keel::uniform_f64(rng);
                 if      (u < d * 0.5) z = keel::c64(0.0, 0.0);
                 else if (u < d)       z = keel::c64(1.0, 0.0);
                 od[i] = z;
@@ -1951,18 +1950,17 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
     if (mode == "gaussian") {
         const double m = (p1.numel() > 0) ? p1.toScalar() : 0.0;
         const double v = (p2.numel() > 0) ? p2.toScalar() : 0.01;
-        std::normal_distribution<double> Z(0.0, std::sqrt(std::max(v, 0.0)));
+        const double sigma = std::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
-            fromUnit(out, i, x + m + Z(rng));
+            fromUnit(out, i, x + m + keel::normal_f64(rng, 0.0, sigma));
         }
     }
     else if (mode == "salt & pepper" || mode == "salt&pepper") {
         const double d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
-        std::uniform_real_distribution<double> U(0.0, 1.0);
         for (keel::usize i = 0; i < N; ++i) {
             double x = toUnit(I.elemAsDouble(i));
-            const double u = U(rng);
+            const double u = keel::uniform_f64(rng);
             if      (u < d * 0.5) x = 0.0;       // pepper
             else if (u < d)       x = 1.0;       // salt
             fromUnit(out, i, x);
@@ -1970,10 +1968,10 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
     }
     else if (mode == "speckle") {
         const double v = (p1.numel() > 0) ? p1.toScalar() : 0.04;
-        std::normal_distribution<double> Z(0.0, std::sqrt(std::max(v, 0.0)));
+        const double sigma = std::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
-            fromUnit(out, i, x + x * Z(rng));
+            fromUnit(out, i, x + x * keel::normal_f64(rng, 0.0, sigma));
         }
     }
     else if (mode == "poisson") {
@@ -1988,13 +1986,8 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             const double mean = std::max(x * scale, 0.0);
-            // mean == 0 → the Poisson draw is 0; constructing the
-            // distribution with 0 is UB (MSVC Debug asserts on a
-            // non-positive mean).
-            const long long k = (mean <= 0.0)
-                ? 0
-                : std::poisson_distribution<long long>(mean)(rng);
-            fromUnit(out, i, (double)k / scale);
+            const keel::u64 k = keel::poisson_u64(rng, mean);
+            fromUnit(out, i, static_cast<double>(k) / scale);
         }
     }
     else if (mode == "localvar") {
@@ -2004,8 +1997,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             const double v = std::max(p1.elemAsDouble(i), 0.0);
-            std::normal_distribution<double> Z(0.0, std::sqrt(v));
-            fromUnit(out, i, x + Z(rng));
+            fromUnit(out, i, x + keel::normal_f64(rng, 0.0, std::sqrt(v)));
         }
     }
     else {
