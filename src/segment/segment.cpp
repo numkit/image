@@ -70,7 +70,7 @@ Value dice(const Value &A, const Value &B, keel::Allocator *mr)
 {
     requireSameShape(A, B, "dice");
     const keel::usize N = A.numel();
-    long long inter = 0, sumA = 0, sumB = 0;
+    keel::i64 inter = 0, sumA = 0, sumB = 0;
     for (keel::usize i = 0; i < N; ++i) {
         const bool a = nonZero(A.elemAsDouble(i));
         const bool b = nonZero(B.elemAsDouble(i));
@@ -78,7 +78,7 @@ Value dice(const Value &A, const Value &B, keel::Allocator *mr)
         if (b) ++sumB;
         if (a && b) ++inter;
     }
-    const long long denom = sumA + sumB;
+    const keel::i64 denom = sumA + sumB;
     const keel::f64 d = (denom == 0) ? 1.0
                                   : 2.0 * keel::f64(inter) / keel::f64(denom);
     return Value::scalar(d, mr);
@@ -88,7 +88,7 @@ Value jaccard(const Value &A, const Value &B, keel::Allocator *mr)
 {
     requireSameShape(A, B, "jaccard");
     const keel::usize N = A.numel();
-    long long inter = 0, uni = 0;
+    keel::i64 inter = 0, uni = 0;
     for (keel::usize i = 0; i < N; ++i) {
         const bool a = nonZero(A.elemAsDouble(i));
         const bool b = nonZero(B.elemAsDouble(i));
@@ -100,49 +100,49 @@ Value jaccard(const Value &A, const Value &B, keel::Allocator *mr)
     return Value::scalar(j, mr);
 }
 
-Value boundarymask(const Value &L, int conn, keel::Allocator *mr)
+Value boundarymask(const Value &L, keel::i32 conn, keel::Allocator *mr)
 {
     internal::requireImageClass(L, "boundarymask", "L", 1,
                                 internal::ImgClasses::AnyNumericReal);
     if (conn != 4) conn = 8;
-    const int H = keel::as<int>(L.dims().rows());
-    const int W = keel::as<int>(L.dims().cols());
+    const keel::i32 H = keel::as<keel::i32>(L.dims().rows());
+    const keel::i32 W = keel::as<keel::i32>(L.dims().cols());
     Value out = Value::matrix(keel::as<keel::usize>(H),
                               keel::as<keel::usize>(W),
                               ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
 
     // Read L as int (round); column-major access via elemAsDouble.
-    auto labAt = [&](int r, int c) -> long long {
-        return keel::as<long long>(std::round(
+    auto labAt = [&](keel::i32 r, keel::i32 c) -> keel::i64 {
+        return keel::as<keel::i64>(std::round(
             L.elemAsDouble(keel::as<keel::usize>(c) * keel::as<keel::usize>(H) +
                             keel::as<keel::usize>(r))));
     };
 
     keel::u8 *od = out.logicalDataMut();
-    static const int dr8[8] = { -1,-1,-1, 0, 0, 1, 1, 1 };
-    static const int dc8[8] = { -1, 0, 1,-1, 1,-1, 0, 1 };
-    static const int dr4[4] = { -1, 1, 0, 0 };
-    static const int dc4[4] = {  0, 0,-1, 1 };
-    const int *dr = (conn == 4) ? dr4 : dr8;
-    const int *dc = (conn == 4) ? dc4 : dc8;
-    const int K   = (conn == 4) ? 4    : 8;
+    static const keel::i32 dr8[8] = { -1,-1,-1, 0, 0, 1, 1, 1 };
+    static const keel::i32 dc8[8] = { -1, 0, 1,-1, 1,-1, 0, 1 };
+    static const keel::i32 dr4[4] = { -1, 1, 0, 0 };
+    static const keel::i32 dc4[4] = {  0, 0,-1, 1 };
+    const keel::i32 *dr = (conn == 4) ? dr4 : dr8;
+    const keel::i32 *dc = (conn == 4) ? dc4 : dc8;
+    const keel::i32 K   = (conn == 4) ? 4    : 8;
 
-    for (int c = 0; c < W; ++c)
-        for (int r = 0; r < H; ++r) {
-            const long long me = labAt(r, c);
+    for (keel::i32 c = 0; c < W; ++c)
+        for (keel::i32 r = 0; r < H; ++r) {
+            const keel::i64 me = labAt(r, c);
             // Background pixel (label 0) is never a boundary in the
             // MATLAB sense; for a pure binary mask we treat the
             // foreground perimeter.
             bool isBoundary = false;
-            for (int k = 0; k < K; ++k) {
-                const int nr = r + dr[k];
-                const int nc = c + dc[k];
+            for (keel::i32 k = 0; k < K; ++k) {
+                const keel::i32 nr = r + dr[k];
+                const keel::i32 nc = c + dc[k];
                 if (nr < 0 || nr >= H || nc < 0 || nc >= W) {
                     if (me != 0) { isBoundary = true; break; }
                     continue;
                 }
-                const long long ne = labAt(nr, nc);
+                const keel::i64 ne = labAt(nr, nc);
                 if (ne != me) { isBoundary = true; break; }
             }
             // Background-only neighbourhood: not a boundary.
@@ -156,9 +156,9 @@ Value boundarymask(const Value &L, int conn, keel::Allocator *mr)
 Value label2idx(const Value &L, keel::Allocator *mr)
 {
     const keel::usize N = L.numel();
-    long long maxLab = 0;
+    keel::i64 maxLab = 0;
     for (keel::usize i = 0; i < N; ++i) {
-        const long long v = keel::as<long long>(
+        const keel::i64 v = keel::as<keel::i64>(
             std::round(L.elemAsDouble(i)));
         if (v > maxLab) maxLab = v;
     }
@@ -168,7 +168,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     // First pass: count per label.
     keel::Array<keel::usize> counts(keel::as<keel::usize>(maxLab) + 1, 0);
     for (keel::usize i = 0; i < N; ++i) {
-        const long long v = keel::as<long long>(
+        const keel::i64 v = keel::as<keel::i64>(
             std::round(L.elemAsDouble(i)));
         if (v > 0) ++counts[keel::as<keel::usize>(v)];
     }
@@ -177,7 +177,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     bufs.reserve(maxLab);
     keel::Array<keel::f64 *> wptr(keel::as<keel::usize>(maxLab) + 1);
     keel::Array<keel::usize> cur(keel::as<keel::usize>(maxLab) + 1, 0);
-    for (long long k = 1; k <= maxLab; ++k) {
+    for (keel::i64 k = 1; k <= maxLab; ++k) {
         Value v = Value::matrix(counts[keel::as<keel::usize>(k)], 1,
                                 ValueType::DOUBLE, mr);
         wptr[keel::as<keel::usize>(k)] = (counts[keel::as<keel::usize>(k)] > 0)
@@ -186,7 +186,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     }
     // Second pass: fill.
     for (keel::usize i = 0; i < N; ++i) {
-        const long long v = keel::as<long long>(
+        const keel::i64 v = keel::as<keel::i64>(
             std::round(L.elemAsDouble(i)));
         if (v > 0) {
             wptr[keel::as<keel::usize>(v)][cur[keel::as<keel::usize>(v)]] =
@@ -194,26 +194,26 @@ Value label2idx(const Value &L, keel::Allocator *mr)
             ++cur[keel::as<keel::usize>(v)];
         }
     }
-    for (long long k = 1; k <= maxLab; ++k)
+    for (keel::i64 k = 1; k <= maxLab; ++k)
         cell.cellAt(keel::as<keel::usize>(k - 1)) =
             std::move(bufs[keel::as<keel::usize>(k - 1)]);
     return cell;
 }
 
-Value grayconnected(const Value &I, int row, int col, keel::f64 tol, keel::Allocator *mr)
+Value grayconnected(const Value &I, keel::i32 row, keel::i32 col, keel::f64 tol, keel::Allocator *mr)
 {
     internal::requireImageClass(I, "grayconnected", "I", 1,
                                 internal::ImgClasses::FloatIntNoLog);
-    const int H = keel::as<int>(I.dims().rows());
-    const int W = keel::as<int>(I.dims().cols());
+    const keel::i32 H = keel::as<keel::i32>(I.dims().rows());
+    const keel::i32 W = keel::as<keel::i32>(I.dims().cols());
     Value out = Value::matrix(keel::as<keel::usize>(H),
                               keel::as<keel::usize>(W),
                               ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
 
     // 1-based MATLAB → 0-based.
-    const int r0 = row - 1;
-    const int c0 = col - 1;
+    const keel::i32 r0 = row - 1;
+    const keel::i32 c0 = col - 1;
     if (r0 < 0 || r0 >= H || c0 < 0 || c0 >= W)
         throw Error("grayconnected: seed out of bounds",
                     0, 0, "grayconnected", "", "numkit:grayconnected:seed");
@@ -229,7 +229,7 @@ Value grayconnected(const Value &I, int row, int col, keel::f64 tol, keel::Alloc
         }
     }
 
-    auto idxAt = [&](int r, int c) {
+    auto idxAt = [&](keel::i32 r, keel::i32 c) {
         return keel::as<keel::usize>(c) * keel::as<keel::usize>(H) +
                keel::as<keel::usize>(r);
     };
@@ -239,21 +239,21 @@ Value grayconnected(const Value &I, int row, int col, keel::f64 tol, keel::Alloc
                                        keel::as<keel::usize>(W), 0);
 
     // BFS with an explicit deque (vector + read head).
-    keel::Array<std::pair<int, int>> q;
+    keel::Array<std::pair<keel::i32, keel::i32>> q;
     q.reserve(keel::as<keel::usize>(H) * keel::as<keel::usize>(W) / 4 + 4);
     q.emplace_back(r0, c0);
     visited[keel::as<keel::usize>(r0) * keel::as<keel::usize>(W) +
             keel::as<keel::usize>(c0)] = 1;
     od[idxAt(r0, c0)] = 1;
-    static const int dr8[8] = { -1,-1,-1, 0, 0, 1, 1, 1 };
-    static const int dc8[8] = { -1, 0, 1,-1, 1,-1, 0, 1 };
+    static const keel::i32 dr8[8] = { -1,-1,-1, 0, 0, 1, 1, 1 };
+    static const keel::i32 dc8[8] = { -1, 0, 1,-1, 1,-1, 0, 1 };
 
     keel::usize head = 0;
     while (head < q.size()) {
         const auto [r, c] = q[head++];
-        for (int k = 0; k < 8; ++k) {
-            const int nr = r + dr8[k];
-            const int nc = c + dc8[k];
+        for (keel::i32 k = 0; k < 8; ++k) {
+            const keel::i32 nr = r + dr8[k];
+            const keel::i32 nc = c + dc8[k];
             if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
             const keel::usize fi = keel::as<keel::usize>(nr) *
                                 keel::as<keel::usize>(W) +
@@ -415,13 +415,13 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
     // (MATLAB uses `filtRadius(1)` for BOTH hx and hy — so for hy on
     // anisotropic σ, this is the x-axis radius, not the y-axis radius.
     // We replicate the MATLAB R2025b behaviour exactly).
-    auto build_dog = [&](keel::f64 sigma, int norm_count, keel::usize &len) {
-        const int r = keel::as<int>(std::ceil(2.0 * sigma));
+    auto build_dog = [&](keel::f64 sigma, keel::i32 norm_count, keel::usize &len) {
+        const keel::i32 r = keel::as<keel::i32>(std::ceil(2.0 * sigma));
         len = 2 * keel::as<keel::usize>(r) + 1;
         keel::Array<keel::f64> h(len, 0.0, mr);
         keel::f64 norm = 0.0;
-        for (int k = 0; k < keel::as<int>(len); ++k) {
-            const int x = k - r;
+        for (keel::i32 k = 0; k < keel::as<keel::i32>(len); ++k) {
+            const keel::i32 x = k - r;
             h[k] = -keel::as<keel::f64>(x)
                  * std::exp(-keel::as<keel::f64>(x * x)
                             / (2.0 * sigma * sigma));
@@ -434,7 +434,7 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
         return h;
     };
 
-    const int rx = keel::as<int>(std::ceil(2.0 * sigma_x));
+    const keel::i32 rx = keel::as<keel::i32>(std::ceil(2.0 * sigma_x));
     keel::usize hxLen = 0, hyLen = 0;
     auto hxBuf = build_dog(sigma_x, rx, hxLen);
     auto hyBuf = build_dog(sigma_y, rx, hyLen);     // MATLAB-bug-compatible
@@ -801,7 +801,7 @@ Value poly2mask(const Value &X, const Value &Y,
         const keel::f64 cx = keel::as<keel::f64>(c + 1);   // 1-based centre x
         for (keel::usize r = 0; r < M; ++r) {
             const keel::f64 cy = keel::as<keel::f64>(r + 1);
-            int crossings = 0;
+            keel::i32 crossings = 0;
             for (keel::usize i = 0; i + 1 < nv; ++i) {
                 const keel::f64 y1 = vy[i], y2 = vy[i + 1];
                 if (y1 == y2) continue;             // horizontal, skip
@@ -955,9 +955,9 @@ Value graydist(const Value &I, const Value &seeds,
     }
 
     // Neighbour offsets in (dr, dc) and chamfer weight.
-    struct Step { int dr, dc; keel::f64 chamfer; };
+    struct Step { keel::i32 dr, dc; keel::f64 chamfer; };
     keel::StaticArray<Step, 8> steps8{};
-    int nSteps = 0;
+    keel::i32 nSteps = 0;
     if (is_cb) {
         steps8 = {Step{-1, 0, 1.0}, Step{1, 0, 1.0},
                   Step{0, -1, 1.0}, Step{0, 1, 1.0},
@@ -986,9 +986,9 @@ Value graydist(const Value &I, const Value &seeds,
         const keel::usize r = k % H;
         const keel::usize c = k / H;
         const keel::f64 Iq = Idata[k];
-        for (int s = 0; s < nSteps; ++s) {
-            const long nr = keel::as<long>(r) + steps8[s].dr;
-            const long nc = keel::as<long>(c) + steps8[s].dc;
+        for (keel::i32 s = 0; s < nSteps; ++s) {
+            const keel::i64 nr = keel::as<keel::i64>(r) + steps8[s].dr;
+            const keel::i64 nc = keel::as<keel::i64>(c) + steps8[s].dc;
             if (nr < 0 || nc < 0
              || keel::as<keel::usize>(nr) >= H
              || keel::as<keel::usize>(nc) >= W) continue;
@@ -1101,9 +1101,9 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
         pq.emplace(0.0, idx);
     }
 
-    struct Step { int dr, dc; keel::f64 chamfer; };
+    struct Step { keel::i32 dr, dc; keel::f64 chamfer; };
     keel::StaticArray<Step, 8> steps8{};
-    int nSteps = 0;
+    keel::i32 nSteps = 0;
     if (is_cb) {
         steps8 = {Step{-1, 0, 1.0}, Step{1, 0, 1.0},
                   Step{0, -1, 1.0}, Step{0, 1, 1.0},
@@ -1130,9 +1130,9 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
         if (d > dist[k]) continue;
         const keel::usize r = k % H;
         const keel::usize c = k / H;
-        for (int s = 0; s < nSteps; ++s) {
-            const long nr = keel::as<long>(r) + steps8[s].dr;
-            const long nc = keel::as<long>(c) + steps8[s].dc;
+        for (keel::i32 s = 0; s < nSteps; ++s) {
+            const keel::i64 nr = keel::as<keel::i64>(r) + steps8[s].dr;
+            const keel::i64 nc = keel::as<keel::i64>(c) + steps8[s].dc;
             if (nr < 0 || nc < 0
              || keel::as<keel::usize>(nr) >= H
              || keel::as<keel::usize>(nc) >= W) continue;
@@ -1191,17 +1191,17 @@ Value imoverlay(const Value &I, const Value &BW, const Value &color, keel::Alloc
                        color.elemAsDouble(2) };
     const bool floatColour = (cIn[0] <= 1.0 && cIn[1] <= 1.0 &&
                                cIn[2] <= 1.0);
-    int cByte[3];
-    for (int k = 0; k < 3; ++k) {
+    keel::i32 cByte[3];
+    for (keel::i32 k = 0; k < 3; ++k) {
         keel::f64 v = floatColour ? cIn[k] * 255.0 : cIn[k];
         if (v < 0.0) v = 0.0;
         if (v > 255.0) v = 255.0;
-        cByte[k] = keel::as<int>(std::lround(v));
+        cByte[k] = keel::as<keel::i32>(std::lround(v));
     }
 
     // Helper: read I element as 0..255 byte.
     const ValueType srcT = I.type();
-    auto pixelByte = [&](keel::usize y, keel::usize x, int chan) {
+    auto pixelByte = [&](keel::usize y, keel::usize x, keel::i32 chan) {
         keel::usize idx;
         if (isRGB)
             idx = keel::as<keel::usize>(chan) * H * W + x * H + y;
@@ -1229,7 +1229,7 @@ Value imoverlay(const Value &I, const Value &BW, const Value &color, keel::Alloc
     for (keel::usize y = 0; y < H; ++y)
         for (keel::usize x = 0; x < W; ++x) {
             const bool flag = (BW.elemAsDouble(x * H + y) != 0.0);
-            for (int c = 0; c < 3; ++c) {
+            for (keel::i32 c = 0; c < 3; ++c) {
                 const keel::usize outIdx = keel::as<keel::usize>(c) * plane +
                                        x * H + y;
                 if (flag)
@@ -1257,9 +1257,9 @@ namespace {
 // [lo, hi]. Mirrors douglasPeucker in reducepoly.m, including the
 // first-farthest tie-break and the degenerate near-zero-chord branch.
 template <typename T>
-keel::Array<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
+keel::Array<keel::i32> rdpKeep(const T *xs, const T *ys, keel::i32 lo, keel::i32 hi, T tolEff)
 {
-    const int n = hi - lo + 1;
+    const keel::i32 n = hi - lo + 1;
     if (n <= 2) {
         if (lo == hi) return {lo};
         return {lo, hi};
@@ -1270,8 +1270,8 @@ keel::Array<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
     const keel::f64 EPS = 2.220446049250313e-16;  // MATLAB eps(1)
 
     T maxd = -1;
-    int far = -1;
-    for (int g = lo + 1; g <= hi - 1; ++g) {
+    keel::i32 far = -1;
+    for (keel::i32 g = lo + 1; g <= hi - 1; ++g) {
         const T xk = xs[g], yk = ys[g];
         T d;
         if (keel::as<keel::f64>(dNode) > EPS) {
@@ -1285,8 +1285,8 @@ keel::Array<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
         if (d > maxd) { maxd = d; far = g; }  // strict > keeps FIRST farthest
     }
     if (maxd > tolEff) {
-        keel::Array<int> r1 = rdpKeep(xs, ys, lo, far, tolEff);
-        keel::Array<int> r2 = rdpKeep(xs, ys, far, hi, tolEff);
+        keel::Array<keel::i32> r1 = rdpKeep(xs, ys, lo, far, tolEff);
+        keel::Array<keel::i32> r2 = rdpKeep(xs, ys, far, hi, tolEff);
         r1.append(r2.slice(1));  // drop duplicate `far`
         return r1;
     }
@@ -1294,16 +1294,16 @@ keel::Array<int> rdpKeep(const T *xs, const T *ys, int lo, int hi, T tolEff)
 }
 
 template <typename T>
-keel::Array<int> rdpRun(const Value &P, int n, keel::f64 tol)
+keel::Array<keel::i32> rdpRun(const Value &P, keel::i32 n, keel::f64 tol)
 {
     keel::Array<T> xs(n), ys(keel::as<keel::usize>(n));
-    for (int i = 0; i < n; ++i) {
+    for (keel::i32 i = 0; i < n; ++i) {
         xs[keel::as<keel::usize>(i)] = static_cast<T>(P.elemAsDouble(keel::as<keel::usize>(i)));
         ys[keel::as<keel::usize>(i)] = static_cast<T>(P.elemAsDouble(keel::as<keel::usize>(i) + keel::as<keel::usize>(n)));
     }
     // scaling = norm(max(P) - min(P)) over each column (bbox diagonal).
     T minx = xs[0], maxx = xs[0], miny = ys[0], maxy = ys[0];
-    for (int i = 1; i < n; ++i) {
+    for (keel::i32 i = 1; i < n; ++i) {
         minx = std::min(minx, xs[keel::usize(i)]); maxx = std::max(maxx, xs[keel::usize(i)]);
         miny = std::min(miny, ys[keel::usize(i)]); maxy = std::max(maxy, ys[keel::usize(i)]);
     }
@@ -1326,7 +1326,7 @@ Value reducepoly(const Value &P, keel::f64 tolerance, keel::Allocator *mr)
         throw Error("reducepoly: tolerance must be in [0, 1]",
                     0, 0, "reducepoly", "", "numkit:reducepoly:tol");
 
-    const int n = keel::as<int>(d.rows());
+    const keel::i32 n = keel::as<keel::i32>(d.rows());
     const ValueType cls = P.type();
 
     auto storeAt = [&](Value &out, keel::usize oidx, keel::f64 v) {
@@ -1346,7 +1346,7 @@ Value reducepoly(const Value &P, keel::f64 tolerance, keel::Allocator *mr)
     // n <= 1: return the input unchanged (per MATLAB).
     if (n <= 1) {
         Value out = Value::matrix(keel::as<keel::usize>(n), n == 0 ? 0 : 2, cls, mr);
-        for (int i = 0; i < n; ++i) {
+        for (keel::i32 i = 0; i < n; ++i) {
             storeAt(out, keel::as<keel::usize>(i), P.elemAsDouble(keel::as<keel::usize>(i)));
             storeAt(out, keel::as<keel::usize>(i) + keel::as<keel::usize>(n),
                     P.elemAsDouble(keel::as<keel::usize>(i) + keel::as<keel::usize>(n)));
@@ -1356,7 +1356,7 @@ Value reducepoly(const Value &P, keel::f64 tolerance, keel::Allocator *mr)
 
     // Compute in double for DOUBLE input, single otherwise (matches MATLAB,
     // which casts non-float to single and keeps single/double as-is).
-    const keel::Array<int> keep = (cls == ValueType::DOUBLE)
+    const keel::Array<keel::i32> keep = (cls == ValueType::DOUBLE)
         ? rdpRun<keel::f64>(P, n, tolerance)
         : rdpRun<keel::f32>(P, n, tolerance);
 
@@ -1372,7 +1372,7 @@ Value reducepoly(const Value &P, keel::f64 tolerance, keel::Allocator *mr)
 
 namespace {
 
-void watershed_argcheck(const Value &A, int conn)
+void watershed_argcheck(const Value &A, keel::i32 conn)
 {
     internal::requireImageClass(A, "watershed", "A", 1,
                                 internal::ImgClasses::AnyNumericReal);
@@ -1395,7 +1395,7 @@ void watershed_argcheck(const Value &A, int conn)
 
 } // namespace
 
-Value watershed(const Value &A, int conn, keel::Allocator *mr)
+Value watershed(const Value &A, keel::i32 conn, keel::Allocator *mr)
 {
     watershed_argcheck(A, conn);
 
@@ -1412,15 +1412,15 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
     }
 
     // Column-major neighbor offsets:
-    static constexpr int dr8[8] = {-1,  0,  1, -1, 1, -1, 0, 1};
-    static constexpr int dc8[8] = {-1, -1, -1,  0, 0,  1, 1, 1};
-    static constexpr int dr4[4] = {-1,  1,  0,  0};
-    static constexpr int dc4[4] = { 0,  0, -1,  1};
-    const int *dr = (conn == 4) ? dr4 : dr8;
-    const int *dc = (conn == 4) ? dc4 : dc8;
-    const int K   = (conn == 4) ? 4   : 8;
-    const int Hi  = keel::as<int>(H);
-    const int Wi  = keel::as<int>(W);
+    static constexpr keel::i32 dr8[8] = {-1,  0,  1, -1, 1, -1, 0, 1};
+    static constexpr keel::i32 dc8[8] = {-1, -1, -1,  0, 0,  1, 1, 1};
+    static constexpr keel::i32 dr4[4] = {-1,  1,  0,  0};
+    static constexpr keel::i32 dc4[4] = { 0,  0, -1,  1};
+    const keel::i32 *dr = (conn == 4) ? dr4 : dr8;
+    const keel::i32 *dc = (conn == 4) ? dc4 : dc8;
+    const keel::i32 K   = (conn == 4) ? 4   : 8;
+    const keel::i32 Hi  = keel::as<keel::i32>(H);
+    const keel::i32 Wi  = keel::as<keel::i32>(W);
 
     // Step 1: Identify regional minima plateaus under conn-connectivity.
     keel::Array<keel::u8> visited(N, 0);
@@ -1442,11 +1442,11 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
         keel::usize head = 0;
         while (head < q.size()) {
             const keel::usize curr = q[head++];
-            const int r = keel::as<int>(curr % H);
-            const int c = keel::as<int>(curr / H);
-            for (int k = 0; k < K; ++k) {
-                const int nr = r + dr[k];
-                const int nc = c + dc[k];
+            const keel::i32 r = keel::as<keel::i32>(curr % H);
+            const keel::i32 c = keel::as<keel::i32>(curr / H);
+            for (keel::i32 k = 0; k < K; ++k) {
+                const keel::i32 nr = r + dr[k];
+                const keel::i32 nc = c + dc[k];
                 if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
                 const keel::usize nb = keel::as<keel::usize>(nc) * H
                                      + keel::as<keel::usize>(nr);
@@ -1478,11 +1478,11 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
             keel::usize head = 0;
             while (head < q.size()) {
                 const keel::usize curr = q[head++];
-                const int r = keel::as<int>(curr % H);
-                const int c = keel::as<int>(curr / H);
-                for (int k = 0; k < K; ++k) {
-                    const int nr = r + dr[k];
-                    const int nc = c + dc[k];
+                const keel::i32 r = keel::as<keel::i32>(curr % H);
+                const keel::i32 c = keel::as<keel::i32>(curr / H);
+                for (keel::i32 k = 0; k < K; ++k) {
+                    const keel::i32 nr = r + dr[k];
+                    const keel::i32 nc = c + dc[k];
                     if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
                     const keel::usize nb = keel::as<keel::usize>(nc) * H
                                          + keel::as<keel::usize>(nr);
@@ -1514,11 +1514,11 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
     keel::usize ord = 0;
     for (keel::usize i = 0; i < N; ++i) {
         if (L[i] > 0) {
-            const int r = keel::as<int>(i % H);
-            const int c = keel::as<int>(i / H);
-            for (int k = 0; k < K; ++k) {
-                const int nr = r + dr[k];
-                const int nc = c + dc[k];
+            const keel::i32 r = keel::as<keel::i32>(i % H);
+            const keel::i32 c = keel::as<keel::i32>(i / H);
+            for (keel::i32 k = 0; k < K; ++k) {
+                const keel::i32 nr = r + dr[k];
+                const keel::i32 nc = c + dc[k];
                 if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
                 const keel::usize nb = keel::as<keel::usize>(nc) * H
                                      + keel::as<keel::usize>(nr);
@@ -1536,13 +1536,13 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
         const PQEntry top = pq.top();
         pq.pop();
         const keel::usize curr = top.idx;
-        const int r = keel::as<int>(curr % H);
-        const int c = keel::as<int>(curr / H);
+        const keel::i32 r = keel::as<keel::i32>(curr % H);
+        const keel::i32 c = keel::as<keel::i32>(curr / H);
         keel::u32 singleLabel = 0;
         bool multipleLabels = false;
-        for (int k = 0; k < K; ++k) {
-            const int nr = r + dr[k];
-            const int nc = c + dc[k];
+        for (keel::i32 k = 0; k < K; ++k) {
+            const keel::i32 nr = r + dr[k];
+            const keel::i32 nc = c + dc[k];
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
             const keel::u32 nl = L[keel::as<keel::usize>(nc) * H
                                      + keel::as<keel::usize>(nr)];
@@ -1557,9 +1557,9 @@ Value watershed(const Value &A, int conn, keel::Allocator *mr)
         }
         if (singleLabel > 0 && !multipleLabels) {
             L[curr] = singleLabel;
-            for (int k = 0; k < K; ++k) {
-                const int nr = r + dr[k];
-                const int nc = c + dc[k];
+            for (keel::i32 k = 0; k < K; ++k) {
+                const keel::i32 nr = r + dr[k];
+                const keel::i32 nc = c + dc[k];
                 if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
                 const keel::usize nb = keel::as<keel::usize>(nc) * H
                                      + keel::as<keel::usize>(nr);

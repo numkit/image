@@ -190,7 +190,7 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     keel::String method = keel::String::from("Harris");
-    int maxN = 200;
+    keel::i32 maxN = 200;
     keel::f64 quality = 0.01;
     keel::f64 sensitivity = 0.04;
     Value filter_coef;
@@ -207,8 +207,8 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // Optional positional N (max corners).
     if (i < args.size() && !is_string(args[i]) && args[i].numel() == 1) {
         maxN = argcheck::expectedPositiveInteger(
-            argcheck::expectedReal(args[i], int(i) + 1, "MaxNumCorners", "corner"),
-            int(i) + 1, "MaxNumCorners", "corner");
+            argcheck::expectedReal(args[i], keel::i32(i) + 1, "MaxNumCorners", "corner"),
+            keel::i32(i) + 1, "MaxNumCorners", "corner");
         ++i;
     }
     // Name-value pairs.
@@ -259,10 +259,10 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         } else if (nlo.starts_with("thetar")) {
             // 'ThetaResolution' (legacy): build theta = -90:tr:89.
             const keel::f64 tr = args[i + 1].toScalar();
-            const int n = keel::as<int>(std::ceil(90.0 / tr));
+            const keel::i32 n = keel::as<keel::i32>(std::ceil(90.0 / tr));
             const keel::f64 step = 90.0 / n;
             keel::Array<keel::f64> tv(mr);
-            for (int k = -n; k < n; ++k) tv.push_back(k * step);
+            for (keel::i32 k = -n; k < n; ++k) tv.push_back(k * step);
             theta_deg = Value::matrix(1, tv.size(), ValueType::DOUBLE, mr);
             for (keel::usize kk = 0; kk < tv.size(); ++kk)
                 theta_deg.doubleDataMut()[kk] = tv[kk];
@@ -356,8 +356,8 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             const keel::f64 b = v.elemAsDouble(1);
             if (!(a > 0) || !(b > 0)
              || a != std::floor(a) || b != std::floor(b)
-             || keel::as<int>(a) % 2 == 0
-             || keel::as<int>(b) % 2 == 0)
+             || keel::as<keel::i32>(a) % 2 == 0
+             || keel::as<keel::i32>(b) % 2 == 0)
                 throw Error("houghpeaks: NHoodSize elements must be "
                             "positive odd integers",
                             0, 0, "houghpeaks", "",

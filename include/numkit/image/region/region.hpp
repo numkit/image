@@ -32,11 +32,11 @@ namespace numkit::image {
 ///
 /// @see bwconncomp, bwareaopen, bwselect
 std::tuple<Value, Value>
-bwlabel(const Value &BW, int conn,
+bwlabel(const Value &BW, keel::i32 conn,
         keel::Allocator *mr = nullptr);
 
 std::tuple<Value, Value>
-bwlabeln(const Value &BW, int conn = 0,
+bwlabeln(const Value &BW, keel::i32 conn = 0,
          keel::Allocator *mr = nullptr);
 
 /// @brief Connected-component struct
@@ -54,7 +54,7 @@ bwlabeln(const Value &BW, int conn = 0,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Struct Value with the fields described above.
 /// @see bwlabel
-Value bwconncomp(const Value &BW, int conn,
+Value bwconncomp(const Value &BW, keel::i32 conn,
                  keel::Allocator *mr = nullptr);
 
 /// @brief Connected-component label matrix (`L = labelmatrix(CC)`).
@@ -147,7 +147,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
                  keel::StringRef attribute,
                  keel::f64 p_min, keel::f64 p_max,
                  keel::usize keep_n, bool keep_largest,
-                 int conn,
+                 keel::i32 conn,
                  keel::Allocator *mr = nullptr);
 
 /// @brief Total foreground area (`A = bwarea(BW)`).
@@ -172,7 +172,7 @@ Value bwarea(const Value &BW,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL perimeter mask, same shape as `BW`.
 /// @see bwarea, bwboundaries
-Value bwperim(const Value &BW, int conn,
+Value bwperim(const Value &BW, keel::i32 conn,
               keel::Allocator *mr = nullptr);
 
 /// @brief Remove small components (`BW2 = bwareaopen(BW, P, conn)`).
@@ -186,7 +186,7 @@ Value bwperim(const Value &BW, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Filtered LOGICAL mask, same shape as `BW`.
 /// @see bwareafilt
-Value bwareaopen(const Value &BW, int P, int conn,
+Value bwareaopen(const Value &BW, keel::i32 P, keel::i32 conn,
                  keel::Allocator *mr = nullptr);
 
 /// @brief Trace boundary contours (`B = bwboundaries(BW, conn)`).
@@ -204,8 +204,8 @@ Value bwareaopen(const Value &BW, int P, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Cell column of P×2 coordinate arrays.
 /// @see bwperim, bwconncomp
-Value bwboundaries(const Value &BW, int conn,
-                   Value *Lout = nullptr, int *Nout = nullptr,
+Value bwboundaries(const Value &BW, keel::i32 conn,
+                   Value *Lout = nullptr, keel::i32 *Nout = nullptr,
                    keel::Allocator *mr = nullptr);
 
 /// Per-region descriptors (`S = regionprops(BW_or_L, props)`).
@@ -297,7 +297,7 @@ Value fchcode(const Value &bound,
 /// @param conn  Foreground connectivity — 4 or 8 (default 8).
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Scalar Euler number.
-Value bweuler(const Value &BW, int conn,
+Value bweuler(const Value &BW, keel::i32 conn,
               keel::Allocator *mr = nullptr);
 
 /// Filter connected components by area (`BW2 = bwareafilt(...)`).
@@ -317,7 +317,7 @@ Value bweuler(const Value &BW, int conn,
 /// @param mr            Memory resource (nullptr → process default).
 /// @return              Logical mask, same H×W as `BW`.
 Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi,
-                 keel::usize n_keep, bool keep_largest, int conn,
+                 keel::usize n_keep, bool keep_largest, keel::i32 conn,
                  keel::Allocator *mr = nullptr);
 
 /// Select components by seed pixels
@@ -334,7 +334,7 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi,
 /// @return      `(BW2, idx)` — selected mask + column of surviving
 ///              1-based linear pixel indices.
 std::tuple<Value, Value>
-bwselect(const Value &BW, const Value &cols, const Value &rows, int conn,
+bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn,
          keel::Allocator *mr = nullptr);
 
 

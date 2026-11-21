@@ -148,10 +148,10 @@ inline void mat3_inv(const keel::f64 M[9], keel::f64 Inv[9])
 // 3x3 · 3x3 matrix multiply.
 inline void mat3_mul(const keel::f64 A[9], const keel::f64 B[9], keel::f64 Out[9])
 {
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j) {
+    for (keel::i32 i = 0; i < 3; ++i)
+        for (keel::i32 j = 0; j < 3; ++j) {
             keel::f64 s = 0.0;
-            for (int k = 0; k < 3; ++k) s += A[3 * i + k] * B[3 * k + j];
+            for (keel::i32 k = 0; k < 3; ++k) s += A[3 * i + k] * B[3 * k + j];
             Out[3 * i + j] = s;
         }
 }
@@ -443,7 +443,7 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
     // im2double would: integer → /max, float → as-is).
     keel::f64 ill_rgb01[3];
     const ValueType ill_t = illuminant_in.type();
-    for (int k = 0; k < 3; ++k) {
+    for (keel::i32 k = 0; k < 3; ++k) {
         keel::f64 v = illuminant_in.elemAsDouble(k);
         if (ill_t == ValueType::UINT8)  v /= 255.0;
         if (ill_t == ValueType::UINT16) v /= 65535.0;
@@ -458,7 +458,7 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
     rgb_to_xyz_d65(ill_rgb01, cs, ill_xyz);
     // Replace zeros with eps to avoid div-by-0.
     const keel::f64 eps_d = std::numeric_limits<keel::f64>::epsilon();
-    for (int k = 0; k < 3; ++k)
+    for (keel::i32 k = 0; k < 3; ++k)
         if (ill_xyz[k] == 0.0) ill_xyz[k] = eps_d;
     // Normalize so Y=1.
     const keel::f64 Y = ill_xyz[1];
@@ -473,11 +473,11 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
         keel::f64 ill_rgb_norm[3];
         xyz_d65_to_rgb(ill_xyz, cs, ill_rgb_norm);
         // Avoid zero denominators.
-        for (int k = 0; k < 3; ++k) {
+        for (keel::i32 k = 0; k < 3; ++k) {
             ill_rgb_norm[k] = std::fabs(ill_rgb_norm[k]);
             if (ill_rgb_norm[k] == 0.0) ill_rgb_norm[k] = eps_d;
         }
-        for (int ch = 0; ch < 3; ++ch)
+        for (keel::i32 ch = 0; ch < 3; ++ch)
             for (keel::usize i = 0; i < H * W; ++i)
                 out_rgb.v[ch * H * W + i] =
                     in_rgb.v[ch * H * W + i] / ill_rgb_norm[ch];

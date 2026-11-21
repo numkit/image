@@ -48,7 +48,7 @@ enum class PadMode {
 /// @param direction `"both"` / `"pre"` / `"post"`.
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          Padded array.
-Value padarray(const Value &x, keel::ArrayRef<int> padsize,
+Value padarray(const Value &x, keel::ArrayRef<keel::i32> padsize,
                PadMode mode, keel::f64 pad_value,
                keel::StringRef direction,
                keel::Allocator *mr = nullptr);
@@ -136,7 +136,7 @@ Value imfilter(const Value &I, const Value &h,
 /// @param mr           Memory resource (nullptr → process default).
 /// @return             Filtered image, same class as `I`.
 /// @see imgaussfilt3, imboxfilt
-Value imgaussfilt(const Value &I, keel::f64 sigma, int filter_size,
+Value imgaussfilt(const Value &I, keel::f64 sigma, keel::i32 filter_size,
                   keel::Allocator *mr = nullptr);
 
 /// @brief 2-D box / mean filter (`B = imboxfilt(I, filter_size)`).
@@ -148,7 +148,7 @@ Value imgaussfilt(const Value &I, keel::f64 sigma, int filter_size,
 /// @param mr           Memory resource (nullptr → process default).
 /// @return             Filtered image, same class as `I`.
 /// @see imgaussfilt, imboxfilt3
-Value imboxfilt(const Value &I, int filter_size,
+Value imboxfilt(const Value &I, keel::i32 filter_size,
                 keel::Allocator *mr = nullptr);
 
 /// @brief 2-D box filter on a precomputed integral image
@@ -172,7 +172,7 @@ Value imboxfilt(const Value &I, int filter_size,
 /// @param mr           Memory resource (nullptr → process default).
 /// @return             Filtered values, size `(H - fH + 1) × (W - fW + 1)[ × C]`.
 /// @see integralImage, imboxfilt
-Value integralBoxFilter(const Value &I, int fH, int fW, keel::f64 normFactor,
+Value integralBoxFilter(const Value &I, keel::i32 fH, keel::i32 fW, keel::f64 normFactor,
                         keel::Allocator *mr = nullptr);
 
 /// @brief 3-D box filter on a precomputed integral volume
@@ -198,7 +198,7 @@ Value integralBoxFilter(const Value &I, int fH, int fW, keel::f64 normFactor,
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            Filtered volume, size `(H−fH+1)×(W−fW+1)×(D−fP+1)`.
 /// @see integralImage3, imboxfilt3, integralBoxFilter
-Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
+Value integralBoxFilter3(const Value &I, keel::i32 fH, keel::i32 fW, keel::i32 fP,
                          keel::f64 normFactor,
                          keel::Allocator *mr = nullptr);
 
@@ -223,14 +223,14 @@ Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          Same-shape mode-filtered image, same class as `A`.
 /// @see medfilt2, imboxfilt
-Value modefilt(const Value &A, int fH, int fW,
+Value modefilt(const Value &A, keel::i32 fH, keel::i32 fW,
                keel::StringRef padopt,
                keel::Allocator *mr = nullptr);
 
 /// 3-D variant: `modefilt(V, [fH fW fD], padopt)`. Same algorithm
 /// extended over the third dimension. Default fD = 3 when called
 /// from MATLAB on a 3-D input.
-Value modefilt3D(const Value &A, int fH, int fW, int fD,
+Value modefilt3D(const Value &A, keel::i32 fH, keel::i32 fW, keel::i32 fD,
                  keel::StringRef padopt,
                  keel::Allocator *mr = nullptr);
 
@@ -293,7 +293,7 @@ Value roifilt2(const Value &h, const Value &I, const Value &BW,
 /// @param eps    Smoothing degree (negative → use class-based default).
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       Filtered image, same shape and class as `A`.
-Value imguidedfilter(const Value &A, const Value &G, int nhood,
+Value imguidedfilter(const Value &A, const Value &G, keel::i32 nhood,
                      keel::f64 eps,
                      keel::Allocator *mr = nullptr);
 
@@ -434,7 +434,7 @@ void imgaborfilt(const Value &A, keel::f64 wavelength, keel::f64 orientation,
 ///                        was negative).
 /// @param mr              Memory resource (nullptr → process default).
 void imnlmfilt(const Value &I, keel::f64 dos,
-               int swsize, int cwsize,
+               keel::i32 swsize, keel::i32 cwsize,
                Value &J_out, keel::f64 &est_out,
                keel::Allocator *mr = nullptr);
 
@@ -448,7 +448,7 @@ void imnlmfilt(const Value &I, keel::f64 dos,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Filtered image, same class as `I`.
 /// @see medfilt3, ordfilt2
-Value medfilt2(const Value &I, int rows = 3, int cols = 3,
+Value medfilt2(const Value &I, keel::i32 rows = 3, keel::i32 cols = 3,
                keel::Allocator *mr = nullptr);
 
 /// @brief Unsharp masking
@@ -486,7 +486,7 @@ Value imsharpen(const Value &I, keel::f64 radius, keel::f64 amount, keel::f64 th
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            Column-stacked neighbourhood matrix.
 /// @see col2im
-Value im2col(const Value &A, int m, int n, keel::StringRef block_type,
+Value im2col(const Value &A, keel::i32 m, keel::i32 n, keel::StringRef block_type,
              keel::Allocator *mr = nullptr);
 
 /// @brief Inverse of @ref im2col
@@ -507,7 +507,7 @@ Value im2col(const Value &A, int m, int n, keel::StringRef block_type,
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            Reconstructed `mm × nn` image.
 /// @see im2col
-Value col2im(const Value &B, int m, int n, int mm, int nn,
+Value col2im(const Value &B, keel::i32 m, keel::i32 n, keel::i32 mm, keel::i32 nn,
              keel::StringRef block_type,
              keel::Allocator *mr = nullptr);
 
@@ -612,7 +612,7 @@ Value imsmooth(const Value &I, keel::StringRef name, keel::f64 sigma,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Filtered volume, same class as `V`.
 /// @see imboxfilt, imgaussfilt3
-Value imboxfilt3(const Value &V, int fH, int fW, int fP,
+Value imboxfilt3(const Value &V, keel::i32 fH, keel::i32 fW, keel::i32 fP,
                  keel::Allocator *mr = nullptr);
 
 /// @brief 2-D convolution matrix (`T = convmtx2(h, m, n)`).
@@ -628,7 +628,7 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP,
 /// @param n   Image column count.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Dense convolution matrix, DOUBLE.
-Value convmtx2(const Value &h, int m, int n,
+Value convmtx2(const Value &h, keel::i32 m, keel::i32 n,
                keel::Allocator *mr = nullptr);
 
 /// @brief 3-D Gaussian filter
@@ -662,7 +662,7 @@ Value imgaussfilt3(const Value &V, keel::f64 sigH, keel::f64 sigW, keel::f64 sig
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Filtered volume, same class as `V`.
 /// @see medfilt2
-Value medfilt3(const Value &V, int M, int N, int P,
+Value medfilt3(const Value &V, keel::i32 M, keel::i32 N, keel::i32 P,
                keel::Allocator *mr = nullptr);
 
 /// @brief Local Shannon entropy (`B = entropyfilt(I, domain)`).
@@ -697,7 +697,7 @@ Value entropyfilt(const Value &I, const Value &domain,
 /// @param mr        Memory resource (nullptr → process default).
 /// @return          Filtered image, same class as `A`.
 /// @see medfilt2
-Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S,
+Value ordfilt2(const Value &A, keel::i32 nth, const Value &domain, const Value &S,
                PadMode boundary, keel::f64 pad_value,
                keel::Allocator *mr = nullptr);
 
@@ -893,7 +893,7 @@ Value colfilt(const Value &A,
 /// @param mr               Memory resource (nullptr → process default).
 /// @return                 Filtered image, same class and shape as `I`.
 Value locallapfilt(const Value &I, keel::f64 sigma, keel::f64 alpha,
-                   keel::f64 beta, int num_intensity_levels,
+                   keel::f64 beta, keel::i32 num_intensity_levels,
                    bool process_luminance,
                    keel::Allocator *mr = nullptr);
 

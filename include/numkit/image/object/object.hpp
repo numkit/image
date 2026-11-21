@@ -187,7 +187,7 @@ Value cornermetric(const Value &I, keel::StringRef method,
 /// @param mr             Memory resource (nullptr → process default).
 /// @return               `K × 2` DOUBLE matrix of `[x y]` corner coordinates.
 /// @see cornermetric
-Value corner(const Value &I, keel::StringRef method, int maxN,
+Value corner(const Value &I, keel::StringRef method, keel::i32 maxN,
              keel::f64 quality_level, keel::f64 sensitivity,
              const Value &filter_coef,
              keel::Allocator *mr = nullptr);

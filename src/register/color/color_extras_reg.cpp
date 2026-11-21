@@ -79,7 +79,7 @@ void rgbwide2ycbcr_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "rgbwide2ycbcr");
     // no max: name-value tail in the reference
-    const int bps = argcheck::expectedOneOf(
+    const keel::i32 bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "rgbwide2ycbcr"),
             {8, 10, 12, 16}, 2, "bps", "rgbwide2ycbcr");
     outs[0] = rgbwide2ycbcr(args[0], bps, ctx.engine->allocator());
@@ -90,7 +90,7 @@ void ycbcr2rgbwide_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "ycbcr2rgbwide");
     // no max: name-value tail in the reference
-    const int bps = argcheck::expectedOneOf(
+    const keel::i32 bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "ycbcr2rgbwide"),
             {8, 10, 12, 16}, 2, "bps", "ycbcr2rgbwide");
     outs[0] = ycbcr2rgbwide(args[0], bps, ctx.engine->allocator());
@@ -102,7 +102,7 @@ void rgbwide2xyz_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 2, "rgbwide2xyz");
     // no max: name-value tail in the reference
     auto *mr = ctx.engine->allocator();
-    const int bps = argcheck::expectedOneOf(
+    const keel::i32 bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "rgbwide2xyz"),
             {8, 10, 12, 16}, 2, "bps", "rgbwide2xyz");
     keel::String cs = keel::String::from("BT.2020");
@@ -136,7 +136,7 @@ void xyz2rgbwide_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 2, "xyz2rgbwide");
     // no max: name-value tail in the reference
     auto *mr = ctx.engine->allocator();
-    const int bps = argcheck::expectedOneOf(
+    const keel::i32 bps = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "bps", "xyz2rgbwide"),
             {8, 10, 12, 16}, 2, "bps", "xyz2rgbwide");
     keel::String cs = keel::String::from("BT.2020");
@@ -265,7 +265,7 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     keel::f64 lo = 0.0, hi = 1.0;
     keel::f64 saturation = 1.0;
-    int ntilesR = 4, ntilesC = 4;
+    keel::i32 ntilesR = 4, ntilesC = 4;
 
     keel::usize i = 1;
     while (i + 1 < args.size()) {
@@ -287,11 +287,11 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             const Value &v = args[i + 1];
             if (v.numel() == 1) {
                 ntilesR = ntilesC = argcheck::expectedPositiveInteger(
-                    argcheck::expectedReal(v, int(i) + 2, "NumberOfTiles", "tonemap"),
-                    int(i) + 2, "NumberOfTiles", "tonemap");
+                    argcheck::expectedReal(v, keel::i32(i) + 2, "NumberOfTiles", "tonemap"),
+                    keel::i32(i) + 2, "NumberOfTiles", "tonemap");
             } else if (v.numel() == 2) {
-                ntilesR = keel::as<int>(v.elemAsDouble(0));
-                ntilesC = keel::as<int>(v.elemAsDouble(1));
+                ntilesR = keel::as<keel::i32>(v.elemAsDouble(0));
+                ntilesC = keel::as<keel::i32>(v.elemAsDouble(1));
             } else {
                 throw Error("tonemap: NumberOfTiles must be a scalar or "
                             "2-element vector",
@@ -378,12 +378,12 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // numregion = max(L(:)); force ≥1 so the generated colormap always has
     // 3 columns (a 1-row map is never indexed when L is all background).
     const keel::usize plane = L.numel();
-    int maxLabel = 0;
+    keel::i32 maxLabel = 0;
     for (keel::usize i = 0; i < plane; ++i) {
         const keel::f64 v = L.elemAsDouble(i);
-        if (std::isfinite(v) && v > maxLabel) maxLabel = keel::as<int>(v);
+        if (std::isfinite(v) && v > maxLabel) maxLabel = keel::as<keel::i32>(v);
     }
-    const int numregion = maxLabel < 1 ? 1 : maxLabel;
+    const keel::i32 numregion = maxLabel < 1 ? 1 : maxLabel;
 
     // ── Resolve colormap: default jet / named string / Nx3 matrix ──
     Value cmap;

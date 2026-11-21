@@ -54,9 +54,9 @@ void grayconnected_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<V
 {
     argcheck::checkNargin(a.size(), 3, "grayconnected");
     // no max: name-value tail in the reference
-        const int row = argcheck::expectedPositiveInteger(
+        const keel::i32 row = argcheck::expectedPositiveInteger(
         argcheck::expectedReal(a[1], 2, "row", "grayconnected"), 2, "row", "grayconnected");
-    const int col = argcheck::expectedPositiveInteger(
+    const keel::i32 col = argcheck::expectedPositiveInteger(
         argcheck::expectedReal(a[2], 3, "col", "grayconnected"), 3, "col", "grayconnected");
     keel::f64 tol = -1.0;
     if (a.size() >= 4 && !a[3].isEmpty()) tol = a[3].toScalar();
@@ -81,7 +81,7 @@ void boundarymask_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Va
                       CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 2, "boundarymask");
-    const int conn = (a.size() >= 2 && !a[1].isEmpty())
+    const keel::i32 conn = (a.size() >= 2 && !a[1].isEmpty())
                      ? argcheck::expectedOneOf(
                          argcheck::expectedReal(a[1], 2, "conn", "boundarymask"),
                          {4, 8}, 2, "conn", "boundarymask") : 8;
@@ -117,14 +117,14 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
         if (a[1].numel() != N)
             throw Error("graydiffweight: MASK must match I in shape",
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:mask");
-        long double sum = 0.0L; keel::usize cnt = 0;
+        long double sum = 0.0L; keel::usize cnt = 0; // keel-lint: ignore
         const keel::u8 *m = a[1].logicalData();
         for (keel::usize i = 0; i < N; ++i)
             if (m[i]) { sum += I.elemAsDouble(i); ++cnt; }
         if (cnt == 0)
             throw Error("graydiffweight: MASK must contain at least one true",
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:emptyMask");
-        ref_gray_val = keel::as<keel::f64>(sum / keel::as<long double>(cnt));
+        ref_gray_val = keel::as<keel::f64>(sum / keel::as<long double>(cnt)); // keel-lint: ignore
         nv_start = 2;
     }
     else if (!a1_str && a[1].numel() == 1 &&
@@ -141,7 +141,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
         if (C.numel() != R.numel() || (Pi && Pi->numel() != C.numel()))
             throw Error("graydiffweight: C, R [, P] must have equal length",
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:crp");
-        long double sum = 0.0L; keel::usize cnt = 0;
+        long double sum = 0.0L; keel::usize cnt = 0; // keel-lint: ignore
         for (keel::usize i = 0; i < C.numel(); ++i) {
             const keel::usize c1 = keel::as<keel::usize>(C.elemAsDouble(i));
             const keel::usize r1 = keel::as<keel::usize>(R.elemAsDouble(i));
@@ -157,7 +157,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
             sum += I.elemAsDouble(lin);
             ++cnt;
         }
-        ref_gray_val = keel::as<keel::f64>(sum / keel::as<long double>(cnt));
+        ref_gray_val = keel::as<keel::f64>(sum / keel::as<long double>(cnt)); // keel-lint: ignore
         nv_start = has_P ? 4 : 3;
     }
     else {
@@ -585,7 +585,7 @@ void label2idx_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value
 void watershed_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 2, "watershed");
-    const int conn = (a.size() >= 2 && !a[1].isEmpty())
+    const keel::i32 conn = (a.size() >= 2 && !a[1].isEmpty())
                      ? argcheck::expectedOneOf(
                          argcheck::expectedReal(a[1], 2, "conn", "watershed"),
                          {4, 8}, 2, "conn", "watershed")

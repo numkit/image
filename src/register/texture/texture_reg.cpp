@@ -44,10 +44,10 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // no max: name-value tail ('Offset' pairs)
     const Value &I = args[0];
 
-    int numLevels = (I.type() == ValueType::LOGICAL) ? 2
+    keel::i32 numLevels = (I.type() == ValueType::LOGICAL) ? 2
                   : (I.type() == ValueType::UINT8)   ? 8
                                                      : 8;
-    int offR = 0, offC = 1;
+    keel::i32 offR = 0, offC = 1;
     keel::f64 gLow = 0.0, gHigh = 0.0;
     bool   limitsSet = false;
     bool   symmetric = false;
@@ -61,15 +61,15 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumLevels"))
             numLevels = argcheck::expectedPositiveInteger(
-                argcheck::expectedReal(v, int(i) + 2, "NumLevels", "graycomatrix"),
-                int(i) + 2, "NumLevels", "graycomatrix");
+                argcheck::expectedReal(v, keel::i32(i) + 2, "NumLevels", "graycomatrix"),
+                keel::i32(i) + 2, "NumLevels", "graycomatrix");
         else if (eqIgnoreCase(key, "Offset")) {
             if (v.numel() < 2)
                 throw Error("graycomatrix: Offset must be 2-element",
                              0, 0, "graycomatrix", "",
                              "numkit:graycomatrix:badOffset");
-            offR = keel::as<int>(v.elemAsDouble(0));
-            offC = keel::as<int>(v.elemAsDouble(1));
+            offR = keel::as<keel::i32>(v.elemAsDouble(0));
+            offC = keel::as<keel::i32>(v.elemAsDouble(1));
         }
         else if (eqIgnoreCase(key, "GrayLimits")) {
             if (v.isEmpty()) {

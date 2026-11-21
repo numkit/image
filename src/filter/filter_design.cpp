@@ -279,10 +279,10 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         const keel::f64 center = -6.0 + 3.0 * g1 + 4.0 * g2;
         Size3 ks{3, 3, 3};
         return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> keel::f64 {
-            const int dr = keel::as<int>(r) - 1;
-            const int dc = keel::as<int>(c) - 1;
-            const int dp = keel::as<int>(p) - 1;
-            const int d2 = dr*dr + dc*dc + dp*dp;
+            const keel::i32 dr = keel::as<keel::i32>(r) - 1;
+            const keel::i32 dc = keel::as<keel::i32>(c) - 1;
+            const keel::i32 dp = keel::as<keel::i32>(p) - 1;
+            const keel::i32 d2 = dr*dr + dc*dc + dp*dp;
             if (d2 == 0) return center;
             if (d2 == 1) return face;
             if (d2 == 2) return edge;
@@ -346,10 +346,10 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         const keel::f64 w1 = isSobel ? 2.0 : 1.0;
         Size3 ks{3, 3, 3};
         return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> keel::f64 {
-            const int dr = keel::as<int>(r) - 1;
-            const int dc = keel::as<int>(c) - 1;
-            const int dp = keel::as<int>(p) - 1;
-            auto sm = [&](int x) -> keel::f64 { return (x == 0) ? w1 : w0; };
+            const keel::i32 dr = keel::as<keel::i32>(r) - 1;
+            const keel::i32 dc = keel::as<keel::i32>(c) - 1;
+            const keel::i32 dp = keel::as<keel::i32>(p) - 1;
+            auto sm = [&](keel::i32 x) -> keel::f64 { return (x == 0) ? w1 : w0; };
             if (dir == "X" || dir == "x") return keel::as<keel::f64>(-dc) * sm(dr) * sm(dp);
             if (dir == "Y" || dir == "y") return keel::as<keel::f64>(-dr) * sm(dc) * sm(dp);
             if (dir == "Z" || dir == "z") return keel::as<keel::f64>(-dp) * sm(dr) * sm(dc);

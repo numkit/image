@@ -77,24 +77,24 @@ constexpr keel::f64 K_C_at_C2[25] = {
 
 // Mirror through the first pixel (Bayer-preserving). For 0-indexed
 // index k and length N:  k<0 → -k;  k>=N → 2N-2-k.
-inline int mirror1(int k, int N) {
+inline keel::i32 mirror1(keel::i32 k, keel::i32 N) {
     if (k < 0)    return -k;
     if (k >= N)   return 2*N - 2 - k;
     return k;
 }
 
-inline keel::f64 sampleI(const Value &I, int r, int c, keel::usize M, keel::usize N) {
-    const int rp = mirror1(r, int(M));
-    const int cp = mirror1(c, int(N));
+inline keel::f64 sampleI(const Value &I, keel::i32 r, keel::i32 c, keel::usize M, keel::usize N) {
+    const keel::i32 rp = mirror1(r, keel::i32(M));
+    const keel::i32 cp = mirror1(c, keel::i32(N));
     return I.elemAsDouble(keel::usize(rp) + keel::usize(cp) * M);
 }
 
-inline keel::f64 conv5(const Value &I, int r, int c, keel::usize M, keel::usize N,
+inline keel::f64 conv5(const Value &I, keel::i32 r, keel::i32 c, keel::usize M, keel::usize N,
                     const keel::f64 *K)
 {
     keel::f64 acc = 0.0;
-    for (int dr = -2; dr <= 2; ++dr)
-        for (int dc = -2; dc <= 2; ++dc) {
+    for (keel::i32 dr = -2; dr <= 2; ++dr)
+        for (keel::i32 dc = -2; dc <= 2; ++dc) {
             const keel::f64 w = K[(dr + 2) * 5 + (dc + 2)];
             if (w != 0.0)
                 acc += w * sampleI(I, r + dr, c + dc, M, N);
@@ -155,7 +155,7 @@ void demosaic_argcheck(const Value &I, keel::StringRef sensorAlignment)
 } // anonymous
 
 Value demosaic(const Value &I, keel::StringRef sensorAlignment,
-               int bitsPerSample, keel::Allocator *mr)
+               keel::i32 bitsPerSample, keel::Allocator *mr)
 {
     demosaic_argcheck(I, sensorAlignment);
     const auto &dims = I.dims();
@@ -183,7 +183,7 @@ Value demosaic(const Value &I, keel::StringRef sensorAlignment,
     //   bggr: R at (even,even), B at (odd,odd)
     //   grbg: R at (odd,even),  B at (even,odd)
     //   gbrg: R at (even,odd),  B at (odd,even)
-    int r_par_r, r_par_c, b_par_r, b_par_c;
+    keel::i32 r_par_r, r_par_c, b_par_r, b_par_c;
     if      (sensorAlignment == "rggb") { r_par_r = 1; r_par_c = 1; b_par_r = 0; b_par_c = 0; }
     else if (sensorAlignment == "bggr") { r_par_r = 0; r_par_c = 0; b_par_r = 1; b_par_c = 1; }
     else if (sensorAlignment == "grbg") { r_par_r = 1; r_par_c = 0; b_par_r = 0; b_par_c = 1; }
@@ -205,10 +205,10 @@ Value demosaic(const Value &I, keel::StringRef sensorAlignment,
     Value RGB = Value::matrix3d(M, N, 3, T, mr);
 
     // Per-pixel processing. r, c are 0-indexed; pattern parity uses 1-indexed parity.
-    for (int c = 0; c < int(N); ++c) {
-        const int c1 = c + 1;                // 1-indexed
-        for (int r = 0; r < int(M); ++r) {
-            const int r1 = r + 1;
+    for (keel::i32 c = 0; c < keel::i32(N); ++c) {
+        const keel::i32 c1 = c + 1;                // 1-indexed
+        for (keel::i32 r = 0; r < keel::i32(M); ++r) {
+            const keel::i32 r1 = r + 1;
             const bool isR = ((r1 & 1) == r_par_r) && ((c1 & 1) == r_par_c);
             const bool isB = ((r1 & 1) == b_par_r) && ((c1 & 1) == b_par_c);
 

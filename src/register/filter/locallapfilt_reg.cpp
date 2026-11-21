@@ -39,7 +39,7 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     keel::f64 beta = 1.0;
-    int nlevels = -1;          // -1 = auto
+    keel::i32 nlevels = -1;          // -1 = auto
     bool processLuminance = true;
 
     keel::usize i = 3;
@@ -71,7 +71,7 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 nlevels = -1;
             } else {
                 nlevels = argcheck::expectedPositiveInteger(
-            argcheck::expectedReal(v, int(i) + 2, "NumIntensityLevels", "locallapfilt"), 0, "NumIntensityLevels", "locallapfilt");
+            argcheck::expectedReal(v, keel::i32(i) + 2, "NumIntensityLevels", "locallapfilt"), 0, "NumIntensityLevels", "locallapfilt");
                 if (nlevels < 1)
                     throw Error("locallapfilt: NumIntensityLevels must be >= 1",
                                 0, 0, "locallapfilt", "",

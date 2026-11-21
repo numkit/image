@@ -94,15 +94,15 @@ inline keel::String lower_str(keel::StringRef s)
 
 // Pixel extraction per component.
 struct Comp {
-    keel::Array<int> rs;    // 0-based row indices
-    keel::Array<int> cs;    // 0-based col indices
-    int rmin = 0, rmax = 0, cmin = 0, cmax = 0;  // inclusive
+    keel::Array<keel::i32> rs;    // 0-based row indices
+    keel::Array<keel::i32> cs;    // 0-based col indices
+    keel::i32 rmin = 0, rmax = 0, cmin = 0, cmax = 0;  // inclusive
 };
 
 // Parse a CC struct → per-component pixel sets.
 struct CCInfoBPF {
-    int H = 0, W = 0;
-    int conn = 8;
+    keel::i32 H = 0, W = 0;
+    keel::i32 conn = 8;
     keel::Array<Comp> comps;
 };
 
@@ -126,9 +126,9 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
         throw Error(keel::format("{}: CC.ImageSize too short", fn),
                     0, 0, fn, "",
                     keel::format("numkit:{}:sizeDim", fn));
-    info.H = keel::as<int>(sz.elemAsDouble(0));
-    info.W = keel::as<int>(sz.elemAsDouble(1));
-    if (const Value *vConn = el.get("Connectivity")) info.conn = keel::as<int>(vConn->toScalar());
+    info.H = keel::as<keel::i32>(sz.elemAsDouble(0));
+    info.W = keel::as<keel::i32>(sz.elemAsDouble(1));
+    if (const Value *vConn = el.get("Connectivity")) info.conn = keel::as<keel::i32>(vConn->toScalar());
     const Value &nob = need("NumObjects");
     const keel::usize K = keel::as<keel::usize>(nob.toScalar());
     const Value &pl = need("PixelIdxList");
@@ -139,14 +139,14 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
         Comp &c = info.comps[k];
         c.rs.resize(N);
         c.cs.resize(N);
-        int rmin = INT_MAX, rmax = -1, cmin = INT_MAX, cmax = -1;
+        keel::i32 rmin = INT_MAX, rmax = -1, cmin = INT_MAX, cmax = -1;
         for (keel::usize i = 0; i < N; ++i) {
             const keel::usize idx1 = keel::as<keel::usize>(
                 cell.elemAsDouble(i));
             if (idx1 == 0) continue;
-            const int idx0 = keel::as<int>(idx1 - 1);
-            const int col = idx0 / info.H;     // column-major
-            const int row = idx0 - col * info.H;
+            const keel::i32 idx0 = keel::as<keel::i32>(idx1 - 1);
+            const keel::i32 col = idx0 / info.H;     // column-major
+            const keel::i32 row = idx0 - col * info.H;
             c.rs[i] = row;
             c.cs[i] = col;
             if (row < rmin) rmin = row;
@@ -171,8 +171,8 @@ keel::f64 attr_equiv_diameter(const Comp &c)
 
 keel::f64 attr_extent(const Comp &c)
 {
-    const int bw = c.cmax - c.cmin + 1;
-    const int bh = c.rmax - c.rmin + 1;
+    const keel::i32 bw = c.cmax - c.cmin + 1;
+    const keel::i32 bh = c.rmax - c.rmin + 1;
     if (bw <= 0 || bh <= 0) return 0.0;
     return attr_area(c) / (keel::as<keel::f64>(bw) * bh);
 }
@@ -272,27 +272,27 @@ static const keel::f64 kPerimWeights[16] = {
     1.207107,   // 1110
     0.0         // 1111
 };
-keel::f64 attr_perimeter(const Comp &c, int H, int W)
+keel::f64 attr_perimeter(const Comp &c, keel::i32 H, keel::i32 W)
 {
     // Build a per-component mask in (rmin..rmax, cmin..cmax).
-    const int h = c.rmax - c.rmin + 1;
-    const int w = c.cmax - c.cmin + 1;
+    const keel::i32 h = c.rmax - c.rmin + 1;
+    const keel::i32 w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
     // Pad by 1 on each side for the 2×2 lookup.
-    const int hp = h + 2;
-    const int wp = w + 2;
+    const keel::i32 hp = h + 2;
+    const keel::i32 wp = w + 2;
     keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
-        const int r = c.rs[i] - c.rmin + 1;
-        const int cc_ = c.cs[i] - c.cmin + 1;
+        const keel::i32 r = c.rs[i] - c.rmin + 1;
+        const keel::i32 cc_ = c.cs[i] - c.cmin + 1;
         mask[keel::as<keel::usize>(r * wp + cc_)] = 1;
     }
     keel::f64 sum = 0.0;
     // Walk every 2×2 corner in the padded mask, accumulating the
     // weight of that corner pattern.
-    for (int r = 0; r < hp - 1; ++r)
-        for (int cc_ = 0; cc_ < wp - 1; ++cc_) {
-            const int p = (mask[r * wp + cc_]     ? 8 : 0)
+    for (keel::i32 r = 0; r < hp - 1; ++r)
+        for (keel::i32 cc_ = 0; cc_ < wp - 1; ++cc_) {
+            const keel::i32 p = (mask[r * wp + cc_]     ? 8 : 0)
                         | (mask[r * wp + cc_ + 1] ? 4 : 0)
                         | (mask[(r + 1) * wp + cc_] ? 2 : 0)
                         | (mask[(r + 1) * wp + cc_ + 1] ? 1 : 0);
@@ -307,21 +307,21 @@ keel::f64 attr_perimeter(const Comp &c, int H, int W)
 
 // PerimeterOld: pre-2017 perimeter = count of (p, q) where p is fg
 // and q ∈ 4-connected neighbours is bg. Simple, no weighting.
-keel::f64 attr_perimeter_old(const Comp &c, int H, int W)
+keel::f64 attr_perimeter_old(const Comp &c, keel::i32 H, keel::i32 W)
 {
     // Build padded mask as above.
-    const int h = c.rmax - c.rmin + 1;
-    const int w = c.cmax - c.cmin + 1;
+    const keel::i32 h = c.rmax - c.rmin + 1;
+    const keel::i32 w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
-    const int hp = h + 2, wp = w + 2;
+    const keel::i32 hp = h + 2, wp = w + 2;
     keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         mask[keel::as<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
     }
-    int per = 0;
-    for (int r = 1; r < hp - 1; ++r)
-        for (int cc_ = 1; cc_ < wp - 1; ++cc_) {
+    keel::i32 per = 0;
+    for (keel::i32 r = 1; r < hp - 1; ++r)
+        for (keel::i32 cc_ = 1; cc_ < wp - 1; ++cc_) {
             if (!mask[r * wp + cc_]) continue;
             if (!mask[r * wp + cc_ - 1]) ++per;
             if (!mask[r * wp + cc_ + 1]) ++per;
@@ -332,7 +332,7 @@ keel::f64 attr_perimeter_old(const Comp &c, int H, int W)
     (void)H; (void)W;
 }
 
-keel::f64 attr_circularity(const Comp &c, int H, int W)
+keel::f64 attr_circularity(const Comp &c, keel::i32 H, keel::i32 W)
 {
     const keel::f64 per = attr_perimeter(c, H, W);
     if (per <= 0.0) return std::nan("");
@@ -343,12 +343,12 @@ keel::f64 attr_circularity(const Comp &c, int H, int W)
 // connected component, that's 1 - holes. Use the same per-component
 // mask and apply the 8-conn vs 4-conn Euler formula via 2x2 quadtree
 // counting (Pratt 1991).
-keel::f64 attr_euler_number(const Comp &c, int conn)
+keel::f64 attr_euler_number(const Comp &c, keel::i32 conn)
 {
-    const int h = c.rmax - c.rmin + 1;
-    const int w = c.cmax - c.cmin + 1;
+    const keel::i32 h = c.rmax - c.rmin + 1;
+    const keel::i32 w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
-    const int hp = h + 2, wp = w + 2;
+    const keel::i32 hp = h + 2, wp = w + 2;
     keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         mask[keel::as<keel::usize>(
@@ -356,14 +356,14 @@ keel::f64 attr_euler_number(const Comp &c, int conn)
     }
     // 2x2 corner-pattern counts (Pratt 1991, "Digital Image
     // Processing", §16.3.1).
-    int n_q1 = 0, n_q3 = 0, n_qd = 0;
-    for (int r = 0; r < hp - 1; ++r)
-        for (int cc_ = 0; cc_ < wp - 1; ++cc_) {
-            const int p = (mask[r * wp + cc_]      ? 8 : 0)
+    keel::i32 n_q1 = 0, n_q3 = 0, n_qd = 0;
+    for (keel::i32 r = 0; r < hp - 1; ++r)
+        for (keel::i32 cc_ = 0; cc_ < wp - 1; ++cc_) {
+            const keel::i32 p = (mask[r * wp + cc_]      ? 8 : 0)
                         | (mask[r * wp + cc_ + 1]  ? 4 : 0)
                         | (mask[(r + 1) * wp + cc_]      ? 2 : 0)
                         | (mask[(r + 1) * wp + cc_ + 1]  ? 1 : 0);
-            const int pc = ((p >> 3) & 1) + ((p >> 2) & 1)
+            const keel::i32 pc = ((p >> 3) & 1) + ((p >> 2) & 1)
                          + ((p >> 1) & 1) + (p & 1);
             if (pc == 1) ++n_q1;
             else if (pc == 3) ++n_q3;
@@ -380,38 +380,38 @@ keel::f64 attr_euler_number(const Comp &c, int conn)
 // border; the un-reached background is the holes.
 keel::f64 attr_filled_area(const Comp &c)
 {
-    const int h = c.rmax - c.rmin + 1;
-    const int w = c.cmax - c.cmin + 1;
+    const keel::i32 h = c.rmax - c.rmin + 1;
+    const keel::i32 w = c.cmax - c.cmin + 1;
     if (h <= 0 || w <= 0) return 0.0;
-    const int hp = h + 2, wp = w + 2;
+    const keel::i32 hp = h + 2, wp = w + 2;
     keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i)
         mask[keel::as<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
     keel::Array<keel::u8> visited(mask.size(), 0);
     // BFS from every border-cell that is background.
-    keel::Array<int> queue;
+    keel::Array<keel::i32> queue;
     queue.reserve(hp * wp);
-    auto push_if = [&](int r, int cc_) {
+    auto push_if = [&](keel::i32 r, keel::i32 cc_) {
         if (r < 0 || cc_ < 0 || r >= hp || cc_ >= wp) return;
         const keel::usize idx = keel::as<keel::usize>(r * wp + cc_);
         if (mask[idx] || visited[idx]) return;
         visited[idx] = 1;
-        queue.push_back(keel::as<int>(idx));
+        queue.push_back(keel::as<keel::i32>(idx));
     };
-    for (int r = 0; r < hp; ++r) {
+    for (keel::i32 r = 0; r < hp; ++r) {
         push_if(r, 0);
         push_if(r, wp - 1);
     }
-    for (int cc_ = 0; cc_ < wp; ++cc_) {
+    for (keel::i32 cc_ = 0; cc_ < wp; ++cc_) {
         push_if(0, cc_);
         push_if(hp - 1, cc_);
     }
     keel::usize head = 0;
     while (head < queue.size()) {
-        const int idx = queue[head++];
-        const int r = idx / wp;
-        const int cc_ = idx - r * wp;
+        const keel::i32 idx = queue[head++];
+        const keel::i32 r = idx / wp;
+        const keel::i32 cc_ = idx - r * wp;
         push_if(r - 1, cc_);
         push_if(r + 1, cc_);
         push_if(r, cc_ - 1);
@@ -511,18 +511,18 @@ keel::f64 attr_mean_intensity(const Comp &c, const Value &marker)
 {
     const keel::usize N = c.rs.size();
     if (N == 0) return std::nan("");
-    const int H = keel::as<int>(marker.dims().rows());
-    long double s = 0.0L;
+    const keel::i32 H = keel::as<keel::i32>(marker.dims().rows());
+    long double s = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i)
         s += marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
-    return keel::as<keel::f64>(s / keel::as<long double>(N));
+    return keel::as<keel::f64>(s / keel::as<long double>(N)); // keel-lint: ignore
 }
 
 keel::f64 attr_min_intensity(const Comp &c, const Value &marker)
 {
     if (c.rs.empty()) return std::nan("");
-    const int H = keel::as<int>(marker.dims().rows());
+    const keel::i32 H = keel::as<keel::i32>(marker.dims().rows());
     keel::f64 m = std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         const keel::f64 v = marker.elemAsDouble(keel::as<keel::usize>(
@@ -535,7 +535,7 @@ keel::f64 attr_min_intensity(const Comp &c, const Value &marker)
 keel::f64 attr_max_intensity(const Comp &c, const Value &marker)
 {
     if (c.rs.empty()) return std::nan("");
-    const int H = keel::as<int>(marker.dims().rows());
+    const keel::i32 H = keel::as<keel::i32>(marker.dims().rows());
     keel::f64 m = -std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         const keel::f64 v = marker.elemAsDouble(keel::as<keel::usize>(
@@ -549,7 +549,7 @@ keel::f64 attr_max_intensity(const Comp &c, const Value &marker)
 keel::Array<keel::f64>
 compute_attribute(keel::ArrayRef<Comp> comps,
                   keel::StringRef attrib_lower,
-                  const Value &marker, int conn, int H, int W)
+                  const Value &marker, keel::i32 conn, keel::i32 H, keel::i32 W)
 {
     keel::Array<keel::f64> v(comps.size(), 0.0);
     if (attrib_lower == "area") {
@@ -639,7 +639,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
                  keel::StringRef attribute,
                  keel::f64 p_min, keel::f64 p_max,
                  keel::usize keep_n, bool keep_largest,
-                 int conn,
+                 keel::i32 conn,
                  keel::Allocator *mr)
 {
     // Probed R2025b: the BW form is logical-only (double / numeric

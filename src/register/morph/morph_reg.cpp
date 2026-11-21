@@ -94,7 +94,7 @@ void imreconstruct_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imreconstruct");
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imreconstruct"),
             {4, 8}, 3, "conn", "imreconstruct") : 8;
@@ -120,7 +120,7 @@ void imfill_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // With 8-connectivity the background flood leaks through 1-px diagonal
     // gaps in the foreground, so enclosed regions wrongly read as
     // border-reachable and don't fill.
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imfill"),
             {4, 8}, 3, "conn", "imfill") : 4;
@@ -131,7 +131,7 @@ void imregionalmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imregionalmax");
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imregionalmax"),
             {4, 8}, 2, "conn", "imregionalmax") : 8;
@@ -142,7 +142,7 @@ void imregionalmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imregionalmin");
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imregionalmin"),
             {4, 8}, 2, "conn", "imregionalmin") : 8;
@@ -154,7 +154,7 @@ void imhmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, 3, "imhmax");
     const keel::f64 h = args[1].toScalar();
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imhmax"),
             {4, 8}, 3, "conn", "imhmax") : 8;
@@ -167,7 +167,7 @@ void imhmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 2, "imhmin");
     // no max: name-value tail in the reference
     const keel::f64 h = args[1].toScalar();
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imhmin"),
             {4, 8}, 3, "conn", "imhmin") : 8;
@@ -179,7 +179,7 @@ void imextendedmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, 3, "imextendedmax");
     const keel::f64 h = args[1].toScalar();
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imextendedmax"),
             {4, 8}, 3, "conn", "imextendedmax") : 8;
@@ -191,7 +191,7 @@ void imextendedmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, 3, "imextendedmin");
     const keel::f64 h = args[1].toScalar();
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imextendedmin"),
             {4, 8}, 3, "conn", "imextendedmin") : 8;
@@ -202,7 +202,7 @@ void imimposemin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imimposemin");
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imimposemin"),
             {4, 8}, 3, "conn", "imimposemin") : 8;
@@ -213,7 +213,7 @@ void imclearborder_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imclearborder");
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imclearborder"),
             {4, 8}, 2, "conn", "imclearborder") : 8;
@@ -225,7 +225,7 @@ void imkeepborder_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "imkeepborder");
     // no max: name-value tail in the reference
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "imkeepborder"),
             {4, 8}, 2, "conn", "imkeepborder") : 8;
@@ -296,7 +296,7 @@ void makelut_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "makelut");
     // no max: variadic passthrough to the callback
-    const int n = argcheck::expectedOneOf(
+    const keel::i32 n = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "n", "makelut"),
             {2, 3}, 2, "n", "makelut");
     const Value &handle = args[0];
@@ -368,11 +368,11 @@ void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // MATLAB accepts "skel" as a prefix-match for "skeleton".
     if (op == "skel") op.assign("skeleton");
 
-    int n = 1;
+    keel::i32 n = 1;
     if (args.size() >= 3 && !args[2].isEmpty()) {
         const keel::f64 v = args[2].toScalar();
         if (std::isinf(v)) n = -1;
-        else               n = keel::as<int>(v);
+        else               n = keel::as<keel::i32>(v);
     }
     outs[0] = bwmorph(args[0], op, n, ctx.engine->allocator());
 }
@@ -391,7 +391,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     for (auto &ch : fstep)
         ch = keel::to_ascii_upper(ch);
 
-    int conn = 8;
+    keel::i32 conn = 8;
     keel::usize m_max = std::numeric_limits<keel::usize>::max();
     keel::String dir = keel::String::from("clockwise");
     if (args.size() >= 4 && !args[3].isEmpty())

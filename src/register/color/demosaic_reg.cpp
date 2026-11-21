@@ -36,13 +36,13 @@ void demosaic_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 2, "demosaic");  // no max: name-value tail in the reference
     auto *mr = ctx.engine->allocator();
     const keel::String align = asString(args[1]);
-    int bps = 0;
+    keel::i32 bps = 0;
     for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
         const keel::String name = asString(args[i]);
         if (name == "BitsPerSample" || name == "bitspersample")
             bps = argcheck::expectedOneOf(
-                argcheck::expectedReal(args[i + 1], int(i) + 2, "BitsPerSample", "demosaic"),
-                {8, 10, 12, 16}, int(i) + 2, "BitsPerSample", "demosaic");
+                argcheck::expectedReal(args[i + 1], keel::i32(i) + 2, "BitsPerSample", "demosaic"),
+                {8, 10, 12, 16}, keel::i32(i) + 2, "BitsPerSample", "demosaic");
         else
             throw Error(keel::format("demosaic: unknown name-value parameter '{}'", name),
                         0, 0, "demosaic", "", "numkit:demosaic:nv");

@@ -17,10 +17,10 @@
 namespace numkit::image {
 
 // MATLAB-canonical jet(N) colormap (N x 3, double in [0,1]).
-Value jet_colormap(int m, keel::Allocator *mr);
+Value jet_colormap(keel::i32 m, keel::Allocator *mr);
 
 // Dispatch a named MATLAB colormap (jet/hsv/parula/...). Throws on unknown.
-Value resolve_named_colormap(keel::StringRef name, int N,
+Value resolve_named_colormap(keel::StringRef name, keel::i32 N,
                              keel::Allocator *mr);
 
 // Lower-case a string (ASCII).

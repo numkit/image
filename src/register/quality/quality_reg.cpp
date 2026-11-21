@@ -86,7 +86,7 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    int num_scales = 5;
+    keel::i32 num_scales = 5;
     keel::Array<keel::f64> scale_weights;
     keel::f64 sigma = 1.5;
     keel::f64 dynamic_range = -1.0;
@@ -102,8 +102,8 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "numscales") {
             num_scales = argcheck::expectedPositiveInteger(
-                argcheck::expectedReal(args[i + 1], int(i) + 2, "NumScales", "multissim3"),
-                int(i) + 2, "NumScales", "multissim3");
+                argcheck::expectedReal(args[i + 1], keel::i32(i) + 2, "NumScales", "multissim3"),
+                keel::i32(i) + 2, "NumScales", "multissim3");
         } else if (nlo == "scaleweights") {
             const Value &v = args[i + 1];
             const keel::usize N = v.numel();
@@ -141,7 +141,7 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    int num_scales = 5;
+    keel::i32 num_scales = 5;
     keel::Array<keel::f64> scale_weights;
     keel::f64 sigma = 1.5;
     keel::f64 dynamic_range = -1.0;
@@ -157,8 +157,8 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             nlo.push_back(keel::to_ascii_lower(ch));
         if (nlo == "numscales") {
             num_scales = argcheck::expectedPositiveInteger(
-                argcheck::expectedReal(args[i + 1], int(i) + 2, "NumScales", "multissim"),
-                int(i) + 2, "NumScales", "multissim");
+                argcheck::expectedReal(args[i + 1], keel::i32(i) + 2, "NumScales", "multissim"),
+                keel::i32(i) + 2, "NumScales", "multissim");
         } else if (nlo == "scaleweights") {
             const Value &v = args[i + 1];
             const keel::usize N = v.numel();

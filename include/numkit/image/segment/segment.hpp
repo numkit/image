@@ -59,7 +59,7 @@ Value jaccard(const Value &A, const Value &B,
 /// @param conn     Connectivity — 4 or 8 (default 8).
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         Logical boundary mask of the same H × W.
-Value boundarymask(const Value &L_or_BW, int conn,
+Value boundarymask(const Value &L_or_BW, keel::i32 conn,
                    keel::Allocator *mr = nullptr);
 
 /// Group label-image pixels into per-label index lists
@@ -89,7 +89,7 @@ Value label2idx(const Value &L,
 ///              range for other types).
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Logical mask of the connected region.
-Value grayconnected(const Value &I, int row, int col, keel::f64 tol,
+Value grayconnected(const Value &I, keel::i32 row, keel::i32 col, keel::f64 tol,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Pixel weights from grayscale intensity difference
@@ -398,7 +398,7 @@ Value imoverlay(const Value &I, const Value &BW, const Value &color,
 /// @param conn  Pixel connectivity: 4 or 8 (default 8).
 /// @param mr    Memory resource (nullptr -> process default).
 /// @return      Label matrix `L` of the same shape as `A`.
-Value watershed(const Value &A, int conn = 8,
+Value watershed(const Value &A, keel::i32 conn = 8,
                 keel::Allocator *mr = nullptr);
 
 

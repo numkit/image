@@ -96,13 +96,13 @@ void gray2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "gray2ind");
-    int n = (args[0].type() == ValueType::LOGICAL) ? 2 : 64;
+    keel::i32 n = (args[0].type() == ValueType::LOGICAL) ? 2 : 64;
     if (args.size() >= 2 && !args[1].isEmpty())
         {
         const keel::f64 nv = argcheck::expectedReal(args[1], 2, "n", "gray2ind");
         argcheck::expectedInteger(nv, 2, "n", "gray2ind");
         argcheck::expectedBetween(nv, 1, 65536, 2, "n", "gray2ind");
-        n = keel::as<int>(nv);
+        n = keel::as<keel::i32>(nv);
     }
     auto [ind, map] = gray2ind(args[0], n, ctx.engine->allocator());
     outs[0] = std::move(ind);

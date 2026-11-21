@@ -61,10 +61,10 @@ inline keel::usize idx3D(const Shape &s, keel::usize y, keel::usize x, keel::usi
 }
 
 inline keel::f64 sample(const Value &A, const Shape &s,
-                     int y, int x, keel::usize c) {
+                     keel::i32 y, keel::i32 x, keel::usize c) {
     if (y < 0 || x < 0 ||
-        y >= keel::as<int>(s.H) ||
-        x >= keel::as<int>(s.W))
+        y >= keel::as<keel::i32>(s.H) ||
+        x >= keel::as<keel::i32>(s.W))
         return 0.0;
     return A.elemAsDouble(idx3D(s, keel::as<keel::usize>(y),
                                 keel::as<keel::usize>(x), c));
@@ -74,8 +74,8 @@ inline keel::f64 sample(const Value &A, const Shape &s,
 // Out-of-bounds pixels evaluate to 0.
 keel::f64 bilinear(const Value &A, const Shape &s,
                 keel::f64 y, keel::f64 x, keel::usize c) {
-    const int y0 = keel::as<int>(std::floor(y));
-    const int x0 = keel::as<int>(std::floor(x));
+    const keel::i32 y0 = keel::as<keel::i32>(std::floor(y));
+    const keel::i32 x0 = keel::as<keel::i32>(std::floor(x));
     const keel::f64 dy = y - y0;
     const keel::f64 dx = x - x0;
     const keel::f64 v00 = sample(A, s, y0,     x0,     c);
@@ -117,14 +117,14 @@ inline keel::f64 rkCubic(keel::f64 x) {
     if (a < 2.0) return ((-0.5 * a + 2.5) * a - 4.0) * a + 2.0;
     return 0.0;
 }
-inline int rkMirror(int i, int N) {
+inline keel::i32 rkMirror(keel::i32 i, keel::i32 N) {
     if (N <= 1) return 0;
-    const int c = 2 * N;
-    int m = ((i % c) + c) % c;
+    const keel::i32 c = 2 * N;
+    keel::i32 m = ((i % c) + c) % c;
     if (m >= N) m = c - 1 - m;
     return m;
 }
-struct RkContrib { int first; keel::Array<keel::f64> w; };  // first 0-indexed
+struct RkContrib { keel::i32 first; keel::Array<keel::f64> w; };  // first 0-indexed
 
 // Per-output-pixel taps: pixel-centre map u, kernel `k` (total support `kw`),
 // antialiasing stretch when `aa && scale<1`, normalised weights.
@@ -132,16 +132,16 @@ keel::Array<RkContrib> rkBuild(keel::usize outLen, keel::f64 scale, keel::f64 (*
                                keel::f64 kw, bool aa) {
     keel::f64 scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = kw / scale; }
-    const int P = keel::as<int>(std::ceil(kw)) + 2;
+    const keel::i32 P = keel::as<keel::i32>(std::ceil(kw)) + 2;
     keel::Array<RkContrib> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
         const keel::f64 u    = (keel::f64(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
-        const int    left = keel::as<int>(std::floor(u - kw / 2.0));
+        const keel::i32    left = keel::as<keel::i32>(std::floor(u - kw / 2.0));
         RkContrib &  r    = rows[o];
         r.first = left - 1;
         r.w.assign(P, 0.0);
         keel::f64 sum = 0.0;
-        for (int j = 0; j < P; ++j) { const keel::f64 w = scl * k(scl * (u - keel::f64(left + j))); r.w[j] = w; sum += w; }
+        for (keel::i32 j = 0; j < P; ++j) { const keel::f64 w = scl * k(scl * (u - keel::f64(left + j))); r.w[j] = w; sum += w; }
         if (sum != 0.0) for (auto &w : r.w) w /= sum;
     }
     return rows;
@@ -153,19 +153,19 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
                      keel::f64 scaleY, keel::f64 scaleX, keel::f64 (*k)(keel::f64), keel::f64 kw,
                      bool antialias, ValueType t, keel::Allocator *mr)
 {
-    const int  H = keel::as<int>(s.H), W = keel::as<int>(s.W);
+    const keel::i32  H = keel::as<keel::i32>(s.H), W = keel::as<keel::i32>(s.W);
     const auto cy = rkBuild(outH, scaleY, k, kw, antialias);
     const auto cx = rkBuild(outW, scaleX, k, kw, antialias);
     Value B = makeOut(outH, outW, s.C, t, mr);
     Shape sd{outH, outW, s.C};
     keel::Array<keel::f64> tmp(outH * s.W);   // outH × W intermediate (per channel)
     for (keel::usize c = 0; c < s.C; ++c) {
-        for (int x = 0; x < W; ++x)            // pass 1: rows  → tmp[outH × W]
+        for (keel::i32 x = 0; x < W; ++x)            // pass 1: rows  → tmp[outH × W]
             for (keel::usize y = 0; y < outH; ++y) {
                 const RkContrib &r = cy[y];
                 keel::f64 v = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j)
-                    v += r.w[j] * sample(A, s, rkMirror(r.first + int(j), H), x, c);
+                    v += r.w[j] * sample(A, s, rkMirror(r.first + keel::i32(j), H), x, c);
                 tmp[y + keel::usize(x) * outH] = v;
             }
         for (keel::usize x = 0; x < outW; ++x) {    // pass 2: cols  → B[outH × outW]
@@ -173,7 +173,7 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
             for (keel::usize y = 0; y < outH; ++y) {
                 keel::f64 v = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j)
-                    v += r.w[j] * tmp[y + keel::usize(rkMirror(r.first + int(j), W)) * outH];
+                    v += r.w[j] * tmp[y + keel::usize(rkMirror(r.first + keel::i32(j), W)) * outH];
                 writePixel(B, sd, y, x, c, v, t);
             }
         }
@@ -253,10 +253,10 @@ Value imresize(const Value &A, keel::usize outH, keel::usize outW, keel::StringR
                 const keel::f64 ys = (yo + 0.5) * sy - 0.5;
                 for (keel::usize xo = 0; xo < outW; ++xo) {
                     const keel::f64 xs = (xo + 0.5) * sx - 0.5;
-                    int yi = int(std::floor(ys + 0.5)), xi = int(std::floor(xs + 0.5));
+                    keel::i32 yi = keel::i32(std::floor(ys + 0.5)), xi = keel::i32(std::floor(xs + 0.5));
                     if (yi < 0) yi = 0; if (xi < 0) xi = 0;
-                    if (yi >= int(s.H)) yi = int(s.H) - 1;
-                    if (xi >= int(s.W)) xi = int(s.W) - 1;
+                    if (yi >= keel::i32(s.H)) yi = keel::i32(s.H) - 1;
+                    if (xi >= keel::i32(s.W)) xi = keel::i32(s.W) - 1;
                     writePixel(B, sd, yo, xo, c, sample(A, s, yi, xi, c), t);
                 }
             }
@@ -293,20 +293,20 @@ Value imcrop(const Value &A, keel::f64 xmin, keel::f64 ymin, keel::f64 width, ke
 
     // MATLAB rect = [xmin ymin width height], xmin/ymin are 1-based
     // *real* coordinates; rect is clipped to image bounds.
-    int x0 = std::max(int(std::round(xmin)) - 1, 0);
-    int y0 = std::max(int(std::round(ymin)) - 1, 0);
-    int w  = std::max(int(std::round(width))  + 1, 1);
-    int h  = std::max(int(std::round(height)) + 1, 1);
-    if (x0 + w > int(s.W)) w = int(s.W) - x0;
-    if (y0 + h > int(s.H)) h = int(s.H) - y0;
+    keel::i32 x0 = std::max(keel::i32(std::round(xmin)) - 1, 0);
+    keel::i32 y0 = std::max(keel::i32(std::round(ymin)) - 1, 0);
+    keel::i32 w  = std::max(keel::i32(std::round(width))  + 1, 1);
+    keel::i32 h  = std::max(keel::i32(std::round(height)) + 1, 1);
+    if (x0 + w > keel::i32(s.W)) w = keel::i32(s.W) - x0;
+    if (y0 + h > keel::i32(s.H)) h = keel::i32(s.H) - y0;
     if (w <= 0 || h <= 0)
         return makeOut(0, 0, s.C, t, mr);
 
     Value B = makeOut(keel::usize(h), keel::usize(w), s.C, t, mr);
     Shape sd{keel::usize(h), keel::usize(w), s.C};
     for (keel::usize c = 0; c < s.C; ++c)
-        for (int y = 0; y < h; ++y)
-            for (int x = 0; x < w; ++x) {
+        for (keel::i32 y = 0; y < h; ++y)
+            for (keel::i32 x = 0; x < w; ++x) {
                 const keel::f64 v = A.elemAsDouble(
                     idx3D(s, keel::usize(y0 + y), keel::usize(x0 + x), c));
                 writePixel(B, sd, keel::usize(y), keel::usize(x), c, v, t);
@@ -329,7 +329,7 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
 
     // Resolve input shape: H × W × D × T  (T defaults to 1 for 3-D inputs).
     const auto &dV = V.dims();
-    const int nd = dV.ndims();
+    const keel::i32 nd = dV.ndims();
     const keel::usize H = dV.dim(0);
     const keel::usize W = dV.dim(1);
     const keel::usize D = dV.dim(2);
@@ -337,21 +337,21 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
 
     // Round limits per MATLAB source.
     auto rd = [&](keel::usize k) {
-        return keel::as<long long>(std::lround(cuboid.elemAsDouble(k)));
+        return keel::as<keel::i64>(std::lround(cuboid.elemAsDouble(k)));
     };
-    const long long xmin = rd(0);
-    const long long ymin = rd(1);
-    const long long zmin = rd(2);
-    const long long xmax = keel::as<long long>(std::lround(
+    const keel::i64 xmin = rd(0);
+    const keel::i64 ymin = rd(1);
+    const keel::i64 zmin = rd(2);
+    const keel::i64 xmax = keel::as<keel::i64>(std::lround(
         cuboid.elemAsDouble(0) + cuboid.elemAsDouble(3)));
-    const long long ymax = keel::as<long long>(std::lround(
+    const keel::i64 ymax = keel::as<keel::i64>(std::lround(
         cuboid.elemAsDouble(1) + cuboid.elemAsDouble(4)));
-    const long long zmax = keel::as<long long>(std::lround(
+    const keel::i64 zmax = keel::as<keel::i64>(std::lround(
         cuboid.elemAsDouble(2) + cuboid.elemAsDouble(5)));
 
-    auto in_range = [](long long lo, long long hi, keel::usize N) {
-        return lo >= 1 && lo <= keel::as<long long>(N)
-            && hi >= 1 && hi <= keel::as<long long>(N) && lo <= hi;
+    auto in_range = [](keel::i64 lo, keel::i64 hi, keel::usize N) {
+        return lo >= 1 && lo <= keel::as<keel::i64>(N)
+            && hi >= 1 && hi <= keel::as<keel::i64>(N) && lo <= hi;
     };
     if (!in_range(xmin, xmax, W)
         || !in_range(ymin, ymax, H)
@@ -436,42 +436,42 @@ Value imrotate(const Value &A, keel::f64 angle, keel::StringRef method, keel::St
     {
         keel::f64 a = std::fmod(angle, 360.0);
         if (a < 0.0) a += 360.0;
-        const long kk = std::lround(a / 90.0);
+        const keel::i64 kk = std::lround(a / 90.0);
         if (keel::abs(a - keel::f64(kk) * 90.0) < 1e-9) {
-            const int k = keel::as<int>(((kk % 4) + 4) % 4);
+            const keel::i32 k = keel::as<keel::i32>(((kk % 4) + 4) % 4);
             const keel::usize Hl = (k % 2 == 0) ? s.H : s.W;  // loose dims
             const keel::usize Wl = (k % 2 == 0) ? s.W : s.H;
             const keel::usize oH = isCrop ? s.H : Hl;
             const keel::usize oW = isCrop ? s.W : Wl;
-            long rowOff = 0, colOff = 0;
+            keel::i64 rowOff = 0, colOff = 0;
             if (isCrop) {
-                rowOff = keel::as<long>(std::floor((keel::f64(Hl) - keel::f64(s.H)) / 2.0));
-                colOff = keel::as<long>(std::floor((keel::f64(Wl) - keel::f64(s.W)) / 2.0));
+                rowOff = keel::as<keel::i64>(std::floor((keel::f64(Hl) - keel::f64(s.H)) / 2.0));
+                colOff = keel::as<keel::i64>(std::floor((keel::f64(Wl) - keel::f64(s.W)) / 2.0));
                 // For the 270-degree quarter turn (k==3) the leftover half
                 // pixel of an odd size difference falls on the opposite side
                 // vs 90 degrees (k==1) — MATLAB centres the crop accordingly.
-                if (k == 3 && ((keel::as<long>(Hl) - keel::as<long>(s.H)) & 1L))
+                if (k == 3 && ((keel::as<keel::i64>(Hl) - keel::as<keel::i64>(s.H)) & 1L))
                     rowOff += 1;
             }
             Value B = makeOut(oH, oW, s.C, t, mr);
             Shape sd{oH, oW, s.C};
-            const long H = keel::as<long>(s.H), W = keel::as<long>(s.W);
+            const keel::i64 H = keel::as<keel::i64>(s.H), W = keel::as<keel::i64>(s.W);
             for (keel::usize c = 0; c < s.C; ++c)
                 for (keel::usize i = 0; i < oH; ++i)
                     for (keel::usize j = 0; j < oW; ++j) {
-                        const long li = keel::as<long>(i) + rowOff;  // loose coords
-                        const long lj = keel::as<long>(j) + colOff;
+                        const keel::i64 li = keel::as<keel::i64>(i) + rowOff;  // loose coords
+                        const keel::i64 lj = keel::as<keel::i64>(j) + colOff;
                         keel::f64 v = 0.0;
-                        if (li >= 0 && li < keel::as<long>(Hl) &&
-                            lj >= 0 && lj < keel::as<long>(Wl)) {
-                            long sr = 0, sc = 0;  // map loose -> source (inverse rot90^k)
+                        if (li >= 0 && li < keel::as<keel::i64>(Hl) &&
+                            lj >= 0 && lj < keel::as<keel::i64>(Wl)) {
+                            keel::i64 sr = 0, sc = 0;  // map loose -> source (inverse rot90^k)
                             switch (k) {
                                 case 0: sr = li;        sc = lj;        break;
                                 case 1: sr = lj;        sc = W - 1 - li; break;
                                 case 2: sr = H - 1 - li; sc = W - 1 - lj; break;
                                 default:sr = H - 1 - lj; sc = li;        break;  // k==3
                             }
-                            v = sample(A, s, keel::as<int>(sr), keel::as<int>(sc), c);
+                            v = sample(A, s, keel::as<keel::i32>(sr), keel::as<keel::i32>(sc), c);
                         }
                         writePixel(B, sd, i, j, c, v, t);
                     }
@@ -530,8 +530,8 @@ Value imrotate(const Value &A, keel::f64 angle, keel::StringRef method, keel::St
                     // half-to-even (std::nearbyint, the default FP rounding):
                     // an exact .5 tie goes to the even integer (e.g. 0.5->0),
                     // unlike floor(x+0.5) (half-up) or lround (half-away).
-                    int yi = keel::as<int>(std::nearbyint(ys));
-                    int xi = keel::as<int>(std::nearbyint(xs));
+                    keel::i32 yi = keel::as<keel::i32>(std::nearbyint(ys));
+                    keel::i32 xi = keel::as<keel::i32>(std::nearbyint(xs));
                     v = sample(A, s, yi, xi, c);
                 } else {
                     v = bilinear(A, s, ys, xs, c);
@@ -636,7 +636,7 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
     if (s.H == 0 || s.W == 0 || Hout == 0 || Wout == 0) return B;
     Shape sd{Hout, Wout, s.C};
 
-    auto clamp_i = [](int i, int N) {
+    auto clamp_i = [](keel::i32 i, keel::i32 N) {
         if (i < 0) return 0;
         if (i >= N) return N - 1;
         return i;
@@ -645,7 +645,7 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
     // edge), NOT replicate: padded[-k] = original[k-1] for k>=1, and
     // padded[N+k-1] = original[N-k] for k>=1. Octave-image uses
     // replicate, so for reduce we follow MATLAB per source-of-truth.
-    auto sym_i = [](int i, int N) {
+    auto sym_i = [](keel::i32 i, keel::i32 N) {
         if (N <= 1) return 0;
         if (i < 0)  return -1 - i;
         if (i >= N) return 2 * N - 1 - i;
@@ -661,8 +661,8 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
             for (keel::usize r = 0; r < s.H; ++r) {
                 for (keel::usize cc = 0; cc < s.W; ++cc) {
                     keel::f64 acc = 0;
-                    for (int k = -2; k <= 2; ++k) {
-                        const int cs = sym_i((int)cc + k, (int)s.W);
+                    for (keel::i32 k = -2; k <= 2; ++k) {
+                        const keel::i32 cs = sym_i((keel::i32)cc + k, (keel::i32)s.W);
                         acc += kBurt[k + 2] *
                                A.elemAsDouble(idx3D(s, r, (keel::usize)cs, c));
                     }
@@ -675,8 +675,8 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
                 for (keel::usize xo = 0; xo < Wout; ++xo) {
                     const keel::usize xs = 2 * xo;
                     keel::f64 acc = 0;
-                    for (int k = -2; k <= 2; ++k) {
-                        const int rs = sym_i((int)ys + k, (int)s.H);
+                    for (keel::i32 k = -2; k <= 2; ++k) {
+                        const keel::i32 rs = sym_i((keel::i32)ys + k, (keel::i32)s.H);
                         acc += kBurt[k + 2] * tmp[xs * s.H + (keel::usize)rs];
                     }
                     writePixel(B, sd, yo, xo, c, acc, t);
@@ -695,9 +695,9 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
                     stuffed[(2 * cc) * Hout + 2 * r] =
                         A.elemAsDouble(idx3D(s, r, cc, c));
 
-            auto sample = [&](int r, int cc) -> keel::f64 {
+            auto sample = [&](keel::i32 r, keel::i32 cc) -> keel::f64 {
                 if (r < 0 || cc < 0 ||
-                    r >= (int)Hout || cc >= (int)Wout) return 0.0;
+                    r >= (keel::i32)Hout || cc >= (keel::i32)Wout) return 0.0;
                 return stuffed[(keel::usize)cc * Hout + (keel::usize)r];
             };
 
@@ -706,22 +706,22 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
             for (keel::usize r = 0; r < Hout; ++r) {
                 for (keel::usize cc = 0; cc < Wout; ++cc) {
                     keel::f64 acc = 0;
-                    for (int k = -2; k <= 2; ++k)
-                        acc += kBurt[k + 2] * sample((int)r, (int)cc + k);
+                    for (keel::i32 k = -2; k <= 2; ++k)
+                        acc += kBurt[k + 2] * sample((keel::i32)r, (keel::i32)cc + k);
                     tmp[cc * Hout + r] = 2.0 * acc;
                 }
             }
-            auto sample_t = [&](int r, int cc) -> keel::f64 {
+            auto sample_t = [&](keel::i32 r, keel::i32 cc) -> keel::f64 {
                 if (r < 0 || cc < 0 ||
-                    r >= (int)Hout || cc >= (int)Wout) return 0.0;
+                    r >= (keel::i32)Hout || cc >= (keel::i32)Wout) return 0.0;
                 return tmp[(keel::usize)cc * Hout + (keel::usize)r];
             };
             // Vertical filter (zero-pad boundary), ×2 compensation.
             for (keel::usize cc = 0; cc < Wout; ++cc) {
                 for (keel::usize r = 0; r < Hout; ++r) {
                     keel::f64 acc = 0;
-                    for (int k = -2; k <= 2; ++k)
-                        acc += kBurt[k + 2] * sample_t((int)r + k, (int)cc);
+                    for (keel::i32 k = -2; k <= 2; ++k)
+                        acc += kBurt[k + 2] * sample_t((keel::i32)r + k, (keel::i32)cc);
                     writePixel(B, sd, r, cc, c, 2.0 * acc, t);
                 }
             }
@@ -805,7 +805,7 @@ R3Kernel parseR3Kernel(keel::StringRef m) {
                 0, 0, "imresize3", "", "numkit:imresize3:method");
 }
 
-struct ContribRow { int firstIdx; keel::Array<keel::f64> w; };  // firstIdx 0-indexed
+struct ContribRow { keel::i32 firstIdx; keel::Array<keel::f64> w; };  // firstIdx 0-indexed
 
 keel::Array<ContribRow>
 buildContrib(keel::usize /*inLen*/, keel::usize outLen, keel::f64 scale,
@@ -817,18 +817,18 @@ buildContrib(keel::usize /*inLen*/, keel::usize outLen, keel::f64 scale,
     keel::f64 kw  = k.width;
     keel::f64 scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = k.width / scale; }
-    const int P = keel::as<int>(std::ceil(kw)) + 2;
+    const keel::i32 P = keel::as<keel::i32>(std::ceil(kw)) + 2;
 
     keel::Array<ContribRow> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
         // MATLAB 1-indexed input center
         const keel::f64 u = (keel::f64(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
-        const int left = keel::as<int>(std::floor(u - kw / 2.0));  // 1-indexed
+        const keel::i32 left = keel::as<keel::i32>(std::floor(u - kw / 2.0));  // 1-indexed
         ContribRow &row = rows[o];
         row.firstIdx = left - 1;            // convert to 0-indexed
         row.w.assign(P, 0.0);
         keel::f64 sum = 0.0;
-        for (int j = 0; j < P; ++j) {
+        for (keel::i32 j = 0; j < P; ++j) {
             const keel::f64 off = u - keel::f64(left + j);
             const keel::f64 w   = scl * k.fn(scl * off);
             row.w[j] = w;
@@ -840,10 +840,10 @@ buildContrib(keel::usize /*inLen*/, keel::usize outLen, keel::f64 scale,
     return rows;
 }
 
-inline int mirrorIdx(int i, int N) {
+inline keel::i32 mirrorIdx(keel::i32 i, keel::i32 N) {
     if (N <= 1) return 0;
-    const int cycle = 2 * N;
-    int m = ((i % cycle) + cycle) % cycle;
+    const keel::i32 cycle = 2 * N;
+    keel::i32 m = ((i % cycle) + cycle) % cycle;
     if (m >= N) m = cycle - 1 - m;
     return m;
 }
@@ -900,16 +900,16 @@ Value imresize3_core(const Value &V,
         };
         for (keel::usize z = 0; z < outD; ++z) {
             const keel::f64 uz = uCoord(keel::f64(z) + 1.0, scaleZ);
-            int zi = keel::as<int>(std::floor(uz + 0.5)) - 1;
-            zi = mirrorIdx(zi, keel::as<int>(inD));
+            keel::i32 zi = keel::as<keel::i32>(std::floor(uz + 0.5)) - 1;
+            zi = mirrorIdx(zi, keel::as<keel::i32>(inD));
             for (keel::usize x = 0; x < outC; ++x) {
                 const keel::f64 ux = uCoord(keel::f64(x) + 1.0, scaleX);
-                int xi = keel::as<int>(std::floor(ux + 0.5)) - 1;
-                xi = mirrorIdx(xi, keel::as<int>(inC));
+                keel::i32 xi = keel::as<keel::i32>(std::floor(ux + 0.5)) - 1;
+                xi = mirrorIdx(xi, keel::as<keel::i32>(inC));
                 for (keel::usize y = 0; y < outR; ++y) {
                     const keel::f64 uy = uCoord(keel::f64(y) + 1.0, scaleY);
-                    int yi = keel::as<int>(std::floor(uy + 0.5)) - 1;
-                    yi = mirrorIdx(yi, keel::as<int>(inR));
+                    keel::i32 yi = keel::as<keel::i32>(std::floor(uy + 0.5)) - 1;
+                    yi = mirrorIdx(yi, keel::as<keel::i32>(inR));
                     const keel::f64 v = V.elemAsDouble(
                         keel::usize(yi) + keel::usize(xi) * inR + keel::usize(zi) * inR * inC);
                     writeNative(B, y + x * outR + z * outR * outC, v, T);
@@ -931,7 +931,7 @@ Value imresize3_core(const Value &V,
                 const ContribRow &r = cy[y];
                 keel::f64 s = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j) {
-                    const int yi = mirrorIdx(r.firstIdx + int(j), int(inR));
+                    const keel::i32 yi = mirrorIdx(r.firstIdx + keel::i32(j), keel::i32(inR));
                     s += r.w[j] *
                          V.elemAsDouble(keel::usize(yi) + x * inR + z * inR * inC);
                 }
@@ -948,7 +948,7 @@ Value imresize3_core(const Value &V,
             for (keel::usize y = 0; y < outR; ++y) {
                 keel::f64 s = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j) {
-                    const int xi = mirrorIdx(r.firstIdx + int(j), int(inC));
+                    const keel::i32 xi = mirrorIdx(r.firstIdx + keel::i32(j), keel::i32(inC));
                     s += r.w[j] * tmp1[y + keel::usize(xi) * outR + z * outR * inC];
                 }
                 tmp2[y + x * outR + z * outR * outC] = s;
@@ -964,7 +964,7 @@ Value imresize3_core(const Value &V,
             for (keel::usize y = 0; y < outR; ++y) {
                 keel::f64 s = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j) {
-                    const int zi = mirrorIdx(r.firstIdx + int(j), int(inD));
+                    const keel::i32 zi = mirrorIdx(r.firstIdx + keel::i32(j), keel::i32(inD));
                     s += r.w[j] *
                          tmp2[y + x * outR + keel::usize(zi) * outR * outC];
                 }

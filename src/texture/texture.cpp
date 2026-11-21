@@ -27,7 +27,7 @@ inline keel::f64 elem_as_double(const Value &v, keel::usize i)
     return v.elemAsDouble(i);
 }
 
-void graycomatrix_argcheck(const Value &I, int numLevels, keel::f64 gLow, keel::f64 gHigh)
+void graycomatrix_argcheck(const Value &I, keel::i32 numLevels, keel::f64 gLow, keel::f64 gHigh)
 {
     if (numLevels < 2)
         throw Error("graycomatrix: NumLevels must be >= 2",
@@ -53,7 +53,7 @@ void graycoprops_argcheck(const Value &G)
 
 } // anonymous namespace
 
-Value graycomatrix(const Value &I, int numLevels, int offR, int offC, keel::f64 gLow, keel::f64 gHigh, bool symmetric, keel::Allocator *mr)
+Value graycomatrix(const Value &I, keel::i32 numLevels, keel::i32 offR, keel::i32 offC, keel::f64 gLow, keel::f64 gHigh, bool symmetric, keel::Allocator *mr)
 {
     graycomatrix_argcheck(I, numLevels, gLow, gHigh);
 
@@ -64,7 +64,7 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, keel::f64 
     // Pre-quantise the image into level indices in [0, numLevels-1].
     // MATLAB clamps out-of-range to the closest end-bin.
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<int> q(R * C, scratch.allocator());
+    keel::Array<keel::i32> q(R * C, scratch.allocator());
     const keel::f64 span = gHigh - gLow;
     const keel::f64 scale = keel::as<keel::f64>(numLevels) / span;
     for (keel::usize i = 0; i < R * C; ++i) {
@@ -73,7 +73,7 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, keel::f64 
             q[i] = -1;    // NaN — skip when forming pairs
             continue;
         }
-        int level = keel::as<int>(std::floor((v - gLow) * scale));
+        keel::i32 level = keel::as<keel::i32>(std::floor((v - gLow) * scale));
         if (level < 0)            level = 0;
         if (level >= numLevels)   level = numLevels - 1;
         q[i] = level;
@@ -90,13 +90,13 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, keel::f64 
 
     // Walk every pair (p, p+offset) that lies inside the image.
     for (keel::usize c = 0; c < C; ++c) {
-        const long long c2 = keel::as<long long>(c) + offC;
-        if (c2 < 0 || c2 >= keel::as<long long>(C)) continue;
+        const keel::i64 c2 = keel::as<keel::i64>(c) + offC;
+        if (c2 < 0 || c2 >= keel::as<keel::i64>(C)) continue;
         for (keel::usize r = 0; r < R; ++r) {
-            const long long r2 = keel::as<long long>(r) + offR;
-            if (r2 < 0 || r2 >= keel::as<long long>(R)) continue;
-            const int i_lvl = q[r + c * R];                // first pixel
-            const int j_lvl = q[r2 + c2 * R];              // offset pixel
+            const keel::i64 r2 = keel::as<keel::i64>(r) + offR;
+            if (r2 < 0 || r2 >= keel::as<keel::i64>(R)) continue;
+            const keel::i32 i_lvl = q[r + c * R];                // first pixel
+            const keel::i32 j_lvl = q[r2 + c2 * R];              // offset pixel
             if (i_lvl < 0 || j_lvl < 0) continue;          // NaN guard
             Gd[i_lvl + j_lvl * numLevels] += 1.0;
             if (symmetric)

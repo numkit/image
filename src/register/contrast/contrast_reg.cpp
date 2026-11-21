@@ -36,8 +36,8 @@ void imhistmatch_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "imhistmatch");
-    int n = (args.size() >= 3 && !args[2].isEmpty())
-            ? (int)args[2].toScalar() : 0;
+    keel::i32 n = (args.size() >= 3 && !args[2].isEmpty())
+            ? (keel::i32)args[2].toScalar() : 0;
     // 2nd output `hgram` (= imhist(ref, nbins)') only when requested.
     Value hgram;
     Value *hgp = (nargout >= 2) ? &hgram : nullptr;
@@ -49,7 +49,7 @@ void imhist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "imhist");
-    int n = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 0;
+    keel::i32 n = (args.size() >= 2 && !args[1].isEmpty()) ? (keel::i32)args[1].toScalar() : 0;
     auto [c, x] = imhist(args[0], n, ctx.engine->allocator());
 
     if (!outs.empty()) outs[0] = std::move(c);
@@ -117,7 +117,7 @@ void histeq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "histeq");
-    int n = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 64;
+    keel::i32 n = (args.size() >= 2 && !args[1].isEmpty()) ? (keel::i32)args[1].toScalar() : 64;
     outs[0] = histeq(args[0], n, ctx.engine->allocator());
 }
 
@@ -141,10 +141,10 @@ void adapthisteq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             if (v.numel() < 2)
                 throw Error("adapthisteq: NumTiles must be 2-element",
                              0, 0, "adapthisteq", "", "numkit:adapthisteq:badNumTiles");
-            opts.numTilesR = (int)v.elemAsDouble(0);
-            opts.numTilesC = (int)v.elemAsDouble(1);
+            opts.numTilesR = (keel::i32)v.elemAsDouble(0);
+            opts.numTilesC = (keel::i32)v.elemAsDouble(1);
         } else if (eqIgnoreCase(key, "ClipLimit"))    opts.clipLimit    = v.toScalar();
-        else if (eqIgnoreCase(key, "NBins"))          opts.nBins        = (int)v.toScalar();
+        else if (eqIgnoreCase(key, "NBins"))          opts.nBins        = (keel::i32)v.toScalar();
         else if (eqIgnoreCase(key, "Distribution"))   opts.distribution = v.toString();
         else if (eqIgnoreCase(key, "Alpha"))          opts.alpha        = v.toScalar();
         else if (eqIgnoreCase(key, "Range"))          opts.range        = v.toString();
@@ -178,7 +178,7 @@ void multithresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "multithresh");
-    int N = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 1;
+    keel::i32 N = (args.size() >= 2 && !args[1].isEmpty()) ? (keel::i32)args[1].toScalar() : 1;
     auto [t, em] = multithresh(args[0], N, ctx.engine->allocator());
     outs[0] = std::move(t);
     if (nargout > 1) outs[1] = std::move(em);
@@ -281,7 +281,7 @@ void adaptthresh_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 1, 8, "adaptthresh");
     const keel::f64 sens = (args.size() >= 2 && !args[1].isEmpty())
                         ? args[1].toScalar() : 0.5;
-    const int nbh     = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::i32 nbh     = (args.size() >= 3 && !args[2].isEmpty())
                         ? argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[2], 3, "nh_size", "adaptthresh"), 3, "nh_size", "adaptthresh") : 0;
     keel::String stat = keel::String::from("mean");
@@ -308,8 +308,8 @@ void wcodemat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "wcodemat");
-    int nb = (args.size() >= 2 && !args[1].isEmpty())
-             ? keel::as<int>(argcheck::roundLength(args[1], 2, "nb", "wcodemat")) : 16;
+    keel::i32 nb = (args.size() >= 2 && !args[1].isEmpty())
+             ? keel::as<keel::i32>(argcheck::roundLength(args[1], 2, "nb", "wcodemat")) : 16;
     keel::String opt = keel::String::from("mat");
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (!args[2].isChar() && !args[2].isString())
@@ -317,11 +317,11 @@ void wcodemat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                         0, 0, "wcodemat", "", "numkit:wcodemat:opt");
         opt = args[2].toString();
     }
-    int absol = 1;
+    keel::i32 absol = 1;
     if (args.size() >= 4 && !args[3].isEmpty()) {
         const keel::f64 av = argcheck::expectedReal(args[3], 4, "absol", "wcodemat");
         argcheck::expectedFlag01(av, 4, "absol", "wcodemat");
-        absol = keel::as<int>(av);
+        absol = keel::as<keel::i32>(av);
     }
     outs[0] = wcodemat(args[0], nb, opt, absol, ctx.engine->allocator());
 }
@@ -330,7 +330,7 @@ void entropy_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 1, "entropy");
-    int nbins = 0;
+    keel::i32 nbins = 0;
     if (args.size() >= 2 && !args[1].isEmpty())
         nbins = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "nbins", "entropy"), 2, "nbins", "entropy");
@@ -355,7 +355,7 @@ void grayslice_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (n.numel() == 1) {
         const keel::f64 nv = n.toScalar();
         if (nv >= 1.0) {
-            outs[0] = grayslice(args[0], keel::as<int>(nv), mr);
+            outs[0] = grayslice(args[0], keel::as<keel::i32>(nv), mr);
         } else if (nv > 0.0) {
             const keel::f64 levels[1] = { nv };
             outs[0] = grayslice(args[0], keel::ArrayRef<keel::f64>(levels, 1), mr);

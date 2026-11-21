@@ -417,12 +417,12 @@ Value bestblk(const Value &IMS, keel::f64 k, keel::Allocator *mr)
     const Value &IMSu = (IMS.type() == ValueType::CHAR) ? IMSC : IMS;
 
     const keel::usize nd = IMSu.numel();
-    const long long K = keel::as<long long>(std::floor(k));
+    const keel::i64 K = keel::as<keel::i64>(std::floor(k));
     Value out = Value::matrix(1, nd, ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
 
     for (keel::usize d = 0; d < nd; ++d) {
-        const long long dim = keel::as<long long>(
+        const keel::i64 dim = keel::as<keel::i64>(
             std::floor(IMSu.elemAsDouble(d)));
         if (dim < 1)
             throw Error("bestblk: IMS entries must be positive",
@@ -435,12 +435,12 @@ Value bestblk(const Value &IMS, keel::f64 k, keel::Allocator *mr)
         // ceil(lo_double) when the lower bound is non-integer.
         const keel::f64 lo_d = std::min(keel::as<keel::f64>(dim) / 10.0,
                                      keel::as<keel::f64>(K) / 2.0);
-        long long lo = keel::as<long long>(std::ceil(lo_d));
+        keel::i64 lo = keel::as<keel::i64>(std::ceil(lo_d));
         if (lo < 1) lo = 1;
-        long long bestP   = K;
-        long long bestPad = ((K - dim % K) % K + K) % K;
-        for (long long p = K - 1; p >= lo; --p) {
-            const long long pad = ((p - dim % p) % p + p) % p;
+        keel::i64 bestP   = K;
+        keel::i64 bestPad = ((K - dim % K) % K + K) % K;
+        for (keel::i64 p = K - 1; p >= lo; --p) {
+            const keel::i64 pad = ((p - dim % p) % p + p) % p;
             if (pad < bestPad) {
                 bestPad = pad;
                 bestP   = p;
@@ -478,7 +478,7 @@ Value fftconv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allo
     const keel::usize Wp = next_pow2(Wf);
 
     auto pad_post = [&](const Value &X, keel::usize Hpad, keel::usize Wpad) {
-        return padarray(X, {(int)(Hpad - X.dims().rows()), (int)(Wpad - X.dims().cols())}, PadMode::Constant, 0.0, "post", mr);
+        return padarray(X, {(keel::i32)(Hpad - X.dims().rows()), (keel::i32)(Wpad - X.dims().cols())}, PadMode::Constant, 0.0, "post", mr);
     };
     Value Ap = pad_post(A, Hp, Wp);
     Value Bp = pad_post(B, Hp, Wp);
@@ -566,7 +566,7 @@ Value psf2otf(const Value &PSF, keel::ArrayRef<keel::usize> outsize, keel::Alloc
     // Pad PSF with zeros (post-pad).
     Value padded;
     if (outH != inH || outW != inW) {
-        padded = padarray(PSF, {(int)(outH - inH), (int)(outW - inW)}, PadMode::Constant, 0.0, "post", mr);
+        padded = padarray(PSF, {(keel::i32)(outH - inH), (keel::i32)(outW - inW)}, PadMode::Constant, 0.0, "post", mr);
     } else {
         padded = PSF;
     }
@@ -662,9 +662,9 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
     keel::f64 *ad = a.doubleDataMut();
     keel::f64 *bd = b.doubleDataMut();
 
-    long double sa = 0.0L;
+    long double sa = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < mN; ++i) sa += templ.elemAsDouble(i);
-    const keel::f64 ma = (mN > 0) ? keel::as<keel::f64>(sa / keel::as<long double>(mN)) : 0.0;
+    const keel::f64 ma = (mN > 0) ? keel::as<keel::f64>(sa / keel::as<long double>(mN)) : 0.0; // keel-lint: ignore
     for (keel::usize i = 0; i < mN; ++i)     ad[i] = templ.elemAsDouble(i) - ma;
     for (keel::usize i = 0; i < bH * bW; ++i) bd[i] = img.elemAsDouble(i);
 
@@ -706,8 +706,8 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
     }
 
     // sumsq(a).
-    long double sumsq_a = 0.0L;
-    for (keel::usize i = 0; i < mN; ++i) sumsq_a += keel::as<long double>(ad[i]) * ad[i];
+    long double sumsq_a = 0.0L; // keel-lint: ignore
+    for (keel::usize i = 0; i < mN; ++i) sumsq_a += keel::as<long double>(ad[i]) * ad[i]; // keel-lint: ignore
     const keel::f64 sa2 = keel::as<keel::f64>(sumsq_a);
 
     // c = c_num / sqrt(c_denom * sumsq_a); inf/nan → 0.
@@ -1328,7 +1328,7 @@ namespace {
 // minimum of unimodal f on [ax, bx] within TolX tolerance.
 template<typename F>
 keel::f64 fminbnd_brent(F f, keel::f64 ax, keel::f64 bx,
-                     keel::f64 tol = 1e-4, int maxiter = 500)
+                     keel::f64 tol = 1e-4, keel::i32 maxiter = 500)
 {
     const keel::f64 seps  = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
     const keel::f64 c     = 0.5 * (3.0 - std::sqrt(5.0));   // golden ratio
@@ -1339,7 +1339,7 @@ keel::f64 fminbnd_brent(F f, keel::f64 ax, keel::f64 bx,
     keel::f64 x  = xf;
     keel::f64 fx = f(x);
     keel::f64 fv = fx, fw = fx;
-    int iter = 0;
+    keel::i32 iter = 0;
     keel::f64 xm = 0.5 * (a + b);
     keel::f64 tol1 = seps * std::fabs(xf) + tol / 3.0;
     keel::f64 tol2 = 2.0 * tol1;

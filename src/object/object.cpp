@@ -39,12 +39,12 @@ namespace numkit::image {
 namespace {
 
 // Build a small 3×3 (or 2×2) kernel as a DOUBLE Value (column-major).
-Value make_kernel(keel::ArrayRef<keel::f64> flat_rowmajor, int rows, int cols, keel::Allocator *mr)
+Value make_kernel(keel::ArrayRef<keel::f64> flat_rowmajor, keel::i32 rows, keel::i32 cols, keel::Allocator *mr)
 {
     Value k = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     keel::f64 *kd = k.doubleDataMut();
-    for (int c = 0; c < cols; ++c)
-        for (int r = 0; r < rows; ++r)
+    for (keel::i32 c = 0; c < cols; ++c)
+        for (keel::i32 r = 0; r < rows; ++r)
             kd[(keel::usize)c * (keel::usize)rows + (keel::usize)r]
                 = flat_rowmajor[(keel::usize)r * (keel::usize)cols + (keel::usize)c];
     return k;
@@ -65,7 +65,7 @@ imgradientxy(const Value &I, keel::StringRef method, keel::Allocator *mr)
 {
     // Choose kernels (Gx for horizontal, Gy for vertical).
     keel::Array<keel::f64> kx, ky;
-    int cols = 3;
+    keel::i32 cols = 3;
     // Kernel sign convention matches MATLAB imgradientxy: Gx is positive
     // where intensity increases left→right (negative on the left column,
     // positive on the right), Gy positive where intensity increases
@@ -138,9 +138,9 @@ Value conv3d_replicate(const Value &V, const keel::f64 K[27],
     keel::f64 *od = out.doubleDataMut();
     const keel::f64 *vd = V.doubleData();
 
-    auto clamp = [](long long x, keel::usize n) -> keel::usize {
+    auto clamp = [](keel::i64 x, keel::usize n) -> keel::usize {
         if (x < 0) return 0;
-        if (x >= keel::as<long long>(n)) return n - 1;
+        if (x >= keel::as<keel::i64>(n)) return n - 1;
         return keel::as<keel::usize>(x);
     };
 
@@ -148,16 +148,16 @@ Value conv3d_replicate(const Value &V, const keel::f64 K[27],
         for (keel::usize c = 0; c < W; ++c) {
             for (keel::usize r = 0; r < H; ++r) {
                 keel::f64 sum = 0.0;
-                for (int dp = -1; dp <= 1; ++dp) {
+                for (keel::i32 dp = -1; dp <= 1; ++dp) {
                     const keel::usize pp = clamp(
-                        keel::as<long long>(p) + dp, D);
-                    for (int dc = -1; dc <= 1; ++dc) {
+                        keel::as<keel::i64>(p) + dp, D);
+                    for (keel::i32 dc = -1; dc <= 1; ++dc) {
                         const keel::usize cc = clamp(
-                            keel::as<long long>(c) + dc, W);
-                        for (int dr = -1; dr <= 1; ++dr) {
+                            keel::as<keel::i64>(c) + dc, W);
+                        for (keel::i32 dr = -1; dr <= 1; ++dr) {
                             const keel::usize rr = clamp(
-                                keel::as<long long>(r) + dr, H);
-                            const int ki = (dr + 1)
+                                keel::as<keel::i64>(r) + dr, H);
+                            const keel::i32 ki = (dr + 1)
                                          + 3 * (dc + 1)
                                          + 9 * (dp + 1);
                             sum += K[ki] * vd[rr + H * cc + H * W * pp];
@@ -223,9 +223,9 @@ imgradientxyz(const Value &V, keel::StringRef method, keel::Allocator *mr)
         //   page 3: [ 1  3  1;  3  6  3;  1  3  1]
         // K index = (dr+1) + 3*(dc+1) + 9*(dp+1).
         auto build = [](const keel::f64 rows3[3][3][3], keel::f64 K[27]) {
-            for (int p = 0; p < 3; ++p)
-                for (int c = 0; c < 3; ++c)
-                    for (int r = 0; r < 3; ++r)
+            for (keel::i32 p = 0; p < 3; ++p)
+                for (keel::i32 c = 0; c < 3; ++c)
+                    for (keel::i32 r = 0; r < 3; ++r)
                         K[r + 3 * c + 9 * p] = rows3[p][r][c];
         };
         const keel::f64 hx3[3][3][3] = {
@@ -250,9 +250,9 @@ imgradientxyz(const Value &V, keel::StringRef method, keel::Allocator *mr)
         Gz = conv3d_replicate(Vd, Kz, mr);
     } else if (method == "prewitt") {
         auto build = [](const keel::f64 rows3[3][3][3], keel::f64 K[27]) {
-            for (int p = 0; p < 3; ++p)
-                for (int c = 0; c < 3; ++c)
-                    for (int r = 0; r < 3; ++r)
+            for (keel::i32 p = 0; p < 3; ++p)
+                for (keel::i32 c = 0; c < 3; ++c)
+                    for (keel::i32 r = 0; r < 3; ++r)
                         K[r + 3 * c + 9 * p] = rows3[p][r][c];
         };
         const keel::f64 hx3[3][3][3] = {
@@ -479,8 +479,8 @@ keel::f64 auto_threshold(const Value &G, keel::f64 frac) {
 // of the peak gradient magnitude (low = 0.4·high); NaN → an auto fraction.
 Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
 {
-    const int H = keel::as<int>(Iin.dims().rows());
-    const int W = keel::as<int>(Iin.dims().cols());
+    const keel::i32 H = keel::as<keel::i32>(Iin.dims().rows());
+    const keel::i32 W = keel::as<keel::i32>(Iin.dims().cols());
     const keel::usize N = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
 
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
@@ -494,17 +494,17 @@ Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
     // This avoids the extra smoothing that a Gaussian-blur-then-Sobel chain
     // would add (which weakens weak edges below threshold).
     const keel::f64 sigma = std::sqrt(2.0);
-    const int hw = std::max(1, keel::as<int>(std::ceil(3.0 * sigma)));
-    const int L = 2 * hw + 1;
+    const keel::i32 hw = std::max(1, keel::as<keel::i32>(std::ceil(3.0 * sigma)));
+    const keel::i32 L = 2 * hw + 1;
     keel::Array<keel::f64> g(L), dg(keel::as<keel::usize>(L));
     keel::f64 gsum = 0.0;
-    for (int i = 0; i < L; ++i) {
+    for (keel::i32 i = 0; i < L; ++i) {
         const keel::f64 x = i - hw;
         g[i] = std::exp(-(x * x) / (2.0 * sigma * sigma));
         gsum += g[i];
     }
-    for (int i = 0; i < L; ++i) g[i] /= gsum;
-    for (int i = 0; i < L; ++i) {
+    for (keel::i32 i = 0; i < L; ++i) g[i] /= gsum;
+    for (keel::i32 i = 0; i < L; ++i) {
         const keel::f64 x = i - hw;
         dg[i] = -x * std::exp(-(x * x) / (2.0 * sigma * sigma));  // scale irrelevant (relative threshold)
     }
@@ -537,7 +537,7 @@ Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
     }
     if (maxMag <= 0.0) return out;
 
-    auto at = [&](int r, int c) -> keel::f64 {
+    auto at = [&](keel::i32 r, keel::i32 c) -> keel::f64 {
         return mag[keel::as<keel::usize>(c) * keel::as<keel::usize>(H) + keel::as<keel::usize>(r)];
     };
 
@@ -548,8 +548,8 @@ Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
     // (imfill). Border pixels can't be interpolated → left as non-edges.
     keel::Array<keel::f64> nms(N, arena.allocator());
     std::fill(nms.begin(), nms.end(), 0.0);
-    for (int c = 1; c < W - 1; ++c)
-        for (int r = 1; r < H - 1; ++r) {
+    for (keel::i32 c = 1; c < W - 1; ++c)
+        for (keel::i32 r = 1; r < H - 1; ++r) {
             const keel::usize i = keel::as<keel::usize>(c) * keel::as<keel::usize>(H) + keel::as<keel::usize>(r);
             const keel::f64 m = mag[i];
             if (m <= 0.0) continue;
@@ -589,14 +589,14 @@ Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
     stack.reserve(N / 8 + 1);
     for (keel::usize i = 0; i < N; ++i)
         if (nms[i] >= highT) { od[i] = 1; stack.push_back(i); }
-    static constexpr int dr8[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
-    static constexpr int dc8[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+    static constexpr keel::i32 dr8[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
+    static constexpr keel::i32 dc8[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
     while (!stack.empty()) {
         const keel::usize p = stack.back(); stack.pop_back();
-        const int r = keel::as<int>(p % keel::as<keel::usize>(H));
-        const int c = keel::as<int>(p / keel::as<keel::usize>(H));
-        for (int k = 0; k < 8; ++k) {
-            const int nr = r + dr8[k], nc = c + dc8[k];
+        const keel::i32 r = keel::as<keel::i32>(p % keel::as<keel::usize>(H));
+        const keel::i32 c = keel::as<keel::i32>(p / keel::as<keel::usize>(H));
+        for (keel::i32 k = 0; k < 8; ++k) {
+            const keel::i32 nr = r + dr8[k], nc = c + dc8[k];
             if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
             const keel::usize q = keel::as<keel::usize>(nc) * keel::as<keel::usize>(H) + keel::as<keel::usize>(nr);
             if (!od[q] && nms[q] >= lowT) { od[q] = 1; stack.push_back(q); }
@@ -635,22 +635,22 @@ Value edge(const Value &I, keel::StringRef methodRaw, keel::f64 thresh_lo, keel:
     }
     if (method == "log" || method == "zerocross") {
         // Apply LoG kernel, then mark zero-crossings as edges.
-        const int hsz = 5;
+        const keel::i32 hsz = 5;
         Value Klog = fspecial("log", { (keel::f64)hsz, (keel::f64)hsz, 0.5 }, mr);
         Value Y = apply_kernel(I, Klog, mr);
-        const int H = (int)Y.dims().rows();
-        const int W = (int)Y.dims().cols();
+        const keel::i32 H = (keel::i32)Y.dims().rows();
+        const keel::i32 W = (keel::i32)Y.dims().cols();
         Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
         keel::u8 *od = out.logicalDataMut();
         const keel::f64 th = std::isnan(thresh_lo) ? auto_threshold(Y, 0.05) : thresh_lo;
-        auto y = [&](int r, int c) { return Y.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r); };
-        for (int c = 0; c < W; ++c)
-            for (int r = 0; r < H; ++r) {
+        auto y = [&](keel::i32 r, keel::i32 c) { return Y.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r); };
+        for (keel::i32 c = 0; c < W; ++c)
+            for (keel::i32 r = 0; r < H; ++r) {
                 bool zc = false;
-                for (int dr = -1; dr <= 1 && !zc; ++dr)
-                    for (int dc = -1; dc <= 1 && !zc; ++dc) {
+                for (keel::i32 dr = -1; dr <= 1 && !zc; ++dr)
+                    for (keel::i32 dc = -1; dc <= 1 && !zc; ++dc) {
                         if (dr == 0 && dc == 0) continue;
-                        const int rr = r + dr, cc = c + dc;
+                        const keel::i32 rr = r + dr, cc = c + dc;
                         if (rr < 0 || rr >= H || cc < 0 || cc >= W) continue;
                         const keel::f64 a = y(r, c), b = y(rr, cc);
                         if (a * b < 0.0 && std::fabs(a - b) > th) zc = true;
@@ -794,7 +794,7 @@ Value cornermetric(const Value &I, keel::StringRef method,
     // uses zero-padding regardless of PadMode, so we pre-pad by
     // (Lc-1)/2 with `padarray` and run a 'same' convolution.
     auto full_replicate = [&](Value X) {
-        X = padarray(X, {keel::as<int>(halfLc), keel::as<int>(halfLc)}, PadMode::Replicate, 0.0, "both", mr);
+        X = padarray(X, {keel::as<keel::i32>(halfLc), keel::as<keel::i32>(halfLc)}, PadMode::Replicate, 0.0, "both", mr);
         return imfilter(X, Wk, PadMode::Replicate, 0.0,
                         /*full=*/false, /*flip_kernel=*/true, mr);
     };
@@ -854,7 +854,7 @@ Value cornermetric(const Value &I, keel::StringRef method,
 // centroid, sort by strength (descending), and return up to N integer
 // [x y] = [col row] coordinates. Built on the shipped cornermetric; the
 // border is excluded naturally (the metric there is ≤ 0 < threshold).
-Value corner(const Value &I, keel::StringRef method, int maxN,
+Value corner(const Value &I, keel::StringRef method, keel::i32 maxN,
              keel::f64 quality_level, keel::f64 sensitivity,
              const Value &filter_coef, keel::Allocator *mr)
 {
@@ -886,11 +886,11 @@ Value corner(const Value &I, keel::StringRef method, int maxN,
             const keel::f64 v = at(r, c);
             if (!(v > thr)) continue;
             bool peak = true;
-            for (int dc = -1; dc <= 1 && peak; ++dc)
-                for (int dr = -1; dr <= 1 && peak; ++dr) {
+            for (keel::i32 dc = -1; dc <= 1 && peak; ++dc)
+                for (keel::i32 dr = -1; dr <= 1 && peak; ++dr) {
                     if (dr == 0 && dc == 0) continue;
-                    const long long rr = (long long)r + dr, cc = (long long)c + dc;
-                    if (rr < 0 || cc < 0 || rr >= (long long)M || cc >= (long long)N)
+                    const keel::i64 rr = (keel::i64)r + dr, cc = (keel::i64)c + dc;
+                    if (rr < 0 || cc < 0 || rr >= (keel::i64)M || cc >= (keel::i64)N)
                         continue;
                     if (at((keel::usize)rr, (keel::usize)cc) > v) peak = false;
                 }
@@ -908,7 +908,7 @@ Value corner(const Value &I, keel::StringRef method, int maxN,
     // corners keep find() order under the strength sort; quantising lets
     // ours do the same while still ordering genuinely distinct strengths.
     const keel::f64 quantum = mx * 1e-9;
-    struct Peak { keel::f64 row, col, val; long long key; };
+    struct Peak { keel::f64 row, col, val; keel::i64 key; };
     keel::Array<Peak> peaks(0, arena.allocator());
     keel::Array<keel::u8> seen(MN, arena.allocator());
     for (keel::usize i = 0; i < MN; ++i) seen[i] = 0;
@@ -925,11 +925,11 @@ Value corner(const Value &I, keel::StringRef method, int maxN,
             const keel::usize pr = p % M, pc = p / M;
             sumR += (keel::f64)pr; sumC += (keel::f64)pc; ++cnt;
             if (m[p] > best) best = m[p];
-            for (int dc = -1; dc <= 1; ++dc)
-                for (int dr = -1; dr <= 1; ++dr) {
+            for (keel::i32 dc = -1; dc <= 1; ++dc)
+                for (keel::i32 dr = -1; dr <= 1; ++dr) {
                     if (dr == 0 && dc == 0) continue;
-                    const long long rr = (long long)pr + dr, cc = (long long)pc + dc;
-                    if (rr < 0 || cc < 0 || rr >= (long long)M || cc >= (long long)N)
+                    const keel::i64 rr = (keel::i64)pr + dr, cc = (keel::i64)pc + dc;
+                    if (rr < 0 || cc < 0 || rr >= (keel::i64)M || cc >= (keel::i64)N)
                         continue;
                     const keel::usize q = (keel::usize)cc * M + (keel::usize)rr;
                     if (isMax[q] && !seen[q]) { seen[q] = 1; stack.push_back(q); }
@@ -994,7 +994,7 @@ void hough(const Value &BW, keel::f64 rho_res,
     keel::Array<keel::f64> theta(mr);
     if (theta_deg.numel() == 0) {
         theta.reserve(180);
-        for (int k = -90; k <= 89; ++k)
+        for (keel::i32 k = -90; k <= 89; ++k)
             theta.push_back(keel::as<keel::f64>(k));
     } else {
         theta.reserve(theta_deg.numel());
@@ -1058,8 +1058,8 @@ void hough(const Value &BW, keel::f64 rho_res,
             for (keel::usize tk = 0; tk < ntheta; ++tk) {
                 const keel::f64 rho_val = x * cosT[tk] + y * sinT[tk];
                 // bin = round(rho_val / rho_res) + q + 1 (1-indexed)
-                long bin = keel::as<long>(std::lround(rho_val / rho_res))
-                         + keel::as<long>(q);  // 0-indexed
+                keel::i64 bin = keel::as<keel::i64>(std::lround(rho_val / rho_res))
+                         + keel::as<keel::i64>(q);  // 0-indexed
                 if (bin < 0 || keel::as<keel::usize>(bin) >= nrho) continue;
                 hp[tk * nrho + bin] += 1.0;
             }
@@ -1153,26 +1153,26 @@ Value houghpeaks(const Value &H, keel::usize numpeaks,
         peak_c.push_back(q);
 
         // Suppress nhood.
-        const long p1 = keel::as<long>(p) - keel::as<long>(halfR);
-        const long p2 = keel::as<long>(p) + keel::as<long>(halfR);
-        const long q1 = keel::as<long>(q) - keel::as<long>(halfT);
-        const long q2 = keel::as<long>(q) + keel::as<long>(halfT);
-        for (long qq = q1; qq <= q2; ++qq) {
-            for (long pp = p1; pp <= p2; ++pp) {
+        const keel::i64 p1 = keel::as<keel::i64>(p) - keel::as<keel::i64>(halfR);
+        const keel::i64 p2 = keel::as<keel::i64>(p) + keel::as<keel::i64>(halfR);
+        const keel::i64 q1 = keel::as<keel::i64>(q) - keel::as<keel::i64>(halfT);
+        const keel::i64 q2 = keel::as<keel::i64>(q) + keel::as<keel::i64>(halfT);
+        for (keel::i64 qq = q1; qq <= q2; ++qq) {
+            for (keel::i64 pp = p1; pp <= p2; ++pp) {
                 // Out-of-bounds in rho: drop.
-                if (pp < 0 || pp >= keel::as<long>(nrho)) continue;
-                long qWrap = qq;
-                long pWrap = pp;
-                if (qWrap < 0 || qWrap >= keel::as<long>(ntheta)) {
+                if (pp < 0 || pp >= keel::as<keel::i64>(nrho)) continue;
+                keel::i64 qWrap = qq;
+                keel::i64 pWrap = pp;
+                if (qWrap < 0 || qWrap >= keel::as<keel::i64>(ntheta)) {
                     if (isThetaAntisym) {
                         if (qWrap < 0) {
-                            qWrap += keel::as<long>(ntheta);
-                            pWrap = keel::as<long>(nrho) - 1 - pp;
+                            qWrap += keel::as<keel::i64>(ntheta);
+                            pWrap = keel::as<keel::i64>(nrho) - 1 - pp;
                         } else {
-                            qWrap -= keel::as<long>(ntheta);
-                            pWrap = keel::as<long>(nrho) - 1 - pp;
+                            qWrap -= keel::as<keel::i64>(ntheta);
+                            pWrap = keel::as<keel::i64>(nrho) - 1 - pp;
                         }
-                        if (pWrap < 0 || pWrap >= keel::as<long>(nrho))
+                        if (pWrap < 0 || pWrap >= keel::as<keel::i64>(nrho))
                             continue;
                     } else {
                         continue;
@@ -1285,9 +1285,9 @@ Value houghlines(const Value &BW, const Value &theta_deg,
     cseg.reserve(nP / 4);
 
     for (keel::usize k = 0; k < nPeaks; ++k) {
-        const long rbin = keel::as<long>(peaks.elemAsDouble(k));
-        const long cbin = keel::as<long>(peaks.elemAsDouble(nPeaks + k));
-        if (cbin < 1 || cbin > keel::as<long>(ntheta)) continue;
+        const keel::i64 rbin = keel::as<keel::i64>(peaks.elemAsDouble(k));
+        const keel::i64 cbin = keel::as<keel::i64>(peaks.elemAsDouble(nPeaks + k));
+        if (cbin < 1 || cbin > keel::as<keel::i64>(ntheta)) continue;
         const keel::f64 theta_c = theta_deg.elemAsDouble(cbin - 1) * DEG2RAD;
         const keel::f64 cosT = std::cos(theta_c);
         const keel::f64 sinT = std::sin(theta_c);
@@ -1296,7 +1296,7 @@ Value houghlines(const Value &BW, const Value &theta_deg,
         idx.clear();
         for (keel::usize i = 0; i < nP; ++i) {
             const keel::f64 rho_xy = px[i] * cosT + py[i] * sinT;
-            const long bin = keel::as<long>(std::lround(
+            const keel::i64 bin = keel::as<keel::i64>(std::lround(
                 slope * (rho_xy - rho_first) + 1.0));
             if (bin == rbin) idx.push_back(i);
         }
@@ -1340,20 +1340,20 @@ Value houghlines(const Value &BW, const Value &theta_deg,
         }
 
         // Build sorted (xy = [c r]).
-        keel::Array<long> xs(mr), ys(mr);
+        keel::Array<keel::i64> xs(mr), ys(mr);
         xs.reserve(rseg.size());
         ys.reserve(rseg.size());
         for (keel::usize i : order) {
-            xs.push_back(keel::as<long>(cseg[i]));
-            ys.push_back(keel::as<long>(rseg[i]));
+            xs.push_back(keel::as<keel::i64>(cseg[i]));
+            ys.push_back(keel::as<keel::i64>(rseg[i]));
         }
 
         // diff_sq = (xs[i+1]-xs[i])^2 + (ys[i+1]-ys[i])^2.
         // Find gaps where diff_sq > fillgap^2.
         keel::Array<keel::usize> gap_at(mr);
         for (keel::usize i = 0; i + 1 < xs.size(); ++i) {
-            const long dx = xs[i + 1] - xs[i];
-            const long dy = ys[i + 1] - ys[i];
+            const keel::i64 dx = xs[i + 1] - xs[i];
+            const keel::i64 dy = ys[i + 1] - ys[i];
             const keel::f64 d2 = keel::as<keel::f64>(dx) * dx
                             + keel::as<keel::f64>(dy) * dy;
             if (d2 > fillgap_sq) gap_at.push_back(i + 1);  // 1-based start
@@ -1370,10 +1370,10 @@ Value houghlines(const Value &BW, const Value &theta_deg,
             if (hi <= lo) continue;
             // p1 = xy(lo+1) in MATLAB 1-idx; here 0-indexed → xs[lo].
             // p2 = xy(hi) in MATLAB → xs[hi-1].
-            const long p1x = xs[lo];
-            const long p1y = ys[lo];
-            const long p2x = xs[hi - 1];
-            const long p2y = ys[hi - 1];
+            const keel::i64 p1x = xs[lo];
+            const keel::i64 p1y = ys[lo];
+            const keel::i64 p2x = xs[hi - 1];
+            const keel::i64 p2y = ys[hi - 1];
             const keel::f64 linelen_sq
                 = keel::as<keel::f64>(p2x - p1x) * (p2x - p1x)
                 + keel::as<keel::f64>(p2y - p1y) * (p2y - p1y);
@@ -1648,12 +1648,12 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
     }
 
     keel::Array<keel::f64> accumRe(MN, 0.0), accumIm(MN, 0.0);
-    const long Ml = keel::as<long>(M);
-    const long Nl = keel::as<long>(N);
+    const keel::i64 Ml = keel::as<keel::i64>(M);
+    const keel::i64 Nl = keel::as<keel::i64>(N);
     for (const auto &ep : edges) {
         for (keel::usize k = 0; k < nR; ++k) {
-            const long xc = std::lround(ep.ex + (-RR[k]) * ep.ux);
-            const long yc = std::lround(ep.ey + (-RR[k]) * ep.uy);
+            const keel::i64 xc = std::lround(ep.ex + (-RR[k]) * ep.ux);
+            const keel::i64 yc = std::lround(ep.ey + (-RR[k]) * ep.uy);
             if (xc >= 1 && xc <= Nl && yc >= 1 && yc <= Ml) {
                 const keel::usize aidx = keel::as<keel::usize>(xc - 1) * M
                                        + keel::as<keel::usize>(yc - 1);
@@ -1688,10 +1688,10 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
         for (keel::usize c = 0; c < N; ++c) {
             for (keel::usize r = 0; r < M; ++r) {
                 keel::usize k = 0;
-                for (int dc = -2; dc <= 2; ++dc) {
-                    const long nc = keel::as<long>(c) + dc;
-                    for (int dr = -2; dr <= 2; ++dr) {
-                        const long nr = keel::as<long>(r) + dr;
+                for (keel::i32 dc = -2; dc <= 2; ++dc) {
+                    const keel::i64 nc = keel::as<keel::i64>(c) + dc;
+                    for (keel::i32 dr = -2; dr <= 2; ++dr) {
+                        const keel::i64 nr = keel::as<keel::i64>(r) + dr;
                         if (nr < 0 || nr >= Ml || nc < 0 || nc >= Nl) {
                             win[k++] = 0.0;
                         } else {
@@ -1719,8 +1719,8 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
     const keel::f64 *hd = HdVal.doubleData();
 
     // Find 8-connected regional maxima plateaus of Hd in column-major order.
-    static constexpr int dr8[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-    static constexpr int dc8[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    static constexpr keel::i32 dr8[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+    static constexpr keel::i32 dc8[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
     keel::Array<keel::u8> visited(MN, 0);
     keel::Array<keel::usize> comp, q;
     comp.reserve(32);
@@ -1745,11 +1745,11 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
         keel::usize head = 0;
         while (head < q.size()) {
             const keel::usize curr = q[head++];
-            const long r = keel::as<long>(curr % M);
-            const long c = keel::as<long>(curr / M);
-            for (int k = 0; k < 8; ++k) {
-                const long nr = r + dr8[k];
-                const long nc = c + dc8[k];
+            const keel::i64 r = keel::as<keel::i64>(curr % M);
+            const keel::i64 c = keel::as<keel::i64>(curr / M);
+            for (keel::i32 k = 0; k < 8; ++k) {
+                const keel::i64 nr = r + dr8[k];
+                const keel::i64 nc = c + dc8[k];
                 if (nr < 0 || nr >= Ml || nc < 0 || nc >= Nl) continue;
                 const keel::usize nb = keel::as<keel::usize>(nc) * M
                                      + keel::as<keel::usize>(nr);
@@ -1775,8 +1775,8 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
             if (wsum > 0.0) {
                 const keel::f64 xc = xsum / wsum;
                 const keel::f64 yc = ysum / wsum;
-                const long r_idx = std::clamp<long>(std::lround(yc) - 1, 0, Ml - 1);
-                const long c_idx = std::clamp<long>(std::lround(xc) - 1, 0, Nl - 1);
+                const keel::i64 r_idx = std::clamp<keel::i64>(std::lround(yc) - 1, 0, Ml - 1);
+                const keel::i64 c_idx = std::clamp<keel::i64>(std::lround(xc) - 1, 0, Nl - 1);
                 const keel::f64 met = hd[keel::as<keel::usize>(c_idx) * M
                                     + keel::as<keel::usize>(r_idx)];
                 if (met >= accumThresh) {
@@ -1809,25 +1809,25 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
         if (rmin == rmax) {
             rp[k] = rmin;
         } else if (methodLower == "phasecode") {
-            const long r_idx = std::clamp<long>(std::lround(cands[k].yc) - 1, 0, Ml - 1);
-            const long c_idx = std::clamp<long>(std::lround(cands[k].xc) - 1, 0, Nl - 1);
+            const keel::i64 r_idx = std::clamp<keel::i64>(std::lround(cands[k].yc) - 1, 0, Ml - 1);
+            const keel::i64 c_idx = std::clamp<keel::i64>(std::lround(cands[k].xc) - 1, 0, Nl - 1);
             const keel::usize aidx = keel::as<keel::usize>(c_idx) * M
                                    + keel::as<keel::usize>(r_idx);
             const keel::f64 cenPhase = std::atan2(accumIm[aidx], accumRe[aidx]);
             rp[k] = std::exp(((cenPhase + M_PI) / (2.0 * M_PI) * (lnRend - lnR1)) + lnR1);
         } else {
             // Two-stage radial histogram around (xc, yc).
-            const long left   = std::max<long>(keel::as<long>(std::floor(cands[k].xc - rmax)), 1);
-            const long right  = std::min<long>(keel::as<long>(std::ceil(cands[k].xc + rmax)), Nl);
-            const long top    = std::max<long>(keel::as<long>(std::floor(cands[k].yc - rmax)), 1);
-            const long bottom = std::min<long>(keel::as<long>(std::ceil(cands[k].yc + rmax)), Ml);
-            const long r1_int = keel::as<long>(std::lround(rmin));
-            const long r2_int = keel::as<long>(std::lround(rmax));
+            const keel::i64 left   = std::max<keel::i64>(keel::as<keel::i64>(std::floor(cands[k].xc - rmax)), 1);
+            const keel::i64 right  = std::min<keel::i64>(keel::as<keel::i64>(std::ceil(cands[k].xc + rmax)), Nl);
+            const keel::i64 top    = std::max<keel::i64>(keel::as<keel::i64>(std::floor(cands[k].yc - rmax)), 1);
+            const keel::i64 bottom = std::min<keel::i64>(keel::as<keel::i64>(std::ceil(cands[k].yc + rmax)), Ml);
+            const keel::i64 r1_int = keel::as<keel::i64>(std::lround(rmin));
+            const keel::i64 r2_int = keel::as<keel::i64>(std::lround(rmax));
             const keel::usize nBins = keel::as<keel::usize>(r2_int - r1_int + 1);
             keel::Array<keel::f64> hbin(nBins, 0.0);
-            for (long cc = left; cc <= right; ++cc) {
-                for (long rr = top; rr <= bottom; ++rr) {
-                    const long rbin = std::lround(std::hypot(
+            for (keel::i64 cc = left; cc <= right; ++cc) {
+                for (keel::i64 rr = top; rr <= bottom; ++rr) {
+                    const keel::i64 rbin = std::lround(std::hypot(
                         keel::as<keel::f64>(cc) - cands[k].xc,
                         keel::as<keel::f64>(rr) - cands[k].yc));
                     if (rbin >= r1_int && rbin <= r2_int) {
@@ -1838,13 +1838,13 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
                 }
             }
             keel::f64 bestH = -1.0;
-            long bestR = r1_int;
+            keel::i64 bestR = r1_int;
             for (keel::usize b = 0; b < nBins; ++b) {
-                const keel::f64 rcur = keel::as<keel::f64>(r1_int + keel::as<long>(b));
+                const keel::f64 rcur = keel::as<keel::f64>(r1_int + keel::as<keel::i64>(b));
                 const keel::f64 hnorm = hbin[b] / (2.0 * M_PI * rcur);
                 if (hnorm > bestH) {
                     bestH = hnorm;
-                    bestR = r1_int + keel::as<long>(b);
+                    bestR = r1_int + keel::as<keel::i64>(b);
                 }
             }
             rp[k] = keel::as<keel::f64>(bestR);

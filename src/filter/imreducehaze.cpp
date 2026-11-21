@@ -137,13 +137,13 @@ Value min_across_pages(const Value &A, keel::Allocator *mr)
 }
 
 // ── square strel of size n as a logical n×n matrix ──
-Value make_square_strel(int n, keel::Allocator *mr)
+Value make_square_strel(keel::i32 n, keel::Allocator *mr)
 {
     Value se = Value::matrix(keel::as<keel::usize>(n),
                               keel::as<keel::usize>(n),
                               ValueType::LOGICAL, mr);
     keel::u8 *d = se.logicalDataMut();
-    for (int i = 0; i < n * n; ++i) d[i] = 1;
+    for (keel::i32 i = 0; i < n * n; ++i) d[i] = 1;
     return se;
 }
 
@@ -178,7 +178,7 @@ Value normalize_by_atm_then_min(const Value &A, keel::ArrayRef<keel::f32> atm,
 //    sub-rectangle of A. Implements computeatmLightUsingQuadTree.
 struct Rect { keel::usize r0, c0, r1, c1; };  // inclusive
 
-Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
+Rect quadtree_decomp(const Value &dark, Rect Q, keel::i32 numLevels)
 {
     const keel::f32 *dd = dark.singleData();
     const keel::usize H = dark.dims().rows();
@@ -190,16 +190,16 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
                 s += dd[c * H + r];
         return s / keel::as<keel::f64>(n);
     };
-    for (int lvl = 0; lvl < numLevels; ++lvl) {
+    for (keel::i32 lvl = 0; lvl < numLevels; ++lvl) {
         // MATLAB's quadrant indexing (1-based, all integer):
         //   row mid = (Q.r0 + Q.r1) / 2   (round-half-down via fix on
         //                                  even/odd; round in MATLAB
         //                                  source uses `round`)
         //   col mid = (Q.c0 + Q.c1) / 2
         // R2025b uses `round(...)` so we match that.
-        const long rmid = keel::as<long>(std::round(
+        const keel::i64 rmid = keel::as<keel::i64>(std::round(
             (keel::as<keel::f64>(Q.r0) + keel::as<keel::f64>(Q.r1)) / 2.0));
-        const long cmid = keel::as<long>(std::round(
+        const keel::i64 cmid = keel::as<keel::i64>(std::round(
             (keel::as<keel::f64>(Q.c0) + keel::as<keel::f64>(Q.c1)) / 2.0));
         const Rect q1{Q.r0,
                        Q.c0,
@@ -218,8 +218,8 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
                        Q.r1,
                        Q.c1};
         const keel::f64 m[4] = {mean_of(q1), mean_of(q2), mean_of(q3), mean_of(q4)};
-        int best = 0;
-        for (int k = 1; k < 4; ++k)
+        keel::i32 best = 0;
+        for (keel::i32 k = 1; k < 4; ++k)
             if (m[k] > m[best]) best = k;
         Q = best == 0 ? q1 : best == 1 ? q2 : best == 2 ? q3 : q4;
     }
@@ -237,7 +237,7 @@ keel::Array<keel::f32> simpledcp_atm_light(const Value &A,
     const keel::usize P = d.is3D() ? d.pages() : 1;
     Rect Q{0, 0, H - 1, W - 1};
     if (H >= 64 && W >= 64) {
-        const int winSize = keel::as<int>(std::ceil(
+        const keel::i32 winSize = keel::as<keel::i32>(std::ceil(
             keel::as<keel::f64>(std::min(H, W)) / 400.0 * 15.0));
         Value se = make_square_strel(winSize, mr);
         Value darkChannel = min_across_pages(A, mr);
@@ -283,10 +283,10 @@ keel::Array<keel::f32> approxdcp_atm_light(const Value &A,
     const keel::usize P = d.is3D() ? d.pages() : 1;
     const keel::f32 *dc = darkChannel.singleData();
     // 256-bin imhist on the dark channel.
-    constexpr int NBINS = 256;
+    constexpr keel::i32 NBINS = 256;
     keel::Array<keel::usize> hist(NBINS, 0);
     for (keel::usize i = 0; i < H * W; ++i) {
-        int b = keel::as<int>(std::floor(dc[i] * (NBINS - 1) + 0.5f));
+        keel::i32 b = keel::as<keel::i32>(std::floor(dc[i] * (NBINS - 1) + 0.5f));
         if (b < 0) b = 0;
         if (b >= NBINS) b = NBINS - 1;
         hist[b]++;
@@ -294,8 +294,8 @@ keel::Array<keel::f32> approxdcp_atm_light(const Value &A,
     // Cumulative; find threshold for top 0.1% (1 - 0.001 = 0.999).
     const keel::f64 total = keel::as<keel::f64>(H * W);
     keel::f64 cum = 0;
-    int binIdx = NBINS - 1;
-    for (int b = 0; b < NBINS; ++b) {
+    keel::i32 binIdx = NBINS - 1;
+    for (keel::i32 b = 0; b < NBINS; ++b) {
         cum += hist[b];
         if (cum / total >= 0.999) { binIdx = b; break; }
     }
@@ -314,13 +314,13 @@ keel::Array<keel::f32> approxdcp_atm_light(const Value &A,
     const keel::f32 *gv = gray.singleData();
     const keel::f32 *src = A.singleData();
     keel::f32 bestGray = -std::numeric_limits<keel::f32>::infinity();
-    long bestIdx = -1;
+    keel::i64 bestIdx = -1;
     for (keel::usize i = 0; i < H * W; ++i) {
         if (dc[i] >= cutoff) {
             const keel::f32 gval = gv[i];
             if (gval > bestGray) {
                 bestGray = gval;
-                bestIdx = keel::as<long>(i);
+                bestIdx = keel::as<keel::i64>(i);
             }
         }
     }
@@ -700,7 +700,7 @@ Value imreducehaze(const Value &I, keel::f64 amount,
     // ── Dispatch on Method ───────────────────────────────────────
     keel::f64 omega;
     Value transmissionMap;
-    int patchSize = keel::as<int>(std::ceil(
+    keel::i32 patchSize = keel::as<keel::i32>(std::ceil(
         keel::as<keel::f64>(std::min(H, W)) / 400.0 * 15.0));
     if (patchSize < 1) patchSize = 1;
     Value se = make_square_strel(patchSize, mr);
@@ -743,10 +743,10 @@ Value imreducehaze(const Value &I, keel::f64 amount,
         // Guided-Filter subsample factor of min(4, radius); nk's
         // imguidedfilter does not yet expose subsample, so we run
         // the full-resolution variant (slower but higher quality).
-        int radius = keel::as<int>(std::ceil(
+        keel::i32 radius = keel::as<keel::i32>(std::ceil(
             keel::as<keel::f64>(std::min(H, W)) / 50.0));
         if (radius < 1) radius = 1;
-        const int nhood = 2 * radius + 1;
+        const keel::i32 nhood = 2 * radius + 1;
         Value guide = (P == 3) ? rgb2gray(A, mr) : A;
         transmissionMap = imguidedfilter(tmap, guide, nhood, 1e-4, mr);
         // Clamp [0, 1].

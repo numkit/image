@@ -85,7 +85,7 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         throw Error("bwpropfilt: p must be scalar n or 2-element range",
                     0, 0, "bwpropfilt", "", "numkit:bwpropfilt:pShape");
     }
-    int conn = 8;
+    keel::i32 conn = 8;
     // Optional 'keep' direction (only with scalar n).
     if (i < args.size() && is_string(args[i])) {
         keel::String dir = args[i].toString();
@@ -103,8 +103,8 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // Optional connectivity arg (numeric scalar).
     if (i < args.size() && !is_string(args[i])) {
         conn = argcheck::expectedOneOf(
-            argcheck::expectedReal(args[i], int(i) + 1, "conn", "bwpropfilt"),
-            {4, 8}, int(i) + 1, "conn", "bwpropfilt");
+            argcheck::expectedReal(args[i], keel::i32(i) + 1, "conn", "bwpropfilt"),
+            {4, 8}, keel::i32(i) + 1, "conn", "bwpropfilt");
         if (first_is_struct)
             throw Error("bwpropfilt: connectivity not allowed with CC input",
                         0, 0, "bwpropfilt", "",

@@ -86,7 +86,7 @@ void colorgradient_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // no max: absent from the R2025b reference build
     auto *mr = ctx.engine->allocator();
     Value w;
-    int n = 64;
+    keel::i32 n = 64;
     // Octave shorthand: colorgradient(C, w_or_n) — if 2nd arg is scalar,
     // it's n; if vector, it's w (and n defaults to 64).
     if (args.size() >= 2 && !args[1].isEmpty()) {
@@ -140,7 +140,7 @@ void gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "gray");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -150,7 +150,7 @@ void gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("gray: N must be a scalar integer",
                         0, 0, "gray", "", "numkit:gray:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = gray_cmap(n, ctx.engine->allocator());
 }
@@ -159,7 +159,7 @@ void hot_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
              keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "hot");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -169,7 +169,7 @@ void hot_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("hot: N must be a scalar integer",
                         0, 0, "hot", "", "numkit:hot:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = hot_cmap(n, ctx.engine->allocator());
 }
@@ -178,7 +178,7 @@ void cool_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "cool");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -188,7 +188,7 @@ void cool_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("cool: N must be a scalar integer",
                         0, 0, "cool", "", "numkit:cool:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = cool_cmap(n, ctx.engine->allocator());
 }
@@ -197,7 +197,7 @@ void spring_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "spring");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -207,7 +207,7 @@ void spring_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("spring: N must be a scalar integer",
                         0, 0, "spring", "", "numkit:spring:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = spring_cmap(n, ctx.engine->allocator());
 }
@@ -216,7 +216,7 @@ void summer_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "summer");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -226,7 +226,7 @@ void summer_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("summer: N must be a scalar integer",
                         0, 0, "summer", "", "numkit:summer:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = summer_cmap(n, ctx.engine->allocator());
 }
@@ -235,7 +235,7 @@ void autumn_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "autumn");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -245,7 +245,7 @@ void autumn_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("autumn: N must be a scalar integer",
                         0, 0, "autumn", "", "numkit:autumn:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = autumn_cmap(n, ctx.engine->allocator());
 }
@@ -254,7 +254,7 @@ void winter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "winter");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -264,7 +264,7 @@ void winter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("winter: N must be a scalar integer",
                         0, 0, "winter", "", "numkit:winter:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = winter_cmap(n, ctx.engine->allocator());
 }
@@ -273,7 +273,7 @@ void copper_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "copper");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -283,7 +283,7 @@ void copper_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("copper: N must be a scalar integer",
                         0, 0, "copper", "", "numkit:copper:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = copper_cmap(n, ctx.engine->allocator());
 }
@@ -292,7 +292,7 @@ void pink_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "pink");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -302,7 +302,7 @@ void pink_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("pink: N must be a scalar integer",
                         0, 0, "pink", "", "numkit:pink:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = pink_cmap(n, ctx.engine->allocator());
 }
@@ -311,7 +311,7 @@ void hsv_cmap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "hsv");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -321,7 +321,7 @@ void hsv_cmap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("hsv: N must be a scalar integer",
                         0, 0, "hsv", "", "numkit:hsv:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = hsv_cmap(n, ctx.engine->allocator());
 }
@@ -330,7 +330,7 @@ void flag_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "flag");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -340,7 +340,7 @@ void flag_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("flag: N must be a scalar integer",
                         0, 0, "flag", "", "numkit:flag:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = flag_cmap(n, ctx.engine->allocator());
 }
@@ -349,7 +349,7 @@ void prism_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "prism");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -359,7 +359,7 @@ void prism_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("prism: N must be a scalar integer",
                         0, 0, "prism", "", "numkit:prism:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = prism_cmap(n, ctx.engine->allocator());
 }
@@ -368,7 +368,7 @@ void lines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "lines");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -378,7 +378,7 @@ void lines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("lines: N must be a scalar integer",
                         0, 0, "lines", "", "numkit:lines:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = lines_cmap(n, ctx.engine->allocator());
 }
@@ -387,7 +387,7 @@ void bone_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "bone");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -397,7 +397,7 @@ void bone_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("bone: N must be a scalar integer",
                         0, 0, "bone", "", "numkit:bone:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = bone_cmap(n, ctx.engine->allocator());
 }
@@ -406,7 +406,7 @@ void white_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 0, 1, "white");
-    int n = 256;
+    keel::i32 n = 256;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const Value &v = args[0];
         if (v.numel() != 1)
@@ -416,7 +416,7 @@ void white_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("white: N must be a scalar integer",
                         0, 0, "white", "", "numkit:white:n");
-        n = keel::as<int>(d);
+        n = keel::as<keel::i32>(d);
     }
     outs[0] = white_cmap(n, ctx.engine->allocator());
 }
@@ -465,13 +465,13 @@ void contrast_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "contrast");
     // no max: name-value tail in the reference
-    int m = 64;
+    keel::i32 m = 64;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const keel::f64 d = args[1].toScalar();
         if (!std::isfinite(d) || d < 2.0)
             throw Error("contrast: M must be a finite scalar >= 2",
                         0, 0, "contrast", "", "numkit:contrast:m");
-        m = keel::as<int>(d);
+        m = keel::as<keel::i32>(d);
     }
     outs[0] = contrast(args[0], m, ctx.engine->allocator());
 }

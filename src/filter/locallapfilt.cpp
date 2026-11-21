@@ -131,15 +131,15 @@ Plane to_single_plane(const Value &I, keel::usize page)
 // `impyramid('reduce', I)` and `imfilter(I, k, 'symmetric')`:
 //   …, P[2], P[1], P[0] | P[0], P[1], P[2], … (the first row is
 // repeated, then mirrored). Index -k → P[k-1].
-inline keel::usize clamp_idx(long i, keel::usize n)
+inline keel::usize clamp_idx(keel::i64 i, keel::usize n)
 {
     if (n == 0) return 0;
-    long N = keel::as<long>(n);
+    keel::i64 N = keel::as<keel::i64>(n);
     // Make symmetric extension. The pattern over period 2N is
     //   P[0..N-1, N-1..0, ...].  Mapping: i → reflect(i, N).
     // We use: shift into [0, 2N), then if >= N reflect.
-    long period = 2 * N;
-    long m = i;
+    keel::i64 period = 2 * N;
+    keel::i64 m = i;
     if (m < 0) m = ((-m - 1) % period);          // i=-1 → 0, i=-2 → 1
     else m = m % period;
     if (m >= N) m = period - 1 - m;
@@ -160,22 +160,22 @@ Plane pyrdownsample(const Plane &P)
     Plane tmp(H, W);
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            const keel::f32 v = kK0 * P.at(clamp_idx((long)r - 2, H), c)
-                          + kK1 * P.at(clamp_idx((long)r - 1, H), c)
+            const keel::f32 v = kK0 * P.at(clamp_idx((keel::i64)r - 2, H), c)
+                          + kK1 * P.at(clamp_idx((keel::i64)r - 1, H), c)
                           + kK2 * P.at(r,                            c)
-                          + kK3 * P.at(clamp_idx((long)r + 1, H), c)
-                          + kK4 * P.at(clamp_idx((long)r + 2, H), c);
+                          + kK3 * P.at(clamp_idx((keel::i64)r + 1, H), c)
+                          + kK4 * P.at(clamp_idx((keel::i64)r + 2, H), c);
             tmp.at(r, c) = v;
         }
     // 2) Horizontal convolution (cols).
     Plane sm(H, W);
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            const keel::f32 v = kK0 * tmp.at(r, clamp_idx((long)c - 2, W))
-                          + kK1 * tmp.at(r, clamp_idx((long)c - 1, W))
+            const keel::f32 v = kK0 * tmp.at(r, clamp_idx((keel::i64)c - 2, W))
+                          + kK1 * tmp.at(r, clamp_idx((keel::i64)c - 1, W))
                           + kK2 * tmp.at(r, c)
-                          + kK3 * tmp.at(r, clamp_idx((long)c + 1, W))
-                          + kK4 * tmp.at(r, clamp_idx((long)c + 2, W));
+                          + kK3 * tmp.at(r, clamp_idx((keel::i64)c + 1, W))
+                          + kK4 * tmp.at(r, clamp_idx((keel::i64)c + 2, W));
             sm.at(r, c) = v;
         }
     // 3) Decimate by 2 (start from row 1 / col 1 in 1-based = 0 in 0-based).
@@ -216,22 +216,22 @@ Plane pyrupsample(const Plane &P, keel::usize Htarget, keel::usize Wtarget)
     Plane tmp(Htarget, Wtarget);
     for (keel::usize c = 0; c < Wtarget; ++c)
         for (keel::usize r = 0; r < Htarget; ++r) {
-            const keel::f32 v = kU0 * up.at(clamp_idx((long)r - 2, Htarget), c)
-                          + kU1 * up.at(clamp_idx((long)r - 1, Htarget), c)
+            const keel::f32 v = kU0 * up.at(clamp_idx((keel::i64)r - 2, Htarget), c)
+                          + kU1 * up.at(clamp_idx((keel::i64)r - 1, Htarget), c)
                           + kU2 * up.at(r,                                  c)
-                          + kU3 * up.at(clamp_idx((long)r + 1, Htarget), c)
-                          + kU4 * up.at(clamp_idx((long)r + 2, Htarget), c);
+                          + kU3 * up.at(clamp_idx((keel::i64)r + 1, Htarget), c)
+                          + kU4 * up.at(clamp_idx((keel::i64)r + 2, Htarget), c);
             tmp.at(r, c) = v;
         }
     // 3) Horizontal convolution with [4 16 24 16 4]/16.
     Plane out(Htarget, Wtarget);
     for (keel::usize c = 0; c < Wtarget; ++c)
         for (keel::usize r = 0; r < Htarget; ++r) {
-            const keel::f32 v = kU0 * tmp.at(r, clamp_idx((long)c - 2, Wtarget))
-                          + kU1 * tmp.at(r, clamp_idx((long)c - 1, Wtarget))
+            const keel::f32 v = kU0 * tmp.at(r, clamp_idx((keel::i64)c - 2, Wtarget))
+                          + kU1 * tmp.at(r, clamp_idx((keel::i64)c - 1, Wtarget))
                           + kU2 * tmp.at(r, c)
-                          + kU3 * tmp.at(r, clamp_idx((long)c + 1, Wtarget))
-                          + kU4 * tmp.at(r, clamp_idx((long)c + 2, Wtarget));
+                          + kU3 * tmp.at(r, clamp_idx((keel::i64)c + 1, Wtarget))
+                          + kU4 * tmp.at(r, clamp_idx((keel::i64)c + 2, Wtarget));
             out.at(r, c) = v;
         }
     return out;
@@ -268,7 +268,7 @@ Plane remap_image(const Plane &I, keel::f32 g, keel::f32 sigma, keel::f32 alpha,
 
 // ── llfCore (Aubry-Paris fast variant) ────────────────────────────
 Plane llf_core(const Plane &input, keel::f32 sigma, keel::f32 alpha, keel::f32 beta,
-               int numIntensityLevels, int numPyramidLevels)
+               keel::i32 numIntensityLevels, keel::i32 numPyramidLevels)
 {
     // Find global min / max.
     keel::f32 minVal = input.v[0], maxVal = input.v[0];
@@ -291,25 +291,25 @@ Plane llf_core(const Plane &input, keel::f32 sigma, keel::f32 alpha, keel::f32 b
     // ── Gaussian pyramid of input ───────────────────────────────
     keel::Array<Plane> inG(numPyramidLevels);
     inG[0] = input.clone();
-    for (int i = 1; i < numPyramidLevels; ++i)
+    for (keel::i32 i = 1; i < numPyramidLevels; ++i)
         inG[i] = pyrdownsample(inG[i - 1]);
 
     // ── Output Laplacian pyramid; top level = top Gaussian ──────
     keel::Array<Plane> outL(numPyramidLevels);
     outL[numPyramidLevels - 1] = inG[numPyramidLevels - 1].clone();
-    for (int i = 0; i < numPyramidLevels - 1; ++i)
+    for (keel::i32 i = 0; i < numPyramidLevels - 1; ++i)
         outL[i] = Plane(inG[i].H, inG[i].W);   // zeroed
 
     // ── Sequentially accumulate over N intensity samples ───────
     const keel::f32 delta = (maxVal - minVal) / keel::f32(numIntensityLevels - 1);
     keel::Array<Plane> rG(numPyramidLevels);
-    for (int k = 0; k < numIntensityLevels; ++k) {
+    for (keel::i32 k = 0; k < numIntensityLevels; ++k) {
         const keel::f32 refVal = minVal + keel::f32(k) * delta;
         rG[0] = remap_image(input, refVal, sigma, alpha, beta);
-        for (int i = 1; i < numPyramidLevels; ++i)
+        for (keel::i32 i = 1; i < numPyramidLevels; ++i)
             rG[i] = pyrdownsample(rG[i - 1]);
         // For each finer level: outL[i] += w · (rG[i] - up(rG[i+1])).
-        for (int i = numPyramidLevels - 2; i >= 0; --i) {
+        for (keel::i32 i = numPyramidLevels - 2; i >= 0; --i) {
             Plane up = pyrupsample(rG[i + 1], rG[i].H, rG[i].W);
             for (keel::usize j = 0; j < outL[i].v.size(); ++j) {
                 const keel::f32 rL = rG[i].v[j] - up.v[j];
@@ -322,7 +322,7 @@ Plane llf_core(const Plane &input, keel::f32 sigma, keel::f32 alpha, keel::f32 b
     }
 
     // ── Collapse the output Laplacian pyramid ──────────────────
-    for (int i = numPyramidLevels - 2; i >= 0; --i) {
+    for (keel::i32 i = numPyramidLevels - 2; i >= 0; --i) {
         Plane up = pyrupsample(outL[i + 1], outL[i].H, outL[i].W);
         for (keel::usize j = 0; j < outL[i].v.size(); ++j)
             outL[i].v[j] += up.v[j];
@@ -440,7 +440,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
 {
     const keel::usize H = R.H, W = R.W;
     Value out = Value::matrix3d(H, W, 3, target, mr);
-    auto write = [&](int page, const Plane &P) {
+    auto write = [&](keel::i32 page, const Plane &P) {
         const keel::usize off = keel::as<keel::usize>(page) * H * W;
         switch (target) {
             case ValueType::UINT8: {
@@ -502,13 +502,13 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
     return out;
 }
 
-int auto_intensity_levels(keel::f64 alpha)
+keel::i32 auto_intensity_levels(keel::f64 alpha)
 {
     if (alpha < 0.1) return 50;
     if (alpha < 0.9) {
         // round(((50*0.9 - 16*0.1) - (50-16)*alpha) / 0.8)
         const keel::f64 num = (50.0 * 0.9 - 16.0 * 0.1) - (50.0 - 16.0) * alpha;
-        return keel::as<int>(std::round(num / 0.8));
+        return keel::as<keel::i32>(std::round(num / 0.8));
     }
     return 16;
 }
@@ -541,7 +541,7 @@ void locallapfilt_argcheck(const Value &I, keel::f64 sigma, keel::f64 alpha, kee
 } // namespace
 
 Value locallapfilt(const Value &I, keel::f64 sigma, keel::f64 alpha, keel::f64 beta,
-                   int num_intensity_levels, bool process_luminance,
+                   keel::i32 num_intensity_levels, bool process_luminance,
                    keel::Allocator *mr)
 {
     bool isGray = false;
@@ -558,12 +558,12 @@ Value locallapfilt(const Value &I, keel::f64 sigma, keel::f64 alpha, keel::f64 b
     const keel::usize W = dI.cols();
 
     // ── Resolve num_intensity_levels ──────────────────────────────
-    int N = num_intensity_levels;
+    keel::i32 N = num_intensity_levels;
     if (N <= 0) N = auto_intensity_levels(alpha);
 
     // Pyramid depth: floor(log2(min(H, W))) + 1.
     const keel::usize shortDim = std::min(H, W);
-    int numPyrLevels = 0;
+    keel::i32 numPyrLevels = 0;
     {
         keel::usize s = shortDim;
         while (s >= 1) { ++numPyrLevels; s >>= 1; }

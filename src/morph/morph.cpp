@@ -53,38 +53,38 @@ namespace numkit::image {
 
 namespace {
 
-Value pack_logical(keel::ArrayRef<keel::u8> mask, int rows, int cols, keel::Allocator *mr)
+Value pack_logical(keel::ArrayRef<keel::u8> mask, keel::i32 rows, keel::i32 cols, keel::Allocator *mr)
 {
     Value out = Value::matrix(rows, cols, ValueType::LOGICAL, mr);
     if (mask.empty()) return out;
     keel::u8 *od = out.logicalDataMut();
     // Input is row-major mask; storage is column-major.
-    for (int c = 0; c < cols; ++c)
-        for (int r = 0; r < rows; ++r)
+    for (keel::i32 c = 0; c < cols; ++c)
+        for (keel::i32 r = 0; r < rows; ++r)
             od[(keel::usize)c * (keel::usize)rows + (keel::usize)r]
                 = mask[(keel::usize)r * (keel::usize)cols + (keel::usize)c] ? 1 : 0;
     return out;
 }
 
-Value strel_square(int N, keel::Allocator *mr) {
+Value strel_square(keel::i32 N, keel::Allocator *mr) {
     if (N < 1) N = 1;
     keel::Array<keel::u8> m((keel::usize)N * (keel::usize)N, 1);
     return pack_logical(m, N, N, mr);
 }
 
-Value strel_rect(int rows, int cols, keel::Allocator *mr) {
+Value strel_rect(keel::i32 rows, keel::i32 cols, keel::Allocator *mr) {
     if (rows < 1) rows = 1;
     if (cols < 1) cols = 1;
     keel::Array<keel::u8> m((keel::usize)rows * (keel::usize)cols, 1);
     return pack_logical(m, rows, cols, mr);
 }
 
-Value strel_diamond(int r, keel::Allocator *mr) {
+Value strel_diamond(keel::i32 r, keel::Allocator *mr) {
     if (r < 1) r = 1;
-    const int N = 2 * r + 1;
+    const keel::i32 N = 2 * r + 1;
     keel::Array<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
-    for (int i = 0; i < N; ++i)
-        for (int j = 0; j < N; ++j)
+    for (keel::i32 i = 0; i < N; ++i)
+        for (keel::i32 j = 0; j < N; ++j)
             if (keel::abs(i - r) + keel::abs(j - r) <= r)
                 m[(keel::usize)i * (keel::usize)N + (keel::usize)j] = 1;
     return pack_logical(m, N, N, mr);
@@ -92,12 +92,12 @@ Value strel_diamond(int r, keel::Allocator *mr) {
 
 // Build a true Euclidean disk neighbourhood: {(dy,dx) : dy²+dx² ≤ r²}.
 Value strel_disk_euclidean(keel::f64 r, keel::Allocator *mr) {
-    const int R = (int)std::ceil(r);
-    const int N = 2 * R + 1;
+    const keel::i32 R = (keel::i32)std::ceil(r);
+    const keel::i32 N = 2 * R + 1;
     keel::Array<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
     const keel::f64 r2 = r * r;
-    for (int i = 0; i < N; ++i)
-        for (int j = 0; j < N; ++j) {
+    for (keel::i32 i = 0; i < N; ++i)
+        for (keel::i32 j = 0; j < N; ++j) {
             const keel::f64 dy = i - R, dx = j - R;
             if (dy * dy + dx * dx <= r2)
                 m[(keel::usize)i * (keel::usize)N + (keel::usize)j] = 1;
@@ -106,7 +106,7 @@ Value strel_disk_euclidean(keel::f64 r, keel::Allocator *mr) {
 }
 
 struct GridPt {
-    int r = 0, c = 0;
+    keel::i32 r = 0, c = 0;
     bool operator==(const GridPt &o) const noexcept { return r == o.r && c == o.c; }
 };
 struct GridPtHash {
@@ -119,10 +119,10 @@ struct GridPtHash {
 using GridPtSet = keel::HashSet<GridPt, GridPtHash>;
 
 // Minkowski sum (morphological dilation of point sets): P ⊕ {j·v : -rp≤j≤rp}.
-void minksum_periodic(GridPtSet &P, int vr, int vc, int rp) {
+void minksum_periodic(GridPtSet &P, keel::i32 vr, keel::i32 vc, keel::i32 rp) {
     GridPtSet out;
     for (const auto &p : P)
-        for (int j = -rp; j <= rp; ++j)
+        for (keel::i32 j = -rp; j <= rp; ++j)
             out.insert(GridPt{p.r + j * vr, p.c + j * vc});
     P = keel::move(out);
 }
@@ -132,20 +132,20 @@ void minksum_periodic(GridPtSet &P, int vr, int vc, int rp) {
 // Jones & Soille 1996) with N∈{4,6,8} basis directions (default 4), then
 // compensating horizontal/vertical line strels. The final neighbourhood is
 // the Minkowski sum (full dilation) of all decomposition strels.
-Value strel_disk(keel::f64 r_in, int n, keel::Allocator *mr) {
+Value strel_disk(keel::f64 r_in, keel::i32 n, keel::Allocator *mr) {
     if (r_in < 1.0) r_in = 1.0;
-    const int r = (int)std::lround(r_in);
+    const keel::i32 r = (keel::i32)std::lround(r_in);
     if (r < 3 || (n != 4 && n != 6 && n != 8))
         return strel_disk_euclidean(r_in, mr);
 
     // Basis offset vectors (row, col) per N.
-    static const keel::StaticArray<std::pair<int,int>, 4> B4 =
+    static const keel::StaticArray<std::pair<keel::i32,keel::i32>, 4> B4 =
         {{{1,0},{1,1},{0,1},{-1,1}}};
-    static const keel::StaticArray<std::pair<int,int>, 6> B6 =
+    static const keel::StaticArray<std::pair<keel::i32,keel::i32>, 6> B6 =
         {{{1,0},{1,2},{2,1},{0,1},{-1,2},{-2,1}}};
-    static const keel::StaticArray<std::pair<int,int>, 8> B8 =
+    static const keel::StaticArray<std::pair<keel::i32,keel::i32>, 8> B8 =
         {{{1,0},{2,1},{1,1},{1,2},{0,1},{-1,2},{-1,1},{-2,1}}};
-    const std::pair<int,int> *V; int nb;
+    const std::pair<keel::i32,keel::i32> *V; keel::i32 nb;
     if (n == 4)      { V = B4.data(); nb = 4; }
     else if (n == 6) { V = B6.data(); nb = 6; }
     else             { V = B8.data(); nb = 8; }
@@ -157,28 +157,28 @@ Value strel_disk(keel::f64 r_in, int n, keel::Allocator *mr) {
 
     GridPtSet P;
     P.insert(GridPt{0, 0});
-    for (int q = 0; q < nb; ++q) {
-        const int vr = V[q].first, vc = V[q].second;
+    for (keel::i32 q = 0; q < nb; ++q) {
+        const keel::i32 vr = V[q].first, vc = V[q].second;
         const keel::f64 norm = std::hypot((keel::f64)vr, (keel::f64)vc);
-        const int rp = (int)std::floor(k / norm);
+        const keel::i32 rp = (keel::i32)std::floor(k / norm);
         minksum_periodic(P, vr, vc, rp);
     }
 
     // The decomposition is a little small; pad with H/V line strels.
-    int maxRow = 0;
+    keel::i32 maxRow = 0;
     for (const auto &p : P) maxRow = std::max(maxRow, keel::abs(p.r));
-    const int radial_difference = r - maxRow;
-    const int len = 2 * (radial_difference - 1) + 1;
+    const keel::i32 radial_difference = r - maxRow;
+    const keel::i32 len = 2 * (radial_difference - 1) + 1;
     if (len >= 3) {
-        const int half = (len - 1) / 2;
+        const keel::i32 half = (len - 1) / 2;
         minksum_periodic(P, 0, 1, half);   // line(len, 0)  — horizontal
         minksum_periodic(P, 1, 0, half);   // line(len, 90) — vertical
     }
 
-    int R = 0, C = 0;
+    keel::i32 R = 0, C = 0;
     for (const auto &p : P) { R = std::max(R, keel::abs(p.r));
                              C = std::max(C, keel::abs(p.c)); }
-    const int H = 2 * R + 1, W = 2 * C + 1;
+    const keel::i32 H = 2 * R + 1, W = 2 * C + 1;
     keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
     for (const auto &p : P)
         m[(keel::usize)(p.r + R) * (keel::usize)W + (keel::usize)(p.c + C)] = 1;
@@ -190,16 +190,16 @@ Value strel_line(keel::f64 len, keel::f64 theta_deg, keel::Allocator *mr) {
     const keel::f64 th = theta_deg * M_PI / 180.0;
     const keel::f64 cx = (len - 1) * 0.5 * std::cos(th);
     const keel::f64 cy = (len - 1) * 0.5 * std::sin(th);
-    const int W = std::max(1, (int)std::ceil(2.0 * std::fabs(cx) + 1.0));
-    const int H = std::max(1, (int)std::ceil(2.0 * std::fabs(cy) + 1.0));
+    const keel::i32 W = std::max(1, (keel::i32)std::ceil(2.0 * std::fabs(cx) + 1.0));
+    const keel::i32 H = std::max(1, (keel::i32)std::ceil(2.0 * std::fabs(cy) + 1.0));
     keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
     const keel::f64 r0 = (H - 1) * 0.5;
     const keel::f64 c0 = (W - 1) * 0.5;
-    const int Nstep = std::max(1, (int)std::ceil(len));
-    for (int k = 0; k < Nstep; ++k) {
+    const keel::i32 Nstep = std::max(1, (keel::i32)std::ceil(len));
+    for (keel::i32 k = 0; k < Nstep; ++k) {
         const keel::f64 t = (Nstep > 1) ? (keel::f64(k) / keel::f64(Nstep - 1) - 0.5) * (len - 1) : 0.0;
-        const int rr = (int)std::round(r0 + t * std::sin(th));
-        const int cc = (int)std::round(c0 + t * std::cos(th));
+        const keel::i32 rr = (keel::i32)std::round(r0 + t * std::sin(th));
+        const keel::i32 cc = (keel::i32)std::round(c0 + t * std::cos(th));
         if (rr >= 0 && rr < H && cc >= 0 && cc < W)
             m[(keel::usize)rr * (keel::usize)W + (keel::usize)cc] = 1;
     }
@@ -231,18 +231,18 @@ Value strel(keel::StringRef shape, keel::ArrayRef<keel::f64> params, const Value
     // bare logical matrix, so legacy code continues to work.
     Value nhood;
     if (shape == "square") {
-        const int N = params.empty() ? 3 : (int)params[0];
+        const keel::i32 N = params.empty() ? 3 : (keel::i32)params[0];
         nhood = strel_square(N, mr);
     } else if (shape == "rectangle") {
-        const int r = params.size() >= 1 ? (int)params[0] : 3;
-        const int c = params.size() >= 2 ? (int)params[1] : r;
+        const keel::i32 r = params.size() >= 1 ? (keel::i32)params[0] : 3;
+        const keel::i32 c = params.size() >= 2 ? (keel::i32)params[1] : r;
         nhood = strel_rect(r, c, mr);
     } else if (shape == "diamond") {
-        const int r = params.empty() ? 1 : (int)params[0];
+        const keel::i32 r = params.empty() ? 1 : (keel::i32)params[0];
         nhood = strel_diamond(r, mr);
     } else if (shape == "disk") {
         const keel::f64 r = params.empty() ? 5.0 : params[0];
-        const int    n = params.size() >= 2 ? (int)params[1] : 4;
+        const keel::i32    n = params.size() >= 2 ? (keel::i32)params[1] : 4;
         nhood = strel_disk(r, n, mr);
     } else if (shape == "line") {
         const keel::f64 len = params.size() >= 1 ? params[0] : 3.0;
@@ -250,11 +250,11 @@ Value strel(keel::StringRef shape, keel::ArrayRef<keel::f64> params, const Value
         nhood = strel_line(len, th, mr);
     } else {
         const auto &d = arbitrary_nhood.dims();
-        const int H = (int)d.rows();
-        const int W = (int)d.cols();
+        const keel::i32 H = (keel::i32)d.rows();
+        const keel::i32 W = (keel::i32)d.cols();
         keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
-        for (int c = 0; c < W; ++c)
-            for (int r = 0; r < H; ++r) {
+        for (keel::i32 c = 0; c < W; ++c)
+            for (keel::i32 r = 0; r < H; ++r) {
                 const keel::f64 v = arbitrary_nhood.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
                 m[(keel::usize)r * (keel::usize)W + (keel::usize)c] = (v != 0.0) ? 1 : 0;
             }
@@ -300,8 +300,8 @@ inline void store_classed_morph(Value &out, keel::usize i, keel::f64 v, ValueTyp
 
 // Convert SE input to a logical mask (offsets from centre).
 struct SEInfo {
-    int H, W;
-    int half_r, half_c;
+    keel::i32 H, W;
+    keel::i32 half_r, half_c;
     keel::Array<keel::u8> mask;  // row-major
 };
 
@@ -314,13 +314,13 @@ SEInfo unpack_se(const Value &SE) {
         if (const Value *v = fields.get("Neighborhood")) nhood = v;
     }
     SEInfo s{};
-    s.H = (int)nhood->dims().rows();
-    s.W = (int)nhood->dims().cols();
+    s.H = (keel::i32)nhood->dims().rows();
+    s.W = (keel::i32)nhood->dims().cols();
     s.half_r = s.H / 2;
     s.half_c = s.W / 2;
     s.mask.assign((keel::usize)s.H * (keel::usize)s.W, 0);
-    for (int c = 0; c < s.W; ++c)
-        for (int r = 0; r < s.H; ++r) {
+    for (keel::i32 c = 0; c < s.W; ++c)
+        for (keel::i32 r = 0; r < s.H; ++r) {
             const keel::f64 v = nhood->elemAsDouble((keel::usize)c * (keel::usize)s.H + (keel::usize)r);
             s.mask[(keel::usize)r * (keel::usize)s.W + (keel::usize)c] = (v != 0.0) ? 1 : 0;
         }
@@ -337,22 +337,22 @@ SEInfo unpack_se(const Value &SE) {
 template <bool IsErode>
 Value morph_flat_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
 {
-    const int H = (int)I.dims().rows();
-    const int W = (int)I.dims().cols();
+    const keel::i32 H = (keel::i32)I.dims().rows();
+    const keel::i32 W = (keel::i32)I.dims().cols();
     Value out = Value::matrix(H, W, I.type(), mr);
     if (H == 0 || W == 0) return out;
     const keel::u8 *src = I.isLogical() ? I.logicalData() : I.uint8Data();
     keel::u8 *dst = out.isLogical() ? out.logicalDataMut() : out.uint8DataMut();
 
     // Marked offsets (dr, dc) relative to centre, plus their extent.
-    struct Off { int dr, dc; };
+    struct Off { keel::i32 dr, dc; };
     keel::Array<Off> off;
     off.reserve((keel::usize)se.H * (keel::usize)se.W);
-    int drMin = 0, drMax = 0, dcMin = 0, dcMax = 0;
-    for (int kj = 0; kj < se.W; ++kj)
-        for (int ki = 0; ki < se.H; ++ki)
+    keel::i32 drMin = 0, drMax = 0, dcMin = 0, dcMax = 0;
+    for (keel::i32 kj = 0; kj < se.W; ++kj)
+        for (keel::i32 ki = 0; ki < se.H; ++ki)
             if (se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) {
-                const int dr = ki - se.half_r, dc = kj - se.half_c;
+                const keel::i32 dr = ki - se.half_r, dc = kj - se.half_c;
                 off.push_back({dr, dc});
                 drMin = std::min(drMin, dr); drMax = std::max(drMax, dr);
                 dcMin = std::min(dcMin, dc); dcMax = std::max(dcMax, dc);
@@ -363,35 +363,35 @@ Value morph_flat_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
     }
 
     // Interior region where every marked offset lands in bounds.
-    const int ir0 = std::max(0, -drMin), ir1 = std::min(H, H - drMax);
-    const int ic0 = std::max(0, -dcMin), ic1 = std::min(W, W - dcMax);
+    const keel::i32 ir0 = std::max(0, -drMin), ir1 = std::min(H, H - drMax);
+    const keel::i32 ic0 = std::max(0, -dcMin), ic1 = std::min(W, W - dcMax);
     const keel::u8 INIT = IsErode ? keel::u8(255) : keel::u8(0);
 
     // Interior: contiguous min/max passes per marked offset (auto-vectorised).
     if (ir1 > ir0 && ic1 > ic0) {
-        for (int oc = ic0; oc < ic1; ++oc) {
+        for (keel::i32 oc = ic0; oc < ic1; ++oc) {
             keel::u8 *dcol = dst + (keel::usize)oc * (keel::usize)H;
-            for (int r = ir0; r < ir1; ++r) dcol[r] = INIT;
+            for (keel::i32 r = ir0; r < ir1; ++r) dcol[r] = INIT;
             for (const Off &o : off) {
                 const keel::u8 *scol = src + (keel::usize)(oc + o.dc) * (keel::usize)H + o.dr;
                 if (IsErode)
-                    for (int r = ir0; r < ir1; ++r) dcol[r] = std::min(dcol[r], scol[r]);
+                    for (keel::i32 r = ir0; r < ir1; ++r) dcol[r] = std::min(dcol[r], scol[r]);
                 else
-                    for (int r = ir0; r < ir1; ++r) dcol[r] = std::max(dcol[r], scol[r]);
+                    for (keel::i32 r = ir0; r < ir1; ++r) dcol[r] = std::max(dcol[r], scol[r]);
             }
         }
     }
 
     // Border: exact scalar reduction (0 when no marked pixel is in bounds).
-    for (int oc = 0; oc < W; ++oc) {
+    for (keel::i32 oc = 0; oc < W; ++oc) {
         const bool colInterior = (oc >= ic0 && oc < ic1);
-        for (int orow = 0; orow < H; ++orow) {
+        for (keel::i32 orow = 0; orow < H; ++orow) {
             if (colInterior && orow >= ir0 && orow < ir1) continue;  // done above
-            int best = 0; bool covered = false;
+            keel::i32 best = 0; bool covered = false;
             for (const Off &o : off) {
-                const int rc = oc + o.dc, rr = orow + o.dr;
+                const keel::i32 rc = oc + o.dc, rr = orow + o.dr;
                 if (rc < 0 || rc >= W || rr < 0 || rr >= H) continue;
-                const int v = src[(keel::usize)rc * (keel::usize)H + (keel::usize)rr];
+                const keel::i32 v = src[(keel::usize)rc * (keel::usize)H + (keel::usize)rr];
                 if (!covered) { best = v; covered = true; }
                 else if (IsErode) { if (v < best) best = v; }
                 else { if (v > best) best = v; }
@@ -410,36 +410,36 @@ Value morph_flat_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
 // identity (0 for max / 255 for min), which is equivalent to skipping them.
 // Scratch P/g/h must each hold ≥ n + k - 1 bytes (k = hi - lo + 1).
 template <bool IsErode>
-inline void blockVanHerk(const keel::u8 *in, keel::u8 *out, int n,
-                         int lo, int hi,
+inline void blockVanHerk(const keel::u8 *in, keel::u8 *out, keel::i32 n,
+                         keel::i32 lo, keel::i32 hi,
                          keel::u8 *P, keel::u8 *g, keel::u8 *h)
 {
     auto MX = [](keel::u8 a, keel::u8 b) {
         return IsErode ? std::min(a, b) : std::max(a, b);
     };
-    const int k = hi - lo + 1;
+    const keel::i32 k = hi - lo + 1;
     const keel::u8 PAD = IsErode ? keel::u8(255) : keel::u8(0);
-    const int off = -lo;          // ≥ 0 (lo ≤ 0)
-    const int m = n + k - 1;      // padded length: out[r]=reduce(P[r..r+k-1])
+    const keel::i32 off = -lo;          // ≥ 0 (lo ≤ 0)
+    const keel::i32 m = n + k - 1;      // padded length: out[r]=reduce(P[r..r+k-1])
 
-    for (int i = 0; i < off; ++i)      P[i] = PAD;
-    for (int i = 0; i < n; ++i)        P[off + i] = in[i];
-    for (int i = off + n; i < m; ++i)  P[i] = PAD;
+    for (keel::i32 i = 0; i < off; ++i)      P[i] = PAD;
+    for (keel::i32 i = 0; i < n; ++i)        P[off + i] = in[i];
+    for (keel::i32 i = off + n; i < m; ++i)  P[i] = PAD;
 
     // Forward running-reduce within each size-k block.
-    for (int b = 0; b < m; b += k) {
-        const int e = std::min(b + k, m);
+    for (keel::i32 b = 0; b < m; b += k) {
+        const keel::i32 e = std::min(b + k, m);
         g[b] = P[b];
-        for (int i = b + 1; i < e; ++i) g[i] = MX(g[i - 1], P[i]);
+        for (keel::i32 i = b + 1; i < e; ++i) g[i] = MX(g[i - 1], P[i]);
     }
     // Backward running-reduce within each block.
-    for (int b = 0; b < m; b += k) {
-        const int e = std::min(b + k, m);
+    for (keel::i32 b = 0; b < m; b += k) {
+        const keel::i32 e = std::min(b + k, m);
         h[e - 1] = P[e - 1];
-        for (int i = e - 2; i >= b; --i) h[i] = MX(h[i + 1], P[i]);
+        for (keel::i32 i = e - 2; i >= b; --i) h[i] = MX(h[i + 1], P[i]);
     }
     // out[r] = reduce(P[r .. r+k-1]) = MX(suffix at r, prefix at r+k-1).
-    for (int r = 0; r < n; ++r) out[r] = MX(h[r], g[r + k - 1]);
+    for (keel::i32 r = 0; r < n; ++r) out[r] = MX(h[r], g[r + k - 1]);
 }
 
 // Returns true if `se` is usable by the van Herk path: centre marked, and
@@ -449,11 +449,11 @@ inline bool vanHerkEligible(const SEInfo &se)
 {
     if (se.half_r < 0 || se.half_c < 0) return false;
     if (!se.mask[(keel::usize)se.half_r * (keel::usize)se.W + (keel::usize)se.half_c]) return false;
-    for (int kj = 0; kj < se.W; ++kj) {
-        int lo = -1, hi = -1;
-        for (int ki = 0; ki < se.H; ++ki)
+    for (keel::i32 kj = 0; kj < se.W; ++kj) {
+        keel::i32 lo = -1, hi = -1;
+        for (keel::i32 ki = 0; ki < se.H; ++ki)
             if (se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) { if (lo < 0) lo = ki; hi = ki; }
-        for (int ki = lo; ki >= 0 && ki <= hi; ++ki)
+        for (keel::i32 ki = lo; ki >= 0 && ki <= hi; ++ki)
             if (!se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) return false;  // gap
     }
     return true;
@@ -468,8 +468,8 @@ inline bool vanHerkEligible(const SEInfo &se)
 template <bool IsErode>
 Value morph_vanherk_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
 {
-    const int H = (int)I.dims().rows();
-    const int W = (int)I.dims().cols();
+    const keel::i32 H = (keel::i32)I.dims().rows();
+    const keel::i32 W = (keel::i32)I.dims().cols();
     Value out = Value::matrix(H, W, I.type(), mr);
     if (H == 0 || W == 0) return out;
     const keel::u8 *src = I.isLogical() ? I.logicalData() : I.uint8Data();
@@ -481,21 +481,21 @@ Value morph_vanherk_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
     // square, diamond, …) have many columns sharing a run, so we compute the
     // vertical reduce V once per DISTINCT run and reuse it for every column
     // that shares it — fewer of the (scalar) vertical passes.
-    struct Run { int lo, hi; };
+    struct Run { keel::i32 lo, hi; };
     keel::Array<Run> runs;
-    keel::Array<int> colRun;   // SE-column index (with marked pixels) → run id
-    keel::Array<int> colDc;    // …and its horizontal shift
-    int maxK = 1;
-    for (int kj = 0; kj < se.W; ++kj) {
-        int kiLo = -1, kiHi = -1;
-        for (int ki = 0; ki < se.H; ++ki)
+    keel::Array<keel::i32> colRun;   // SE-column index (with marked pixels) → run id
+    keel::Array<keel::i32> colDc;    // …and its horizontal shift
+    keel::i32 maxK = 1;
+    for (keel::i32 kj = 0; kj < se.W; ++kj) {
+        keel::i32 kiLo = -1, kiHi = -1;
+        for (keel::i32 ki = 0; ki < se.H; ++ki)
             if (se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) { if (kiLo < 0) kiLo = ki; kiHi = ki; }
         if (kiLo < 0) continue;                          // empty SE column
-        const int lo = kiLo - se.half_r, hi = kiHi - se.half_r;
-        int rid = -1;
-        for (int t = 0; t < (int)runs.size(); ++t)
+        const keel::i32 lo = kiLo - se.half_r, hi = kiHi - se.half_r;
+        keel::i32 rid = -1;
+        for (keel::i32 t = 0; t < (keel::i32)runs.size(); ++t)
             if (runs[t].lo == lo && runs[t].hi == hi) { rid = t; break; }
-        if (rid < 0) { rid = (int)runs.size(); runs.push_back({lo, hi}); }
+        if (rid < 0) { rid = (keel::i32)runs.size(); runs.push_back({lo, hi}); }
         colRun.push_back(rid);
         colDc.push_back(kj - se.half_c);
         maxK = std::max(maxK, hi - lo + 1);
@@ -507,25 +507,25 @@ Value morph_vanherk_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
                              G((keel::usize)(H + maxK), arena.allocator()),
                              Hh((keel::usize)(H + maxK), arena.allocator());  // tiny, reused across columns
 
-    for (int rid = 0; rid < (int)runs.size(); ++rid) {
-        const int lo = runs[rid].lo, hi = runs[rid].hi;
+    for (keel::i32 rid = 0; rid < (keel::i32)runs.size(); ++rid) {
+        const keel::i32 lo = runs[rid].lo, hi = runs[rid].hi;
         // Vertical windowed reduce for this run, once, over every column.
-        for (int c = 0; c < W; ++c)
+        for (keel::i32 c = 0; c < W; ++c)
             blockVanHerk<IsErode>(src + (keel::usize)c * (keel::usize)H,
                                   V.data() + (keel::usize)c * (keel::usize)H, H, lo, hi,
                                   P.data(), G.data(), Hh.data());
         // Combine into dst for every SE column that shares this run.
-        for (int ci = 0; ci < (int)colRun.size(); ++ci) {
+        for (keel::i32 ci = 0; ci < (keel::i32)colRun.size(); ++ci) {
             if (colRun[ci] != rid) continue;
-            const int dc = colDc[ci];
-            const int oc0 = std::max(0, -dc), oc1 = std::min(W, W - dc);
-            for (int oc = oc0; oc < oc1; ++oc) {
+            const keel::i32 dc = colDc[ci];
+            const keel::i32 oc0 = std::max(0, -dc), oc1 = std::min(W, W - dc);
+            for (keel::i32 oc = oc0; oc < oc1; ++oc) {
                 keel::u8 *dcol = dst + (keel::usize)oc * (keel::usize)H;
                 const keel::u8 *vcol = V.data() + (keel::usize)(oc + dc) * (keel::usize)H;
                 if (IsErode)
-                    for (int r = 0; r < H; ++r) dcol[r] = std::min(dcol[r], vcol[r]);
+                    for (keel::i32 r = 0; r < H; ++r) dcol[r] = std::min(dcol[r], vcol[r]);
                 else
-                    for (int r = 0; r < H; ++r) dcol[r] = std::max(dcol[r], vcol[r]);
+                    for (keel::i32 r = 0; r < H; ++r) dcol[r] = std::max(dcol[r], vcol[r]);
             }
         }
     }
@@ -546,25 +546,25 @@ Value morph_op(const Value &I, const Value &SE, keel::Allocator *mr)
             return morph_vanherk_u8<IsErode>(I, se, mr);
         return morph_flat_u8<IsErode>(I, se, mr);
     }
-    const int H = (int)I.dims().rows();
-    const int W = (int)I.dims().cols();
+    const keel::i32 H = (keel::i32)I.dims().rows();
+    const keel::i32 W = (keel::i32)I.dims().cols();
     Value out = Value::matrix(H, W, I.type(), mr);
     if (H == 0 || W == 0) return out;
 
-    for (int oc = 0; oc < W; ++oc) {
-        for (int orow = 0; orow < H; ++orow) {
+    for (keel::i32 oc = 0; oc < W; ++oc) {
+        for (keel::i32 orow = 0; orow < H; ++orow) {
             // Use NaN as the "no SE pixel covered yet" sentinel so we can
             // tell apart an empty neighbourhood (→ output 0) from an
             // actual ±Inf reduction over real input values (preserve as
             // is — needed by callers like imimposemin which rely on
             // ±Inf propagation through reconstruction).
             keel::f64 best = std::numeric_limits<keel::f64>::quiet_NaN();
-            for (int kj = 0; kj < se.W; ++kj) {
-                const int c_in = oc + kj - se.half_c;
+            for (keel::i32 kj = 0; kj < se.W; ++kj) {
+                const keel::i32 c_in = oc + kj - se.half_c;
                 if (c_in < 0 || c_in >= W) continue;
-                for (int ki = 0; ki < se.H; ++ki) {
+                for (keel::i32 ki = 0; ki < se.H; ++ki) {
                     if (!se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) continue;
-                    const int r_in = orow + ki - se.half_r;
+                    const keel::i32 r_in = orow + ki - se.half_r;
                     if (r_in < 0 || r_in >= H) continue;
                     const keel::f64 v = I.elemAsDouble((keel::usize)c_in * (keel::usize)H + (keel::usize)r_in);
                     if (std::isnan(best)) {
@@ -689,7 +689,7 @@ Value imclose(const Value &I, const Value &SE, keel::Allocator *mr) {
 // the grayscale max-in-neighborhood form (which reduces to binary
 // dilation when the input is logical).
 
-Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allocator *mr)
+Value imreconstruct(const Value &marker, const Value &mask, keel::i32 conn, keel::Allocator *mr)
 {
     imreconstruct_argcheck(marker, mask);
     if (conn != 4) conn = 8;
@@ -731,27 +731,27 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
         J[i] = std::min(marker.elemAsDouble(i), I[i]);
     }
 
-    struct Off { int dr, dc; };
+    struct Off { keel::i32 dr, dc; };
     static constexpr Off kOff8[8] = {
         {-1,-1},{-1,0},{-1,1},{0,-1},{0,1},{1,-1},{1,0},{1,1} };
     static constexpr Off kOff4[4] = { {-1,0},{0,-1},{0,1},{1,0} };
     const Off *nbr = (conn == 8) ? kOff8 : kOff4;
-    const int nnb  = (conn == 8) ? 8 : 4;
+    const keel::i32 nnb  = (conn == 8) ? 8 : 4;
 
-    const int Hi = keel::as<int>(H);
-    const int Wi = keel::as<int>(W);
-    auto idxOf = [Hi](int r, int c) -> keel::usize {
+    const keel::i32 Hi = keel::as<keel::i32>(H);
+    const keel::i32 Wi = keel::as<keel::i32>(W);
+    auto idxOf = [Hi](keel::i32 r, keel::i32 c) -> keel::usize {
         return keel::as<keel::usize>(c) * keel::as<keel::usize>(Hi) + keel::as<keel::usize>(r);
     };
 
     // Raster scan (increasing linear index): pull from already-processed
     // (causal) neighbours — those with a smaller linear index.
     for (keel::usize i = 0; i < N; ++i) {
-        const int r = keel::as<int>(i % H);
-        const int c = keel::as<int>(i / H);
+        const keel::i32 r = keel::as<keel::i32>(i % H);
+        const keel::i32 c = keel::as<keel::i32>(i / H);
         keel::f64 m = J[i];
-        for (int k = 0; k < nnb; ++k) {
-            const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
+        for (keel::i32 k = 0; k < nnb; ++k) {
+            const keel::i32 nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
             const keel::usize q = idxOf(nr, nc);
             if (q < i && J[q] > m) m = J[q];
@@ -766,18 +766,18 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     fifo.reserve(N);
     for (keel::usize ii = N; ii-- > 0; ) {
         const keel::usize i = ii;
-        const int r = keel::as<int>(i % H);
-        const int c = keel::as<int>(i / H);
+        const keel::i32 r = keel::as<keel::i32>(i % H);
+        const keel::i32 c = keel::as<keel::i32>(i / H);
         keel::f64 m = J[i];
-        for (int k = 0; k < nnb; ++k) {
-            const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
+        for (keel::i32 k = 0; k < nnb; ++k) {
+            const keel::i32 nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
             const keel::usize q = idxOf(nr, nc);
             if (q > i && J[q] > m) m = J[q];
         }
         J[i] = std::min(m, I[i]);
-        for (int k = 0; k < nnb; ++k) {
-            const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
+        for (keel::i32 k = 0; k < nnb; ++k) {
+            const keel::i32 nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
             const keel::usize q = idxOf(nr, nc);
             if (q > i && J[q] < J[i] && J[q] < I[q]) { fifo.push_back(i); break; }
@@ -789,11 +789,11 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     keel::usize head = 0;
     while (head < fifo.size()) {
         const keel::usize p = fifo[head++];
-        const int r = keel::as<int>(p % H);
-        const int c = keel::as<int>(p / H);
+        const keel::i32 r = keel::as<keel::i32>(p % H);
+        const keel::i32 c = keel::as<keel::i32>(p / H);
         const keel::f64 Jp = J[p];
-        for (int k = 0; k < nnb; ++k) {
-            const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
+        for (keel::i32 k = 0; k < nnb; ++k) {
+            const keel::i32 nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
             const keel::usize q = idxOf(nr, nc);
             if (J[q] < Jp && J[q] < I[q]) {
@@ -818,7 +818,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
 // the border becomes 1 in the output, which means foreground
 // pixels stay 1 and holes are filled.
 
-Value imfill_holes(const Value &BW, int conn, keel::Allocator *mr)
+Value imfill_holes(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     imfill_holes_argcheck(BW);
     if (conn != 4) conn = 8;
@@ -904,7 +904,7 @@ Value imfill_holes(const Value &BW, int conn, keel::Allocator *mr)
 // Inverting flips peaks↔troughs, so regional maxima of −I are the
 // regional minima of I.
 
-Value imregionalmax(const Value &I, int conn, keel::Allocator *mr)
+Value imregionalmax(const Value &I, keel::i32 conn, keel::Allocator *mr)
 {
     imregionalmax_argcheck(I);
     const keel::usize H = I.dims().rows();
@@ -951,7 +951,7 @@ Value imregionalmax(const Value &I, int conn, keel::Allocator *mr)
     return out;
 }
 
-Value imregionalmin(const Value &I, int conn, keel::Allocator *mr)
+Value imregionalmin(const Value &I, keel::i32 conn, keel::Allocator *mr)
 {
     imregionalmin_argcheck(I);
     const keel::usize H = I.dims().rows();
@@ -985,7 +985,7 @@ Value imregionalmin(const Value &I, int conn, keel::Allocator *mr)
 // h-maxima suppresses regional maxima shallower than h. Used as a
 // precursor to imregionalmax to ignore small / noise-like peaks.
 
-Value imhmax(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
+Value imhmax(const Value &I, keel::f64 h, keel::i32 conn, keel::Allocator *mr)
 {
     imhmax_argcheck(I, h);
     const keel::usize H = I.dims().rows();
@@ -1008,7 +1008,7 @@ Value imhmax(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
         imreconstruct(marker, mask, conn, mr), I.type(), mr);
 }
 
-Value imhmin(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
+Value imhmin(const Value &I, keel::f64 h, keel::i32 conn, keel::Allocator *mr)
 {
     imhmin_argcheck(I, h);
     const keel::usize H = I.dims().rows();
@@ -1049,12 +1049,12 @@ Value imhmin(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
 // those that belong to a regional maximum at least h units above its
 // surroundings — the "tall enough" peaks.
 
-Value imextendedmax(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
+Value imextendedmax(const Value &I, keel::f64 h, keel::i32 conn, keel::Allocator *mr)
 {
     return imregionalmax(imhmax(I, h, conn, mr), conn, mr);
 }
 
-Value imextendedmin(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
+Value imextendedmin(const Value &I, keel::f64 h, keel::i32 conn, keel::Allocator *mr)
 {
     return imregionalmin(imhmin(I, h, conn, mr), conn, mr);
 }
@@ -1080,7 +1080,7 @@ Value imextendedmin(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
 // MATLAB exactly); the existing imreconstruct propagates ±Inf as
 // expected because every internal min/max is over finite differences.
 
-Value imimposemin(const Value &I, const Value &BW, int conn, keel::Allocator *mr)
+Value imimposemin(const Value &I, const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     imimposemin_argcheck(I, BW);
     const keel::usize H = I.dims().rows();
@@ -1156,7 +1156,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn, keel::Allocator *mr
 // foreground; we coerce to LOGICAL since MATLAB documents the result
 // as a logical mask.
 
-Value imclearborder(const Value &BW, int conn, keel::Allocator *mr)
+Value imclearborder(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     imclearborder_argcheck(BW);
     if (BW.type() != ValueType::LOGICAL)
@@ -1269,7 +1269,7 @@ void bwlookup_argcheck(const Value &lut)
                     0, 0, "bwlookup", "", "numkit:bwlookup:lutsize");
 }
 
-void bwmorph3_argcheck(const Value &V, keel::StringRef op, int &opIdx)
+void bwmorph3_argcheck(const Value &V, keel::StringRef op, keel::i32 &opIdx)
 {
     if      (op == "branchpoints") opIdx = 0;
     else if (op == "clean")        opIdx = 1;
@@ -1515,15 +1515,15 @@ Value bwlookup(const Value &BW, const Value &lut, keel::Allocator *mr)
 //   remove       : centre set  AND  faces6 != 6  (strip interior voxels)
 Value bwmorph3(const Value &V, keel::StringRef op, keel::Allocator *mr)
 {
-    int opIdx = 0;
+    keel::i32 opIdx = 0;
     bwmorph3_argcheck(V, op, opIdx);
     enum Op { BRANCH = 0, CLEAN = 1, ENDP = 2, FILL = 3, MAJORITY = 4, REMOVE = 5 };
     const Op o = static_cast<Op>(opIdx);
 
     const auto &d = V.dims();
-    const int H = keel::as<int>(d.rows());
-    const int W = keel::as<int>(d.cols());
-    const int P = d.is3D() ? keel::as<int>(d.pages()) : 1;
+    const keel::i32 H = keel::as<keel::i32>(d.rows());
+    const keel::i32 W = keel::as<keel::i32>(d.cols());
+    const keel::i32 P = d.is3D() ? keel::as<keel::i32>(d.pages()) : 1;
 
     Value out = (P > 1) ? Value::matrix3d(H, W, P, ValueType::LOGICAL, mr)
                         : Value::matrix(H, W, ValueType::LOGICAL, mr);
@@ -1531,27 +1531,27 @@ Value bwmorph3(const Value &V, keel::StringRef op, keel::Allocator *mr)
     keel::u8 *od = out.logicalDataMut();
 
     const keel::usize plane = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
-    auto at = [&](int r, int c, int p) -> int {
+    auto at = [&](keel::i32 r, keel::i32 c, keel::i32 p) -> keel::i32 {
         if (r < 0 || r >= H || c < 0 || c >= W || p < 0 || p >= P) return 0;
         return V.elemAsDouble(keel::as<keel::usize>(p) * plane
                               + keel::as<keel::usize>(c) * keel::as<keel::usize>(H)
                               + keel::as<keel::usize>(r)) != 0.0 ? 1 : 0;
     };
 
-    for (int p = 0; p < P; ++p) {
-        for (int c = 0; c < W; ++c) {
-            for (int r = 0; r < H; ++r) {
-                const int centre = at(r, c, p);
+    for (keel::i32 p = 0; p < P; ++p) {
+        for (keel::i32 c = 0; c < W; ++c) {
+            for (keel::i32 r = 0; r < H; ++r) {
+                const keel::i32 centre = at(r, c, p);
                 // 27-neighbourhood count (includes centre) and 6 faces.
-                int count = 0;
-                for (int dp = -1; dp <= 1; ++dp)
-                    for (int dc = -1; dc <= 1; ++dc)
-                        for (int dr = -1; dr <= 1; ++dr)
+                keel::i32 count = 0;
+                for (keel::i32 dp = -1; dp <= 1; ++dp)
+                    for (keel::i32 dc = -1; dc <= 1; ++dc)
+                        for (keel::i32 dr = -1; dr <= 1; ++dr)
                             count += at(r + dr, c + dc, p + dp);
-                const int faces6 = at(r - 1, c, p) + at(r + 1, c, p)
+                const keel::i32 faces6 = at(r - 1, c, p) + at(r + 1, c, p)
                                  + at(r, c - 1, p) + at(r, c + 1, p)
                                  + at(r, c, p - 1) + at(r, c, p + 1);
-                int v = 0;
+                keel::i32 v = 0;
                 switch (o) {
                     case BRANCH:   v = (centre && count > 3); break;
                     case CLEAN:    v = (centre && count != 1); break;
@@ -1604,7 +1604,7 @@ Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2, keel::Alloc
 //   marker = BW ∩ rim, J = imreconstruct(marker, BW, conn)
 // imreconstruct already returns a LOGICAL when marker+mask are LOGICAL,
 // so we just hand that through.
-Value imkeepborder(const Value &BW, int conn, keel::Allocator *mr)
+Value imkeepborder(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     imkeepborder_argcheck(BW);
     if (BW.type() != ValueType::LOGICAL)
@@ -1672,7 +1672,7 @@ void bwlookup3x3(const keel::u8 *src, keel::u8 *dst,
 
     for (keel::isize c = 0; c < Cs; ++c) {
         for (keel::isize r = 0; r < Rs; ++r) {
-            unsigned idx = 0;
+            keel::u32 idx = 0;
             // bit k = neighbour at (r + (k%3)-1, c + (k/3)-1)
             for (keel::isize dc = -1; dc <= 1; ++dc) {
                 const keel::isize cc = c + dc;
@@ -1684,8 +1684,8 @@ void bwlookup3x3(const keel::u8 *src, keel::u8 *dst,
                     if (rr < 0 || rr >= Rs)
                         continue;
                     if (src[colBase + rr]) {
-                        const unsigned k =
-                            keel::as<unsigned>((dr + 1) + (dc + 1) * 3);
+                        const keel::u32 k =
+                            keel::as<keel::u32>((dr + 1) + (dc + 1) * 3);
                         idx |= (1u << k);
                     }
                 }
@@ -1766,10 +1766,10 @@ void opClose(keel::u8 *bw, keel::usize R, keel::usize C,
 void opShrink(keel::u8 *bw, keel::usize R, keel::usize C,
               keel::u8 *m, keel::u8 *cand)
 {
-    static constexpr int rOffTab[4] = {0, 1, 1, 0};
-    static constexpr int cOffTab[4] = {0, 1, 0, 1};
+    static constexpr keel::i32 rOffTab[4] = {0, 1, 1, 0};
+    static constexpr keel::i32 cOffTab[4] = {0, 1, 0, 1};
 
-    for (int s = 0; s < 4; ++s) {
+    for (keel::i32 s = 0; s < 4; ++s) {
         bwlookup3x3(bw, m, R, C, lutshrink);
         boolAndNot(bw, m, cand, R * C);
 
@@ -1799,10 +1799,10 @@ void opSpur(keel::u8 *bw, keel::usize R, keel::usize C,
     boolNot(bw, bw, n);
     bwlookup3x3(bw, endPoints, R, C, lutspur);
 
-    static constexpr int rOffTab[4] = {0, 1, 0, 1};
-    static constexpr int cOffTab[4] = {0, 0, 1, 1};
+    static constexpr keel::i32 rOffTab[4] = {0, 1, 0, 1};
+    static constexpr keel::i32 cOffTab[4] = {0, 0, 1, 1};
 
-    for (int s = 0; s < 4; ++s) {
+    for (keel::i32 s = 0; s < 4; ++s) {
         const keel::u8 *fieldSrc;
         if (s == 0) {
             // XOR endPoints directly on sub-field 0.
@@ -1923,7 +1923,7 @@ void opBranchpoints(keel::u8 *bw, keel::usize R, keel::usize C,
     keel::Array<keel::u8> Vq(n, arena.allocator());
 
     for (keel::usize i = 0; i < n; ++i) {
-        const unsigned b = Bset[i];
+        const keel::u32 b = Bset[i];
         const bool E = (b == 1);
         const bool notE = !E;
         FC[i] = (notE && Cset[i]) ? 1 : 0;
@@ -2011,7 +2011,7 @@ bool runOnePass(keel::StringRef op, keel::u8 *bw,
         static const Lut *const skel[8] = {
             &lutskel1, &lutskel2, &lutskel3, &lutskel4,
             &lutskel5, &lutskel6, &lutskel7, &lutskel8};
-        for (int k = 0; k < 8; ++k) {
+        for (keel::i32 k = 0; k < 8; ++k) {
             bwlookup3x3(bw, tmp, R, C, *skel[k]);
             for (keel::usize i = 0; i < n; ++i)
                 bw[i] = tmp[i];
@@ -2079,7 +2079,7 @@ void bwmorph_argcheck(const Value &BW, keel::StringRef op)
 // ──────────────────────────────────────────────────────────────────
 // The iteration framework — public entry point.
 // ──────────────────────────────────────────────────────────────────
-Value bwmorph(const Value &BW, keel::StringRef op, int n,
+Value bwmorph(const Value &BW, keel::StringRef op, keel::i32 n,
               keel::Allocator *mr)
 {
     bwmorph_argcheck(BW, op);
@@ -2109,14 +2109,14 @@ Value bwmorph(const Value &BW, keel::StringRef op, int n,
 
     // Iterate: repeat one pass until stable or n times. n == -1 is the
     // "until stable" sentinel; a safety cap guards non-converging ops.
-    constexpr int kSafetyCap = 10000;
+    constexpr keel::i32 kSafetyCap = 10000;
     const bool untilStable = (n < 0);
-    const int maxPasses = untilStable ? kSafetyCap : n;
+    const keel::i32 maxPasses = untilStable ? kSafetyCap : n;
 
     keel::Array<keel::u8> prev(N, arena.allocator());
     keel::Array<keel::u8> tmp(N, arena.allocator());
 
-    for (int pass = 0; pass < maxPasses; ++pass) {
+    for (keel::i32 pass = 0; pass < maxPasses; ++pass) {
         for (keel::usize i = 0; i < N; ++i)
             prev[i] = bw[i];
 
@@ -2159,12 +2159,12 @@ Value bwmorph(const Value &BW, keel::StringRef op, int n,
 namespace {
 
 // dr/dc tables for 8-conn (CW from N) and 4-conn (CW from N).
-const int kDr8[8] = {-1, -1,  0,  1,  1,  1,  0, -1};
-const int kDc8[8] = { 0,  1,  1,  1,  0, -1, -1, -1};
-const int kDr4[4] = {-1,  0,  1,  0};
-const int kDc4[4] = { 0,  1,  0, -1};
+const keel::i32 kDr8[8] = {-1, -1,  0,  1,  1,  1,  0, -1};
+const keel::i32 kDc8[8] = { 0,  1,  1,  1,  0, -1, -1, -1};
+const keel::i32 kDr4[4] = {-1,  0,  1,  0};
+const keel::i32 kDc4[4] = { 0,  1,  0, -1};
 
-int name_to_dir8(keel::StringRef s) {
+keel::i32 name_to_dir8(keel::StringRef s) {
     if (s == "N")  return 0;
     if (s == "NE") return 1;
     if (s == "E")  return 2;
@@ -2175,7 +2175,7 @@ int name_to_dir8(keel::StringRef s) {
     if (s == "NW") return 7;
     return -1;
 }
-int name_to_dir4(keel::StringRef s) {
+keel::i32 name_to_dir4(keel::StringRef s) {
     if (s == "N") return 0;
     if (s == "E") return 1;
     if (s == "S") return 2;
@@ -2184,9 +2184,9 @@ int name_to_dir4(keel::StringRef s) {
 }
 
 void bwtraceboundary_argcheck(const Value &BW, const Value &P,
-                              keel::StringRef fstep, int conn,
+                              keel::StringRef fstep, keel::i32 conn,
                               keel::StringRef dir,
-                              long &pr, long &pc, int &fidx)
+                              keel::i64 &pr, keel::i64 &pc, keel::i32 &fidx)
 {
     internal::requireImageClass(BW, "bwtraceboundary", "BW", 1,
                                 internal::ImgClasses::AnyNumericReal);
@@ -2211,8 +2211,8 @@ void bwtraceboundary_argcheck(const Value &BW, const Value &P,
 
     const keel::usize M = BW.dims().rows();
     const keel::usize N = BW.dims().cols();
-    pr = keel::as<long>(P.elemAsDouble(0)) - 1;
-    pc = keel::as<long>(P.elemAsDouble(1)) - 1;
+    pr = keel::as<keel::i64>(P.elemAsDouble(0)) - 1;
+    pc = keel::as<keel::i64>(P.elemAsDouble(1)) - 1;
     if (pr < 0 || pc < 0
      || keel::as<keel::usize>(pr) >= M
      || keel::as<keel::usize>(pc) >= N)
@@ -2236,7 +2236,7 @@ void bwtraceboundary_argcheck(const Value &BW, const Value &P,
                     "numkit:bwtraceboundary:fstep");
 }
 
-void makelut_argcheck(int n)
+void makelut_argcheck(keel::i32 n)
 {
     if (n != 2 && n != 3)
         throw Error("makelut: N must be 2 or 3.",
@@ -2246,18 +2246,18 @@ void makelut_argcheck(int n)
 } // anonymous
 
 Value bwtraceboundary(const Value &BW, const Value &P,
-                      keel::StringRef fstep, int conn,
+                      keel::StringRef fstep, keel::i32 conn,
                       keel::usize m, keel::StringRef dir,
                       keel::Allocator *mr)
 {
-    long pr = 0, pc = 0;
-    int fidx = 0;
+    keel::i64 pr = 0, pc = 0;
+    keel::i32 fidx = 0;
     bwtraceboundary_argcheck(BW, P, fstep, conn, dir, pr, pc, fidx);
 
     const keel::usize M = BW.dims().rows();
     const keel::usize N = BW.dims().cols();
 
-    auto fg_at = [&](long r, long c) -> bool {
+    auto fg_at = [&](keel::i64 r, keel::i64 c) -> bool {
         if (r < 0 || c < 0
          || keel::as<keel::usize>(r) >= M
          || keel::as<keel::usize>(c) >= N) return false;
@@ -2267,31 +2267,31 @@ Value bwtraceboundary(const Value &BW, const Value &P,
         return BW.elemAsDouble(k) != 0.0;
     };
 
-    const int nd = conn;
-    const int *Dr = (conn == 8) ? kDr8 : kDr4;
-    const int *Dc = (conn == 8) ? kDc8 : kDc4;
+    const keel::i32 nd = conn;
+    const keel::i32 *Dr = (conn == 8) ? kDr8 : kDr4;
+    const keel::i32 *Dc = (conn == 8) ? kDc8 : kDc4;
 
-    const int rot = (dir == "clockwise") ? +1 : -1;
+    const keel::i32 rot = (dir == "clockwise") ? +1 : -1;
 
     // Initial back_dir = opposite(fstep). Search starts +rot from back_dir.
-    int back_dir = (fidx + nd / 2) % nd;
+    keel::i32 back_dir = (fidx + nd / 2) % nd;
 
-    keel::Array<long> br(mr), bc(mr);
+    keel::Array<keel::i64> br(mr), bc(mr);
     br.reserve(64);
     bc.reserve(64);
     br.push_back(pr);
     bc.push_back(pc);
 
-    long cur_r = pr, cur_c = pc;
+    keel::i64 cur_r = pr, cur_c = pc;
     const keel::usize cap = (m == 0) ? std::numeric_limits<keel::usize>::max() : m;
 
     while (br.size() < cap) {
         bool found = false;
-        for (int k = 0; k < nd; ++k) {
-            int d = (back_dir + rot * (k + 1) + nd * 8) % nd;
+        for (keel::i32 k = 0; k < nd; ++k) {
+            keel::i32 d = (back_dir + rot * (k + 1) + nd * 8) % nd;
             // ((back_dir + rot) + rot*k) mod nd — start at one step past back_dir.
-            const long nr = cur_r + Dr[d];
-            const long nc = cur_c + Dc[d];
+            const keel::i64 nr = cur_r + Dr[d];
+            const keel::i64 nc = cur_c + Dc[d];
             if (fg_at(nr, nc)) {
                 br.push_back(nr);
                 bc.push_back(nc);
@@ -2327,10 +2327,10 @@ Value bwtraceboundary(const Value &BW, const Value &P,
 // user function handle is invoked through the FnHandle callback (the engine
 // adapter in bundle binds it to Engine::callFunctionHandle). The VM-pausable
 // path for user-code handles is the separate MakelutCallbackBuiltin in bundle.
-Value makelut(FnHandle fun, int n, keel::Allocator *mr)
+Value makelut(FnHandle fun, keel::i32 n, keel::Allocator *mr)
 {
     makelut_argcheck(n);
-    const int nq = n * n;
+    const keel::i32 nq = n * n;
     const keel::usize N = keel::usize{1} << nq;   // 16 or 512
     Value lut = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     keel::f64 *ld = lut.doubleDataMut();
@@ -2340,7 +2340,7 @@ Value makelut(FnHandle fun, int n, keel::Allocator *mr)
                              ValueType::LOGICAL, mr);
     keel::u8 *nd = nh.logicalDataMut();
     for (keel::usize k = 0; k < N; ++k) {
-        for (int i = 0; i < nq; ++i)
+        for (keel::i32 i = 0; i < nq; ++i)
             nd[i] = keel::as<keel::u8>((k >> (nq - 1 - i)) & keel::usize{1});
         keel::StaticArray<Value, 1> o;
         fun(keel::ArrayRef<Value>(&nh, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);

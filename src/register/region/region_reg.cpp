@@ -89,8 +89,8 @@ void bwlabel_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bwlabel");
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
-                     ? (int)args[1].toScalar() : 8;
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
+                     ? (keel::i32)args[1].toScalar() : 8;
     auto [L, n] = bwlabel(args[0], conn, ctx.engine->allocator());
     outs[0] = std::move(L);
     if (nargout > 1) outs[1] = std::move(n);
@@ -100,8 +100,8 @@ void bwlabeln_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bwlabeln");
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
-                     ? (int)args[1].toScalar() : 0;
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
+                     ? (keel::i32)args[1].toScalar() : 0;
     auto [L, n] = bwlabeln(args[0], conn, ctx.engine->allocator());
     outs[0] = std::move(L);
     if (nargout > 1) outs[1] = std::move(n);
@@ -111,8 +111,8 @@ void bwconncomp_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bwconncomp");
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
-                     ? (int)args[1].toScalar() : 8;
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
+                     ? (keel::i32)args[1].toScalar() : 8;
     outs[0] = bwconncomp(args[0], conn, ctx.engine->allocator());
 }
 
@@ -164,8 +164,8 @@ void bwperim_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bwperim");
-    const int conn = (args.size() >= 2 && !args[1].isEmpty())
-                     ? (int)args[1].toScalar() : 8;
+    const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
+                     ? (keel::i32)args[1].toScalar() : 8;
     outs[0] = bwperim(args[0], conn, ctx.engine->allocator());
 }
 
@@ -173,9 +173,9 @@ void bwareaopen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "bwareaopen");
-    const int P = (int)args[1].toScalar();
-    const int conn = (args.size() >= 3 && !args[2].isEmpty())
-                     ? (int)args[2].toScalar() : 8;
+    const keel::i32 P = (keel::i32)args[1].toScalar();
+    const keel::i32 conn = (args.size() >= 3 && !args[2].isEmpty())
+                     ? (keel::i32)args[2].toScalar() : 8;
     outs[0] = bwareaopen(args[0], P, conn, ctx.engine->allocator());
 }
 
@@ -185,12 +185,12 @@ void bwboundaries_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     argcheck::checkNargin(args.size(), 1, 3, "bwboundaries");
     // conn is the first numeric trailing arg; a string (e.g. 'noholes') is a
     // mode flag (nk traces objects only either way) and is ignored.
-    int conn = 8;
+    keel::i32 conn = 8;
     if (args.size() >= 2 && !args[1].isEmpty() && !args[1].isChar() &&
         !args[1].isString())
-        conn = (int)args[1].toScalar();
+        conn = (keel::i32)args[1].toScalar();
     auto *mr = ctx.engine->allocator();
-    Value L; int N = 0;
+    Value L; keel::i32 N = 0;
     outs[0] = bwboundaries(args[0], conn,
                            nargout > 1 ? &L : nullptr,
                            nargout > 2 ? &N : nullptr, mr);
@@ -226,17 +226,17 @@ void regionprops_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 // 1-based linear index of the NEAREST foreground pixel, ties broken to the
 // lowest linear index (matches MATLAB R2025b, class uint32). metric:
 // 0=euclidean(squared), 1=cityblock, 2=chessboard, 3=quasi-euclidean.
-static Value bwdist_idx(const Value &BW, int metric, keel::Allocator *mr)
+static Value bwdist_idx(const Value &BW, keel::i32 metric, keel::Allocator *mr)
 {
     const keel::usize H = BW.dims().rows(), W = BW.dims().cols();
     Value out = Value::matrix(H, W, ValueType::UINT32, mr);
     if (H == 0 || W == 0) return out;
-    struct FG { int r, c; keel::u32 lin; };
+    struct FG { keel::i32 r, c; keel::u32 lin; };
     keel::Array<FG> fg;
     for (keel::usize c = 0; c < W; ++c)            // column-major → ascending linidx
         for (keel::usize r = 0; r < H; ++r)
             if (BW.elemAsDouble(c * H + r) != 0.0)
-                fg.push_back({(int)r, (int)c, (keel::u32)(c * H + r + 1)});
+                fg.push_back({(keel::i32)r, (keel::i32)c, (keel::u32)(c * H + r + 1)});
     keel::u32 *od = out.uint32DataMut();
     const keel::f64 q = std::sqrt(2.0) - 1.0;
     for (keel::usize c = 0; c < W; ++c)
@@ -244,8 +244,8 @@ static Value bwdist_idx(const Value &BW, int metric, keel::Allocator *mr)
             keel::f64 best = std::numeric_limits<keel::f64>::infinity();
             keel::u32 bi = 0;
             for (const auto &p : fg) {
-                const keel::f64 dr = keel::abs((keel::f64)(long)r - p.r);
-                const keel::f64 dc = keel::abs((keel::f64)(long)c - p.c);
+                const keel::f64 dr = keel::abs((keel::f64)(keel::i64)r - p.r);
+                const keel::f64 dc = keel::abs((keel::f64)(keel::i64)c - p.c);
                 keel::f64 dd;
                 switch (metric) {
                     case 1:  dd = dr + dc; break;
@@ -274,7 +274,7 @@ void bwdist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             c = keel::to_ascii_lower(c);
     }
 
-    int metric;
+    keel::i32 metric;
     if (method == "euclidean") {
         outs[0] = bwdist(args[0], mr);                          metric = 0;
     } else if (method == "cityblock") {
@@ -323,7 +323,7 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::f64 lo = 0.0, hi = std::numeric_limits<keel::f64>::infinity();
     keel::usize n_keep = 0;
     bool keep_largest = true;
-    int conn = 8;
+    keel::i32 conn = 8;
 
     const Value &v = args[1];
     if (v.numel() >= 2) {
@@ -363,7 +363,7 @@ void bwselect_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 3, 6, "bwselect");
-    int conn = 8;
+    keel::i32 conn = 8;
     if (args.size() >= 4 && !args[3].isEmpty())
         conn = argcheck::expectedOneOf(
             argcheck::expectedReal(args[3], 4, "conn", "bwselect"),
@@ -377,7 +377,7 @@ void bweuler_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                  keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bweuler");
-    int conn = 8;
+    keel::i32 conn = 8;
     if (args.size() >= 2 && !args[1].isEmpty())
         conn = argcheck::expectedOneOf(
             argcheck::expectedReal(args[1], 2, "conn", "bweuler"),

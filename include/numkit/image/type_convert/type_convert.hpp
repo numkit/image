@@ -141,7 +141,7 @@ Value getrangefromclass(const Value &I, keel::Allocator *mr = nullptr);
 /// @return    `(ind, map)` pair.
 /// @see ind2gray, ind2rgb
 std::tuple<Value, Value>
-gray2ind(const Value &I, int n, keel::Allocator *mr = nullptr);
+gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Indexed → grayscale (`I = ind2gray(idx, map)`).
 ///

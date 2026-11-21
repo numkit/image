@@ -148,7 +148,7 @@ Value std2(const Value &A, keel::Allocator *mr = nullptr);
 /// @return                  Scalar (SINGLE / DOUBLE) MS-SSIM score in
 ///                          `(-1, 1]` (1 = identical).
 Value multissim(const Value &A, const Value &Iref,
-                int num_scales,
+                keel::i32 num_scales,
                 keel::ArrayRef<keel::f64> scale_weights,
                 keel::f64 sigma, keel::f64 dynamic_range,
                 keel::Array<Value> *quality_maps_out,
@@ -186,7 +186,7 @@ Value multissim(const Value &A, const Value &Iref,
 /// @return                  Scalar score (DOUBLE for double inputs,
 ///                          SINGLE otherwise).
 Value multissim3(const Value &V, const Value &Vref,
-                 int num_scales,
+                 keel::i32 num_scales,
                  keel::ArrayRef<keel::f64> scale_weights,
                  keel::f64 sigma, keel::f64 dynamic_range,
                  keel::Array<Value> *quality_maps_out,

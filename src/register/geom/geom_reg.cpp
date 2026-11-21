@@ -187,11 +187,11 @@ inline keel::f64 cubic_keys(keel::f64 x)
 }
 
 inline keel::f64 getV3(const Value &V, keel::usize H, keel::usize W, keel::usize D,
-                    int xi, int yi, int zi, keel::f64 fill)
+                    keel::i32 xi, keel::i32 yi, keel::i32 zi, keel::f64 fill)
 {
     // 1-indexed spatial (xi, yi, zi). Out-of-bounds → fill.
-    if (xi < 1 || xi > int(W) || yi < 1 || yi > int(H) ||
-        zi < 1 || zi > int(D))
+    if (xi < 1 || xi > keel::i32(W) || yi < 1 || yi > keel::i32(H) ||
+        zi < 1 || zi > keel::i32(D))
         return fill;
     return V.elemAsDouble(keel::usize(yi - 1)
                         + keel::usize(xi - 1) * H
@@ -201,18 +201,18 @@ inline keel::f64 getV3(const Value &V, keel::usize H, keel::usize W, keel::usize
 keel::f64 samp_nearest3(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      keel::f64 xs, keel::f64 ys, keel::f64 zs, keel::f64 fill)
 {
-    const int xi = keel::as<int>(std::floor(xs + 0.5));
-    const int yi = keel::as<int>(std::floor(ys + 0.5));
-    const int zi = keel::as<int>(std::floor(zs + 0.5));
+    const keel::i32 xi = keel::as<keel::i32>(std::floor(xs + 0.5));
+    const keel::i32 yi = keel::as<keel::i32>(std::floor(ys + 0.5));
+    const keel::i32 zi = keel::as<keel::i32>(std::floor(zs + 0.5));
     return getV3(V, H, W, D, xi, yi, zi, fill);
 }
 
 keel::f64 samp_trilinear(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                       keel::f64 xs, keel::f64 ys, keel::f64 zs, keel::f64 fill)
 {
-    const int x0 = keel::as<int>(std::floor(xs));
-    const int y0 = keel::as<int>(std::floor(ys));
-    const int z0 = keel::as<int>(std::floor(zs));
+    const keel::i32 x0 = keel::as<keel::i32>(std::floor(xs));
+    const keel::i32 y0 = keel::as<keel::i32>(std::floor(ys));
+    const keel::i32 z0 = keel::as<keel::i32>(std::floor(zs));
     const keel::f64 fx = xs - keel::f64(x0);
     const keel::f64 fy = ys - keel::f64(y0);
     const keel::f64 fz = zs - keel::f64(z0);
@@ -236,23 +236,23 @@ keel::f64 samp_trilinear(const Value &V, keel::usize H, keel::usize W, keel::usi
 keel::f64 samp_tricubic(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      keel::f64 xs, keel::f64 ys, keel::f64 zs, keel::f64 fill)
 {
-    const int x0 = keel::as<int>(std::floor(xs));
-    const int y0 = keel::as<int>(std::floor(ys));
-    const int z0 = keel::as<int>(std::floor(zs));
+    const keel::i32 x0 = keel::as<keel::i32>(std::floor(xs));
+    const keel::i32 y0 = keel::as<keel::i32>(std::floor(ys));
+    const keel::i32 z0 = keel::as<keel::i32>(std::floor(zs));
     const keel::f64 fx = xs - keel::f64(x0);
     const keel::f64 fy = ys - keel::f64(y0);
     const keel::f64 fz = zs - keel::f64(z0);
     keel::f64 wx[4], wy[4], wz[4];
-    for (int k = -1; k <= 2; ++k) {
+    for (keel::i32 k = -1; k <= 2; ++k) {
         wx[k + 1] = cubic_keys(keel::f64(k) - fx);
         wy[k + 1] = cubic_keys(keel::f64(k) - fy);
         wz[k + 1] = cubic_keys(keel::f64(k) - fz);
     }
     keel::f64 sum = 0.0;
-    for (int kz = -1; kz <= 2; ++kz)
-        for (int kx = -1; kx <= 2; ++kx) {
+    for (keel::i32 kz = -1; kz <= 2; ++kz)
+        for (keel::i32 kx = -1; kx <= 2; ++kx) {
             const keel::f64 wxz = wx[kx + 1] * wz[kz + 1];
-            for (int ky = -1; ky <= 2; ++ky)
+            for (keel::i32 ky = -1; ky <= 2; ++ky)
                 sum += wy[ky + 1] * wxz *
                        getV3(V, H, W, D, x0 + kx, y0 + ky, z0 + kz, fill);
         }
@@ -314,7 +314,7 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
     const keel::f64 cyIn  = (keel::f64(H) + 1.0) * 0.5;
     const keel::f64 czIn  = (keel::f64(D) + 1.0) * 0.5;
 
-    int code = 1;  // 0 = nearest, 1 = linear, 2 = cubic
+    keel::i32 code = 1;  // 0 = nearest, 1 = linear, 2 = cubic
     if      (method == "nearest" || method == "Nearest") code = 0;
     else if (method == "linear"  || method == "Linear" ||
              method == "bilinear")                       code = 1;

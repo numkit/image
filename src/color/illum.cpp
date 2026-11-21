@@ -78,7 +78,7 @@ inline keel::f64 pixel_at(const Value &A, keel::usize H, keel::usize W,
 
 void validate_image_and_mask(const Value &A, const Value &mask,
                              keel::usize &H, keel::usize &W,
-                             keel::Array<unsigned char> &maskFlat,
+                             keel::Array<keel::u8> &maskFlat,
                              const char *fn)
 {
     if (!A.dims().is3D() || A.dims().pages() != 3)
@@ -101,7 +101,7 @@ void validate_image_and_mask(const Value &A, const Value &mask,
 }
 
 void collect_channel(const Value &A, keel::usize H, keel::usize W,
-                     keel::usize c, const keel::Array<unsigned char> &mask,
+                     keel::usize c, const keel::Array<keel::u8> &mask,
                      keel::Array<keel::f64> &out)
 {
     out.clear();
@@ -130,7 +130,7 @@ void illumwhite_argcheck(const Value &A, keel::f64 P, const Value &mask)
         throw Error("illumwhite: percentile must satisfy 0 <= P < 100",
                     0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
     keel::usize H = 0, W = 0;
-    keel::Array<unsigned char> maskFlat;
+    keel::Array<keel::u8> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumwhite");
     if (H == 0 || W == 0)
         throw Error("illumwhite: image is empty",
@@ -158,7 +158,7 @@ void illumgray_argcheck(const Value &A, keel::ArrayRef<keel::f64> P,
         throw Error("illumgray: Norm must be a positive scalar",
                     0, 0, "illumgray", "", "numkit:illumgray:norm");
     keel::usize H = 0, W = 0;
-    keel::Array<unsigned char> maskFlat;
+    keel::Array<keel::u8> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumgray");
     if (H == 0 || W == 0)
         throw Error("illumgray: image is empty",
@@ -171,7 +171,7 @@ void illumpca_argcheck(const Value &A, keel::f64 P, const Value &mask)
         throw Error("illumpca: percentage must satisfy 0 < P <= 50",
                     0, 0, "illumpca", "", "numkit:illumpca:percentage");
     keel::usize H = 0, W = 0;
-    keel::Array<unsigned char> maskFlat;
+    keel::Array<keel::u8> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumpca");
     if (H == 0 || W == 0)
         throw Error("illumpca: image is empty",
@@ -221,7 +221,7 @@ Value illumwhite(const Value &A, keel::f64 P, const Value &mask,
                     0, 0, "illumwhite", "", "numkit:illumwhite:percentile");
 
     keel::usize H = 0, W = 0;
-    keel::Array<unsigned char> maskFlat;
+    keel::Array<keel::u8> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumwhite");
     if (H == 0 || W == 0)
         throw Error("illumwhite: image is empty",
@@ -279,7 +279,7 @@ Value illumgray_impl(const Value &A, keel::ArrayRef<keel::f64> P,
                     0, 0, "illumgray", "", "numkit:illumgray:norm");
 
     keel::usize H = 0, W = 0;
-    keel::Array<unsigned char> maskFlat;
+    keel::Array<keel::u8> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumgray");
     if (H == 0 || W == 0)
         throw Error("illumgray: image is empty",
@@ -307,17 +307,17 @@ Value illumgray_impl(const Value &A, keel::ArrayRef<keel::f64> P,
         // trimming `K_lo` from the bottom and `K_hi` from the top.
         const keel::usize lo = K_lo;
         const keel::usize hi = N - K_hi;          // exclusive
-        long double sum = 0.0L;
+        long double sum = 0.0L; // keel-lint: ignore
         for (keel::usize k = lo; k < hi; ++k) {
             const keel::f64 v = plane[k];
             if (norm_exp == 1.0)       sum += std::fabs(v);
             else                       sum += std::pow(std::fabs(v), norm_exp);
         }
         const keel::usize cnt = hi - lo;
-        long double mean;
-        if (norm_exp == 1.0) mean = sum / keel::as<long double>(cnt);
+        long double mean; // keel-lint: ignore
+        if (norm_exp == 1.0) mean = sum / keel::as<long double>(cnt); // keel-lint: ignore
         else                 mean = std::pow(keel::as<keel::f64>(sum), 1.0 / norm_exp)
-                                  / keel::as<long double>(cnt);
+                                  / keel::as<long double>(cnt); // keel-lint: ignore
         out[c] = keel::as<keel::f64>(mean);
     }
     return make_row3(out[0], out[1], out[2], mr);
@@ -374,13 +374,13 @@ void jacobi_eigen_3x3(const Sym3 &M, keel::f64 evals[3], keel::f64 evecs[9])
     };
     // V starts as identity.
     keel::f64 V[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-    for (int sweep = 0; sweep < 50; ++sweep) {
+    for (keel::i32 sweep = 0; sweep < 50; ++sweep) {
         const keel::f64 off = std::fabs(a[0][1]) + std::fabs(a[0][2])
                          + std::fabs(a[1][2]);
         if (off < 1e-30) break;
         // Sweep over the 3 upper-tri pairs.
-        for (int p = 0; p < 2; ++p) {
-            for (int q = p + 1; q < 3; ++q) {
+        for (keel::i32 p = 0; p < 2; ++p) {
+            for (keel::i32 q = p + 1; q < 3; ++q) {
                 if (std::fabs(a[p][q]) < 1e-30) continue;
                 const keel::f64 theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
                 keel::f64 t;
@@ -399,7 +399,7 @@ void jacobi_eigen_3x3(const Sym3 &M, keel::f64 evals[3], keel::f64 evecs[9])
                 a[q][q] = aqq + t * apq;
                 a[p][q] = 0.0;
                 a[q][p] = 0.0;
-                for (int r = 0; r < 3; ++r) {
+                for (keel::i32 r = 0; r < 3; ++r) {
                     if (r != p && r != q) {
                         const keel::f64 arp = a[r][p];
                         const keel::f64 arq = a[r][q];
@@ -410,7 +410,7 @@ void jacobi_eigen_3x3(const Sym3 &M, keel::f64 evals[3], keel::f64 evecs[9])
                     }
                 }
                 // Update V.
-                for (int r = 0; r < 3; ++r) {
+                for (keel::i32 r = 0; r < 3; ++r) {
                     const keel::f64 vrp = V[r][p];
                     const keel::f64 vrq = V[r][q];
                     V[r][p] = c * vrp - s * vrq;
@@ -421,8 +421,8 @@ void jacobi_eigen_3x3(const Sym3 &M, keel::f64 evals[3], keel::f64 evecs[9])
     }
     evals[0] = a[0][0]; evals[1] = a[1][1]; evals[2] = a[2][2];
     // Column-major (component i of column k) → index i + 3*k.
-    for (int k = 0; k < 3; ++k)
-        for (int i = 0; i < 3; ++i)
+    for (keel::i32 k = 0; k < 3; ++k)
+        for (keel::i32 i = 0; i < 3; ++i)
             evecs[i + 3 * k] = V[i][k];
 }
 
@@ -437,7 +437,7 @@ Value illumpca(const Value &A, keel::f64 P, const Value &mask,
                     0, 0, "illumpca", "", "numkit:illumpca:percentage");
 
     keel::usize H = 0, W = 0;
-    keel::Array<unsigned char> maskFlat;
+    keel::Array<keel::u8> maskFlat;
     validate_image_and_mask(A, mask, H, W, maskFlat, "illumpca");
     if (H == 0 || W == 0)
         throw Error("illumpca: image is empty",
@@ -570,11 +570,11 @@ Value illumpca(const Value &A, keel::f64 P, const Value &mask,
     // uncorrelated). We detect by checking abs(V) close to identity
     // after a permutation that matches it to eye.
     bool v_is_identity = true;
-    for (int c = 0; c < 3; ++c) {
+    for (keel::i32 c = 0; c < 3; ++c) {
         // Find biggest abs entry in column `order[c]`.
-        int max_row = 0;
+        keel::i32 max_row = 0;
         keel::f64 max_abs = std::fabs(evecs[0 + 3 * order[c]]);
-        for (int r = 1; r < 3; ++r) {
+        for (keel::i32 r = 1; r < 3; ++r) {
             const keel::f64 v = std::fabs(evecs[r + 3 * order[c]]);
             if (v > max_abs) { max_abs = v; max_row = r; }
         }

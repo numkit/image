@@ -170,14 +170,14 @@ Value bilinear_interp_hd(const Value &Hd, keel::usize m_out, keel::usize n_out,
         for (keel::usize c = 0; c < n_out; ++c) {
             const keel::f64 cx = (keel::as<keel::f64>(c) - (n_out - 1) / 2.0) * dc_dst;
             const keel::f64 sf_c = (cx + 1.0) / dc_src - 0.5;
-            const long c0 = std::max<long>(0, keel::as<long>(std::floor(sf_c)));
-            const long c1 = std::min<long>(keel::as<long>(Wh) - 1, c0 + 1);
+            const keel::i64 c0 = std::max<keel::i64>(0, keel::as<keel::i64>(std::floor(sf_c)));
+            const keel::i64 c1 = std::min<keel::i64>(keel::as<keel::i64>(Wh) - 1, c0 + 1);
             const keel::f64 ac = sf_c - c0;
             for (keel::usize r = 0; r < m_out; ++r) {
                 const keel::f64 cy = (keel::as<keel::f64>(r) - (m_out - 1) / 2.0) * dr_dst;
                 const keel::f64 sf_r = (cy + 1.0) / dr_src - 0.5;
-                const long r0 = std::max<long>(0, keel::as<long>(std::floor(sf_r)));
-                const long r1 = std::min<long>(keel::as<long>(Hh) - 1, r0 + 1);
+                const keel::i64 r0 = std::max<keel::i64>(0, keel::as<keel::i64>(std::floor(sf_r)));
+                const keel::i64 r1 = std::min<keel::i64>(keel::as<keel::i64>(Hh) - 1, r0 + 1);
                 const keel::f64 ar = sf_r - r0;
                 const auto v00 = cd[keel::as<keel::usize>(c0) * Hh + r0];
                 const auto v01 = cd[keel::as<keel::usize>(c0) * Hh + r1];
@@ -196,14 +196,14 @@ Value bilinear_interp_hd(const Value &Hd, keel::usize m_out, keel::usize n_out,
     for (keel::usize c = 0; c < n_out; ++c) {
         const keel::f64 cx = (keel::as<keel::f64>(c) - (n_out - 1) / 2.0) * dc_dst;
         const keel::f64 sf_c = (cx + 1.0) / dc_src - 0.5;
-        const long c0 = std::max<long>(0, keel::as<long>(std::floor(sf_c)));
-        const long c1 = std::min<long>(keel::as<long>(Wh) - 1, c0 + 1);
+        const keel::i64 c0 = std::max<keel::i64>(0, keel::as<keel::i64>(std::floor(sf_c)));
+        const keel::i64 c1 = std::min<keel::i64>(keel::as<keel::i64>(Wh) - 1, c0 + 1);
         const keel::f64 ac = sf_c - c0;
         for (keel::usize r = 0; r < m_out; ++r) {
             const keel::f64 cy = (keel::as<keel::f64>(r) - (m_out - 1) / 2.0) * dr_dst;
             const keel::f64 sf_r = (cy + 1.0) / dr_src - 0.5;
-            const long r0 = std::max<long>(0, keel::as<long>(std::floor(sf_r)));
-            const long r1 = std::min<long>(keel::as<long>(Hh) - 1, r0 + 1);
+            const keel::i64 r0 = std::max<keel::i64>(0, keel::as<keel::i64>(std::floor(sf_r)));
+            const keel::i64 r1 = std::min<keel::i64>(keel::as<keel::i64>(Hh) - 1, r0 + 1);
             const keel::f64 ar = sf_r - r0;
             const keel::f64 v00 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r0);
             const keel::f64 v01 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r1);
@@ -391,17 +391,17 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     //   shifted = ifftshift(b) so b becomes [b(n), b(n+1), ..., b(2n),
     //                                         b(0), ..., b(n-1)].
     //   a = [shifted(1), 2*shifted(2:n+1)] (1-based).
-    const long n = (keel::as<long>(L) - 1) / 2;
+    const keel::i64 n = (keel::as<keel::i64>(L) - 1) / 2;
     keel::Array<keel::f64> b_vec(L);
     for (keel::usize i = 0; i < L; ++i) b_vec[i] = b.elemAsDouble(i);
     // ifftshift on 1-D: roll by floor(L/2).
-    const long shift = keel::as<long>(L) / 2;
+    const keel::i64 shift = keel::as<keel::i64>(L) / 2;
     keel::Array<keel::f64> bsh(L);
     for (keel::usize i = 0; i < L; ++i)
-        bsh[i] = b_vec[(keel::as<long>(i) + shift) % keel::as<long>(L)];
+        bsh[i] = b_vec[(keel::as<keel::i64>(i) + shift) % keel::as<keel::i64>(L)];
     keel::Array<keel::f64> a(n + 1);
     a[0] = bsh[0];
-    for (long k = 1; k <= n; ++k) a[keel::as<keel::usize>(k)] = 2.0 * bsh[keel::as<keel::usize>(k)];
+    for (keel::i64 k = 1; k <= n; ++k) a[keel::as<keel::usize>(k)] = 2.0 * bsh[keel::as<keel::usize>(k)];
 
     // Chebyshev recursion.
     const keel::usize Mt = t.dims().rows();
@@ -440,7 +440,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     // For i = 3..n+1 (MATLAB) → C++ i = 2..n (after a[k-1] indexing).
     keel::usize cur_rows_off = insetR;
     keel::usize cur_cols_off = insetC;
-    for (long i = 2; i <= n; ++i) {
+    for (keel::i64 i = 2; i <= n; ++i) {
         // P2 = 2 * conv2(t, P1)  (default 'full' shape).
         Value conv = signal::conv2(t, P1, "full", mr);
         Value P2 = scale_mat(conv, 2.0);

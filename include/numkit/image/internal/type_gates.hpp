@@ -41,7 +41,7 @@ inline keel::String shapeOf(const Value &v)
 {
     const Dims &d = v.dims();
     keel::String s = keel::format("{}", d.dim(0));
-    for (int k = 1; k < d.ndim(); ++k) {
+    for (keel::i32 k = 1; k < d.ndim(); ++k) {
         keel::format_into(s, "x{}", d.dim(k));
     }
     return s;
@@ -49,18 +49,18 @@ inline keel::String shapeOf(const Value &v)
 
 /// Per-entry accepted-class masks, each named after its probe family.
 namespace ImgClasses {
-inline constexpr unsigned DoubleOnly     = 1u << 0;   ///< houghpeaks H, imfilter kernel h
-inline constexpr unsigned FloatOnly      = 1u << 1;   ///< tonemap HDR (double, single)
-inline constexpr unsigned FloatInt       = 1u << 2;   ///< imadjust/imbinarize/... (logical rejected)
-inline constexpr unsigned FloatIntLog    = 1u << 3;   ///< medfilt2/ordfilt2/... (logical accepted)
-inline constexpr unsigned AnyNumericReal = 1u << 4;   ///< bw* family: every numeric class incl. logical
-inline constexpr unsigned LogicalOnly    = 1u << 5;   ///< bwareafilt/bwpropfilt/bwdistgeodesic
-inline constexpr unsigned FloatIntNoI16  = 1u << 6;   ///< entropyfilt (int16 rejected)
-inline constexpr unsigned FloatIntNoLog  = 1u << 7;   ///< gradientweight/grayconnected (logical rejected)
+inline constexpr keel::u32 DoubleOnly     = 1u << 0;   ///< houghpeaks H, imfilter kernel h
+inline constexpr keel::u32 FloatOnly      = 1u << 1;   ///< tonemap HDR (double, single)
+inline constexpr keel::u32 FloatInt       = 1u << 2;   ///< imadjust/imbinarize/... (logical rejected)
+inline constexpr keel::u32 FloatIntLog    = 1u << 3;   ///< medfilt2/ordfilt2/... (logical accepted)
+inline constexpr keel::u32 AnyNumericReal = 1u << 4;   ///< bw* family: every numeric class incl. logical
+inline constexpr keel::u32 LogicalOnly    = 1u << 5;   ///< bwareafilt/bwpropfilt/bwdistgeodesic
+inline constexpr keel::u32 FloatIntNoI16  = 1u << 6;   ///< entropyfilt (int16 rejected)
+inline constexpr keel::u32 FloatIntNoLog  = 1u << 7;   ///< gradientweight/grayconnected (logical rejected)
 }   // namespace ImgClasses
 
 /// True when v's class is inside mask.
-inline bool classAllowed(const Value &v, unsigned mask)
+inline bool classAllowed(const Value &v, keel::u32 mask)
 {
     const ValueType t = v.type();
     if (t == ValueType::DOUBLE)
@@ -89,7 +89,7 @@ inline bool classAllowed(const Value &v, unsigned mask)
 }
 
 /// Human listing of a mask's classes (message text).
-inline keel::StringRef describeClasses(unsigned mask)
+inline keel::StringRef describeClasses(keel::u32 mask)
 {
     if (mask == ImgClasses::DoubleOnly)
         return "double";
@@ -114,8 +114,8 @@ inline keel::StringRef describeClasses(unsigned mask)
 /// cell/string/struct/char always land in :inputType — char CODE-value
 /// coercion is NOT an image contract anywhere in the probed set.
 inline void requireImageClass(const Value &v, keel::StringRef fn,
-                              keel::StringRef argName, int argNum,
-                              unsigned mask)
+                              keel::StringRef argName, keel::i32 argNum,
+                              keel::u32 mask)
 {
     const ValueType t = v.type();
     if (t == ValueType::COMPLEX) {
@@ -140,8 +140,8 @@ inline void requireImageClass(const Value &v, keel::StringRef fn,
 /// passes the gate — the caller either supports it or raises its own
 /// :complexUnsupported stub.
 inline void requireImageClassAllowComplex(const Value &v, keel::StringRef fn,
-                                          keel::StringRef argName, int argNum,
-                                          unsigned mask)
+                                          keel::StringRef argName, keel::i32 argNum,
+                                          keel::u32 mask)
 {
     if (v.type() == ValueType::COMPLEX)
         return;
@@ -153,7 +153,7 @@ inline void requireImageClassAllowComplex(const Value &v, keel::StringRef fn,
 /// refuse instead of dropping imaginary parts
 /// (bugs/opened/image/complex-kernels.md).
 inline void requireRealKernelImage(const Value &v, keel::StringRef fn,
-                                   keel::StringRef argName, int argNum)
+                                   keel::StringRef argName, keel::i32 argNum)
 {
     if (v.type() != ValueType::COMPLEX)
         return;
@@ -169,7 +169,7 @@ inline void requireRealKernelImage(const Value &v, keel::StringRef fn,
 /// @brief Nonempty gate (imadjust's auto stretchlim, entropyfilt):
 /// the reference rejects empty images with expectedNonempty.
 inline void requireNonemptyImage(const Value &v, keel::StringRef fn,
-                                 keel::StringRef argName, int argNum)
+                                 keel::StringRef argName, keel::i32 argNum)
 {
     if (v.numel() > 0)
         return;
@@ -182,7 +182,7 @@ inline void requireNonemptyImage(const Value &v, keel::StringRef fn,
 /// @brief Real-valued check for DOUBLE-only auxiliary args (seeds,
 /// P points, colors): complex → math:mustBeReal in the reference.
 inline void requireRealDoubleArg(const Value &v, keel::StringRef fn,
-                                 keel::StringRef argName, int argNum)
+                                 keel::StringRef argName, keel::i32 argNum)
 {
     if (v.type() == ValueType::COMPLEX)
         throw Error(keel::format("{}: input {} ({}) must be real.",
@@ -200,7 +200,7 @@ inline void requireRealDoubleArg(const Value &v, keel::StringRef fn,
 /// double M×3, real. single/uint8 maps are rejected by the reference
 /// (invalidMapType / badMapMatrix — probed R2025b).
 inline void requireColormap(const Value &v, keel::StringRef fn,
-                            int argNum = 2)
+                            keel::i32 argNum = 2)
 {
     if (v.type() == ValueType::DOUBLE && !v.isComplex()
         && !v.dims().is3D() && v.dims().cols() == 3)

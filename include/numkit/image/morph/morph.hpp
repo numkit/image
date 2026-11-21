@@ -108,7 +108,7 @@ Value imclose(const Value &I, const Value &SE,
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Reconstructed image, same shape as `marker`.
 /// @see imfill_holes, imhmax, imclearborder
-Value imreconstruct(const Value &marker, const Value &mask, int conn,
+Value imreconstruct(const Value &marker, const Value &mask, keel::i32 conn,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Fill holes in a binary image (`J = imfill(BW, 'holes', conn)`).
@@ -122,7 +122,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Hole-filled binary image.
 /// @see imreconstruct
-Value imfill_holes(const Value &BW, int conn,
+Value imfill_holes(const Value &BW, keel::i32 conn,
                    keel::Allocator *mr = nullptr);
 
 /// @brief Regional maxima mask (`J = imregionalmax(I, conn)`).
@@ -136,7 +136,7 @@ Value imfill_holes(const Value &BW, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL maxima mask, same shape as `I`.
 /// @see imregionalmin, imextendedmax
-Value imregionalmax(const Value &I, int conn,
+Value imregionalmax(const Value &I, keel::i32 conn,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Regional minima mask (`J = imregionalmin(I, conn)`).
@@ -149,7 +149,7 @@ Value imregionalmax(const Value &I, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL minima mask.
 /// @see imregionalmax
-Value imregionalmin(const Value &I, int conn,
+Value imregionalmin(const Value &I, keel::i32 conn,
                     keel::Allocator *mr = nullptr);
 
 /// @brief H-maxima transform (`J = imhmax(I, h, conn)`).
@@ -163,7 +163,7 @@ Value imregionalmin(const Value &I, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      H-maxima image.
 /// @see imhmin, imextendedmax
-Value imhmax(const Value &I, keel::f64 h, int conn,
+Value imhmax(const Value &I, keel::f64 h, keel::i32 conn,
              keel::Allocator *mr = nullptr);
 
 /// @brief H-minima transform (`J = imhmin(I, h, conn)`) — dual of @ref imhmax.
@@ -174,7 +174,7 @@ Value imhmax(const Value &I, keel::f64 h, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      H-minima image.
 /// @see imhmax
-Value imhmin(const Value &I, keel::f64 h, int conn,
+Value imhmin(const Value &I, keel::f64 h, keel::i32 conn,
              keel::Allocator *mr = nullptr);
 
 /// @brief Extended-maxima transform (`J = imextendedmax(I, h, conn)`).
@@ -188,7 +188,7 @@ Value imhmin(const Value &I, keel::f64 h, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL extended-maxima mask.
 /// @see imhmax, imextendedmin
-Value imextendedmax(const Value &I, keel::f64 h, int conn,
+Value imextendedmax(const Value &I, keel::f64 h, keel::i32 conn,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Extended-minima transform (`J = imextendedmin(I, h, conn)`).
@@ -201,7 +201,7 @@ Value imextendedmax(const Value &I, keel::f64 h, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      LOGICAL extended-minima mask.
 /// @see imextendedmax
-Value imextendedmin(const Value &I, keel::f64 h, int conn,
+Value imextendedmin(const Value &I, keel::f64 h, keel::i32 conn,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Minima imposition (`J = imimposemin(I, BW, conn)`).
@@ -216,7 +216,7 @@ Value imextendedmin(const Value &I, keel::f64 h, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Image with imposed minima.
 /// @see imregionalmin, imreconstruct
-Value imimposemin(const Value &I, const Value &BW, int conn,
+Value imimposemin(const Value &I, const Value &BW, keel::i32 conn,
                   keel::Allocator *mr = nullptr);
 
 /// @brief Remove border-touching components
@@ -230,7 +230,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Binary image with rim components removed.
 /// @see imkeepborder
-Value imclearborder(const Value &BW, int conn,
+Value imclearborder(const Value &BW, keel::i32 conn,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Keep only border-touching components
@@ -240,7 +240,7 @@ Value imclearborder(const Value &BW, int conn,
 /// @param conn  Connectivity.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      Binary image with only rim-connected components.
-Value imkeepborder(const Value &BW, int conn,
+Value imkeepborder(const Value &BW, keel::i32 conn,
                    keel::Allocator *mr = nullptr);
 
 /// @brief White top-hat (`J = imtophat(I, SE) = I - imopen(I, SE)`).
@@ -370,7 +370,7 @@ Value bwlookup(const Value &BW, const Value &lut,
 /// @return     `2^(n²) × 1` DOUBLE lookup table.
 /// @throws Error  `n` not 2 or 3, or `fun` returns a non-scalar.
 /// @see bwlookup, applylut
-Value makelut(FnHandle fun, int n,
+Value makelut(FnHandle fun, keel::i32 n,
               keel::Allocator *mr = nullptr);
 
 /// @brief Morphological operations on a binary volume
@@ -442,7 +442,7 @@ Value bwhitmiss(const Value &BW, const Value &se1, const Value &se2,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Processed binary image.
 /// @throws Error  Unknown `op` (`m:bwmorph:badOp`).
-Value bwmorph(const Value &BW, keel::StringRef op, int n,
+Value bwmorph(const Value &BW, keel::StringRef op, keel::i32 n,
               keel::Allocator *mr = nullptr);
 
 /// @brief Trace object boundary in a binary image
@@ -480,7 +480,7 @@ Value bwmorph(const Value &BW, keel::StringRef op, int n,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         `Q × 2` DOUBLE matrix of `[row, col]` pixels.
 Value bwtraceboundary(const Value &BW, const Value &P,
-                      keel::StringRef fstep, int conn,
+                      keel::StringRef fstep, keel::i32 conn,
                       keel::usize m, keel::StringRef dir,
                       keel::Allocator *mr = nullptr);
 

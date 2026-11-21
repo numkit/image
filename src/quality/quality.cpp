@@ -146,9 +146,9 @@ Value mean2(const Value &A, keel::Allocator *mr)
 {
     const keel::usize N = A.numel();
     if (N == 0) return Value::scalar(std::nan(""), mr);
-    long double s = 0.0L;
+    long double s = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
-    return Value::scalar(keel::as<keel::f64>(s / keel::as<long double>(N)),
+    return Value::scalar(keel::as<keel::f64>(s / keel::as<long double>(N)), // keel-lint: ignore
                          mr);
 }
 
@@ -157,16 +157,16 @@ Value std2(const Value &A, keel::Allocator *mr)
     const keel::usize N = A.numel();
     if (N == 0) return Value::scalar(std::nan(""), mr);
     if (N == 1) return Value::scalar(0.0, mr);
-    long double s = 0.0L;
+    long double s = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
-    const long double mu = s / keel::as<long double>(N);
-    long double v = 0.0L;
+    const long double mu = s / keel::as<long double>(N); // keel-lint: ignore
+    long double v = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) {
-        const long double d = A.elemAsDouble(i) - mu;
+        const long double d = A.elemAsDouble(i) - mu; // keel-lint: ignore
         v += d * d;
     }
     // std2 wraps std(I(:)) → sample std (normalize by N-1).
-    v /= keel::as<long double>(N - 1);
+    v /= keel::as<long double>(N - 1); // keel-lint: ignore
     return Value::scalar(keel::as<keel::f64>(std::sqrt((keel::f64)v)), mr);
 }
 
@@ -213,14 +213,14 @@ keel::f64 class_dynamic_range(ValueType t)
 // gaussian at positions (0..N-1) - (N-1)/2 with σ=1, normalised to
 // sum to 1. For N=1 returns [1.0]. For N=5 returns
 // [0.0545, 0.2442, 0.4026, 0.2442, 0.0545].
-keel::Array<keel::f64> default_scale_weights(int N)
+keel::Array<keel::f64> default_scale_weights(keel::i32 N)
 {
     if (N < 1) N = 1;
     keel::Array<keel::f64> w(N);
     if (N == 1) { w[0] = 1.0; return w; }
     const keel::f64 half = (N - 1) / 2.0;
     keel::f64 s = 0.0;
-    for (int i = 0; i < N; ++i) {
+    for (keel::i32 i = 0; i < N; ++i) {
         const keel::f64 x = i - half;
         w[i] = std::exp(-0.5 * x * x);
         s += w[i];
@@ -372,7 +372,7 @@ Value cast_score_value(keel::f64 v, ValueType originalClass,
     return out;
 }
 
-void multissim_argcheck(const Value &A, const Value &Iref, int num_scales, keel::f64 sigma)
+void multissim_argcheck(const Value &A, const Value &Iref, keel::i32 num_scales, keel::f64 sigma)
 {
     internal::requireImageClass(A, "multissim", "A", 1,
                                 internal::ImgClasses::FloatInt);
@@ -397,7 +397,7 @@ void multissim_argcheck(const Value &A, const Value &Iref, int num_scales, keel:
 } // namespace
 
 Value multissim(const Value &A, const Value &Iref,
-                int num_scales,
+                keel::i32 num_scales,
                 keel::ArrayRef<keel::f64> scale_weights_in,
                 keel::f64 sigma, keel::f64 dynamic_range_in,
                 keel::Array<Value> *quality_maps_out,
@@ -412,7 +412,7 @@ Value multissim(const Value &A, const Value &Iref,
     // Verify downsampleability.
     {
         keel::usize h = H, w = W;
-        for (int i = 1; i < num_scales; ++i) {
+        for (keel::i32 i = 1; i < num_scales; ++i) {
             if (h <= 1 || w <= 1)
                 throw Error(keel::format("multissim: image too small for NumScales={}", num_scales),
                             0, 0, "multissim", "",
@@ -433,7 +433,7 @@ Value multissim(const Value &A, const Value &Iref,
     keel::Array<keel::f64> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
         : keel::Array<keel::f64>::from(scale_weights_in);
-    if (keel::as<int>(sw.size()) != num_scales)
+    if (keel::as<keel::i32>(sw.size()) != num_scales)
         throw Error("multissim: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim", "",
                     "numkit:multissim:swLen");
@@ -453,8 +453,8 @@ Value multissim(const Value &A, const Value &Iref,
     for (keel::f64 &v : sw) v /= swsum;
 
     // ── Gaussian kernel ────────────────────────────────────────
-    const int filtRadius = keel::as<int>(std::ceil(sigma * 3.0));
-    const int filtSize = 2 * filtRadius + 1;
+    const keel::i32 filtRadius = keel::as<keel::i32>(std::ceil(sigma * 3.0));
+    const keel::i32 filtSize = 2 * filtRadius + 1;
     Value gK = fspecial("gaussian",
                         { keel::as<keel::f64>(filtSize),
                           keel::as<keel::f64>(filtSize), sigma }, mr);
@@ -475,17 +475,17 @@ Value multissim(const Value &A, const Value &Iref,
         return std::pow(base, exponent);
     };
 
-    for (int i = 0; i < num_scales; ++i) {
+    for (keel::i32 i = 0; i < num_scales; ++i) {
         const bool last = (i == num_scales - 1);
         Value ssimmap = ssim_map_double(Ad, Bd, gK, C1, C2,
                                         /*include_luminance=*/last, mr);
         // Mean of ssimmap.
         const keel::usize Nm = ssimmap.numel();
-        long double s = 0.0L;
+        long double s = 0.0L; // keel-lint: ignore
         const keel::f64 *sd = ssimmap.doubleData();
         for (keel::usize k = 0; k < Nm; ++k) s += sd[k];
         const keel::f64 mean_map = keel::as<keel::f64>(
-            s / keel::as<long double>(Nm));
+            s / keel::as<long double>(Nm)); // keel-lint: ignore
         const keel::f64 per_scale = apply_weight(mean_map, sw[i]);
         total_score *= per_scale;
         if (mean_map > 0.0) {
@@ -564,12 +564,12 @@ Value vol_to_value(const Vol &V, keel::Allocator *mr)
 }
 
 // Build a 1-D Gaussian kernel with `filtSize` elements, mean = (filtSize-1)/2.
-keel::Array<keel::f64> gauss1d(keel::f64 sigma, int filtSize)
+keel::Array<keel::f64> gauss1d(keel::f64 sigma, keel::i32 filtSize)
 {
     keel::Array<keel::f64> k(filtSize);
     const keel::f64 half = (filtSize - 1) / 2.0;
     keel::f64 s = 0.0;
-    for (int i = 0; i < filtSize; ++i) {
+    for (keel::i32 i = 0; i < filtSize; ++i) {
         const keel::f64 x = i - half;
         k[i] = std::exp(-0.5 * (x / sigma) * (x / sigma));
         s += k[i];
@@ -578,11 +578,11 @@ keel::Array<keel::f64> gauss1d(keel::f64 sigma, int filtSize)
     return k;
 }
 
-inline keel::usize reflect_clamp(long i, keel::usize n)
+inline keel::usize reflect_clamp(keel::i64 i, keel::usize n)
 {
     // Replicate boundary: clamp to [0, n-1].
     if (i < 0) return 0;
-    if (i >= keel::as<long>(n)) return n - 1;
+    if (i >= keel::as<keel::i64>(n)) return n - 1;
     return keel::as<keel::usize>(i);
 }
 
@@ -593,17 +593,17 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<keel::f64> k)
     const keel::usize H = In.H;
     const keel::usize W = In.W;
     const keel::usize D = In.D;
-    const int kn = keel::as<int>(k.size());
-    const int half = kn / 2;
+    const keel::i32 kn = keel::as<keel::i32>(k.size());
+    const keel::i32 half = kn / 2;
     Vol tmp(H, W, D), out(H, W, D);
     // Rows pass: for each (c, z), convolve along r.
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
                 keel::f64 s = 0.0;
-                for (int j = -half; j <= half; ++j) {
+                for (keel::i32 j = -half; j <= half; ++j) {
                     const keel::usize rr = reflect_clamp(
-                        keel::as<long>(r) + j, H);
+                        keel::as<keel::i64>(r) + j, H);
                     s += k[keel::as<keel::usize>(j + half)] * In.at(rr, c, z);
                 }
                 tmp.at(r, c, z) = s;
@@ -614,9 +614,9 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<keel::f64> k)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
                 keel::f64 s = 0.0;
-                for (int j = -half; j <= half; ++j) {
+                for (keel::i32 j = -half; j <= half; ++j) {
                     const keel::usize cc = reflect_clamp(
-                        keel::as<long>(c) + j, W);
+                        keel::as<keel::i64>(c) + j, W);
                     s += k[keel::as<keel::usize>(j + half)] * tmp.at(r, cc, z);
                 }
                 tmp2.at(r, c, z) = s;
@@ -626,9 +626,9 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<keel::f64> k)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
                 keel::f64 s = 0.0;
-                for (int j = -half; j <= half; ++j) {
+                for (keel::i32 j = -half; j <= half; ++j) {
                     const keel::usize zz = reflect_clamp(
-                        keel::as<long>(z) + j, D);
+                        keel::as<keel::i64>(z) + j, D);
                     s += k[keel::as<keel::usize>(j + half)] * tmp2.at(r, c, zz);
                 }
                 out.at(r, c, z) = s;
@@ -719,7 +719,7 @@ Vol ssim_map_vol(const Vol &A, const Vol &B,
     return out;
 }
 
-void multissim3_argcheck(const Value &V, const Value &Vref, int num_scales, keel::f64 sigma)
+void multissim3_argcheck(const Value &V, const Value &Vref, keel::i32 num_scales, keel::f64 sigma)
 {
     internal::requireImageClass(V, "multissim3", "V", 1,
                                 internal::ImgClasses::FloatInt);
@@ -747,7 +747,7 @@ void multissim3_argcheck(const Value &V, const Value &Vref, int num_scales, keel
 } // namespace
 
 Value multissim3(const Value &V, const Value &Vref,
-                 int num_scales,
+                 keel::i32 num_scales,
                  keel::ArrayRef<keel::f64> scale_weights_in,
                  keel::f64 sigma, keel::f64 dynamic_range_in,
                  keel::Array<Value> *quality_maps_out,
@@ -762,7 +762,7 @@ Value multissim3(const Value &V, const Value &Vref,
     // Verify downsampleability.
     {
         keel::usize h = Ad.H, w = Ad.W, d = Ad.D;
-        for (int i = 1; i < num_scales; ++i) {
+        for (keel::i32 i = 1; i < num_scales; ++i) {
             if (h <= 1 || w <= 1 || d <= 1)
                 throw Error(keel::format("multissim3: volume too small for NumScales={}", num_scales),
                             0, 0, "multissim3", "",
@@ -782,7 +782,7 @@ Value multissim3(const Value &V, const Value &Vref,
     keel::Array<keel::f64> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
         : keel::Array<keel::f64>::from(scale_weights_in);
-    if (keel::as<int>(sw.size()) != num_scales)
+    if (keel::as<keel::i32>(sw.size()) != num_scales)
         throw Error("multissim3: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim3", "", "numkit:multissim3:swLen");
     keel::f64 swsum = 0.0;
@@ -798,8 +798,8 @@ Value multissim3(const Value &V, const Value &Vref,
                     0, 0, "multissim3", "", "numkit:multissim3:swZero");
     for (keel::f64 &v : sw) v /= swsum;
 
-    const int filtRadius = keel::as<int>(std::ceil(sigma * 3.0));
-    const int filtSize = 2 * filtRadius + 1;
+    const keel::i32 filtRadius = keel::as<keel::i32>(std::ceil(sigma * 3.0));
+    const keel::i32 filtSize = 2 * filtRadius + 1;
     keel::Array<keel::f64> gk = gauss1d(sigma, filtSize);
 
     if (quality_maps_out) quality_maps_out->clear();
@@ -812,15 +812,15 @@ Value multissim3(const Value &V, const Value &Vref,
         return std::pow(base, exp);
     };
 
-    for (int i = 0; i < num_scales; ++i) {
+    for (keel::i32 i = 0; i < num_scales; ++i) {
         const bool last = (i == num_scales - 1);
         Vol ssimmap = ssim_map_vol(Ad, Bd, gk, C1, C2,
                                    /*include_luminance=*/last);
         const keel::usize Nm = ssimmap.v.size();
-        long double s = 0.0L;
+        long double s = 0.0L; // keel-lint: ignore
         for (keel::f64 x : ssimmap.v) s += x;
         const keel::f64 mean_map = keel::as<keel::f64>(
-            s / keel::as<long double>(Nm));
+            s / keel::as<long double>(Nm)); // keel-lint: ignore
         total_score *= apply_weight(mean_map, sw[i]);
         if (mean_map > 0.0) total_log_score += sw[i] * std::log(mean_map);
         else                has_log = false;
@@ -841,22 +841,22 @@ Value corr2(const Value &A, const Value &B, keel::Allocator *mr)
     corr2_argcheck(A, B);
     const keel::usize N = A.numel();
     if (N == 0) return Value::scalar(std::nan(""), mr);
-    long double sa = 0.0L, sb = 0.0L;
+    long double sa = 0.0L, sb = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) {
         sa += A.elemAsDouble(i);
         sb += B.elemAsDouble(i);
     }
-    const long double ma = sa / keel::as<long double>(N);
-    const long double mb = sb / keel::as<long double>(N);
-    long double cov = 0.0L, va = 0.0L, vb = 0.0L;
+    const long double ma = sa / keel::as<long double>(N); // keel-lint: ignore
+    const long double mb = sb / keel::as<long double>(N); // keel-lint: ignore
+    long double cov = 0.0L, va = 0.0L, vb = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) {
-        const long double da = A.elemAsDouble(i) - ma;
-        const long double db = B.elemAsDouble(i) - mb;
+        const long double da = A.elemAsDouble(i) - ma; // keel-lint: ignore
+        const long double db = B.elemAsDouble(i) - mb; // keel-lint: ignore
         cov += da * db;
         va  += da * da;
         vb  += db * db;
     }
-    const long double denom = std::sqrt((keel::f64)(va * vb));
+    const long double denom = std::sqrt((keel::f64)(va * vb)); // keel-lint: ignore
     if (denom == 0.0L) return Value::scalar(std::nan(""), mr);
     return Value::scalar(keel::as<keel::f64>(cov / denom), mr);
 }

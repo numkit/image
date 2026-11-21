@@ -29,7 +29,7 @@ namespace numkit::image {
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `(counts, centers)`.
 std::tuple<Value, Value>
-imhist(const Value &I, int n, keel::Allocator *mr = nullptr);
+imhist(const Value &I, keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Stretch limits from saturation tolerances
 /// (`lim = stretchlim(I, [low_tol, high_tol])`).
@@ -88,7 +88,7 @@ Value imadjust(const Value &I,
 /// @return              Threshold matrix in [0, 1].
 ///
 /// @see imbinarize, graythresh
-Value adaptthresh(const Value &I, keel::f64 sensitivity, int neighborhood,
+Value adaptthresh(const Value &I, keel::f64 sensitivity, keel::i32 neighborhood,
                   keel::StringRef statistic,
                   keel::Allocator *mr = nullptr);
 
@@ -101,24 +101,24 @@ Value adaptthresh(const Value &I, keel::f64 sensitivity, int neighborhood,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Equalised image, same class as `I`.
 /// @see adapthisteq, imadjust
-Value histeq(const Value &I, int n,
+Value histeq(const Value &I, keel::i32 n,
              keel::Allocator *mr = nullptr);
 
 /// Parameters for @ref adapthisteq.
 struct AdaptHistEqOptions {
     /// NumTiles along the row axis. Image is partitioned into
     /// numTilesR × numTilesC contextual regions.
-    int          numTilesR    = 8;
+    keel::i32          numTilesR    = 8;
 
     /// NumTiles along the column axis.
-    int          numTilesC    = 8;
+    keel::i32          numTilesC    = 8;
 
     /// Histogram clip fraction in [0, 1]; 0 disables clipping. Higher
     /// values produce more contrast.
     keel::f64       clipLimit    = 0.01;
 
     /// Histogram bin count.
-    int          nBins        = 256;
+    keel::i32          nBins        = 256;
 
     /// Target histogram shape:
     ///   - `"uniform"`     — flat (default)
@@ -204,7 +204,7 @@ otsuthresh(const Value &counts,
 /// @return    Tuple `(thresh, em)`.
 /// @see graythresh
 std::tuple<Value, Value>
-multithresh(const Value &I, int N,
+multithresh(const Value &I, keel::i32 N,
             keel::Allocator *mr = nullptr);
 
 /// @brief Threshold an image (`BW = imbinarize(I, thresh)`).
@@ -265,7 +265,7 @@ Value imquantize(const Value &I, const Value &levels,
 /// @param mr       Memory resource (nullptr → process default).
 /// @return         Matched image, same class as `I`.
 /// @see histeq
-Value imhistmatch(const Value &I, const Value &ref, int nbins,
+Value imhistmatch(const Value &I, const Value &ref, keel::i32 nbins,
                   Value *hgramOut = nullptr,
                   keel::Allocator *mr = nullptr);
 
@@ -298,7 +298,7 @@ Value imflatfield(const Value &I, keel::f64 sigma, const Value &mask,
 /// @param absol  1 → use `abs(X)` (default), 0 → use `X`.
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       DOUBLE matrix of integer codes in `[1, nb]`.
-Value wcodemat(const Value &X, int nb, keel::StringRef opt, int absol,
+Value wcodemat(const Value &X, keel::i32 nb, keel::StringRef opt, keel::i32 absol,
                keel::Allocator *mr = nullptr);
 
 /// @brief Shannon entropy of the image histogram
@@ -313,7 +313,7 @@ Value wcodemat(const Value &X, int nb, keel::StringRef opt, int absol,
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       Scalar entropy in bits.
 /// @see entropyfilt
-Value entropy(const Value &I, int nbins,
+Value entropy(const Value &I, keel::i32 nbins,
               keel::Allocator *mr = nullptr);
 
 /// @brief Multilevel thresholding into an indexed image, level-count
@@ -328,7 +328,7 @@ Value entropy(const Value &I, int nbins,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Indexed image (uint8 or double).
 /// @see imquantize, multithresh
-Value grayslice(const Value &I, int N,
+Value grayslice(const Value &I, keel::i32 N,
                 keel::Allocator *mr = nullptr);
 
 /// @brief Multilevel thresholding into an indexed image, explicit

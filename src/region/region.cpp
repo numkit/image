@@ -26,50 +26,50 @@ namespace {
 
 // Two-pass union-find labelling. Returns labels image (row-major) and
 // the maximum label value (= number of components).
-std::pair<keel::Array<int>, int>
-label_components(keel::ArrayRef<keel::u8> fg, int H, int W, int conn)
+std::pair<keel::Array<keel::i32>, keel::i32>
+label_components(keel::ArrayRef<keel::u8> fg, keel::i32 H, keel::i32 W, keel::i32 conn)
 {
-    keel::Array<int> L((keel::usize)H * (keel::usize)W, 0);
-    keel::Array<int> parent;
+    keel::Array<keel::i32> L((keel::usize)H * (keel::usize)W, 0);
+    keel::Array<keel::i32> parent;
     parent.reserve(64);
     parent.push_back(0);  // index 0 = "background"
 
-    auto find = [&](int x) {
+    auto find = [&](keel::i32 x) {
         while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; }
         return x;
     };
-    auto unite = [&](int x, int y) {
+    auto unite = [&](keel::i32 x, keel::i32 y) {
         x = find(x); y = find(y);
         if (x != y) parent[x] = y;
     };
 
-    int next_label = 1;
+    keel::i32 next_label = 1;
     // MATLAB-compatible column-major scan order — labels are assigned
     // in the order each new component is first encountered in
     // column-major (col 0 row 0..H-1, col 1 row 0..H-1, ...) order.
     // Already-labelled neighbours at this scan point are: W (r, c-1),
     // N (r-1, c), and for 8-conn also NW (r-1, c-1) and SW (r+1, c-1).
-    for (int c = 0; c < W; ++c) {
-        for (int r = 0; r < H; ++r) {
+    for (keel::i32 c = 0; c < W; ++c) {
+        for (keel::i32 r = 0; r < H; ++r) {
             const keel::usize k = (keel::usize)r * (keel::usize)W + (keel::usize)c;
             if (!fg[k]) continue;
-            int nb[4] = {0, 0, 0, 0};
-            int nc = 0;
-            if (c > 0)              { const int v = L[(keel::usize)r * (keel::usize)W + (keel::usize)(c - 1)];     if (v) nb[nc++] = v; }
-            if (r > 0)              { const int v = L[(keel::usize)(r - 1) * (keel::usize)W + (keel::usize)c];     if (v) nb[nc++] = v; }
+            keel::i32 nb[4] = {0, 0, 0, 0};
+            keel::i32 nc = 0;
+            if (c > 0)              { const keel::i32 v = L[(keel::usize)r * (keel::usize)W + (keel::usize)(c - 1)];     if (v) nb[nc++] = v; }
+            if (r > 0)              { const keel::i32 v = L[(keel::usize)(r - 1) * (keel::usize)W + (keel::usize)c];     if (v) nb[nc++] = v; }
             if (conn == 8) {
-                if (c > 0 && r > 0)            { const int v = L[(keel::usize)(r - 1) * (keel::usize)W + (keel::usize)(c - 1)]; if (v) nb[nc++] = v; }
-                if (c > 0 && r + 1 < H)        { const int v = L[(keel::usize)(r + 1) * (keel::usize)W + (keel::usize)(c - 1)]; if (v) nb[nc++] = v; }
+                if (c > 0 && r > 0)            { const keel::i32 v = L[(keel::usize)(r - 1) * (keel::usize)W + (keel::usize)(c - 1)]; if (v) nb[nc++] = v; }
+                if (c > 0 && r + 1 < H)        { const keel::i32 v = L[(keel::usize)(r + 1) * (keel::usize)W + (keel::usize)(c - 1)]; if (v) nb[nc++] = v; }
             }
             if (nc == 0) {
                 parent.push_back(next_label);
                 L[k] = next_label;
                 ++next_label;
             } else {
-                int m = nb[0];
-                for (int i = 1; i < nc; ++i) if (nb[i] < m) m = nb[i];
+                keel::i32 m = nb[0];
+                for (keel::i32 i = 1; i < nc; ++i) if (nb[i] < m) m = nb[i];
                 L[k] = m;
-                for (int i = 0; i < nc; ++i) unite(nb[i], m);
+                for (keel::i32 i = 0; i < nc; ++i) unite(nb[i], m);
             }
         }
     }
@@ -81,13 +81,13 @@ label_components(keel::ArrayRef<keel::u8> fg, int H, int W, int conn)
     // already holds remapped labels (1..K), and feeding those back through
     // find()/remap (which are keyed on the ORIGINAL provisional labels)
     // corrupts the result (returned count K stops matching max(L)).
-    keel::Array<int> remap(parent.size(), 0);
-    int K = 0;
-    for (int c = 0; c < W; ++c) {
-        for (int r = 0; r < H; ++r) {
+    keel::Array<keel::i32> remap(parent.size(), 0);
+    keel::i32 K = 0;
+    for (keel::i32 c = 0; c < W; ++c) {
+        for (keel::i32 r = 0; r < H; ++r) {
             const keel::usize i = (keel::usize)r * (keel::usize)W + (keel::usize)c;
             if (L[i] == 0) continue;
-            const int root = find(L[i]);
+            const keel::i32 root = find(L[i]);
             if (remap[(keel::usize)root] == 0) remap[(keel::usize)root] = ++K;
             L[i] = remap[(keel::usize)root];
         }
@@ -129,60 +129,60 @@ void bwboundaries_argcheck(const Value &BW) {
 } // anonymous
 
 std::tuple<Value, Value>
-bwlabel(const Value &BW, int conn, keel::Allocator *mr)
+bwlabel(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     if (conn != 4) conn = 8;
-    const int H = (int)BW.dims().rows();
-    const int W = (int)BW.dims().cols();
+    const keel::i32 H = (keel::i32)BW.dims().rows();
+    const keel::i32 W = (keel::i32)BW.dims().cols();
     auto [L, K] = label_components(read_bw(BW), H, W, conn);
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
-    for (int c = 0; c < W; ++c)
-        for (int r = 0; r < H; ++r)
+    for (keel::i32 c = 0; c < W; ++c)
+        for (keel::i32 r = 0; r < H; ++r)
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r]
                 = keel::f64(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
     return std::make_tuple(std::move(out), Value::scalar(keel::f64(K), mr));
 }
 
 std::tuple<Value, Value>
-bwlabeln(const Value &BW, int conn, keel::Allocator *mr)
+bwlabeln(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
-    const int H = (int)BW.dims().dim(0);
-    const int W = (int)BW.dims().dim(1);
-    const int D = (int)(BW.numel() / std::max<keel::usize>(1, (keel::usize)H * (keel::usize)W));
+    const keel::i32 H = (keel::i32)BW.dims().dim(0);
+    const keel::i32 W = (keel::i32)BW.dims().dim(1);
+    const keel::i32 D = (keel::i32)(BW.numel() / std::max<keel::usize>(1, (keel::usize)H * (keel::usize)W));
     if (conn == 0) conn = (D > 1) ? 26 : 8;
-    const int maxDist = (D > 1)
+    const keel::i32 maxDist = (D > 1)
         ? ((conn == 6) ? 1 : (conn == 18 ? 2 : 3))
         : ((conn == 4) ? 1 : 2);
     const keel::usize N = BW.numel();
-    keel::Array<int> L(N, 0);
-    keel::Array<int> parent(1, 0);
-    keel::Array<int> sz(1, 0);
-    auto find = [&](int x) {
+    keel::Array<keel::i32> L(N, 0);
+    keel::Array<keel::i32> parent(1, 0);
+    keel::Array<keel::i32> sz(1, 0);
+    auto find = [&](keel::i32 x) {
         while (parent[x] != x) x = parent[x];
         return x;
     };
-    int next_label = 1;
-    for (int d = 0; d < D; ++d) {
-        for (int c = 0; c < W; ++c) {
-            for (int r = 0; r < H; ++r) {
+    keel::i32 next_label = 1;
+    for (keel::i32 d = 0; d < D; ++d) {
+        for (keel::i32 c = 0; c < W; ++c) {
+            for (keel::i32 r = 0; r < H; ++r) {
                 const keel::usize idx = ((keel::usize)d * (keel::usize)W + (keel::usize)c) * (keel::usize)H + (keel::usize)r;
                 if (BW.elemAsDouble(idx) == 0.0) continue;
-                const int node = next_label++;
+                const keel::i32 node = next_label++;
                 parent.push_back(node);
                 sz.push_back(1);
                 L[idx] = node;
-                for (int dd = -1; dd <= 0; ++dd) {
+                for (keel::i32 dd = -1; dd <= 0; ++dd) {
                     if (d + dd < 0) continue;
-                    for (int dc = -1; dc <= (dd == 0 ? 0 : 1); ++dc) {
+                    for (keel::i32 dc = -1; dc <= (dd == 0 ? 0 : 1); ++dc) {
                         if (c + dc < 0 || c + dc >= W) continue;
-                        for (int dr = -1; dr <= ((dd == 0 && dc == 0) ? -1 : 1); ++dr) {
+                        for (keel::i32 dr = -1; dr <= ((dd == 0 && dc == 0) ? -1 : 1); ++dr) {
                             if (r + dr < 0 || r + dr >= H) continue;
                             if (keel::abs(dr) + keel::abs(dc) + keel::abs(dd) > maxDist) continue;
                             const keel::usize nidx = ((keel::usize)(d + dd) * (keel::usize)W + (keel::usize)(c + dc)) * (keel::usize)H + (keel::usize)(r + dr);
                             if (L[nidx]) {
-                                const int x = find(node);
-                                const int y = find(L[nidx]);
+                                const keel::i32 x = find(node);
+                                const keel::i32 y = find(L[nidx]);
                                 if (x != y) {
                                     if (sz[(keel::usize)x] > sz[(keel::usize)y]) {
                                         parent[(keel::usize)y] = x;
@@ -199,10 +199,10 @@ bwlabeln(const Value &BW, int conn, keel::Allocator *mr)
             }
         }
     }
-    keel::Array<int> remap(parent.size(), 0);
-    int K = 0;
+    keel::Array<keel::i32> remap(parent.size(), 0);
+    keel::i32 K = 0;
     for (keel::usize k = 1; k < parent.size(); ++k) {
-        if (parent[k] == (int)k) remap[k] = ++K;
+        if (parent[k] == (keel::i32)k) remap[k] = ++K;
     }
     Value out = (BW.dims().pages() > 1)
         ? Value::matrix3d(BW.dims().rows(), BW.dims().cols(), BW.dims().pages(), ValueType::DOUBLE, mr)
@@ -215,12 +215,12 @@ bwlabeln(const Value &BW, int conn, keel::Allocator *mr)
     return std::make_tuple(std::move(out), Value::scalar(keel::f64(K), mr));
 }
 
-Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
+Value bwconncomp(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     bwconncomp_argcheck(BW);
     if (conn != 4) conn = 8;
-    const int H = (int)BW.dims().rows();
-    const int W = (int)BW.dims().cols();
+    const keel::i32 H = (keel::i32)BW.dims().rows();
+    const keel::i32 W = (keel::i32)BW.dims().cols();
     auto [L, K] = label_components(read_bw(BW), H, W, conn);
 
     // MATLAB convention: bwconncomp returns a 1x1 struct with fields
@@ -244,10 +244,10 @@ Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
     // Build PixelIdxList: 1xK cell of column-vector indices.
     Value pixList = Value::cell(1, keel::as<keel::usize>(K), mr);
     if (K > 0) {
-        keel::Array<keel::Array<int>> lists((keel::usize)K);
-        for (int c = 0; c < W; ++c)
-            for (int r = 0; r < H; ++r) {
-                const int lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
+        keel::Array<keel::Array<keel::i32>> lists((keel::usize)K);
+        for (keel::i32 c = 0; c < W; ++c)
+            for (keel::i32 r = 0; r < H; ++r) {
+                const keel::i32 lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
                 if (lab > 0)
                     lists[(keel::usize)lab - 1].push_back(c * H + r + 1);  // 1-based linear
             }
@@ -432,27 +432,27 @@ Value bwarea(const Value &BW, keel::Allocator *mr) {
     return Value::scalar(area, mr);
 }
 
-Value bwperim(const Value &BW, int conn, keel::Allocator *mr) {
+Value bwperim(const Value &BW, keel::i32 conn, keel::Allocator *mr) {
     // Probed R2025b: unlike the rest of the bw* family bwperim takes
     // complex BW and reads the real part.
     bwperim_argcheck(BW);
     if (conn != 4) conn = 8;
-    const int H = (int)BW.dims().rows();
-    const int W = (int)BW.dims().cols();
+    const keel::i32 H = (keel::i32)BW.dims().rows();
+    const keel::i32 W = (keel::i32)BW.dims().cols();
     auto fg = read_bw(BW);
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
     keel::u8 *od = out.logicalDataMut();
-    for (int c = 0; c < W; ++c)
-        for (int r = 0; r < H; ++r) {
+    for (keel::i32 c = 0; c < W; ++c)
+        for (keel::i32 r = 0; r < H; ++r) {
             const keel::usize k = (keel::usize)r * (keel::usize)W + (keel::usize)c;
             if (!fg[k]) { od[(keel::usize)c * (keel::usize)H + (keel::usize)r] = 0; continue; }
             bool boundary = false;
-            for (int dr = -1; dr <= 1 && !boundary; ++dr)
-                for (int dc = -1; dc <= 1 && !boundary; ++dc) {
+            for (keel::i32 dr = -1; dr <= 1 && !boundary; ++dr)
+                for (keel::i32 dc = -1; dc <= 1 && !boundary; ++dc) {
                     if (dr == 0 && dc == 0) continue;
                     if (conn == 4 && keel::abs(dr) + keel::abs(dc) > 1) continue;
-                    const int rr = r + dr, cc = c + dc;
+                    const keel::i32 rr = r + dr, cc = c + dc;
                     if (rr < 0 || rr >= H || cc < 0 || cc >= W) {
                         boundary = true; break;
                     }
@@ -463,23 +463,23 @@ Value bwperim(const Value &BW, int conn, keel::Allocator *mr) {
     return out;
 }
 
-Value bwareaopen(const Value &BW, int P, int conn, keel::Allocator *mr)
+Value bwareaopen(const Value &BW, keel::i32 P, keel::i32 conn, keel::Allocator *mr)
 {
     bwareaopen_argcheck(BW);
     if (conn != 4) conn = 8;
     if (P < 1) P = 1;
-    const int H = (int)BW.dims().rows();
-    const int W = (int)BW.dims().cols();
+    const keel::i32 H = (keel::i32)BW.dims().rows();
+    const keel::i32 W = (keel::i32)BW.dims().cols();
     auto [L, K] = label_components(read_bw(BW), H, W, conn);
-    keel::Array<int> count((keel::usize)K + 1, 0);
-    for (int v : L) if (v > 0) ++count[(keel::usize)v];
+    keel::Array<keel::i32> count((keel::usize)K + 1, 0);
+    for (keel::i32 v : L) if (v > 0) ++count[(keel::usize)v];
 
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
     keel::u8 *od = out.logicalDataMut();
-    for (int c = 0; c < W; ++c)
-        for (int r = 0; r < H; ++r) {
-            const int lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
+    for (keel::i32 c = 0; c < W; ++c)
+        for (keel::i32 r = 0; r < H; ++r) {
+            const keel::i32 lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
             const bool keep = (lab > 0) && (count[(keel::usize)lab] >= P);
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] = keep ? 1 : 0;
         }
@@ -502,12 +502,12 @@ Value bwareaopen(const Value &BW, int P, int conn, keel::Allocator *mr)
 // outer-only is what most scripts want and we'd need a second pass
 // to gather hole boundaries from the complement.
 
-Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allocator *mr)
+Value bwboundaries(const Value &BW, keel::i32 conn, Value *Lout, keel::i32 *Nout, keel::Allocator *mr)
 {
     bwboundaries_argcheck(BW);
     if (conn != 4) conn = 8;
-    const int H = (int)BW.dims().rows();
-    const int W = (int)BW.dims().cols();
+    const keel::i32 H = (keel::i32)BW.dims().rows();
+    const keel::i32 W = (keel::i32)BW.dims().cols();
     auto fg = read_bw(BW);
     auto [L, K] = label_components(fg, H, W, conn);
 
@@ -518,8 +518,8 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
         Value lab = Value::matrix(keel::as<keel::usize>(H),
                                   keel::as<keel::usize>(W), ValueType::DOUBLE, mr);
         keel::f64 *ld = lab.doubleDataMut();
-        for (int r = 0; r < H; ++r)
-            for (int c = 0; c < W; ++c)
+        for (keel::i32 r = 0; r < H; ++r)
+            for (keel::i32 c = 0; c < W; ++c)
                 ld[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
                     keel::as<keel::f64>(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
         *Lout = std::move(lab);
@@ -530,41 +530,41 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
 
     // 8-direction CW deltas starting at "right" (dir=0):
     //   E, SE, S, SW, W, NW, N, NE.
-    static const int dr[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
-    static const int dc[8] = { 1, 1, 0,-1,-1, -1,  0,  1 };
-    auto inside = [&](int r, int c) {
+    static const keel::i32 dr[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
+    static const keel::i32 dc[8] = { 1, 1, 0,-1,-1, -1,  0,  1 };
+    auto inside = [&](keel::i32 r, keel::i32 c) {
         return r >= 0 && r < H && c >= 0 && c < W;
     };
     const auto &Lbl = L;   // plain reference: capturing a structured binding
                            // directly in a lambda is a C++20 extension.
-    auto isFg = [&](int r, int c, int targetLabel) {
+    auto isFg = [&](keel::i32 r, keel::i32 c, keel::i32 targetLabel) {
         if (!inside(r, c)) return false;
         return Lbl[(keel::usize)r * (keel::usize)W + (keel::usize)c] == targetLabel;
     };
 
     // Start-pixel scan: first encounter of each label in row-major
     // order is its leftmost-topmost pixel. Cache that lookup.
-    keel::Array<int> startRow(K + 1, -1);
-    keel::Array<int> startCol(K + 1, -1);
-    for (int r = 0; r < H && std::count(startRow.begin(),
+    keel::Array<keel::i32> startRow(K + 1, -1);
+    keel::Array<keel::i32> startCol(K + 1, -1);
+    for (keel::i32 r = 0; r < H && std::count(startRow.begin(),
                                          startRow.end(), -1) > 1; ++r)
-        for (int c = 0; c < W; ++c) {
-            const int lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
+        for (keel::i32 c = 0; c < W; ++c) {
+            const keel::i32 lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
             if (lab > 0 && startRow[lab] < 0) {
                 startRow[lab] = r;
                 startCol[lab] = c;
             }
         }
 
-    for (int lab = 1; lab <= K; ++lab) {
-        const int r0 = startRow[lab];
-        const int c0 = startCol[lab];
-        keel::Array<int> rows, cols;
+    for (keel::i32 lab = 1; lab <= K; ++lab) {
+        const keel::i32 r0 = startRow[lab];
+        const keel::i32 c0 = startCol[lab];
+        keel::Array<keel::i32> rows, cols;
         rows.push_back(r0); cols.push_back(c0);
 
         // Single-pixel object: emit just the start point.
         bool hasNeighbour = false;
-        for (int d = 0; d < 8; ++d)
+        for (keel::i32 d = 0; d < 8; ++d)
             if (isFg(r0 + dr[d], c0 + dc[d], lab)) {
                 hasNeighbour = true; break;
             }
@@ -580,8 +580,8 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
 
         // The previous-direction starts at the "from" we'd have used
         // if we entered the start from the west (4-conn) / NW (8-conn).
-        int prevDir = (conn == 8) ? 7 : 6;   // NW or N
-        int curR = r0, curC = c0;
+        keel::i32 prevDir = (conn == 8) ? 7 : 6;   // NW or N
+        keel::i32 curR = r0, curC = c0;
 
         // Cap iteration at perimeter ≤ 8·numComponentPixels (very loose).
         const keel::usize cap = keel::as<keel::usize>(H) * keel::as<keel::usize>(W) * 4;
@@ -589,17 +589,17 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
 
         while (iter++ < cap) {
             // Look at the 8 neighbours starting one CW step past `prevDir`.
-            int found = -1;
-            for (int step = 1; step <= 8; ++step) {
-                const int d = (prevDir + step) % 8;
+            keel::i32 found = -1;
+            for (keel::i32 step = 1; step <= 8; ++step) {
+                const keel::i32 d = (prevDir + step) % 8;
                 if (conn == 4 && (d & 1)) continue;   // skip diagonals
-                const int nr = curR + dr[d];
-                const int nc = curC + dc[d];
+                const keel::i32 nr = curR + dr[d];
+                const keel::i32 nc = curC + dc[d];
                 if (isFg(nr, nc, lab)) { found = d; break; }
             }
             if (found < 0) break;   // isolated pixel reached
-            const int nr = curR + dr[found];
-            const int nc = curC + dc[found];
+            const keel::i32 nr = curR + dr[found];
+            const keel::i32 nc = curC + dc[found];
             // The direction we came FROM the new pixel is opposite of
             // the one we just took.
             prevDir = (found + 4) % 8;
@@ -641,27 +641,27 @@ namespace {
 // start/direction, so we start at the region's top-left-most pixel (r0,c0) and
 // go clockwise. Outer boundary only (holes not traced — MATLAB likewise warns
 // Perimeter is meant for hole-free regions). Single-pixel regions return 0.
-keel::f64 regionPerimeter(keel::ArrayRef<int> L, int H, int W,
-                       int lab, int r0, int c0)
+keel::f64 regionPerimeter(keel::ArrayRef<keel::i32> L, keel::i32 H, keel::i32 W,
+                       keel::i32 lab, keel::i32 r0, keel::i32 c0)
 {
-    static const int Dr8[8] = {-1, -1,  0,  1,  1,  1,  0, -1};
-    static const int Dc8[8] = { 0,  1,  1,  1,  0, -1, -1, -1};
-    auto fg = [&](int r, int c) {
+    static const keel::i32 Dr8[8] = {-1, -1,  0,  1,  1,  1,  0, -1};
+    static const keel::i32 Dc8[8] = { 0,  1,  1,  1,  0, -1, -1, -1};
+    auto fg = [&](keel::i32 r, keel::i32 c) {
         return r >= 0 && r < H && c >= 0 && c < W &&
                L[(keel::usize)r * (keel::usize)W + (keel::usize)c] == lab;
     };
-    keel::Array<int> br, bc;
+    keel::Array<keel::i32> br, bc;
     br.reserve(64);
     bc.reserve(64);
     br.push_back(r0);
     bc.push_back(c0);
-    int back_dir = 6, cr = r0, cc = c0;   // back_dir = W (entered from background)
+    keel::i32 back_dir = 6, cr = r0, cc = c0;   // back_dir = W (entered from background)
     const keel::usize cap = (keel::usize)H * (keel::usize)W * 4 + 8;
     while (br.size() < cap) {
         bool found = false;
-        for (int k = 0; k < 8; ++k) {
-            const int d = (back_dir + k + 1) % 8;          // clockwise from back_dir+1
-            const int nr = cr + Dr8[d], nc = cc + Dc8[d];
+        for (keel::i32 k = 0; k < 8; ++k) {
+            const keel::i32 d = (back_dir + k + 1) % 8;          // clockwise from back_dir+1
+            const keel::i32 nr = cr + Dr8[d], nc = cc + Dc8[d];
             if (fg(nr, nc)) {
                 br.push_back(nr);
                 bc.push_back(nc);
@@ -679,12 +679,12 @@ keel::f64 regionPerimeter(keel::ArrayRef<int> L, int H, int W,
     if (n < 3) return 0.0;                                  // ≤1 real step → 0
     const keel::usize steps = n - 1;
     auto stepType = [&](keel::usize i) {                         // 0 horiz, 1 vert, 2 diag
-        const int dr = br[i + 1] - br[i], dc = bc[i + 1] - bc[i];
+        const keel::i32 dr = br[i + 1] - br[i], dc = bc[i + 1] - bc[i];
         return dr == 0 ? 0 : (dc == 0 ? 1 : 2);
     };
-    long Ne = 0, No = 0, Nc = 0;
+    keel::i64 Ne = 0, No = 0, Nc = 0;
     for (keel::usize i = 0; i < steps; ++i) {
-        const int t = stepType(i);
+        const keel::i32 t = stepType(i);
         if (t == 2) ++No; else ++Ne;
         if (t != stepType((i + 1) % steps)) ++Nc;           // circular corner count
     }
@@ -729,10 +729,10 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
     const bool haveI = !intensity.isEmpty() && intensity.numel() > 0;
     // Detect input: integer-valued matrix → treat as label image,
     // else binary → run bwlabel internally.
-    const int H = (int)BW_or_L.dims().rows();
-    const int W = (int)BW_or_L.dims().cols();
-    keel::Array<int> L((keel::usize)H * (keel::usize)W, 0);
-    int K = 0;
+    const keel::i32 H = (keel::i32)BW_or_L.dims().rows();
+    const keel::i32 W = (keel::i32)BW_or_L.dims().cols();
+    keel::Array<keel::i32> L((keel::usize)H * (keel::usize)W, 0);
+    keel::i32 K = 0;
     bool looksLabelled = false;
     {
         // Quick scan: are any values > 1 with integer fractional part?
@@ -744,9 +744,9 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
     }
     if (looksLabelled) {
         // Treat as label image directly; copy in row-major.
-        for (int r = 0; r < H; ++r)
-            for (int c = 0; c < W; ++c) {
-                const int v = (int)std::round(
+        for (keel::i32 r = 0; r < H; ++r)
+            for (keel::i32 c = 0; c < W; ++c) {
+                const keel::i32 v = (keel::i32)std::round(
                     BW_or_L.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r));
                 L[(keel::usize)r * (keel::usize)W + (keel::usize)c] = v;
                 if (v > K) K = v;
@@ -810,21 +810,21 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
 
     // Accumulators per label.
     const bool needMoments = wEllipse;
-    keel::Array<long long> area(K + 1, 0);
+    keel::Array<keel::i64> area(K + 1, 0);
     keel::Array<keel::f64> sumX(K + 1, 0.0), sumY(keel::as<keel::usize>(K + 1), 0.0);
     // First pixel (row-major scan order = top-left-most) per label, the
     // boundary-trace start for Perimeter.
-    keel::Array<int> firstR(K + 1, -1), firstC(keel::as<keel::usize>(K + 1), -1);
+    keel::Array<keel::i32> firstR(K + 1, -1), firstC(keel::as<keel::usize>(K + 1), -1);
     keel::Array<keel::f64> sumXX(K + 1, 0.0), sumYY(keel::as<keel::usize>(K + 1), 0.0), sumXY(keel::as<keel::usize>(K + 1), 0.0);
-    keel::Array<int> minX(K + 1, INT_MAX), minY(keel::as<keel::usize>(K + 1), INT_MAX);
-    keel::Array<int> maxX(K + 1, INT_MIN), maxY(keel::as<keel::usize>(K + 1), INT_MIN);
+    keel::Array<keel::i32> minX(K + 1, INT_MAX), minY(keel::as<keel::usize>(K + 1), INT_MAX);
+    keel::Array<keel::i32> maxX(K + 1, INT_MIN), maxY(keel::as<keel::usize>(K + 1), INT_MIN);
     // Column-major 1-based linear indices per label (for PixelIdxList /
     // PixelList). Collected in row-major visit order then sorted ascending
     // to match MATLAB's column-major ordering.
-    keel::Array<keel::Array<long long>> pixIdx(needPixels ? keel::as<keel::usize>(K + 1) : 0);
-    for (int r = 0; r < H; ++r)
-        for (int c = 0; c < W; ++c) {
-            const int lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
+    keel::Array<keel::Array<keel::i64>> pixIdx(needPixels ? keel::as<keel::usize>(K + 1) : 0);
+    for (keel::i32 r = 0; r < H; ++r)
+        for (keel::i32 c = 0; c < W; ++c) {
+            const keel::i32 lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
             if (lab <= 0 || lab > K) continue;
             ++area[(keel::usize)lab];
             if (firstR[(keel::usize)lab] < 0) { firstR[(keel::usize)lab] = r; firstC[(keel::usize)lab] = c; }
@@ -832,7 +832,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             sumY[(keel::usize)lab] += keel::f64(r);
             if (needPixels)
                 pixIdx[(keel::usize)lab].push_back(
-                    keel::as<long long>(c) * H + r + 1);   // col-major 1-based
+                    keel::as<keel::i64>(c) * H + r + 1);   // col-major 1-based
             if (needMoments) {
                 sumXX[(keel::usize)lab] += keel::f64(c) * keel::f64(c);
                 sumYY[(keel::usize)lab] += keel::f64(r) * keel::f64(r);
@@ -844,7 +844,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             if (r > maxY[(keel::usize)lab]) maxY[(keel::usize)lab] = r;
         }
 
-    for (int lab = 1; lab <= K; ++lab) {
+    for (keel::i32 lab = 1; lab <= K; ++lab) {
         auto &el = sa.structArrayElem(keel::as<keel::usize>(lab - 1));
         if (wArea) {
             el.put(keel::String::from("Area"), Value::scalar(keel::f64(area[(keel::usize)lab]), mr));
@@ -952,9 +952,9 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                 Value plv = Value::matrix(P, 2, ValueType::DOUBLE, mr);
                 keel::f64 *pl = plv.doubleDataMut();
                 for (keel::usize i = 0; i < P; ++i) {
-                    const long long z = idxList[i] - 1;     // 0-based col-major
-                    const long long row0 = z % H;
-                    const long long col0 = z / H;
+                    const keel::i64 z = idxList[i] - 1;     // 0-based col-major
+                    const keel::i64 row0 = z % H;
+                    const keel::i64 col0 = z / H;
                     pl[i]     = keel::as<keel::f64>(col0 + 1);   // x = col
                     pl[P + i] = keel::as<keel::f64>(row0 + 1);   // y = row
                 }
@@ -972,13 +972,13 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                     pv = pvv.doubleDataMut();
                 }
                 for (keel::usize i = 0; i < P; ++i) {
-                    const long long z = idxList[i] - 1;     // col-major 0-based
+                    const keel::i64 z = idxList[i] - 1;     // col-major 0-based
                     const keel::f64 iv = intensity.elemAsDouble(keel::as<keel::usize>(z));
                     sumI += iv;
                     if (iv > maxI) maxI = iv;
                     if (iv < minI) minI = iv;
                     if (wWCent) {
-                        const long long row0 = z % H, col0 = z / H;
+                        const keel::i64 row0 = z % H, col0 = z / H;
                         sumIx += iv * keel::as<keel::f64>(col0 + 1);
                         sumIy += iv * keel::as<keel::f64>(row0 + 1);
                     }
@@ -1021,13 +1021,13 @@ void dt1D(keel::ArrayRef<keel::f64> f, keel::Array<keel::f64> &d, keel::usize n)
 {
     // v[k] is the index of the k-th parabola in the lower envelope;
     // z[k] is the boundary between parabolas k-1 and k.
-    keel::Array<long long> v(n);
+    keel::Array<keel::i64> v(n);
     keel::Array<keel::f64> z(n + 1);
-    long long k = 0;
+    keel::i64 k = 0;
     v[0] = 0;
     z[0] = -std::numeric_limits<keel::f64>::infinity();
     z[1] =  std::numeric_limits<keel::f64>::infinity();
-    for (long long q = 1; q < keel::as<long long>(n); ++q) {
+    for (keel::i64 q = 1; q < keel::as<keel::i64>(n); ++q) {
         // Skip background pixels in f (they contribute Inf — no parabola).
         // Keep them anyway: their +Inf value pushes any candidate boundary
         // away to +Inf. That's fine.
@@ -1054,8 +1054,8 @@ void dt1D(keel::ArrayRef<keel::f64> f, keel::Array<keel::f64> &d, keel::usize n)
         z[keel::as<keel::usize>(k)] = s;
         z[keel::as<keel::usize>(k) + 1] = std::numeric_limits<keel::f64>::infinity();
     }
-    long long kk = 0;
-    for (long long q = 0; q < keel::as<long long>(n); ++q) {
+    keel::i64 kk = 0;
+    for (keel::i64 q = 0; q < keel::as<keel::i64>(n); ++q) {
         while (z[keel::as<keel::usize>(kk) + 1] < keel::as<keel::f64>(q)) ++kk;
         const keel::f64 dx = keel::as<keel::f64>(q - v[keel::as<keel::usize>(kk)]);
         d[keel::as<keel::usize>(q)] = dx * dx +
@@ -1084,7 +1084,7 @@ void bwareafilt_argcheck(const Value &BW)
                                 internal::ImgClasses::LogicalOnly);
 }
 
-void bweuler_argcheck(const Value &BW, int conn)
+void bweuler_argcheck(const Value &BW, keel::i32 conn)
 {
     if (conn != 4 && conn != 8)
         throw Error("bweuler: connectivity must be 4 or 8",
@@ -1184,7 +1184,7 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     //   dr=-1: dc=-1→3, dc=0→2, dc=+1→1
     //   dr= 0: dc=-1→4, dc=0→NaN, dc=+1→0
     //   dr=+1: dc=-1→5, dc=0→6, dc=+1→7
-    auto dirCode = [](int dr, int dc) -> keel::f64 {
+    auto dirCode = [](keel::i32 dr, keel::i32 dc) -> keel::f64 {
         if (dr == -1 && dc == -1) return 3.0;
         if (dr == -1 && dc ==  0) return 2.0;
         if (dr == -1 && dc ==  1) return 1.0;
@@ -1227,8 +1227,8 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     Value fcc = Value::matrix(1, nCodes, ValueType::DOUBLE, mr);
     keel::f64 *fd = fcc.doubleDataMut();
     for (keel::usize k = 0; k < nCodes; ++k) {
-        const int dr = keel::as<int>(rs[k + 1] - rs[k]);
-        const int dc = keel::as<int>(cs[k + 1] - cs[k]);
+        const keel::i32 dr = keel::as<keel::i32>(rs[k + 1] - rs[k]);
+        const keel::i32 dc = keel::as<keel::i32>(cs[k + 1] - cs[k]);
         fd[k] = dirCode(dr, dc);
     }
     out.field("fcc") = fcc;
@@ -1250,12 +1250,12 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     return out;
 }
 
-Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep, bool keep_largest, int conn, keel::Allocator *mr)
+Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep, bool keep_largest, keel::i32 conn, keel::Allocator *mr)
 {
     bwareafilt_argcheck(BW);
     if (conn != 4) conn = 8;
-    const int H = keel::as<int>(BW.dims().rows());
-    const int W = keel::as<int>(BW.dims().cols());
+    const keel::i32 H = keel::as<keel::i32>(BW.dims().rows());
+    const keel::i32 W = keel::as<keel::i32>(BW.dims().cols());
 
     Value out = Value::matrix(keel::as<keel::usize>(H),
                               keel::as<keel::usize>(W),
@@ -1268,7 +1268,7 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep
     // Compute area per label (1-based labels in L).
     keel::Array<keel::usize> area(keel::as<keel::usize>(K) + 1, 0);
     for (keel::usize i = 0; i < L.size(); ++i) {
-        const int k = L[i];
+        const keel::i32 k = L[i];
         if (k > 0) ++area[keel::as<keel::usize>(k)];
     }
 
@@ -1276,17 +1276,17 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep
     keel::Array<keel::u8> keep(keel::as<keel::usize>(K) + 1, 0);
     if (n_keep > 0) {
         // Top-N form. Sort labels [1..K] by area, ties by lower index.
-        keel::Array<int> idx;
+        keel::Array<keel::i32> idx;
         idx.reserve(K);
-        for (int k = 1; k <= K; ++k) idx.push_back(k);
+        for (keel::i32 k = 1; k <= K; ++k) idx.push_back(k);
         if (keep_largest) {
-            std::sort(idx.begin(), idx.end(), [&](int a, int b) {
+            std::sort(idx.begin(), idx.end(), [&](keel::i32 a, keel::i32 b) {
                 if (area[(keel::usize)a] != area[(keel::usize)b])
                     return area[(keel::usize)a] > area[(keel::usize)b];
                 return a < b;
             });
         } else {
-            std::sort(idx.begin(), idx.end(), [&](int a, int b) {
+            std::sort(idx.begin(), idx.end(), [&](keel::i32 a, keel::i32 b) {
                 if (area[(keel::usize)a] != area[(keel::usize)b])
                     return area[(keel::usize)a] < area[(keel::usize)b];
                 return a < b;
@@ -1297,7 +1297,7 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep
             keep[keel::as<keel::usize>(idx[i])] = 1;
     } else {
         // Range form.
-        for (int k = 1; k <= K; ++k) {
+        for (keel::i32 k = 1; k <= K; ++k) {
             const keel::f64 a = keel::as<keel::f64>(area[(keel::usize)k]);
             keep[(keel::usize)k] = (a >= lo && a <= hi) ? 1u : 0u;
         }
@@ -1305,9 +1305,9 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep
 
     // Write output (col-major). L is row-major.
     keel::u8 *od = out.logicalDataMut();
-    for (int c = 0; c < W; ++c)
-        for (int r = 0; r < H; ++r) {
-            const int k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
+    for (keel::i32 c = 0; c < W; ++c)
+        for (keel::i32 r = 0; r < H; ++r) {
+            const keel::i32 k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
                 (k > 0 && keep[(keel::usize)k]) ? 1u : 0u;
         }
@@ -1315,11 +1315,11 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep
 }
 
 std::tuple<Value, Value>
-bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::Allocator *mr)
+bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn, keel::Allocator *mr)
 {
     if (conn != 4) conn = 8;
-    const int H = keel::as<int>(BW.dims().rows());
-    const int W = keel::as<int>(BW.dims().cols());
+    const keel::i32 H = keel::as<keel::i32>(BW.dims().rows());
+    const keel::i32 W = keel::as<keel::i32>(BW.dims().cols());
 
     Value out = Value::matrix(keel::as<keel::usize>(H),
                               keel::as<keel::usize>(W),
@@ -1334,18 +1334,18 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::
     const keel::usize Nseed = std::min(cols.numel(), rows.numel());
     keel::Array<keel::u8> keep(keel::as<keel::usize>(K) + 1, 0);
     for (keel::usize s = 0; s < Nseed; ++s) {
-        const int c = keel::as<int>(cols.elemAsDouble(s)) - 1;
-        const int r = keel::as<int>(rows.elemAsDouble(s)) - 1;
+        const keel::i32 c = keel::as<keel::i32>(cols.elemAsDouble(s)) - 1;
+        const keel::i32 r = keel::as<keel::i32>(rows.elemAsDouble(s)) - 1;
         if (r < 0 || r >= H || c < 0 || c >= W) continue;
-        const int k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
+        const keel::i32 k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
         if (k > 0) keep[(keel::usize)k] = 1;
     }
 
     keel::u8 *od = out.logicalDataMut();
     keel::Array<keel::f64> idx_v;
-    for (int c = 0; c < W; ++c)
-        for (int r = 0; r < H; ++r) {
-            const int k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
+    for (keel::i32 c = 0; c < W; ++c)
+        for (keel::i32 r = 0; r < H; ++r) {
+            const keel::i32 k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
             const bool sel = (k > 0 && keep[(keel::usize)k]);
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] = sel ? 1u : 0u;
             if (sel) idx_v.push_back(keel::f64((keel::usize)c * (keel::usize)H + (keel::usize)r + 1));
@@ -1356,40 +1356,40 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::
     return std::make_tuple(std::move(out), std::move(idx_out));
 }
 
-Value bweuler(const Value &BW, int conn, keel::Allocator *mr)
+Value bweuler(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     bweuler_argcheck(BW, conn);
     // Pratt bit-quad LUT (Octave-image bweuler.m).
-    static constexpr int lut8[16] = {0, 1, 1, 0, 1, 0, -2, -1,
+    static constexpr keel::i32 lut8[16] = {0, 1, 1, 0, 1, 0, -2, -1,
                                      1, -2, 0, -1, 0, -1, -1, 0};
-    static constexpr int lut4[16] = {0, 1, 1, 0, 1, 0,  2, -1,
+    static constexpr keel::i32 lut4[16] = {0, 1, 1, 0, 1, 0,  2, -1,
                                      1,  2, 0, -1, 0, -1, -1, 0};
-    const int *lut = (conn == 4) ? lut4 : lut8;
+    const keel::i32 *lut = (conn == 4) ? lut4 : lut8;
 
     const auto &d = BW.dims();
 
-    const int M = keel::as<int>(d.rows());
-    const int N = keel::as<int>(d.cols());
+    const keel::i32 M = keel::as<keel::i32>(d.rows());
+    const keel::i32 N = keel::as<keel::i32>(d.cols());
 
-    auto get = [&](int r, int c) -> int {
+    auto get = [&](keel::i32 r, keel::i32 c) -> keel::i32 {
         if (r < 0 || c < 0 || r >= M || c >= N) return 0;
         return BW.elemAsDouble(keel::as<keel::usize>(c) *
                                keel::as<keel::usize>(M) +
                                keel::as<keel::usize>(r)) != 0.0 ? 1 : 0;
     };
 
-    int sum = 0;
+    keel::i32 sum = 0;
     // Padded image is (M+1)×(N+1) with zero top row/left col, so
     // every 2×2 window slides over (r, c) ∈ [0..M] × [0..N], reading
     // BW[r-1, c-1], BW[r, c-1], BW[r-1, c], BW[r, c] (clamped to 0
     // outside [0, M-1] × [0, N-1]).
-    for (int r = 0; r <= M; ++r) {
-        for (int c = 0; c <= N; ++c) {
-            const int p00 = get(r - 1, c - 1);
-            const int p10 = get(r,     c - 1);
-            const int p01 = get(r - 1, c);
-            const int p11 = get(r,     c);
-            const int idx = p00 + 2 * p10 + 4 * p01 + 8 * p11;
+    for (keel::i32 r = 0; r <= M; ++r) {
+        for (keel::i32 c = 0; c <= N; ++c) {
+            const keel::i32 p00 = get(r - 1, c - 1);
+            const keel::i32 p10 = get(r,     c - 1);
+            const keel::i32 p01 = get(r - 1, c);
+            const keel::i32 p11 = get(r,     c);
+            const keel::i32 idx = p00 + 2 * p10 + 4 * p01 + 8 * p11;
             sum += lut[idx];
         }
     }

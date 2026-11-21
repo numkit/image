@@ -232,7 +232,7 @@ Value lab2uint16(const Value &lab, keel::Allocator *mr = nullptr);
 /// @param n   Output rows (default 64).
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `N × 3` colormap.
-Value colorgradient(const Value &C, const Value &w, int n,
+Value colorgradient(const Value &C, const Value &w, keel::i32 n,
                     keel::Allocator *mr = nullptr);
 
 /// @brief Wavelength → RGB (Bruton 1996)
@@ -276,93 +276,93 @@ Value colorangle(const Value &rgb1, const Value &rgb2,
 /// `gr = (0:n-1)/(n-1)` repeated across all 3 channels.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value gray_cmap(int n, keel::Allocator *mr = nullptr);
+Value gray_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Black-red-yellow-white colormap (`map = hot(n)`).
 /// Piecewise R-then-G-then-B ramps with `idx = floor(3/8 · n)`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value hot_cmap(int n, keel::Allocator *mr = nullptr);
+Value hot_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Cyan → magenta colormap (`map = cool(n)`).
 /// `r = (0:n-1)/(n-1)`, `g = 1 - r`, `b = 1`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value cool_cmap(int n, keel::Allocator *mr = nullptr);
+Value cool_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Magenta → yellow colormap (`map = spring(n)`).
 /// `r = 1`, `g = (0:n-1)/(n-1)`, `b = 1 - g`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value spring_cmap(int n, keel::Allocator *mr = nullptr);
+Value spring_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Green → yellow colormap (`map = summer(n)`).
 /// `r = (0:n-1)/(n-1)`, `g = 0.5 + r/2`, `b = 0.4`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value summer_cmap(int n, keel::Allocator *mr = nullptr);
+Value summer_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Red → yellow colormap (`map = autumn(n)`).
 /// `r = 1`, `g = (0:n-1)/(n-1)`, `b = 0`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value autumn_cmap(int n, keel::Allocator *mr = nullptr);
+Value autumn_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Blue → cyan-ish colormap (`map = winter(n)`).
 /// `r = 0`, `g = (0:n-1)/(n-1)`, `b = 1 - g/2`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value winter_cmap(int n, keel::Allocator *mr = nullptr);
+Value winter_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Copper-tinted colormap (`map = copper(n)`).
 /// `x = (0:n-1)/(n-1)`; `r = min(5/4·x, 1)`, `g = 0.7812·x`,
 /// `b = 0.4975·x`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value copper_cmap(int n, keel::Allocator *mr = nullptr);
+Value copper_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Pastel-pink colormap (`map = pink(n)`).
 /// Piecewise linspace ramps for R/G/B then elementwise `sqrt` for
 /// saturation lift.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value pink_cmap(int n, keel::Allocator *mr = nullptr);
+Value pink_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Hue-rotation colormap (`map = hsv(n)`).
 /// Equivalent to `hsv2rgb([(0:n-1)'/n, 1, 1])`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value hsv_cmap(int n, keel::Allocator *mr = nullptr);
+Value hsv_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Cyclic red/white/blue/black colormap (`map = flag(n)`).
 /// Cycles `[1 0 0; 1 1 1; 0 0 1; 0 0 0]`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value flag_cmap(int n, keel::Allocator *mr = nullptr);
+Value flag_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Cyclic 6-row rainbow palette (`map = prism(n)`).
 /// `[red, orange, yellow, green, blue, violet]`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value prism_cmap(int n, keel::Allocator *mr = nullptr);
+Value prism_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Axes-color-order palette (`map = lines(n)`).
 /// Cycles the 7-row default colour order. `n == 1 → [0 0 1]`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value lines_cmap(int n, keel::Allocator *mr = nullptr);
+Value lines_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Grayscale-with-blue-tint colormap (`map = bone(n)`).
 /// Per-channel piecewise ramps with `idx_R = floor(3/4 · n)`,
 /// `idx_G = floor(3/8 · n)`.
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` colormap.
-Value bone_cmap(int n, keel::Allocator *mr = nullptr);
+Value bone_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief All-ones colormap (`map = white(n)`).
 /// @param n   Row count. @param mr  Memory resource.
 /// @return    `n × 3` all-ones colormap.
-Value white_cmap(int n, keel::Allocator *mr = nullptr);
+Value white_cmap(keel::i32 n, keel::Allocator *mr = nullptr);
 
 // ── Gamma helpers / XYZ class conversion / brighten / contrast ──────
 
@@ -436,7 +436,7 @@ Value brighten(const Value &map, keel::f64 beta,
 /// @param m   Target colormap length (default 64 in adapter).
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `≈m × 3` gray colormap.
-Value contrast(const Value &x, int m, keel::Allocator *mr = nullptr);
+Value contrast(const Value &x, keel::i32 m, keel::Allocator *mr = nullptr);
 
 // ── Colour difference / whitepoints / utility ───────────────────────
 
@@ -465,7 +465,7 @@ Value contrast(const Value &x, int m, keel::Allocator *mr = nullptr);
 /// @param bits_per_sample 10 or 12.
 /// @param mr              Memory resource (nullptr → process default).
 /// @return                UINT16 YCbCr, same shape as `RGB`.
-Value rgbwide2ycbcr(const Value &RGB, int bits_per_sample,
+Value rgbwide2ycbcr(const Value &RGB, keel::i32 bits_per_sample,
                     keel::Allocator *mr = nullptr);
 
 /// @brief BT.2020 / BT.2100 wide-gamut YCbCr → RGB
@@ -496,7 +496,7 @@ Value rgbwide2ycbcr(const Value &RGB, int bits_per_sample,
 /// @param bits_per_sample 10 or 12.
 /// @param mr              Memory resource (nullptr → process default).
 /// @return                UINT16 RGB, same shape as `YCBCR`.
-Value ycbcr2rgbwide(const Value &YCBCR, int bits_per_sample,
+Value ycbcr2rgbwide(const Value &YCBCR, keel::i32 bits_per_sample,
                     keel::Allocator *mr = nullptr);
 
 /// @brief CIE94 / CIEDE2000 colour difference
@@ -751,7 +751,7 @@ Value imfuse(const Value &A, const Value &B,
 Value tonemap(const Value &HDR,
               keel::f64 lremap_lo, keel::f64 lremap_hi,
               keel::f64 saturation,
-              int ntilesR, int ntilesC,
+              keel::i32 ntilesR, keel::i32 ntilesC,
               keel::Allocator *mr = nullptr);
 
 /// @brief Overlay a label / mask / categorical-index image on a 2-D base
@@ -917,7 +917,7 @@ Value chromadapt(const Value &A, const Value &illuminant,
 /// @param linearization    `"PQ"` (def) / `"HLG"` — BT.2100 only.
 /// @param mr               Memory resource.
 /// @return                 DOUBLE XYZ values.
-Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
+Value rgbwide2xyz(const Value &RGB, keel::i32 bits_per_sample,
                   keel::StringRef color_space,
                   keel::StringRef linearization,
                   keel::Allocator *mr = nullptr);
@@ -935,7 +935,7 @@ Value rgbwide2xyz(const Value &RGB, int bits_per_sample,
 /// @param linearization    `"PQ"` (def) / `"HLG"` — BT.2100 only.
 /// @param mr               Memory resource.
 /// @return                 UINT16 narrow-range RGB.
-Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
+Value xyz2rgbwide(const Value &XYZ, keel::i32 bits_per_sample,
                   keel::StringRef color_space,
                   keel::StringRef linearization,
                   keel::Allocator *mr = nullptr);
@@ -970,7 +970,7 @@ Value xyz2rgbwide(const Value &XYZ, int bits_per_sample,
 ///   - Malvar, He, Cutler. "High-Quality Linear Interpolation for
 ///     Demosaicing of Bayer-Patterned Color Images", IEEE ICASSP 2004.
 Value demosaic(const Value &I, keel::StringRef sensorAlignment,
-               int bitsPerSample = 0,
+               keel::i32 bitsPerSample = 0,
                keel::Allocator *mr = nullptr);
 
 /// @brief Deinterleave a Bayer CFA mosaic into its four sensor planes

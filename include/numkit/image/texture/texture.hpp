@@ -47,7 +47,7 @@ namespace numkit::image {
 ///     conservative 8 instead of 64.
 ///
 /// @see graycoprops
-Value graycomatrix(const Value &I, int numLevels, int offR, int offC,
+Value graycomatrix(const Value &I, keel::i32 numLevels, keel::i32 offR, keel::i32 offC,
                    keel::f64 gLow, keel::f64 gHigh, bool symmetric,
                    keel::Allocator *mr = nullptr);
 

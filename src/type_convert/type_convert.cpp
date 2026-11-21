@@ -441,7 +441,7 @@ Value iptnum2ordinal(keel::f64 n, keel::Allocator *mr)
         "twentieth"
     };
 
-    const long long ll = keel::as<long long>(n);
+    const keel::i64 ll = keel::as<keel::i64>(n);
     keel::String s;
     if (ll >= 1 && ll <= 20) {
         s.assign(kWords[ll]);
@@ -501,7 +501,7 @@ Value imcast(const Value &I, keel::StringRef type, keel::Allocator *mr)
 
 namespace {
 
-Value gray_colormap(int n, keel::Allocator *mr)
+Value gray_colormap(keel::i32 n, keel::Allocator *mr)
 {
     Value map = Value::matrix(keel::as<keel::usize>(n), 3,
                               ValueType::DOUBLE, mr);
@@ -511,7 +511,7 @@ Value gray_colormap(int n, keel::Allocator *mr)
         md[0] = md[1] = md[2] = 0.0;
         return map;
     }
-    for (int i = 0; i < n; ++i) {
+    for (keel::i32 i = 0; i < n; ++i) {
         const keel::f64 v = keel::as<keel::f64>(i) / keel::as<keel::f64>(n - 1);
         md[0 * n + i] = v;
         md[1 * n + i] = v;
@@ -520,7 +520,7 @@ Value gray_colormap(int n, keel::Allocator *mr)
     return map;
 }
 
-void gray2ind_argcheck(int n)
+void gray2ind_argcheck(keel::i32 n)
 {
     if (n < 1 || n > 65536)
         throw Error("gray2ind: N must be in [1, 65536]",
@@ -602,7 +602,7 @@ void intlut_argcheck(const Value &A, const Value &LUT, keel::usize &expectedLen)
 } // anonymous
 
 std::tuple<Value, Value>
-gray2ind(const Value &I, int n, keel::Allocator *mr)
+gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
 {
     gray2ind_argcheck(n);
 
@@ -670,14 +670,14 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
     // grayscale image — probed).
     Value idxUsed = (idx.type() == ValueType::LOGICAL)
         ? internal::coerceToDoubleImage(idx, mr) : Value(idx);
-    const int M = keel::as<int>(map.dims().rows());
+    const keel::i32 M = keel::as<keel::i32>(map.dims().rows());
 
     // Build the grey colormap (length M, DOUBLE in [0, 1]).
     constexpr keel::f64 Cr = 0.298936021293775;
     constexpr keel::f64 Cg = 0.587043074451121;
     constexpr keel::f64 Cb = 0.114020904255103;
     keel::Array<keel::f64> graycm(M, mr);
-    for (int k = 0; k < M; ++k) {
+    for (keel::i32 k = 0; k < M; ++k) {
         // map is column-major M×3: map[r, c] = data[c*M + r].
         const keel::f64 r = map.elemAsDouble(0 * M + k);
         const keel::f64 g = map.elemAsDouble(1 * M + k);
@@ -701,12 +701,12 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
     //   * integer X is 0-based, LUT padded to vs = 256 / 65536 with the
     //     last grey value beyond `M - 1`.
     auto float_lookup = [&](keel::f64 v) -> keel::f64 {
-        long long k = keel::as<long long>(v);
+        keel::i64 k = keel::as<keel::i64>(v);
         if (k < 1)  k = 1;
         if (k > M)  k = M;
         return graycm[keel::as<keel::usize>(k - 1)];
     };
-    auto int_lookup_u8 = [&](unsigned v) -> keel::u8 {
+    auto int_lookup_u8 = [&](keel::u32 v) -> keel::u8 {
         keel::usize k = v;
         if (k >= keel::as<keel::usize>(M))
             k = keel::as<keel::usize>(M - 1);
@@ -715,7 +715,7 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
         if (scaled > 255.0) scaled = 255.0;
         return keel::as<keel::u8>(std::lround(scaled));
     };
-    auto int_lookup_u16 = [&](unsigned v) -> keel::u16 {
+    auto int_lookup_u16 = [&](keel::u32 v) -> keel::u16 {
         keel::usize k = v;
         if (k >= keel::as<keel::usize>(M))
             k = keel::as<keel::usize>(M - 1);
@@ -783,7 +783,7 @@ Value ind2rgb(const Value &idx, const Value &map, keel::Allocator *mr)
     const keel::usize H = d.rows();
     const keel::usize W = d.cols();
     const keel::usize N = rgbIdxC.numel();
-    const int M = keel::as<int>(rgbMapC.dims().rows());
+    const keel::i32 M = keel::as<keel::i32>(rgbMapC.dims().rows());
 
     Value out = Value::matrix3d(H, W, 3, ValueType::DOUBLE, mr);
     if (N == 0) return out;
@@ -793,13 +793,13 @@ Value ind2rgb(const Value &idx, const Value &map, keel::Allocator *mr)
     const bool isFloatIdx = (idx.type() == ValueType::DOUBLE ||
                              idx.type() == ValueType::SINGLE);
     for (keel::usize i = 0; i < N; ++i) {
-        long long k;
+        keel::i64 k;
         const keel::f64 v = rgbIdxC.elemAsDouble(i);
         if (std::isnan(v) || !std::isfinite(v)) {
             // NaN / Inf clip to last colormap row.
             k = M - 1;
         } else {
-            k = keel::as<long long>(v);
+            k = keel::as<keel::i64>(v);
             if (isFloatIdx) k -= 1;
         }
         if (k < 0)  k = 0;
@@ -897,7 +897,7 @@ Value intlut(const Value &A, const Value &LUT, keel::Allocator *mr)
     const keel::usize N = A.numel();
     if (N == 0) return out;
 
-    const int shift = (atype == ValueType::INT16) ? 32768 : 0;
+    const keel::i32 shift = (atype == ValueType::INT16) ? 32768 : 0;
 
     auto idx_at = [&](keel::usize i) -> keel::usize {
         return keel::as<keel::usize>(keel::as<keel::i64>(A.elemAsDouble(i))

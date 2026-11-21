@@ -395,12 +395,12 @@ void padarray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 4, "padarray");
-    keel::Array<int> padsize;
+    keel::Array<keel::i32> padsize;
     {
         const Value &p = args[1];
         const keel::usize n = p.numel();
         padsize.resize(n);
-        for (keel::usize i = 0; i < n; ++i) padsize[i] = int(p.elemAsDouble(i));
+        for (keel::usize i = 0; i < n; ++i) padsize[i] = keel::i32(p.elemAsDouble(i));
     }
 
     PadMode mode = PadMode::Constant;
@@ -502,12 +502,12 @@ void imgaussfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 1, "imgaussfilt");
     // no max: name-value tail in the reference
     keel::f64 sigma = (args.size() >= 2 && !args[1].isEmpty()) ? args[1].toScalar() : 0.5;
-    int fs = 0;  // auto
+    keel::i32 fs = 0;  // auto
     // Look for 'FilterSize' name-value pair.
     for (keel::usize i = 2; i + 1 < args.size(); ++i) {
         if ((args[i].isChar() || args[i].isString())
             && args[i].toString() == "FilterSize") {
-            fs = (int)args[i + 1].toScalar();
+            fs = (keel::i32)args[i + 1].toScalar();
             break;
         }
     }
@@ -519,7 +519,7 @@ void imboxfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "imboxfilt");
     // no max: name-value tail in the reference
-    int fs = (args.size() >= 2 && !args[1].isEmpty()) ? (int)args[1].toScalar() : 3;
+    keel::i32 fs = (args.size() >= 2 && !args[1].isEmpty()) ? (keel::i32)args[1].toScalar() : 3;
     outs[0] = imboxfilt(args[0], fs, ctx.engine->allocator());
 }
 
@@ -529,7 +529,7 @@ void modefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 1, 3, "modefilt");
     // Defaults adapt to input rank — MATLAB picks [3 3] for 2-D, [3 3 3] for 3-D.
     const bool input3D = (args[0].dims().ndim() == 3);
-    int fH = 3, fW = 3, fD = input3D ? 3 : 0;
+    keel::i32 fH = 3, fW = 3, fD = input3D ? 3 : 0;
     keel::String padopt = keel::String::from("symmetric");
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].isChar() || args[1].isString()) {
@@ -540,13 +540,13 @@ void modefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             argcheck::expectedReal(args[1], 2, "window", "modefilt"), 2, "window", "modefilt");
                 if (input3D) fD = fH;
             } else if (args[1].numel() == 2) {
-                fH = keel::as<int>(args[1].elemAsDouble(0));
-                fW = keel::as<int>(args[1].elemAsDouble(1));
+                fH = keel::as<keel::i32>(args[1].elemAsDouble(0));
+                fW = keel::as<keel::i32>(args[1].elemAsDouble(1));
                 if (input3D) fD = 1;  // no 3rd dim filter specified
             } else if (args[1].numel() >= 3) {
-                fH = keel::as<int>(args[1].elemAsDouble(0));
-                fW = keel::as<int>(args[1].elemAsDouble(1));
-                fD = keel::as<int>(args[1].elemAsDouble(2));
+                fH = keel::as<keel::i32>(args[1].elemAsDouble(0));
+                fW = keel::as<keel::i32>(args[1].elemAsDouble(1));
+                fD = keel::as<keel::i32>(args[1].elemAsDouble(2));
             }
         }
     }
@@ -568,7 +568,7 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "integralBoxFilter");
     // no max: name-value tail in the reference// Defaults match MATLAB: 3-by-3 box.
-    int fH = 3, fW = 3;
+    keel::i32 fH = 3, fW = 3;
     keel::usize nvStart = 1;
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
@@ -577,8 +577,8 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             fH = fW = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(fsArg, 2, "window", "integralBoxFilter"), 2, "window", "integralBoxFilter");
         } else if (fsArg.numel() == 2) {
-            fH = keel::as<int>(fsArg.elemAsDouble(0));
-            fW = keel::as<int>(fsArg.elemAsDouble(1));
+            fH = keel::as<keel::i32>(fsArg.elemAsDouble(0));
+            fW = keel::as<keel::i32>(fsArg.elemAsDouble(1));
         } else {
             throw Error("integralBoxFilter: filterSize must be a scalar or 2-element vector",
                         0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badSize");
@@ -610,7 +610,7 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "integralBoxFilter3");
     // no max: name-value tail in the reference// Default: 3×3×3 box.
-    int fH = 3, fW = 3, fP = 3;
+    keel::i32 fH = 3, fW = 3, fP = 3;
     keel::usize nvStart = 1;
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
@@ -619,9 +619,9 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             fH = fW = fP = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(fsArg, 2, "window", "integralBoxFilter3"), 2, "window", "integralBoxFilter3");
         } else if (fsArg.numel() == 3) {
-            fH = keel::as<int>(fsArg.elemAsDouble(0));
-            fW = keel::as<int>(fsArg.elemAsDouble(1));
-            fP = keel::as<int>(fsArg.elemAsDouble(2));
+            fH = keel::as<keel::i32>(fsArg.elemAsDouble(0));
+            fW = keel::as<keel::i32>(fsArg.elemAsDouble(1));
+            fP = keel::as<keel::i32>(fsArg.elemAsDouble(2));
         } else {
             throw Error("integralBoxFilter3: filterSize must be a scalar or 3-element vector",
                         0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badSize");
@@ -652,16 +652,16 @@ void medfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "medfilt3");
     // no max: name-value tail in the reference
-    int M = 3, N = 3, P = 3;
+    keel::i32 M = 3, N = 3, P = 3;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1) {
             M = N = P = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(v, 2, "window", "medfilt3"), 2, "window", "medfilt3");
         } else if (v.numel() >= 3) {
-            M = keel::as<int>(v.elemAsDouble(0));
-            N = keel::as<int>(v.elemAsDouble(1));
-            P = keel::as<int>(v.elemAsDouble(2));
+            M = keel::as<keel::i32>(v.elemAsDouble(0));
+            N = keel::as<keel::i32>(v.elemAsDouble(1));
+            P = keel::as<keel::i32>(v.elemAsDouble(2));
         }
     }
     outs[0] = medfilt3(args[0], M, N, P, ctx.engine->allocator());
@@ -690,7 +690,7 @@ void convmtx2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "convmtx2");
-    int m = 0, n = 0;
+    keel::i32 m = 0, n = 0;
     if (args.size() >= 3) {
         m = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "m", "convmtx2"), 2, "m", "convmtx2");
@@ -701,8 +701,8 @@ void convmtx2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 2)
             throw Error("convmtx2: 2nd arg must be a 2-element vector or pair (m, n)",
                         0, 0, "convmtx2", "", "numkit:convmtx2:size");
-        m = keel::as<int>(v.elemAsDouble(0));
-        n = keel::as<int>(v.elemAsDouble(1));
+        m = keel::as<keel::i32>(v.elemAsDouble(0));
+        n = keel::as<keel::i32>(v.elemAsDouble(1));
     }
     outs[0] = convmtx2(args[0], m, n, ctx.engine->allocator());
 }
@@ -712,15 +712,15 @@ void imboxfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "imboxfilt3");
     // no max: name-value tail in the reference
-    int fH = 3, fW = 3, fP = 3;
+    keel::i32 fH = 3, fW = 3, fP = 3;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1) {
-            fH = fW = fP = (int)v.toScalar();
+            fH = fW = fP = (keel::i32)v.toScalar();
         } else if (v.numel() >= 3) {
-            fH = (int)v.elemAsDouble(0);
-            fW = (int)v.elemAsDouble(1);
-            fP = (int)v.elemAsDouble(2);
+            fH = (keel::i32)v.elemAsDouble(0);
+            fW = (keel::i32)v.elemAsDouble(1);
+            fP = (keel::i32)v.elemAsDouble(2);
         }
     }
     outs[0] = imboxfilt3(args[0], fH, fW, fP, ctx.engine->allocator());
@@ -754,14 +754,14 @@ void medfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 3, "medfilt2");
-    int rows = 3, cols = 3;
+    keel::i32 rows = 3, cols = 3;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1) {
-            rows = cols = (int)v.toScalar();
+            rows = cols = (keel::i32)v.toScalar();
         } else if (v.numel() >= 2) {
-            rows = (int)v.elemAsDouble(0);
-            cols = (int)v.elemAsDouble(1);
+            rows = (keel::i32)v.elemAsDouble(0);
+            cols = (keel::i32)v.elemAsDouble(1);
         }
     }
     outs[0] = medfilt2(args[0], rows, cols, ctx.engine->allocator());
@@ -771,13 +771,13 @@ void im2col_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 4, "im2col");
-    int m = 0, n = 0;
+    keel::i32 m = 0, n = 0;
     const Value &sz = args[1];
     if (sz.numel() == 1) {
-        m = n = (int)sz.toScalar();
+        m = n = (keel::i32)sz.toScalar();
     } else if (sz.numel() >= 2) {
-        m = (int)sz.elemAsDouble(0);
-        n = (int)sz.elemAsDouble(1);
+        m = (keel::i32)sz.elemAsDouble(0);
+        n = (keel::i32)sz.elemAsDouble(1);
     } else {
         throw Error("im2col: block size must be scalar or 2-vector",
                     0, 0, "im2col", "", "numkit:im2col:size");
@@ -825,22 +825,22 @@ void col2im_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 3, "col2im");
     // no max: variadic trailing block sizes by design
-    int m, n, mm, nn;
+    keel::i32 m, n, mm, nn;
     {
         const Value &b = args[1];
         if (b.numel() < 1)
             throw Error("col2im: empty block size",
                         0, 0, "col2im", "", "numkit:col2im:size");
-        m = (int)b.elemAsDouble(0);
-        n = (b.numel() >= 2) ? (int)b.elemAsDouble(1) : m;
+        m = (keel::i32)b.elemAsDouble(0);
+        n = (b.numel() >= 2) ? (keel::i32)b.elemAsDouble(1) : m;
     }
     {
         const Value &s = args[2];
         if (s.numel() < 1)
             throw Error("col2im: empty image size",
                         0, 0, "col2im", "", "numkit:col2im:size");
-        mm = (int)s.elemAsDouble(0);
-        nn = (s.numel() >= 2) ? (int)s.elemAsDouble(1) : mm;
+        mm = (keel::i32)s.elemAsDouble(0);
+        nn = (s.numel() >= 2) ? (keel::i32)s.elemAsDouble(1) : mm;
     }
     keel::String mode = keel::String::from("sliding");
     if (args.size() >= 4 && (args[3].isChar() || args[3].isString()))
@@ -955,12 +955,12 @@ void ordfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 3, 5, "ordfilt2");
     auto *mr = ctx.engine->allocator();
-    const int nth = argcheck::expectedPositiveInteger(
+    const keel::i32 nth = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "order", "ordfilt2"), 2, "order", "ordfilt2");
     Value domain = args[2];
     if (domain.numel() == 1) {
         // Scalar domain → square true(N).
-        const int n = argcheck::expectedPositiveInteger(
+        const keel::i32 n = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(domain, 3, "domain", "ordfilt2"), 3, "domain", "ordfilt2");
         domain = Value::matrix((keel::usize)n, (keel::usize)n, ValueType::LOGICAL, mr);
         keel::u8 *dd = domain.logicalDataMut();
@@ -1149,8 +1149,8 @@ void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     keel::f64 dos = -1.0;
-    int swsize = 21;
-    int cwsize = 5;
+    keel::i32 swsize = 21;
+    keel::i32 cwsize = 5;
     keel::usize i = 1;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
@@ -1165,12 +1165,12 @@ void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                             0, 0, "imnlmfilt", "", "numkit:imnlmfilt:dos");
         } else if (nref.equals_ignore_ascii_case("searchwindowsize")) {
             swsize = argcheck::expectedPositiveInteger(
-                argcheck::expectedReal(args[i + 1], int(i) + 2, "SearchWindowSize", "imnlmfilt"),
-                int(i) + 2, "SearchWindowSize", "imnlmfilt");
+                argcheck::expectedReal(args[i + 1], keel::i32(i) + 2, "SearchWindowSize", "imnlmfilt"),
+                keel::i32(i) + 2, "SearchWindowSize", "imnlmfilt");
         } else if (nref.equals_ignore_ascii_case("comparisonwindowsize")) {
             cwsize = argcheck::expectedPositiveInteger(
-                argcheck::expectedReal(args[i + 1], int(i) + 2, "ComparisonWindowSize", "imnlmfilt"),
-                int(i) + 2, "ComparisonWindowSize", "imnlmfilt");
+                argcheck::expectedReal(args[i + 1], keel::i32(i) + 2, "ComparisonWindowSize", "imnlmfilt"),
+                keel::i32(i) + 2, "ComparisonWindowSize", "imnlmfilt");
         } else {
             throw Error(keel::format("imnlmfilt: unknown option '{}'", name),
                         0, 0, "imnlmfilt", "",
@@ -1276,7 +1276,7 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     Value A = args[0];
     Value G;  // empty → self-guide
-    int nhood = 5;
+    keel::i32 nhood = 5;
     keel::f64 eps = -1.0;  // sentinel → class-based default
 
     keel::usize i = 1;
@@ -1295,11 +1295,11 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             const Value &v = args[i + 1];
             if (v.numel() == 1) {
                 nhood = argcheck::expectedPositiveInteger(
-                    argcheck::expectedReal(v, int(i) + 2, "Neighborhood", "imguidedfilter"),
-                    int(i) + 2, "Neighborhood", "imguidedfilter");
+                    argcheck::expectedReal(v, keel::i32(i) + 2, "Neighborhood", "imguidedfilter"),
+                    keel::i32(i) + 2, "Neighborhood", "imguidedfilter");
             } else if (v.numel() == 2) {
-                const int n0 = keel::as<int>(v.elemAsDouble(0));
-                const int n1 = keel::as<int>(v.elemAsDouble(1));
+                const keel::i32 n0 = keel::as<keel::i32>(v.elemAsDouble(0));
+                const keel::i32 n1 = keel::as<keel::i32>(v.elemAsDouble(1));
                 if (n0 != n1)
                     throw Error("imguidedfilter: non-square NeighborhoodSize "
                                 "not yet supported",
