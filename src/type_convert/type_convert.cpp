@@ -2,6 +2,7 @@
 
 #include <keel/core.h>
 #include <keel/format.h>
+#include <keel/image.h>
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/string.h>
@@ -322,35 +323,24 @@ Value rgb2gray(const Value &x, keel::Allocator *mr)
         }
     };
 
-    // Rec. BT.601 YIQ-luma coefficients, full precision (MATLAB rgb2gray:
-    // the first row of the rgb2ntsc matrix). The rounded 4-digit values
-    // 0.2989/0.5870/0.1140 used previously left a ~1e-5 error vs MATLAB.
-    constexpr double Cr = 0.298936021293775,
-                     Cg = 0.587043074451121,
-                     Cb = 0.114020904255103;
-
-    // Typed fast paths for the common image classes — contiguous R/G/B
-    // planes, no per-element elemAsDouble dispatch or per-pixel type switch.
-    // Same coefficients, same accumulation order, same satCast → bit-exact;
-    // the contiguous inner loop auto-vectorises.
     if (x.type() == ValueType::UINT8) {
-        const keel::u8 *R = x.uint8Data(), *G = R + plane, *B = R + 2 * plane;
-        keel::u8 *o = out.uint8DataMut();
-        for (keel::usize i = 0; i < plane; ++i)
-            o[i] = satCast<keel::u8>(Cr * R[i] + Cg * G[i] + Cb * B[i]);
+        const keel::u8 *R = x.uint8Data();
+        (void)keel::image::rgb_to_gray_u8_planar(
+            {R, plane}, {R + plane, plane}, {R + 2 * plane, plane},
+            {out.uint8DataMut(), plane});
         return out;
     }
     if (x.type() == ValueType::DOUBLE) {
-        const double *R = x.doubleData(), *G = R + plane, *B = R + 2 * plane;
-        double *o = out.doubleDataMut();
-        for (keel::usize i = 0; i < plane; ++i)
-            o[i] = Cr * R[i] + Cg * G[i] + Cb * B[i];
+        const double *R = x.doubleData();
+        (void)keel::image::rgb_to_gray_planar(
+            {R, plane}, {R + plane, plane}, {R + 2 * plane, plane},
+            {out.doubleDataMut(), plane});
         return out;
     }
 
     // Generic (single / uint16 / int16).
     for (keel::usize i = 0; i < plane; ++i) {
-        const double y = Cr * pix(i, 0) + Cg * pix(i, 1) + Cb * pix(i, 2);
+        const double y = keel::image::rgb_to_gray(pix(i, 0), pix(i, 1), pix(i, 2));
         store(i, y);
     }
     return out;

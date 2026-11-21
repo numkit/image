@@ -135,6 +135,26 @@ if(NOT TARGET numkit_signal_core)
     endif()
 endif()
 
+# Dependency: keel::image (zero-STL image processing kernels)
+if(NOT TARGET keel::image)
+    find_package(keel_image QUIET CONFIG)
+    if(TARGET keel::keel_image AND NOT TARGET keel::image)
+        add_library(keel::image ALIAS keel::keel_image)
+    endif()
+endif()
+if(NOT TARGET keel::image)
+    set(KEEL_IMAGE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/image/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_IMAGE)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_IMAGE "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/image" CACHE PATH "Local keel_image checkout")
+    endif()
+    FetchContent_Declare(
+        keel_image
+        GIT_REPOSITORY https://github.com/keelcpp/image.git
+        GIT_TAG        3c1d6c808cdfeeecce0f0a203bed7d29f72e0790
+    )
+    FetchContent_MakeAvailable(keel_image)
+endif()
+
 file(GLOB_RECURSE IMAGE_COMPUTE_SOURCES
     "src/arithmetic/*.cpp"
     "src/color/*.cpp"
@@ -169,7 +189,10 @@ target_include_directories(numkit_image_core
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(numkit_image_core PUBLIC numkit_value numkit_sys numkit_ops numkit_signal_core)
+target_link_libraries(numkit_image_core
+    PUBLIC numkit_value numkit_sys numkit_ops numkit_signal_core
+    PRIVATE keel::image
+)
 
 if(NUMKIT_WITH_SIMD)
     target_compile_definitions(numkit_image_core PUBLIC NUMKIT_WITH_SIMD=1)

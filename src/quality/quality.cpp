@@ -5,6 +5,7 @@
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
+#include <keel/image.h>
 #include <numkit/image/quality/quality.hpp>
 #include <numkit/image/internal/type_gates.hpp>
 
@@ -130,77 +131,15 @@ Value ssim(const Value &A, const Value &B, keel::Allocator *mr) {
     const keel::usize W = A.dims().cols();
     if (H == 0 || W == 0) return Value::scalar(1.0, mr);
 
-    // Convert to DOUBLE in [0, 1] for stable SSIM computation.
     auto unit = [&](const Value &X) {
-        keel::Array<double> out(X.numel());
+        keel::Array<double> out(X.numel(), mr);
         const double scale = 1.0 / class_peak(X.type());
         for (keel::usize i = 0; i < X.numel(); ++i)
             out[i] = X.elemAsDouble(i) * scale;
         return out;
     };
     auto Au = unit(A), Bu = unit(B);
-
-    // Gaussian window kernel: 11×11, σ=1.5.
-    Value gK = fspecial("gaussian", { 11.0, 11.0, 1.5 }, mr);
-
-    // Wrap Au and Bu back as Values so we can re-use imfilter.
-    auto pack = [&](keel::ArrayRef<double> v) {
-        Value V = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *vd = V.doubleDataMut();
-        // Au is in column-major (because Value is column-major and we
-        // copied via elemAsDouble which respects col-major linear index).
-        for (keel::usize i = 0; i < v.size(); ++i) vd[i] = v[i];
-        return V;
-    };
-    Value Av = pack(Au), Bv = pack(Bu);
-
-    // Filtered means.
-    auto box_filt = [&](const Value &X) {
-        return imfilter(X, gK, PadMode::Replicate, 0.0, /*full=*/false, /*flip_kernel=*/false, mr);
-    };
-
-    Value mu_a = box_filt(Av);
-    Value mu_b = box_filt(Bv);
-
-    // Variances and covariance.
-    Value Aa = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    Value Bb = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    Value Ab = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    {
-        double *aa = Aa.doubleDataMut();
-        double *bb = Bb.doubleDataMut();
-        double *ab = Ab.doubleDataMut();
-        for (keel::usize i = 0; i < H * W; ++i) {
-            const double a = Av.doubleData()[i];
-            const double b = Bv.doubleData()[i];
-            aa[i] = a * a;
-            bb[i] = b * b;
-            ab[i] = a * b;
-        }
-    }
-    Value sa2 = box_filt(Aa);
-    Value sb2 = box_filt(Bb);
-    Value sab = box_filt(Ab);
-
-    const double K1 = 0.01, K2 = 0.03, L = 1.0;  // L = dynamic range (we scaled to [0,1])
-    const double C1 = (K1 * L) * (K1 * L);
-    const double C2 = (K2 * L) * (K2 * L);
-
-    double total = 0.0;
-    keel::usize cnt = 0;
-    for (keel::usize i = 0; i < H * W; ++i) {
-        const double mua = mu_a.doubleData()[i];
-        const double mub = mu_b.doubleData()[i];
-        const double va  = sa2.doubleData()[i] - mua * mua;
-        const double vb  = sb2.doubleData()[i] - mub * mub;
-        const double cov = sab.doubleData()[i] - mua * mub;
-
-        const double num = (2.0 * mua * mub + C1) * (2.0 * cov + C2);
-        const double den = (mua * mua + mub * mub + C1) * (va + vb + C2);
-        if (den > 0.0) { total += num / den; ++cnt; }
-    }
-    const double s = (cnt > 0) ? total / double(cnt) : 1.0;
-    return Value::scalar(s, mr);
+    return Value::scalar(keel::image::ssim(Au, Bu, H, W, 1.0, mr), mr);
 }
 
 Value mean2(const Value &A, keel::Allocator *mr)

@@ -6,6 +6,7 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/math.h>
+#include <keel/image.h>
 #include <keel/string.h>
 #include <keel/utf8.h>
 #include <numkit/image/contrast/contrast.hpp>
@@ -774,48 +775,8 @@ namespace {
 // then level = (idx - 1) / (num_bins - 1).
 // We return the 0-based mean directly; the caller divides by L-1.
 std::pair<double, double> otsu_one_level(keel::ArrayRef<double> counts) {
-    const int L = (int)counts.size();
-    double total = 0.0;
-    double sum_total = 0.0;
-    for (int i = 0; i < L; ++i) { total += counts[i]; sum_total += i * counts[i]; }
-    if (total <= 0.0) return {0.0, 0.0};
-
-    // First pass: find max sigma_b^2.
-    keel::Array<double> sigma_b(L, 0.0);
-    {
-        double w0 = 0.0, sum0 = 0.0;
-        for (int t = 0; t < L - 1; ++t) {
-            w0 += counts[t]; sum0 += t * counts[t];
-            const double w1 = total - w0;
-            if (w0 == 0.0 || w1 == 0.0) continue;
-            const double mu0 = sum0 / w0;
-            const double mu1 = (sum_total - sum0) / w1;
-            const double diff = mu0 - mu1;
-            sigma_b[t] = w0 * w1 * diff * diff;
-        }
-    }
-    double best_var = sigma_b[0];
-    for (int t = 1; t < L - 1; ++t) if (sigma_b[t] > best_var) best_var = sigma_b[t];
-
-    // Second pass: average ALL bin indices where sigma_b == best_var.
-    // Tolerate tiny numerical noise; MATLAB uses exact equality on
-    // normalised values.
-    int n_tied = 0;
-    double sum_tied = 0.0;
-    for (int t = 0; t < L - 1; ++t) {
-        if (sigma_b[t] == best_var) {
-            sum_tied += static_cast<double>(t);
-            ++n_tied;
-        }
-    }
-    const double best_t = (n_tied > 0) ? (sum_tied / n_tied) : 0.0;
-
-    // Effectiveness metric eta = sigma_b^2 / sigma_T^2.
-    const double mu = sum_total / total;
-    double total_var = 0.0;
-    for (int i = 0; i < L; ++i) total_var += counts[i] * (i - mu) * (i - mu);
-    const double em = (total_var > 0.0) ? (best_var / (total * total_var)) : 0.0;
-    return {best_t, em};
+    const auto r = keel::image::otsu_threshold(counts);
+    return {r.bin_level, r.effectiveness};
 }
 
 } // anonymous

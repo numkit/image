@@ -8,6 +8,7 @@
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/math.h>
+#include <keel/image.h>
 #include <keel/string.h>
 #include <numkit/image/color/color.hpp>
 #include <numkit/image/internal/type_gates.hpp>
@@ -173,242 +174,103 @@ void color_layout_argcheck(const Value &x, const char *fn) {
 Value rgb2hsv(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2hsv");
     return pixel_transform(x, "rgb2hsv", [](double r, double g, double b) {
-        const double cmax = std::max({r, g, b});
-        const double cmin = std::min({r, g, b});
-        const double delta = cmax - cmin;
-        double h = 0.0;
-        if (delta > 0.0) {
-            if (cmax == r)      h = std::fmod((g - b) / delta, 6.0) / 6.0;
-            else if (cmax == g) h = ((b - r) / delta + 2.0) / 6.0;
-            else                h = ((r - g) / delta + 4.0) / 6.0;
-            if (h < 0.0) h += 1.0;
-        }
-        const double s = (cmax == 0.0) ? 0.0 : delta / cmax;
-        return keel::StaticArray<double, 3>{h, s, cmax};
+        const auto c = keel::image::rgb_to_hsv(r, g, b);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value hsv2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "hsv2rgb");
     return pixel_transform_raw(x, "hsv2rgb", [](double h, double s, double v) {
-        // Wrap h into [0, 1).
-        h = h - std::floor(h);
-        const double H = h * 6.0;
-        const int    I = static_cast<int>(std::floor(H));
-        const double f = H - I;
-        const double p = v * (1.0 - s);
-        const double q = v * (1.0 - s * f);
-        const double t = v * (1.0 - s * (1.0 - f));
-        switch (I % 6) {
-            case 0: return keel::StaticArray<double, 3>{v, t, p};
-            case 1: return keel::StaticArray<double, 3>{q, v, p};
-            case 2: return keel::StaticArray<double, 3>{p, v, t};
-            case 3: return keel::StaticArray<double, 3>{p, q, v};
-            case 4: return keel::StaticArray<double, 3>{t, p, v};
-            default:return keel::StaticArray<double, 3>{v, p, q};
-        }
+        const auto c = keel::image::hsv_to_rgb(h, s, v);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
-// ════════════════════════════════════════════════════════════════════
-// RGB ↔ YCbCr (ITU-R BT.601, the MATLAB default)
-// Input RGB in [0, 1]; output YCbCr scaled to [16/255 .. 235/255] for
-// Y, [16/255 .. 240/255] for Cb/Cr (this matches MATLAB rgb2ycbcr's
-// output in DOUBLE class).
-// ════════════════════════════════════════════════════════════════════
-
-// ════════════════════════════════════════════════════════════════════
-// RGB ↔ NTSC (YIQ, 3-significant-figure matrix from Wikipedia/MATLAB)
-// ════════════════════════════════════════════════════════════════════
-
 Value rgb2ntsc(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2ntsc");
-    // MATLAB R2025b forward coefficients (16-digit, probed via
-    // rgb2ntsc(eye(3)). Octave-image uses lower-precision 3-sig-fig
-    // matrix; we follow MATLAB per the source-of-truth rule.
     return pixel_transform(x, "rgb2ntsc", [](double r, double g, double b) {
-        const double y = 0.2989360212937755 * r + 0.5870430744511212 * g + 0.1140209042551033 * b;
-        const double i = 0.5959457430707994 * r - 0.2743886357457893 * g - 0.3215571073250100 * b;
-        const double q = 0.2114973403068283 * r - 0.5229106903029738 * g + 0.3114133499961453 * b;
-        return keel::StaticArray<double, 3>{y, i, q};
+        const auto c = keel::image::rgb_to_ntsc(r, g, b);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value ntsc2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "ntsc2rgb");
-    // MATLAB R2025b inverse coefficients (the canonical 3-digit set:
-    // 0.956 / 0.621 / -0.272 / -0.647 / -1.106 / 1.703). Note that
-    // these are NOT exactly inv(rgb2ntsc-forward); MATLAB stores the
-    // forward and inverse independently, so round-trip is not bit-
-    // exact but matches MATLAB output.
-    //
-    // Post-process: negatives → 0 and per-pixel overshoot above 1 is
-    // scaled down by the row max (MATLAB-compat clip / normalize).
     return pixel_transform_raw(x, "ntsc2rgb", [](double y, double i, double q) {
-        double r = y + 0.956 * i + 0.621 * q;
-        double g = y - 0.272 * i - 0.647 * q;
-        double b = y - 1.106 * i + 1.703 * q;
-        if (r < 0.0) r = 0.0;
-        if (g < 0.0) g = 0.0;
-        if (b < 0.0) b = 0.0;
-        const double m = std::max({r, g, b});
-        if (m > 1.0) { r /= m; g /= m; b /= m; }
-        return keel::StaticArray<double, 3>{r, g, b};
+        const auto c = keel::image::ntsc_to_rgb(y, i, q);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value rgb2ycbcr(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2ycbcr");
-    // pixel_transform normalises integer input to [0,1] via element_to_unit,
-    // so the BT.601 op always sees R,G,B in [0,1] and yields studio-swing
-    // Y/Cb/Cr in [0,1]. finalize_class then restores the input's class
-    // (integer -> studio-range integers; double/single unchanged).
     Value res = pixel_transform(x, "rgb2ycbcr", [](double r, double g, double b) {
-        const double y  = ( 65.481 * r + 128.553 * g +  24.966 * b +  16.0) / 255.0;
-        const double cb = (-37.797 * r -  74.203 * g + 112.0   * b + 128.0) / 255.0;
-        const double cr = (112.0   * r -  93.786 * g -  18.214 * b + 128.0) / 255.0;
-        return keel::StaticArray<double, 3>{y, cb, cr};
+        const auto c = keel::image::rgb_to_ycbcr(r, g, b);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
     return finalize_class(res, x.type(), mr);
 }
 
 Value ycbcr2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "ycbcr2rgb");
-    // Integer YCbCr input is normalised to [0,1] before the inverse;
-    // finalize_class then restores the input class (integer -> [0,255]/
-    // [0,65535] saturated, double/single unchanged).
     const ValueType cls = x.type();
     const bool isInt = (cls == ValueType::UINT8 || cls == ValueType::UINT16
                         || cls == ValueType::INT16);
     Value src = isInt ? to_unit_double(x, mr) : x;
     Value res = pixel_transform_raw(src, "ycbcr2rgb", [](double y, double cb, double cr) {
-        // Inverse BT.601 = inv([65.481 128.553 24.966; -37.797 -74.203 112;
-        // 112 -93.786 -18.214]) applied to [255Y-16; 255Cb-128; 255Cr-128].
-        // Full-precision coefficients (bit-exact vs MATLAB R2025b; the
-        // previous 8-digit-rounded factoring drifted ~1e-7).
-        const double Yp  = 255.0 * y  - 16.0;
-        const double Cbp = 255.0 * cb - 128.0;
-        const double Crp = 255.0 * cr - 128.0;
-        double R = 0.0045662100456621011 * Yp + 1.1808799897946412e-09 * Cbp + 0.0062589289699439363 * Crp;
-        double G = 0.0045662100456621011 * Yp - 0.0015363236860449021 * Cbp - 0.003188110949655707 * Crp;
-        double B = 0.0045662100456621011 * Yp + 0.0079107162335547414 * Cbp + 1.1977497040190077e-08 * Crp;
-        R = std::clamp(R, 0.0, 1.0);
-        G = std::clamp(G, 0.0, 1.0);
-        B = std::clamp(B, 0.0, 1.0);
-        return keel::StaticArray<double, 3>{R, G, B};
+        const auto c = keel::image::ycbcr_to_rgb(y, cb, cr);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
     return finalize_class(res, cls, mr);
 }
 
-// ════════════════════════════════════════════════════════════════════
-// RGB ↔ XYZ (sRGB → CIE XYZ, D65 white point)
-// MATLAB convention applies sRGB gamma decode first.
-// ════════════════════════════════════════════════════════════════════
-
-namespace {
-inline double srgb_decode(double c) {
-    // sRGB gamma → linear.
-    return (c <= 0.04045) ? (c / 12.92) : std::pow((c + 0.055) / 1.055, 2.4);
-}
-inline double srgb_encode(double c) {
-    // Linear → sRGB gamma.
-    return (c <= 0.0031308) ? (12.92 * c) : (1.055 * std::pow(c, 1.0 / 2.4) - 0.055);
-}
-} // anonymous
-
 Value rgb2xyz(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2xyz");
     return pixel_transform(x, "rgb2xyz", [](double r, double g, double b) {
-        // sRGB → linear.
-        const double Rl = srgb_decode(r);
-        const double Gl = srgb_decode(g);
-        const double Bl = srgb_decode(b);
-        // sRGB / D65 matrix (CIE).
-        const double X = 0.4124564 * Rl + 0.3575761 * Gl + 0.1804375 * Bl;
-        const double Y = 0.2126729 * Rl + 0.7151522 * Gl + 0.0721750 * Bl;
-        const double Z = 0.0193339 * Rl + 0.1191920 * Gl + 0.9503041 * Bl;
-        return keel::StaticArray<double, 3>{X, Y, Z};
+        const auto c = keel::image::rgb_to_xyz(r, g, b);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value xyz2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "xyz2rgb");
-    // MATLAB xyz2rgb does NOT clamp out-of-gamut linear RGB to [0,1];
-    // it applies sign-preserving sRGB gamma so callers can detect and
-    // handle out-of-gamut explicitly. Preserve that behaviour:
-    //   encoded = sign(c) * srgb_encode(|c|)
-    auto signed_srgb_encode = [](double c) {
-        if (c >= 0.0) return srgb_encode(c);
-        return -srgb_encode(-c);
-    };
-    return pixel_transform_raw(x, "xyz2rgb", [&signed_srgb_encode](double X, double Y, double Z) {
-            // Inverse matrix (sRGB / D65).
-            const double Rl =  3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z;
-            const double Gl = -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z;
-            const double Bl =  0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z;
-            return keel::StaticArray<double, 3>{
-                signed_srgb_encode(Rl), signed_srgb_encode(Gl), signed_srgb_encode(Bl)
-            };
-        }, mr);
+    return pixel_transform_raw(x, "xyz2rgb", [](double X, double Y, double Z) {
+        const auto c = keel::image::xyz_to_rgb(X, Y, Z);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+    }, mr);
 }
-
-// ════════════════════════════════════════════════════════════════════
-// XYZ ↔ Lab (CIELAB, D65 reference white)
-// ════════════════════════════════════════════════════════════════════
-
-namespace {
-constexpr double XYZ_Xn = 0.95047;  // D65
-constexpr double XYZ_Yn = 1.00000;
-constexpr double XYZ_Zn = 1.08883;
-inline double f_lab(double t) {
-    constexpr double delta = 6.0 / 29.0;
-    constexpr double delta3 = delta * delta * delta;
-    if (t > delta3) return std::cbrt(t);
-    return t / (3.0 * delta * delta) + 4.0 / 29.0;
-}
-inline double finv_lab(double t) {
-    constexpr double delta = 6.0 / 29.0;
-    if (t > delta) return t * t * t;
-    return 3.0 * delta * delta * (t - 4.0 / 29.0);
-}
-} // anonymous
 
 Value xyz2lab(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "xyz2lab");
     return pixel_transform_raw(x, "xyz2lab", [](double X, double Y, double Z) {
-        const double fx = f_lab(X / XYZ_Xn);
-        const double fy = f_lab(Y / XYZ_Yn);
-        const double fz = f_lab(Z / XYZ_Zn);
-        const double L  = 116.0 * fy - 16.0;
-        const double a  = 500.0 * (fx - fy);
-        const double b  = 200.0 * (fy - fz);
-        return keel::StaticArray<double, 3>{L, a, b};
+        const auto c = keel::image::xyz_to_lab(X, Y, Z);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value lab2xyz(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "lab2xyz");
     return pixel_transform_raw(x, "lab2xyz", [](double L, double a, double b) {
-        const double fy = (L + 16.0) / 116.0;
-        const double fx = fy + a / 500.0;
-        const double fz = fy - b / 200.0;
-        const double X = XYZ_Xn * finv_lab(fx);
-        const double Y = XYZ_Yn * finv_lab(fy);
-        const double Z = XYZ_Zn * finv_lab(fz);
-        return keel::StaticArray<double, 3>{X, Y, Z};
+        const auto c = keel::image::lab_to_xyz(L, a, b);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value rgb2lab(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2xyz");
-    Value xyz = rgb2xyz(x, mr);
-    return xyz2lab(xyz, mr);
+    return pixel_transform(x, "rgb2xyz", [](double r, double g, double b) {
+        const auto c = keel::image::rgb_to_lab(r, g, b);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+    }, mr);
 }
 
 Value lab2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "lab2xyz");
-    Value xyz = lab2xyz(x, mr);
-    return xyz2rgb(xyz, mr);
+    return pixel_transform_raw(x, "lab2xyz", [](double L, double a, double b) {
+        const auto c = keel::image::lab_to_rgb(L, a, b);
+        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+    }, mr);
 }
 
 // ════════════════════════════════════════════════════════════════════
