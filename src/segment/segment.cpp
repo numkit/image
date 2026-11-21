@@ -18,7 +18,7 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -956,7 +956,7 @@ Value graydist(const Value &I, const Value &seeds,
 
     // Neighbour offsets in (dr, dc) and chamfer weight.
     struct Step { int dr, dc; double chamfer; };
-    std::array<Step, 8> steps8{};
+    keel::StaticArray<Step, 8> steps8{};
     int nSteps = 0;
     if (is_cb) {
         steps8 = {Step{-1, 0, 1.0}, Step{1, 0, 1.0},
@@ -1102,7 +1102,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
     }
 
     struct Step { int dr, dc; double chamfer; };
-    std::array<Step, 8> steps8{};
+    keel::StaticArray<Step, 8> steps8{};
     int nSteps = 0;
     if (is_cb) {
         steps8 = {Step{-1, 0, 1.0}, Step{1, 0, 1.0},

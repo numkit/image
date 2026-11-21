@@ -25,7 +25,7 @@
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <array>
+#include <keel/static_array.h>
 #include <cstring>
 #include <tuple>
 #include <cmath>
@@ -864,7 +864,7 @@ Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
 
     // 2-D OTF for now (deconvwnr handles N-D in MATLAB; we cover
     // 2-D and 3-D via per-page processing — common in HDR / volumes).
-    std::array<keel::usize, 2> outsize{H, W};
+    keel::StaticArray<keel::usize, 2> outsize{H, W};
     Value Hf = psf2otf(PSF, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
     // psf2otf may return DOUBLE for real-symmetric PSFs; normalise
     // to a COMPLEX buffer so the rest of this function can access
@@ -1054,7 +1054,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
         // the scalar-core's H computation, then redo the denom build.
         const bool is3 = dI.is3D();
         const keel::usize P = is3 ? dI.pages() : 1;
-        std::array<keel::usize, 2> outsize{H, W};
+        keel::StaticArray<keel::usize, 2> outsize{H, W};
         Value Hf = psf2otf(PSFd, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
         // Same DOUBLE-vs-COMPLEX normalisation as the scalar path.
         keel::Array<keel::c64> Hcplx(plane, keel::c64{0, 0}, mr);
@@ -1240,7 +1240,7 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
             ad[c * H + r] = (1.0 - beta_r[r]) * (1.0 - beta_c[c]);
 
     // blurredI = real(ifft2(fft2(I) .* psf2otf(PSF, sizeI))).
-    std::array<keel::usize, 2> outsize{H, W};
+    keel::StaticArray<keel::usize, 2> outsize{H, W};
     Value Hotf = psf2otf(PSFd, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);
     const keel::usize plane = H * W;
     keel::Array<keel::c64> Hc(plane, keel::c64{0, 0}, mr);
@@ -1446,7 +1446,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     }
 
     const keel::usize plane = H * W;
-    std::array<keel::usize, 2> outsize{H, W};
+    keel::StaticArray<keel::usize, 2> outsize{H, W};
 
     // OTF of PSF.
     Value Hf = psf2otf(PSFd, keel::ArrayRef<keel::usize>(outsize.data(), 2), mr);

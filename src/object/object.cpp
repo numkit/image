@@ -25,7 +25,7 @@
 
 #include <algorithm>
 #include <tuple>
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -1684,7 +1684,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
     Value HdVal = Value::matrix(M, N, ValueType::DOUBLE, mr);
     double *hdPtr = HdVal.doubleDataMut();
     if (std::min(M, N) > 5) {
-        std::array<double, 25> win{};
+        keel::StaticArray<double, 25> win{};
         for (keel::usize c = 0; c < N; ++c) {
             for (keel::usize r = 0; r < M; ++r) {
                 keel::usize k = 0;

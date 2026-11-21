@@ -26,7 +26,7 @@
 #include "filter/filter_detail.hpp"
 
 #include <algorithm>
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -75,7 +75,7 @@ Value nlfilter(const Value &A,
     // Invoke the user callback on one input (core-free via FnHandle;
     // the bundle adapter binds it to Engine::callFunctionHandle).
     auto callFun = [&](const Value &arg) -> Value {
-        std::array<Value, 1> o;
+        keel::StaticArray<Value, 1> o;
         fun(keel::ArrayRef<Value>(&arg, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
         return std::move(o[0]);
     };
@@ -210,7 +210,7 @@ Value colfilt(const Value &A,
     // Invoke the user callback on one input (core-free via FnHandle;
     // the bundle adapter binds it to Engine::callFunctionHandle).
     auto callFun = [&](const Value &arg) -> Value {
-        std::array<Value, 1> o;
+        keel::StaticArray<Value, 1> o;
         fun(keel::ArrayRef<Value>(&arg, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
         return std::move(o[0]);
     };

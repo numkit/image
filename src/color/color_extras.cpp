@@ -40,7 +40,7 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -1168,7 +1168,7 @@ void make_similar(Value &A, Value &B, keel::StringRef scaling,
 void imfuse_argcheck(keel::StringRef method, keel::StringRef scaling,
                      const Value &channels)
 {
-    static const std::array<const char *, 5> methods{
+    static const keel::StaticArray<const char *, 5> methods{
         "falsecolor", "blend", "diff", "checkerboard", "montage"};
     bool method_ok = false;
     for (auto m : methods) if (method == m) { method_ok = true; break; }
@@ -1221,7 +1221,7 @@ Value imfuse(const Value &Ain, const Value &Bin,
              keel::Allocator *mr)
 {
     imfuse_argcheck(method, scaling, channels);
-    static const std::array<const char *, 5> methods{
+    static const keel::StaticArray<const char *, 5> methods{
         "falsecolor", "blend", "diff", "checkerboard", "montage"};
     bool method_ok = false;
     for (auto m : methods) if (method == m) { method_ok = true; break; }
@@ -1260,7 +1260,7 @@ Value imfuse(const Value &Ain, const Value &Bin,
         }
         A = im2uint8(A, mr);
         B = im2uint8(B, mr);
-        std::array<int, 3> ch{2, 1, 2};  // green-magenta default
+        keel::StaticArray<int, 3> ch{2, 1, 2};  // green-magenta default
         if (channels.numel() == 3) {
             for (int k = 0; k < 3; ++k) {
                 const double v = channels.elemAsDouble(k);
@@ -1882,7 +1882,7 @@ EdgeSet build_8conn_edges(const Value &L)
             const int a = lab(r, c);
             if (a > s.maxLabel) s.maxLabel = a;
             // 8-conn forward neighbours: (r+1,c), (r,c+1), (r+1,c+1), (r+1,c-1)
-            const std::array<std::pair<int, int>, 4> off{{
+            const keel::StaticArray<std::pair<int, int>, 4> off{{
                 {1, 0}, {0, 1}, {1, 1}, {1, -1}
             }};
             for (auto [dr, dc] : off) {

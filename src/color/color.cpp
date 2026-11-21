@@ -17,7 +17,7 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <array>
+#include <keel/static_array.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -93,7 +93,7 @@ Value pixel_transform(const Value &x, const char *fn, Op op, keel::Allocator *mr
         const double a = element_to_unit(x, p + 0 * lay.s_chan);
         const double b = element_to_unit(x, p + 1 * lay.s_chan);
         const double c = element_to_unit(x, p + 2 * lay.s_chan);
-        std::array<double, 3> r = op(a, b, c);
+        keel::StaticArray<double, 3> r = op(a, b, c);
         od[p + 0 * lay.s_chan] = r[0];
         od[p + 1 * lay.s_chan] = r[1];
         od[p + 2 * lay.s_chan] = r[2];
@@ -115,7 +115,7 @@ Value pixel_transform_raw(const Value &x, const char *fn, Op op, keel::Allocator
         const double a = x.elemAsDouble(p + 0 * lay.s_chan);
         const double b = x.elemAsDouble(p + 1 * lay.s_chan);
         const double c = x.elemAsDouble(p + 2 * lay.s_chan);
-        std::array<double, 3> r = op(a, b, c);
+        keel::StaticArray<double, 3> r = op(a, b, c);
         od[p + 0 * lay.s_chan] = r[0];
         od[p + 1 * lay.s_chan] = r[1];
         od[p + 2 * lay.s_chan] = r[2];
@@ -184,7 +184,7 @@ Value rgb2hsv(const Value &x, keel::Allocator *mr) {
             if (h < 0.0) h += 1.0;
         }
         const double s = (cmax == 0.0) ? 0.0 : delta / cmax;
-        return std::array<double, 3>{h, s, cmax};
+        return keel::StaticArray<double, 3>{h, s, cmax};
     }, mr);
 }
 
@@ -200,12 +200,12 @@ Value hsv2rgb(const Value &x, keel::Allocator *mr) {
         const double q = v * (1.0 - s * f);
         const double t = v * (1.0 - s * (1.0 - f));
         switch (I % 6) {
-            case 0: return std::array<double, 3>{v, t, p};
-            case 1: return std::array<double, 3>{q, v, p};
-            case 2: return std::array<double, 3>{p, v, t};
-            case 3: return std::array<double, 3>{p, q, v};
-            case 4: return std::array<double, 3>{t, p, v};
-            default:return std::array<double, 3>{v, p, q};
+            case 0: return keel::StaticArray<double, 3>{v, t, p};
+            case 1: return keel::StaticArray<double, 3>{q, v, p};
+            case 2: return keel::StaticArray<double, 3>{p, v, t};
+            case 3: return keel::StaticArray<double, 3>{p, q, v};
+            case 4: return keel::StaticArray<double, 3>{t, p, v};
+            default:return keel::StaticArray<double, 3>{v, p, q};
         }
     }, mr);
 }
@@ -230,7 +230,7 @@ Value rgb2ntsc(const Value &x, keel::Allocator *mr) {
         const double y = 0.2989360212937755 * r + 0.5870430744511212 * g + 0.1140209042551033 * b;
         const double i = 0.5959457430707994 * r - 0.2743886357457893 * g - 0.3215571073250100 * b;
         const double q = 0.2114973403068283 * r - 0.5229106903029738 * g + 0.3114133499961453 * b;
-        return std::array<double, 3>{y, i, q};
+        return keel::StaticArray<double, 3>{y, i, q};
     }, mr);
 }
 
@@ -253,7 +253,7 @@ Value ntsc2rgb(const Value &x, keel::Allocator *mr) {
         if (b < 0.0) b = 0.0;
         const double m = std::max({r, g, b});
         if (m > 1.0) { r /= m; g /= m; b /= m; }
-        return std::array<double, 3>{r, g, b};
+        return keel::StaticArray<double, 3>{r, g, b};
     }, mr);
 }
 
@@ -267,7 +267,7 @@ Value rgb2ycbcr(const Value &x, keel::Allocator *mr) {
         const double y  = ( 65.481 * r + 128.553 * g +  24.966 * b +  16.0) / 255.0;
         const double cb = (-37.797 * r -  74.203 * g + 112.0   * b + 128.0) / 255.0;
         const double cr = (112.0   * r -  93.786 * g -  18.214 * b + 128.0) / 255.0;
-        return std::array<double, 3>{y, cb, cr};
+        return keel::StaticArray<double, 3>{y, cb, cr};
     }, mr);
     return finalize_class(res, x.type(), mr);
 }
@@ -295,7 +295,7 @@ Value ycbcr2rgb(const Value &x, keel::Allocator *mr) {
         R = std::clamp(R, 0.0, 1.0);
         G = std::clamp(G, 0.0, 1.0);
         B = std::clamp(B, 0.0, 1.0);
-        return std::array<double, 3>{R, G, B};
+        return keel::StaticArray<double, 3>{R, G, B};
     }, mr);
     return finalize_class(res, cls, mr);
 }
@@ -327,7 +327,7 @@ Value rgb2xyz(const Value &x, keel::Allocator *mr) {
         const double X = 0.4124564 * Rl + 0.3575761 * Gl + 0.1804375 * Bl;
         const double Y = 0.2126729 * Rl + 0.7151522 * Gl + 0.0721750 * Bl;
         const double Z = 0.0193339 * Rl + 0.1191920 * Gl + 0.9503041 * Bl;
-        return std::array<double, 3>{X, Y, Z};
+        return keel::StaticArray<double, 3>{X, Y, Z};
     }, mr);
 }
 
@@ -346,7 +346,7 @@ Value xyz2rgb(const Value &x, keel::Allocator *mr) {
             const double Rl =  3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z;
             const double Gl = -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z;
             const double Bl =  0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z;
-            return std::array<double, 3>{
+            return keel::StaticArray<double, 3>{
                 signed_srgb_encode(Rl), signed_srgb_encode(Gl), signed_srgb_encode(Bl)
             };
         }, mr);
@@ -382,7 +382,7 @@ Value xyz2lab(const Value &x, keel::Allocator *mr) {
         const double L  = 116.0 * fy - 16.0;
         const double a  = 500.0 * (fx - fy);
         const double b  = 200.0 * (fy - fz);
-        return std::array<double, 3>{L, a, b};
+        return keel::StaticArray<double, 3>{L, a, b};
     }, mr);
 }
 
@@ -395,7 +395,7 @@ Value lab2xyz(const Value &x, keel::Allocator *mr) {
         const double X = XYZ_Xn * finv_lab(fx);
         const double Y = XYZ_Yn * finv_lab(fy);
         const double Z = XYZ_Zn * finv_lab(fz);
-        return std::array<double, 3>{X, Y, Z};
+        return keel::StaticArray<double, 3>{X, Y, Z};
     }, mr);
 }
 

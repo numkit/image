@@ -20,7 +20,7 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <array>
+#include <keel/static_array.h>
 #include <cstdint>
 #include <cstring>
 
@@ -99,7 +99,7 @@ Value raw2planar(const Value &cfa, keel::Allocator *mr)
     const keel::usize Mp = M / 2;
     const keel::usize Np = N / 2;
     const ValueType T = cfa.type();
-    Value P = Value::matrixND(std::array<keel::usize,3>{Mp, Np, 4}.data(), 3, T, mr);
+    Value P = Value::matrixND(keel::StaticArray<keel::usize,3>{Mp, Np, 4}.data(), 3, T, mr);
 
     // Column-major index: cfa(r,c) = r + c*M  (0-indexed).
     //                     P(r,c,k) = r + c*Mp + k*Mp*Np.

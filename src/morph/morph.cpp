@@ -36,7 +36,7 @@ inline Value maskImageByLogical(const Value &I, const Value &mask,
 #include <keel/format.h>
 #include <keel/hash_set.h>
 #include <algorithm>
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -139,11 +139,11 @@ Value strel_disk(double r_in, int n, keel::Allocator *mr) {
         return strel_disk_euclidean(r_in, mr);
 
     // Basis offset vectors (row, col) per N.
-    static const std::array<std::pair<int,int>, 4> B4 =
+    static const keel::StaticArray<std::pair<int,int>, 4> B4 =
         {{{1,0},{1,1},{0,1},{-1,1}}};
-    static const std::array<std::pair<int,int>, 6> B6 =
+    static const keel::StaticArray<std::pair<int,int>, 6> B6 =
         {{{1,0},{1,2},{2,1},{0,1},{-1,2},{-2,1}}};
-    static const std::array<std::pair<int,int>, 8> B8 =
+    static const keel::StaticArray<std::pair<int,int>, 8> B8 =
         {{{1,0},{2,1},{1,1},{1,2},{0,1},{-1,2},{-1,1},{-2,1}}};
     const std::pair<int,int> *V; int nb;
     if (n == 4)      { V = B4.data(); nb = 4; }
@@ -1651,7 +1651,7 @@ Value imkeepborder(const Value &BW, int conn, keel::Allocator *mr)
 
 namespace {
 
-using Lut = std::array<keel::u8, 512>;
+using Lut = keel::StaticArray<keel::u8, 512>;
 
 // ──────────────────────────────────────────────────────────────────
 // The 3x3-neighbourhood lookup primitive.
@@ -2342,7 +2342,7 @@ Value makelut(FnHandle fun, int n, keel::Allocator *mr)
     for (keel::usize k = 0; k < N; ++k) {
         for (int i = 0; i < nq; ++i)
             nd[i] = static_cast<keel::u8>((k >> (nq - 1 - i)) & keel::usize{1});
-        std::array<Value, 1> o;
+        keel::StaticArray<Value, 1> o;
         fun(keel::ArrayRef<Value>(&nh, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
         const Value &r = o[0];
         if (r.numel() != 1)

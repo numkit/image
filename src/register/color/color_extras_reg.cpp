@@ -24,7 +24,7 @@
 #include <numkit/value/error.hpp>
 #include "color/color_extras_detail.hpp"
 
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstddef>
 #include <utility>
@@ -204,7 +204,7 @@ void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::usize i = 2;
     if (i < args.size() && is_string(args[i])) {
         keel::String m = args[i].toString();
-        static const std::array<const char *, 5> mset{
+        static const keel::StaticArray<const char *, 5> mset{
             "falsecolor", "blend", "diff", "checkerboard", "montage"};
         bool is_method = false;
         for (auto mm : mset) if (m == mm) { is_method = true; break; }
