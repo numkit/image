@@ -1891,7 +1891,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
             auto *od = out.complexDataMut();
             for (keel::usize i = 0; i < N; ++i) {
                 keel::c64 z = cd[i];
-                const double u = keel::uniform_f64(rng);
+                const double u = keel::random::uniform_f64(rng);
                 if      (u < d * 0.5) z = keel::c64(0.0, 0.0);
                 else if (u < d)       z = keel::c64(1.0, 0.0);
                 od[i] = z;
@@ -1953,14 +1953,14 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         const double sigma = std::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
-            fromUnit(out, i, x + m + keel::normal_f64(rng, 0.0, sigma));
+            fromUnit(out, i, x + m + keel::random::normal_f64(rng, 0.0, sigma));
         }
     }
     else if (mode == "salt & pepper" || mode == "salt&pepper") {
         const double d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
         for (keel::usize i = 0; i < N; ++i) {
             double x = toUnit(I.elemAsDouble(i));
-            const double u = keel::uniform_f64(rng);
+            const double u = keel::random::uniform_f64(rng);
             if      (u < d * 0.5) x = 0.0;       // pepper
             else if (u < d)       x = 1.0;       // salt
             fromUnit(out, i, x);
@@ -1971,7 +1971,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         const double sigma = std::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
-            fromUnit(out, i, x + x * keel::normal_f64(rng, 0.0, sigma));
+            fromUnit(out, i, x + x * keel::random::normal_f64(rng, 0.0, sigma));
         }
     }
     else if (mode == "poisson") {
@@ -1986,7 +1986,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             const double mean = std::max(x * scale, 0.0);
-            const keel::u64 k = keel::poisson_u64(rng, mean);
+            const keel::u64 k = keel::random::poisson_u64(rng, mean);
             fromUnit(out, i, static_cast<double>(k) / scale);
         }
     }
@@ -1997,7 +1997,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         for (keel::usize i = 0; i < N; ++i) {
             const double x = toUnit(I.elemAsDouble(i));
             const double v = std::max(p1.elemAsDouble(i), 0.0);
-            fromUnit(out, i, x + keel::normal_f64(rng, 0.0, std::sqrt(v)));
+            fromUnit(out, i, x + keel::random::normal_f64(rng, 0.0, std::sqrt(v)));
         }
     }
     else {
