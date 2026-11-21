@@ -1,106 +1,22 @@
 // toolboxes/image/src/color/demosaic.cpp
 //
-// demosaic — Bayer mosaic → RGB via Malvar-He-Cutler 2004 linear
-// 5×5 filtering. Input is a 2-D uint8 / uint16 / uint32 mosaic;
-// output is an H×W×3 truecolor RGB image of the same class.
-//
-// Algorithm: Malvar-He-Cutler "High-Quality Linear Interpolation for
-// Demosaicing of Bayer-Patterned Color Images", IEEE ICASSP 2004.
-// Five 5×5 integer kernels (×8) cover the four pixel-type configurations:
-//
-//   * G at R or B locations           — kernel G_at_RB
-//   * R at G in R-row, B at G in B-row — kernel C_at_G_sameRow
-//   * R at G in B-row, B at G in R-row — kernel C_at_G_diffRow
-//   * R at B or B at R                — kernel C_at_C2
-//
-// At the sensor positions themselves (e.g. R-channel at R-pixel) we
-// simply return the raw mosaic value. Boundary handling reflects
-// through the FIRST pixel (k = -1 → orig(1), k = N → orig(N-2)) so
-// the mirrored neighbourhood preserves the Bayer pattern — this is
-// what MATLAB R2025b does, NOT imfilter's standard `symmetric`.
+// Bayer mosaic -> RGB via Malvar-He-Cutler 5x5 linear interpolation,
+// delegating the pure numerical kernel to keel::image.
 
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/image.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <numkit/image/color/color.hpp>
 
-#include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-
-#include <algorithm>
-#include <cmath>
-#include <cstdint>
+#include <numkit/value/value.hpp>
 
 namespace numkit::image {
 
 namespace {
-
-// MHC kernels from Malvar-He-Cutler 2004 Table 1. Each kernel is the
-// "displayed" form (sum = 8); divide the convolution sum by 8 to get
-// the reconstructed pixel value. We use double precision so the 0.5
-// and 1.5 entries fall out naturally.
-
-// G at R or B locations.
-constexpr keel::f64 K_G_at_RB[25] = {
-    0, 0, -1, 0, 0,
-    0, 0,  2, 0, 0,
-   -1, 2,  4, 2,-1,
-    0, 0,  2, 0, 0,
-    0, 0, -1, 0, 0
-};
-
-// R at G in R-row (or B at G in B-row).
-constexpr keel::f64 K_C_at_G_sameRow[25] = {
-    0,  0,  0.5, 0,  0,
-    0, -1,    0,-1,  0,
-   -1,  4,    5, 4, -1,
-    0, -1,    0,-1,  0,
-    0,  0,  0.5, 0,  0
-};
-
-// R at G in B-row (or B at G in R-row).
-constexpr keel::f64 K_C_at_G_diffRow[25] = {
-    0,    0, -1, 0,    0,
-    0,   -1,  4,-1,    0,
-    0.5,  0,  5, 0,    0.5,
-    0,   -1,  4,-1,    0,
-    0,    0, -1, 0,    0
-};
-
-// R at B (or B at R).
-constexpr keel::f64 K_C_at_C2[25] = {
-    0,    0, -1.5, 0,    0,
-    0,    2,    0, 2,    0,
-   -1.5,  0,    6, 0,   -1.5,
-    0,    2,    0, 2,    0,
-    0,    0, -1.5, 0,    0
-};
-
-// Mirror through the first pixel (Bayer-preserving). For 0-indexed
-// index k and length N:  k<0 → -k;  k>=N → 2N-2-k.
-inline keel::i32 mirror1(keel::i32 k, keel::i32 N) {
-    if (k < 0)    return -k;
-    if (k >= N)   return 2*N - 2 - k;
-    return k;
-}
-
-inline keel::f64 sampleI(const Value &I, keel::i32 r, keel::i32 c, keel::usize M, keel::usize N) {
-    const keel::i32 rp = mirror1(r, keel::i32(M));
-    const keel::i32 cp = mirror1(c, keel::i32(N));
-    return I.elemAsDouble(keel::usize(rp) + keel::usize(cp) * M);
-}
-
-inline keel::f64 conv5(const Value &I, keel::i32 r, keel::i32 c, keel::usize M, keel::usize N,
-                    const keel::f64 *K)
-{
-    keel::f64 acc = 0.0;
-    for (keel::i32 dr = -2; dr <= 2; ++dr)
-        for (keel::i32 dc = -2; dc <= 2; ++dc) {
-            const keel::f64 w = K[(dr + 2) * 5 + (dc + 2)];
-            if (w != 0.0)
-                acc += w * sampleI(I, r + dr, c + dc, M, N);
-        }
-    return acc / 8.0;
-}
 
 inline void writeNativeInt(Value &out, keel::usize idx, keel::f64 v, ValueType T)
 {
@@ -108,48 +24,29 @@ inline void writeNativeInt(Value &out, keel::usize idx, keel::f64 v, ValueType T
     switch (T) {
         case ValueType::UINT8:
             if (v > 255.0) v = 255.0;
-            out.uint8DataMut()[idx] = keel::as<keel::u8>(std::lround(v));
+            out.uint8DataMut()[idx] = keel::as<keel::u8>(keel::round(v));
             break;
         case ValueType::UINT16:
             if (v > 65535.0) v = 65535.0;
-            out.uint16DataMut()[idx] = keel::as<keel::u16>(std::lround(v));
+            out.uint16DataMut()[idx] = keel::as<keel::u16>(keel::round(v));
             break;
         case ValueType::UINT32:
             if (v > 4294967295.0) v = 4294967295.0;
-            out.uint32DataMut()[idx] = keel::as<keel::u32>(std::llround(v));
+            out.uint32DataMut()[idx] = keel::as<keel::u32>(keel::round(v));
             break;
         default:
-            // Unreachable — adapter validates type.
             break;
     }
 }
 
-void demosaic_argcheck(const Value &I, keel::StringRef sensorAlignment)
+keel::image::BayerPattern parseAlignment(keel::StringRef s)
 {
-    const auto &dims = I.dims();
-    if (dims.ndims() < 2)
-        throw Error("demosaic: I must be a 2-D matrix",
-                    0, 0, "demosaic", "", "numkit:demosaic:rank");
-    const keel::usize M = dims.dim(0);
-    const keel::usize N = dims.dim(1);
-    if (M < 2 || N < 2 || (M % 2) != 0 || (N % 2) != 0)
-        throw Error("demosaic: image dims must both be even and ≥ 2",
-                    0, 0, "demosaic", "", "numkit:demosaic:invalidImageSize");
-    if (I.numel() != M * N)
-        throw Error("demosaic: I must be 2-D",
-                    0, 0, "demosaic", "", "numkit:demosaic:shape");
-
-    const ValueType T = I.type();
-    if (T != ValueType::UINT8 && T != ValueType::UINT16 &&
-        T != ValueType::UINT32)
-        throw Error("demosaic: image must be uint8, uint16, or uint32",
-                    0, 0, "demosaic", "", "numkit:demosaic:type");
-
-    if (sensorAlignment != "rggb" && sensorAlignment != "bggr" &&
-        sensorAlignment != "grbg" && sensorAlignment != "gbrg")
-        throw Error("demosaic: sensorAlignment must be 'rggb', 'bggr', "
-                    "'grbg', or 'gbrg'",
-                    0, 0, "demosaic", "", "numkit:demosaic:alignment");
+    if (s == "rggb") return keel::image::BayerPattern::kRggb;
+    if (s == "bggr") return keel::image::BayerPattern::kBggr;
+    if (s == "grbg") return keel::image::BayerPattern::kGrbg;
+    if (s == "gbrg") return keel::image::BayerPattern::kGbrg;
+    throw Error("demosaic: sensorAlignment must be 'rggb', 'bggr', 'grbg', or 'gbrg'",
+                0, 0, "demosaic", "", "numkit:demosaic:alignment");
 }
 
 } // anonymous
@@ -157,7 +54,7 @@ void demosaic_argcheck(const Value &I, keel::StringRef sensorAlignment)
 Value demosaic(const Value &I, keel::StringRef sensorAlignment,
                keel::i32 bitsPerSample, keel::Allocator *mr)
 {
-    demosaic_argcheck(I, sensorAlignment);
+    (void)bitsPerSample;
     const auto &dims = I.dims();
     if (dims.ndims() < 2)
         throw Error("demosaic: I must be a 2-D matrix",
@@ -165,87 +62,38 @@ Value demosaic(const Value &I, keel::StringRef sensorAlignment,
     const keel::usize M = dims.dim(0);
     const keel::usize N = dims.dim(1);
     if (M < 2 || N < 2 || (M % 2) != 0 || (N % 2) != 0)
-        throw Error("demosaic: image dims must both be even and ≥ 2",
+        throw Error("demosaic: image dims must both be even and >= 2",
                     0, 0, "demosaic", "", "numkit:demosaic:invalidImageSize");
     if (I.numel() != M * N)
         throw Error("demosaic: I must be 2-D",
                     0, 0, "demosaic", "", "numkit:demosaic:shape");
 
     const ValueType T = I.type();
-    if (T != ValueType::UINT8 && T != ValueType::UINT16 &&
-        T != ValueType::UINT32)
+    if (T != ValueType::UINT8 && T != ValueType::UINT16 && T != ValueType::UINT32)
         throw Error("demosaic: image must be uint8, uint16, or uint32",
                     0, 0, "demosaic", "", "numkit:demosaic:type");
 
-    // Sensor alignment → parity (r_par, c_par) of R pixel (1-indexed).
-    // The four MATLAB patterns:
-    //   rggb: R at (odd,odd),  B at (even,even)
-    //   bggr: R at (even,even), B at (odd,odd)
-    //   grbg: R at (odd,even),  B at (even,odd)
-    //   gbrg: R at (even,odd),  B at (odd,even)
-    keel::i32 r_par_r, r_par_c, b_par_r, b_par_c;
-    if      (sensorAlignment == "rggb") { r_par_r = 1; r_par_c = 1; b_par_r = 0; b_par_c = 0; }
-    else if (sensorAlignment == "bggr") { r_par_r = 0; r_par_c = 0; b_par_r = 1; b_par_c = 1; }
-    else if (sensorAlignment == "grbg") { r_par_r = 1; r_par_c = 0; b_par_r = 0; b_par_c = 1; }
-    else if (sensorAlignment == "gbrg") { r_par_r = 0; r_par_c = 1; b_par_r = 1; b_par_c = 0; }
-    else
-        throw Error("demosaic: sensorAlignment must be 'rggb', 'bggr', "
-                    "'grbg', or 'gbrg'",
-                    0, 0, "demosaic", "", "numkit:demosaic:alignment");
+    const keel::image::BayerPattern pat = parseAlignment(sensorAlignment);
+    const keel::f64 maxVal = (T == ValueType::UINT8)  ? 255.0
+                           : (T == ValueType::UINT16) ? 65535.0
+                                                      : 4294967295.0;
 
-    // Output clamp limit = class max. Empirically (probed against
-    // MATLAB R2025b), BitsPerSample does NOT clamp — values above
-    // 2^bps - 1 pass through unchanged. We accept-and-ignore the
-    // parameter for API compatibility.
-    (void)bitsPerSample;
-    const keel::f64 maxVal = (T == ValueType::UINT8)   ? 255.0
-                        : (T == ValueType::UINT16)  ? 65535.0
-                                                    : 4294967295.0;
+    const keel::usize npix = M * N;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::f64> mosaic(npix, 0.0, scratch.allocator());
+    for (keel::usize i = 0; i < npix; ++i) mosaic[i] = I.elemAsDouble(i);
+
+    keel::Array<keel::f64> r_ch(npix, 0.0, scratch.allocator());
+    keel::Array<keel::f64> g_ch(npix, 0.0, scratch.allocator());
+    keel::Array<keel::f64> b_ch(npix, 0.0, scratch.allocator());
+    (void)keel::image::demosaic_mhc(mosaic.as_ref(), M, N, pat, maxVal,
+                                    r_ch.as_mut_ref(), g_ch.as_mut_ref(), b_ch.as_mut_ref());
 
     Value RGB = Value::matrix3d(M, N, 3, T, mr);
-
-    // Per-pixel processing. r, c are 0-indexed; pattern parity uses 1-indexed parity.
-    for (keel::i32 c = 0; c < keel::i32(N); ++c) {
-        const keel::i32 c1 = c + 1;                // 1-indexed
-        for (keel::i32 r = 0; r < keel::i32(M); ++r) {
-            const keel::i32 r1 = r + 1;
-            const bool isR = ((r1 & 1) == r_par_r) && ((c1 & 1) == r_par_c);
-            const bool isB = ((r1 & 1) == b_par_r) && ((c1 & 1) == b_par_c);
-
-            keel::f64 R_v, G_v, B_v;
-            const keel::f64 m = sampleI(I, r, c, M, N);
-            if (isR) {
-                R_v = m;
-                G_v = conv5(I, r, c, M, N, K_G_at_RB);
-                B_v = conv5(I, r, c, M, N, K_C_at_C2);
-            } else if (isB) {
-                B_v = m;
-                G_v = conv5(I, r, c, M, N, K_G_at_RB);
-                R_v = conv5(I, r, c, M, N, K_C_at_C2);
-            } else {
-                // G pixel.
-                G_v = m;
-                // "Same-row" kernel = R-at-G in R's row (or B-at-G in B's row).
-                const bool gInRrow = ((r1 & 1) == r_par_r);
-                if (gInRrow) {
-                    R_v = conv5(I, r, c, M, N, K_C_at_G_sameRow);
-                    B_v = conv5(I, r, c, M, N, K_C_at_G_diffRow);
-                } else {
-                    R_v = conv5(I, r, c, M, N, K_C_at_G_diffRow);
-                    B_v = conv5(I, r, c, M, N, K_C_at_G_sameRow);
-                }
-            }
-
-            auto clamp = [&](keel::f64 v) {
-                if (v < 0.0)      v = 0.0;
-                if (v > maxVal)   v = maxVal;
-                return v;
-            };
-            const keel::usize base = keel::usize(r) + keel::usize(c) * M;
-            writeNativeInt(RGB, base + 0 * M * N, clamp(R_v), T);
-            writeNativeInt(RGB, base + 1 * M * N, clamp(G_v), T);
-            writeNativeInt(RGB, base + 2 * M * N, clamp(B_v), T);
-        }
+    for (keel::usize i = 0; i < npix; ++i) {
+        writeNativeInt(RGB, i, r_ch[i], T);
+        writeNativeInt(RGB, i + npix, g_ch[i], T);
+        writeNativeInt(RGB, i + 2u * npix, b_ch[i], T);
     }
     return RGB;
 }

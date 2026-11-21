@@ -1,528 +1,117 @@
 // toolboxes/image/src/filter/locallapfilt.cpp
 //
-// Fast Local Laplacian Filtering (Aubry-Paris-Hasinoff-Kautz-Durand
-// 2014, "Fast Local Laplacian Filters: Theory and Applications", ACM
-// TOG 33(5), §3-4). Extends the original Local Laplacian filter of
-// Paris-Hasinoff-Kautz 2011 (SIGGRAPH 2011, §3-4) with intensity
-// sampling: instead of remapping the image around every pyramid
-// coefficient, we sample a small set of reference intensities {g_k},
-// build the Laplacian pyramid of the remapped image around each, and
-// interpolate per-pixel based on the *original* Gaussian-pyramid
-// value at that location. The interpolation kernel is a triangular
-// hat of width `delta = (max-min)/(N-1)`. With N ≈ 16-50 intensity
-// samples the result is visually indistinguishable from the dense
-// per-pixel formulation at a fraction of the cost.
-//
-// Pyramid filter: separable 5-tap binomial `[1 4 6 4 1] / 16`
-// (Burt-Adelson 1983, "The Laplacian Pyramid as a Compact Image
-// Code", IEEE Trans. Communications, 31(4)). Replicate boundary.
-// Upsample = zero-insert + same-kernel·4 convolution.
-//
-// Remap (Paris-Hasinoff-Kautz Eq. 4):
-//
-//   d = I - g
-//   if |d| <= sigma:
-//       I_new = g + sign(d) · sigma · (|d|/sigma)^alpha          (detail)
-//   else:
-//       I_new = g + sign(d) · (sigma + beta · (|d| - sigma))     (edge)
-//
-// alpha > 1 → smoothing; alpha < 1 → enhancement; beta scales the
-// edge curve only.
-//
-// Internal pipeline (matches MATLAB R2025b locallapfilt.m + private
-// builtins llf.remap / llf.pyrdownsample / llf.pyrupsample /
-// llf.upSampleSubAddContribution):
-//
-//   1. Promote input to single (im2single semantics).
-//   2. If RGB and ColorMode == luminance, compute Y = 0.298936·R +
-//      0.587043·G + 0.114021·B, filter Y, then scale RGB by Y'/Y.
-//   3. Else filter each plane independently.
-//   4. Convert back to input class.
-//
-// llfCore:
-//   - Build Gaussian pyramid of input.
-//   - outL[end] := G[end]; outL[i<end] := zeros.
-//   - For k = 0..N-1: refVal = min + k·delta; build remapped Gauss
-//     pyramid; for each level: outL[i] += w(G[i], refVal) · (rG[i]
-//     - upsample(rG[i+1])).
-//   - Collapse outL: outL[i] += upsample(outL[i+1]).
-//
-// PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
+// Fast Local Laplacian Filtering delegating the pyramid & remapping
+// numerical kernel to keel::image.
 
+#include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/core.h>
+#include <keel/image.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <numkit/image/filter/filter.hpp>
-#include <numkit/image/type_convert/type_convert.hpp>
 
-#include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
+#include <numkit/value/value.hpp>
 
-#include <algorithm>
-#include <cmath>
-#include <cstdint>
 #include <cstring>
 
 namespace numkit::image {
+
 namespace {
 
-// 5-tap binomial kernel weights / 16.
-constexpr keel::f32 kK0 = 1.0f / 16.0f;
-constexpr keel::f32 kK1 = 4.0f / 16.0f;
-constexpr keel::f32 kK2 = 6.0f / 16.0f;
-constexpr keel::f32 kK3 = 4.0f / 16.0f;
-constexpr keel::f32 kK4 = 1.0f / 16.0f;
-
-// 5-tap binomial for upsample: each 1-D pass scaled by 2 (so the
-// separable 2-D filter sees a total factor of 4, compensating for the
-// 1-in-4 nonzero density after zero-insert upsampling).
-constexpr keel::f32 kU0 = 2.0f / 16.0f;
-constexpr keel::f32 kU1 = 8.0f / 16.0f;
-constexpr keel::f32 kU2 = 12.0f / 16.0f;
-constexpr keel::f32 kU3 = 8.0f / 16.0f;
-constexpr keel::f32 kU4 = 2.0f / 16.0f;
-
-// A 2-D plane buffer (single precision, column-major to match Value).
-struct Plane {
-    keel::usize H = 0, W = 0;
-    keel::Array<keel::f32> v;
-    Plane() = default;
-    Plane(keel::usize h, keel::usize w) : H(h), W(w), v(h * w, 0.0f) {}
-    Plane clone() const {
-        Plane p;
-        p.H = H;
-        p.W = W;
-        p.v = v.clone();
-        return p;
-    }
-    keel::f32 &at(keel::usize r, keel::usize c) { return v[c * H + r]; }
-    keel::f32 at(keel::usize r, keel::usize c) const { return v[c * H + r]; }
-};
-
-// Read a single plane (page `p`) from a Value into a Plane buffer.
-// Performs im2single semantics (int8 → (x + 128) / 255; uint8 → x/255;
-// uint16 → x/65535; int16 → (x + 32768) / 65535; single/double pass
-// through). Other types use elemAsDouble().
-Plane to_single_plane(const Value &I, keel::usize page)
+keel::Array<keel::f32> readSinglePlane(const Value &I, keel::usize page, keel::Allocator *alloc)
 {
     const keel::usize H = I.dims().rows();
     const keel::usize W = I.dims().cols();
-    Plane P(H, W);
-    const keel::usize off = page * H * W;
+    const keel::usize N = H * W;
+    const keel::usize off = page * N;
     const ValueType t = I.type();
-    for (keel::usize c = 0; c < W; ++c)
-        for (keel::usize r = 0; r < H; ++r) {
-            const keel::f64 raw = I.elemAsDouble(off + c * H + r);
-            keel::f32 v;
-            switch (t) {
-                case ValueType::UINT8:  v = keel::f32(raw) / 255.0f;       break;
-                case ValueType::UINT16: v = keel::f32(raw) / 65535.0f;     break;
-                case ValueType::INT8:   v = (keel::f32(raw) + 128.0f) / 255.0f; break;
-                case ValueType::INT16:  v = (keel::f32(raw) + 32768.0f) / 65535.0f; break;
-                case ValueType::LOGICAL: v = raw == 0.0 ? 0.0f : 1.0f; break;
-                default:                v = keel::as<keel::f32>(raw);   break;
-            }
-            P.at(r, c) = v;
+    keel::Array<keel::f32> out(N, 0.0f, alloc);
+    for (keel::usize i = 0; i < N; ++i) {
+        const keel::f64 raw = I.elemAsDouble(off + i);
+        switch (t) {
+            case ValueType::UINT8:   out[i] = keel::as<keel::f32>(raw) / 255.0f; break;
+            case ValueType::UINT16:  out[i] = keel::as<keel::f32>(raw) / 65535.0f; break;
+            case ValueType::INT8:    out[i] = (keel::as<keel::f32>(raw) + 128.0f) / 255.0f; break;
+            case ValueType::INT16:   out[i] = (keel::as<keel::f32>(raw) + 32768.0f) / 65535.0f; break;
+            case ValueType::LOGICAL: out[i] = (raw == 0.0) ? 0.0f : 1.0f; break;
+            default:                 out[i] = keel::as<keel::f32>(raw); break;
         }
-    return P;
-}
-
-// Symmetric (reflect-from-pixel) boundary, matching MATLAB's
-// `impyramid('reduce', I)` and `imfilter(I, k, 'symmetric')`:
-//   …, P[2], P[1], P[0] | P[0], P[1], P[2], … (the first row is
-// repeated, then mirrored). Index -k → P[k-1].
-inline keel::usize clamp_idx(keel::i64 i, keel::usize n)
-{
-    if (n == 0) return 0;
-    keel::i64 N = keel::as<keel::i64>(n);
-    // Make symmetric extension. The pattern over period 2N is
-    //   P[0..N-1, N-1..0, ...].  Mapping: i → reflect(i, N).
-    // We use: shift into [0, 2N), then if >= N reflect.
-    keel::i64 period = 2 * N;
-    keel::i64 m = i;
-    if (m < 0) m = ((-m - 1) % period);          // i=-1 → 0, i=-2 → 1
-    else m = m % period;
-    if (m >= N) m = period - 1 - m;
-    return keel::as<keel::usize>(m);
-}
-
-// ── Pyramid downsample ────────────────────────────────────────────
-// In MATLAB, pyrdownsample(I) returns ceil(size(I)/2) (start from row
-// 1, take every other). Implemented separably: row-wise convolve with
-// [1 4 6 4 1]/16, col-wise convolve, then decimate by 2.
-Plane pyrdownsample(const Plane &P)
-{
-    const keel::usize H = P.H;
-    const keel::usize W = P.W;
-    if (H == 0 || W == 0) return Plane(0, 0);
-
-    // 1) Vertical convolution (rows).
-    Plane tmp(H, W);
-    for (keel::usize c = 0; c < W; ++c)
-        for (keel::usize r = 0; r < H; ++r) {
-            const keel::f32 v = kK0 * P.at(clamp_idx((keel::i64)r - 2, H), c)
-                          + kK1 * P.at(clamp_idx((keel::i64)r - 1, H), c)
-                          + kK2 * P.at(r,                            c)
-                          + kK3 * P.at(clamp_idx((keel::i64)r + 1, H), c)
-                          + kK4 * P.at(clamp_idx((keel::i64)r + 2, H), c);
-            tmp.at(r, c) = v;
-        }
-    // 2) Horizontal convolution (cols).
-    Plane sm(H, W);
-    for (keel::usize c = 0; c < W; ++c)
-        for (keel::usize r = 0; r < H; ++r) {
-            const keel::f32 v = kK0 * tmp.at(r, clamp_idx((keel::i64)c - 2, W))
-                          + kK1 * tmp.at(r, clamp_idx((keel::i64)c - 1, W))
-                          + kK2 * tmp.at(r, c)
-                          + kK3 * tmp.at(r, clamp_idx((keel::i64)c + 1, W))
-                          + kK4 * tmp.at(r, clamp_idx((keel::i64)c + 2, W));
-            sm.at(r, c) = v;
-        }
-    // 3) Decimate by 2 (start from row 1 / col 1 in 1-based = 0 in 0-based).
-    const keel::usize H2 = (H + 1) / 2;
-    const keel::usize W2 = (W + 1) / 2;
-    Plane out(H2, W2);
-    for (keel::usize c = 0; c < W2; ++c)
-        for (keel::usize r = 0; r < H2; ++r)
-            out.at(r, c) = sm.at(r * 2, c * 2);
-    return out;
-}
-
-// ── Pyramid upsample to exact target H × W ─────────────────────────
-// Standard Burt-Adelson expand: insert zero rows/cols between samples
-// (the upsampled grid is target H × W, even index = original, odd = 0),
-// then convolve with the 5-tap binomial scaled by 4. Replicate boundary
-// applied to the zero-inserted intermediate, which is itself zero-padded
-// on the right/bottom if target dims are odd.
-Plane pyrupsample(const Plane &P, keel::usize Htarget, keel::usize Wtarget)
-{
-    const keel::usize H = P.H;
-    const keel::usize W = P.W;
-    if (Htarget == 0 || Wtarget == 0) return Plane(0, 0);
-    // 1) Zero-insert: build (Htarget, Wtarget) plane with source at
-    //    even indices.
-    Plane up(Htarget, Wtarget);
-    for (keel::usize c = 0; c < W; ++c) {
-        const keel::usize cu = 2 * c;
-        if (cu >= Wtarget) break;
-        for (keel::usize r = 0; r < H; ++r) {
-            const keel::usize ru = 2 * r;
-            if (ru >= Htarget) break;
-            up.at(ru, cu) = P.at(r, c);
-        }
-    }
-    // 2) Vertical convolution with [4 16 24 16 4]/16. Replicate boundary
-    //    on the up grid (zero-inserted).
-    Plane tmp(Htarget, Wtarget);
-    for (keel::usize c = 0; c < Wtarget; ++c)
-        for (keel::usize r = 0; r < Htarget; ++r) {
-            const keel::f32 v = kU0 * up.at(clamp_idx((keel::i64)r - 2, Htarget), c)
-                          + kU1 * up.at(clamp_idx((keel::i64)r - 1, Htarget), c)
-                          + kU2 * up.at(r,                                  c)
-                          + kU3 * up.at(clamp_idx((keel::i64)r + 1, Htarget), c)
-                          + kU4 * up.at(clamp_idx((keel::i64)r + 2, Htarget), c);
-            tmp.at(r, c) = v;
-        }
-    // 3) Horizontal convolution with [4 16 24 16 4]/16.
-    Plane out(Htarget, Wtarget);
-    for (keel::usize c = 0; c < Wtarget; ++c)
-        for (keel::usize r = 0; r < Htarget; ++r) {
-            const keel::f32 v = kU0 * tmp.at(r, clamp_idx((keel::i64)c - 2, Wtarget))
-                          + kU1 * tmp.at(r, clamp_idx((keel::i64)c - 1, Wtarget))
-                          + kU2 * tmp.at(r, c)
-                          + kU3 * tmp.at(r, clamp_idx((keel::i64)c + 1, Wtarget))
-                          + kU4 * tmp.at(r, clamp_idx((keel::i64)c + 2, Wtarget));
-            out.at(r, c) = v;
-        }
-    return out;
-}
-
-// ── Remap (Paris-Hasinoff Eq. 4) ─────────────────────────────────
-Plane remap_image(const Plane &I, keel::f32 g, keel::f32 sigma, keel::f32 alpha, keel::f32 beta)
-{
-    Plane out(I.H, I.W);
-    const keel::f32 inv_sigma = sigma > 0.0f ? 1.0f / sigma : 0.0f;
-    for (keel::usize i = 0; i < I.H * I.W; ++i) {
-        const keel::f32 v = I.v[i];
-        const keel::f32 d = v - g;
-        const keel::f32 ad = std::fabs(d);
-        const keel::f32 sgn = (d > 0.0f) - (d < 0.0f);
-        keel::f32 nd;
-        if (sigma == 0.0f) {
-            // d/sigma is ill-defined; the detail branch collapses to
-            // g (since 0^alpha → 0 for alpha > 0). All pixels go
-            // through the edge curve.
-            nd = sgn * beta * ad;
-        } else if (ad <= sigma) {
-            // Detail curve.
-            const keel::f32 t = ad * inv_sigma;
-            nd = sgn * sigma * std::pow(t, alpha);
-        } else {
-            // Edge curve.
-            nd = sgn * (sigma + beta * (ad - sigma));
-        }
-        out.v[i] = g + nd;
     }
     return out;
 }
 
-// ── llfCore (Aubry-Paris fast variant) ────────────────────────────
-Plane llf_core(const Plane &input, keel::f32 sigma, keel::f32 alpha, keel::f32 beta,
-               keel::i32 numIntensityLevels, keel::i32 numPyramidLevels)
+void writeSinglePlaneTo(Value &out, keel::usize page, keel::ArrayRef<keel::f32> plane, ValueType target)
 {
-    // Find global min / max.
-    keel::f32 minVal = input.v[0], maxVal = input.v[0];
-    for (keel::f32 x : input.v) {
-        if (x < minVal) minVal = x;
-        if (x > maxVal) maxVal = x;
-    }
-
-    // ── Special case 1: 1 sample ────────────────────────────────
-    if (numIntensityLevels == 1) {
-        const keel::f32 refVal = 0.5f * (minVal + maxVal);
-        return remap_image(input, refVal, sigma, alpha, beta);
-    }
-
-    // ── Special case 2: flat image ──────────────────────────────
-    if (minVal == maxVal) {
-        return input.clone();
-    }
-
-    // ── Gaussian pyramid of input ───────────────────────────────
-    keel::Array<Plane> inG(numPyramidLevels);
-    inG[0] = input.clone();
-    for (keel::i32 i = 1; i < numPyramidLevels; ++i)
-        inG[i] = pyrdownsample(inG[i - 1]);
-
-    // ── Output Laplacian pyramid; top level = top Gaussian ──────
-    keel::Array<Plane> outL(numPyramidLevels);
-    outL[numPyramidLevels - 1] = inG[numPyramidLevels - 1].clone();
-    for (keel::i32 i = 0; i < numPyramidLevels - 1; ++i)
-        outL[i] = Plane(inG[i].H, inG[i].W);   // zeroed
-
-    // ── Sequentially accumulate over N intensity samples ───────
-    const keel::f32 delta = (maxVal - minVal) / keel::f32(numIntensityLevels - 1);
-    keel::Array<Plane> rG(numPyramidLevels);
-    for (keel::i32 k = 0; k < numIntensityLevels; ++k) {
-        const keel::f32 refVal = minVal + keel::f32(k) * delta;
-        rG[0] = remap_image(input, refVal, sigma, alpha, beta);
-        for (keel::i32 i = 1; i < numPyramidLevels; ++i)
-            rG[i] = pyrdownsample(rG[i - 1]);
-        // For each finer level: outL[i] += w · (rG[i] - up(rG[i+1])).
-        for (keel::i32 i = numPyramidLevels - 2; i >= 0; --i) {
-            Plane up = pyrupsample(rG[i + 1], rG[i].H, rG[i].W);
-            for (keel::usize j = 0; j < outL[i].v.size(); ++j) {
-                const keel::f32 rL = rG[i].v[j] - up.v[j];
-                const keel::f32 w = 1.0f
-                    - std::fabs(inG[i].v[j] - refVal) / delta;
-                const keel::f32 ww = w > 0.0f ? w : 0.0f;
-                outL[i].v[j] += ww * rL;
-            }
-        }
-    }
-
-    // ── Collapse the output Laplacian pyramid ──────────────────
-    for (keel::i32 i = numPyramidLevels - 2; i >= 0; --i) {
-        Plane up = pyrupsample(outL[i + 1], outL[i].H, outL[i].W);
-        for (keel::usize j = 0; j < outL[i].v.size(); ++j)
-            outL[i].v[j] += up.v[j];
-    }
-    return std::move(outL[0]);
-}
-
-// ── Convert RGB → luminance with the MATLAB-specific weights ─────
-struct RGBSplit {
-    Plane gray;
-    Plane r, g, b;            // original [0,1] planes
-    Plane ratio_r, ratio_g, ratio_b;  // RGB / (Y + eps_single)
-};
-RGBSplit rgb_to_gray_with_ratios(const Plane &R, const Plane &G, const Plane &B)
-{
-    constexpr keel::f32 kRC = 0.298936021293776f;
-    constexpr keel::f32 kGC = 0.587043074451121f;
-    constexpr keel::f32 kBC = 0.114020904255103f;
-    const keel::f32 eps_s = std::numeric_limits<keel::f32>::epsilon();
-    RGBSplit s;
-    s.gray = Plane(R.H, R.W);
-    s.r = R.clone(); s.g = G.clone(); s.b = B.clone();
-    s.ratio_r = Plane(R.H, R.W);
-    s.ratio_g = Plane(R.H, R.W);
-    s.ratio_b = Plane(R.H, R.W);
-    for (keel::usize i = 0; i < R.v.size(); ++i) {
-        const keel::f32 y = kRC * R.v[i] + kGC * G.v[i] + kBC * B.v[i];
-        s.gray.v[i] = y;
-        const keel::f32 yp = y + eps_s;
-        s.ratio_r.v[i] = R.v[i] / yp;
-        s.ratio_g.v[i] = G.v[i] / yp;
-        s.ratio_b.v[i] = B.v[i] / yp;
-    }
-    return s;
-}
-
-// ── Convert filtered Plane back into a Value (output type cast) ──
-Value plane_to_value(const Plane &P, ValueType target,
-                     keel::Allocator *mr)
-{
-    Value out;
-    const keel::usize H = P.H, W = P.W;
-    auto sat_uint8 = [](keel::f32 v) -> keel::u8 {
-        v = std::round(v * 255.0f);
-        if (v < 0.0f)   v = 0.0f;
-        if (v > 255.0f) v = 255.0f;
-        return keel::as<keel::u8>(v);
-    };
-    auto sat_uint16 = [](keel::f32 v) -> keel::u16 {
-        v = std::round(v * 65535.0f);
-        if (v < 0.0f)     v = 0.0f;
-        if (v > 65535.0f) v = 65535.0f;
-        return keel::as<keel::u16>(v);
-    };
-    auto sat_int8 = [](keel::f32 v) -> keel::i8 {
-        v = std::round(v * 255.0f - 128.0f);
-        if (v < -128.0f) v = -128.0f;
-        if (v > 127.0f)  v = 127.0f;
-        return keel::as<keel::i8>(v);
-    };
-    auto sat_int16 = [](keel::f32 v) -> keel::i16 {
-        // im2int16 of single in [0,1]: round(x*65535-32768).
-        v = std::round(v * 65535.0f - 32768.0f);
-        if (v < -32768.0f) v = -32768.0f;
-        if (v >  32767.0f) v =  32767.0f;
-        return keel::as<keel::i16>(v);
-    };
+    const keel::usize N = plane.size();
+    const keel::usize off = page * N;
     switch (target) {
         case ValueType::UINT8: {
-            out = Value::matrix(H, W, ValueType::UINT8, mr);
-            keel::u8 *od = out.uint8DataMut();
-            for (keel::usize i = 0; i < H * W; ++i) od[i] = sat_uint8(P.v[i]);
+            keel::u8 *od = out.uint8DataMut() + off;
+            for (keel::usize i = 0; i < N; ++i) {
+                keel::f32 v = keel::as<keel::f32>(keel::round(keel::as<keel::f64>(plane[i]) * 255.0));
+                if (v < 0.0f) v = 0.0f;
+                if (v > 255.0f) v = 255.0f;
+                od[i] = keel::as<keel::u8>(v);
+            }
             break;
         }
         case ValueType::UINT16: {
-            out = Value::matrix(H, W, ValueType::UINT16, mr);
-            keel::u16 *od = out.uint16DataMut();
-            for (keel::usize i = 0; i < H * W; ++i) od[i] = sat_uint16(P.v[i]);
+            keel::u16 *od = out.uint16DataMut() + off;
+            for (keel::usize i = 0; i < N; ++i) {
+                keel::f32 v = keel::as<keel::f32>(keel::round(keel::as<keel::f64>(plane[i]) * 65535.0));
+                if (v < 0.0f) v = 0.0f;
+                if (v > 65535.0f) v = 65535.0f;
+                od[i] = keel::as<keel::u16>(v);
+            }
             break;
         }
         case ValueType::INT8: {
-            out = Value::matrix(H, W, ValueType::INT8, mr);
-            keel::i8 *od = out.int8DataMut();
-            for (keel::usize i = 0; i < H * W; ++i) od[i] = sat_int8(P.v[i]);
+            keel::i8 *od = out.int8DataMut() + off;
+            for (keel::usize i = 0; i < N; ++i) {
+                keel::f32 v = keel::as<keel::f32>(keel::round(keel::as<keel::f64>(plane[i]) * 255.0 - 128.0));
+                if (v < -128.0f) v = -128.0f;
+                if (v > 127.0f) v = 127.0f;
+                od[i] = keel::as<keel::i8>(v);
+            }
             break;
         }
         case ValueType::INT16: {
-            out = Value::matrix(H, W, ValueType::INT16, mr);
-            keel::i16 *od = out.int16DataMut();
-            for (keel::usize i = 0; i < H * W; ++i) od[i] = sat_int16(P.v[i]);
+            keel::i16 *od = out.int16DataMut() + off;
+            for (keel::usize i = 0; i < N; ++i) {
+                keel::f32 v = keel::as<keel::f32>(keel::round(keel::as<keel::f64>(plane[i]) * 65535.0 - 32768.0));
+                if (v < -32768.0f) v = -32768.0f;
+                if (v > 32767.0f) v = 32767.0f;
+                od[i] = keel::as<keel::i16>(v);
+            }
             break;
         }
         case ValueType::SINGLE: {
-            out = Value::matrix(H, W, ValueType::SINGLE, mr);
-            keel::f32 *od = out.singleDataMut();
-            std::memcpy(od, P.v.data(), H * W * sizeof(keel::f32));
+            std::memcpy(out.singleDataMut() + off, plane.data(), N * sizeof(keel::f32));
             break;
         }
         default: {
-            // Fallback: double (e.g. for double inputs that MATLAB
-            // doesn't accept but a caller might pass anyway).
-            out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-            keel::f64 *od = out.doubleDataMut();
-            for (keel::usize i = 0; i < H * W; ++i) od[i] = keel::as<keel::f64>(P.v[i]);
+            keel::f64 *od = out.doubleDataMut() + off;
+            for (keel::usize i = 0; i < N; ++i) od[i] = keel::as<keel::f64>(plane[i]);
             break;
         }
     }
-    return out;
 }
 
-// 3-channel version: stack three filtered planes into H × W × 3.
-Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
-                          ValueType target,
-                          keel::Allocator *mr)
-{
-    const keel::usize H = R.H, W = R.W;
-    Value out = Value::matrix3d(H, W, 3, target, mr);
-    auto write = [&](keel::i32 page, const Plane &P) {
-        const keel::usize off = keel::as<keel::usize>(page) * H * W;
-        switch (target) {
-            case ValueType::UINT8: {
-                keel::u8 *od = out.uint8DataMut() + off;
-                for (keel::usize i = 0; i < H * W; ++i) {
-                    keel::f32 v = std::round(P.v[i] * 255.0f);
-                    if (v < 0)    v = 0;
-                    if (v > 255)  v = 255;
-                    od[i] = keel::as<keel::u8>(v);
-                }
-                break;
-            }
-            case ValueType::UINT16: {
-                keel::u16 *od = out.uint16DataMut() + off;
-                for (keel::usize i = 0; i < H * W; ++i) {
-                    keel::f32 v = std::round(P.v[i] * 65535.0f);
-                    if (v < 0)     v = 0;
-                    if (v > 65535) v = 65535;
-                    od[i] = keel::as<keel::u16>(v);
-                }
-                break;
-            }
-            case ValueType::INT8: {
-                keel::i8 *od = out.int8DataMut() + off;
-                for (keel::usize i = 0; i < H * W; ++i) {
-                    keel::f32 v = std::round(P.v[i] * 255.0f - 128.0f);
-                    if (v < -128) v = -128;
-                    if (v >  127) v =  127;
-                    od[i] = keel::as<keel::i8>(v);
-                }
-                break;
-            }
-            case ValueType::INT16: {
-                keel::i16 *od = out.int16DataMut() + off;
-                for (keel::usize i = 0; i < H * W; ++i) {
-                    keel::f32 v = std::round(P.v[i] * 65535.0f - 32768.0f);
-                    if (v < -32768) v = -32768;
-                    if (v >  32767) v =  32767;
-                    od[i] = keel::as<keel::i16>(v);
-                }
-                break;
-            }
-            case ValueType::SINGLE: {
-                keel::f32 *od = out.singleDataMut() + off;
-                std::memcpy(od, P.v.data(), H * W * sizeof(keel::f32));
-                break;
-            }
-            default: {
-                keel::f64 *od = out.doubleDataMut() + off;
-                for (keel::usize i = 0; i < H * W; ++i)
-                    od[i] = keel::as<keel::f64>(P.v[i]);
-                break;
-            }
-        }
-    };
-    write(0, R);
-    write(1, G);
-    write(2, B);
-    return out;
-}
+} // namespace
 
-keel::i32 auto_intensity_levels(keel::f64 alpha)
+Value locallapfilt(const Value &I, keel::f64 sigma, keel::f64 alpha, keel::f64 beta,
+                   keel::i32 num_intensity_levels, bool process_luminance,
+                   keel::Allocator *mr)
 {
-    if (alpha < 0.1) return 50;
-    if (alpha < 0.9) {
-        // round(((50*0.9 - 16*0.1) - (50-16)*alpha) / 0.8)
-        const keel::f64 num = (50.0 * 0.9 - 16.0 * 0.1) - (50.0 - 16.0) * alpha;
-        return keel::as<keel::i32>(std::round(num / 0.8));
-    }
-    return 16;
-}
-
-void locallapfilt_argcheck(const Value &I, keel::f64 sigma, keel::f64 alpha, keel::f64 beta,
-                           bool &isGray_out)
-{
-    if (!std::isfinite(sigma) || sigma < 0.0)
+    if (!keel::is_finite(sigma) || sigma < 0.0)
         throw Error("locallapfilt: sigma must be a non-negative finite scalar",
                     0, 0, "locallapfilt", "", "numkit:locallapfilt:sigma");
-    if (!std::isfinite(alpha) || alpha <= 0.0)
+    if (!keel::is_finite(alpha) || alpha <= 0.0)
         throw Error("locallapfilt: alpha must be a positive finite scalar",
                     0, 0, "locallapfilt", "", "numkit:locallapfilt:alpha");
-    if (!std::isfinite(beta) || beta < 0.0)
+    if (!keel::is_finite(beta) || beta < 0.0)
         throw Error("locallapfilt: beta must be a non-negative finite scalar",
                     0, 0, "locallapfilt", "", "numkit:locallapfilt:beta");
 
@@ -535,71 +124,53 @@ void locallapfilt_argcheck(const Value &I, keel::f64 sigma, keel::f64 alpha, kee
     if (!isRGB && !isGray)
         throw Error("locallapfilt: I must be H×W (grayscale) or H×W×3 (RGB)",
                     0, 0, "locallapfilt", "", "numkit:locallapfilt:shape");
-    isGray_out = isGray;
-}
 
-} // namespace
-
-Value locallapfilt(const Value &I, keel::f64 sigma, keel::f64 alpha, keel::f64 beta,
-                   keel::i32 num_intensity_levels, bool process_luminance,
-                   keel::Allocator *mr)
-{
-    bool isGray = false;
-    locallapfilt_argcheck(I, sigma, alpha, beta, isGray);
-    const auto &dI = I.dims();
-
-    // ── Special-case passthroughs (must short-circuit before pyramid) ──
     if ((alpha == 1.0 && beta == 1.0) || (sigma == 0.0 && beta == 1.0)) {
         return I;
     }
 
     const ValueType origClass = I.type();
+    const ValueType outClass = (origClass == ValueType::UINT8 || origClass == ValueType::UINT16 ||
+                                origClass == ValueType::INT8 || origClass == ValueType::INT16 ||
+                                origClass == ValueType::SINGLE)
+                                   ? origClass
+                                   : ValueType::DOUBLE;
     const keel::usize H = dI.rows();
     const keel::usize W = dI.cols();
+    const keel::usize N = H * W;
 
-    // ── Resolve num_intensity_levels ──────────────────────────────
-    keel::i32 N = num_intensity_levels;
-    if (N <= 0) N = auto_intensity_levels(alpha);
-
-    // Pyramid depth: floor(log2(min(H, W))) + 1.
-    const keel::usize shortDim = std::min(H, W);
-    keel::i32 numPyrLevels = 0;
-    {
-        keel::usize s = shortDim;
-        while (s >= 1) { ++numPyrLevels; s >>= 1; }
-    }
-    if (numPyrLevels < 1) numPyrLevels = 1;
-
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     const keel::f32 fsigma = keel::as<keel::f32>(sigma);
     const keel::f32 falpha = keel::as<keel::f32>(alpha);
     const keel::f32 fbeta  = keel::as<keel::f32>(beta);
 
     if (isGray) {
-        Plane P = to_single_plane(I, 0);
-        Plane out = llf_core(P, fsigma, falpha, fbeta, N, numPyrLevels);
-        return plane_to_value(out, origClass, mr);
+        const auto in_p = readSinglePlane(I, 0, scratch.allocator());
+        keel::Array<keel::f32> out_p(N, 0.0f, scratch.allocator());
+        (void)keel::image::local_laplacian_gray(in_p.as_ref(), H, W, fsigma, falpha, fbeta,
+                                                num_intensity_levels, out_p.as_mut_ref(),
+                                                scratch.allocator());
+        Value out = Value::matrix(H, W, outClass, mr);
+        writeSinglePlaneTo(out, 0, out_p.as_ref(), outClass);
+        return out;
     }
 
-    // ── RGB ──
-    Plane R = to_single_plane(I, 0);
-    Plane G = to_single_plane(I, 1);
-    Plane B = to_single_plane(I, 2);
-    if (process_luminance) {
-        RGBSplit s = rgb_to_gray_with_ratios(R, G, B);
-        Plane filt = llf_core(s.gray, fsigma, falpha, fbeta, N, numPyrLevels);
-        Plane outR(H, W), outG(H, W), outB(H, W);
-        for (keel::usize i = 0; i < H * W; ++i) {
-            outR.v[i] = filt.v[i] * s.ratio_r.v[i];
-            outG.v[i] = filt.v[i] * s.ratio_g.v[i];
-            outB.v[i] = filt.v[i] * s.ratio_b.v[i];
-        }
-        return rgb_planes_to_value(outR, outG, outB, origClass, mr);
-    }
-    // Separate per-channel.
-    Plane fR = llf_core(R, fsigma, falpha, fbeta, N, numPyrLevels);
-    Plane fG = llf_core(G, fsigma, falpha, fbeta, N, numPyrLevels);
-    Plane fB = llf_core(B, fsigma, falpha, fbeta, N, numPyrLevels);
-    return rgb_planes_to_value(fR, fG, fB, origClass, mr);
+    const auto in_r = readSinglePlane(I, 0, scratch.allocator());
+    const auto in_g = readSinglePlane(I, 1, scratch.allocator());
+    const auto in_b = readSinglePlane(I, 2, scratch.allocator());
+    keel::Array<keel::f32> out_r(N, 0.0f, scratch.allocator());
+    keel::Array<keel::f32> out_g(N, 0.0f, scratch.allocator());
+    keel::Array<keel::f32> out_b(N, 0.0f, scratch.allocator());
+    (void)keel::image::local_laplacian_rgb(in_r.as_ref(), in_g.as_ref(), in_b.as_ref(), H, W,
+                                           fsigma, falpha, fbeta, num_intensity_levels,
+                                           process_luminance, out_r.as_mut_ref(),
+                                           out_g.as_mut_ref(), out_b.as_mut_ref(),
+                                           scratch.allocator());
+    Value out = Value::matrix3d(H, W, 3, outClass, mr);
+    writeSinglePlaneTo(out, 0, out_r.as_ref(), outClass);
+    writeSinglePlaneTo(out, 1, out_g.as_ref(), outClass);
+    writeSinglePlaneTo(out, 2, out_b.as_ref(), outClass);
+    return out;
 }
 
 } // namespace numkit::image
