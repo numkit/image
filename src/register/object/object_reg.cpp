@@ -112,7 +112,7 @@ void edge_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, 5, "edge");
     const auto m = parse_method(args, 1, "sobel");
-    double t_lo = std::nan(""), t_hi = std::nan("");
+    keel::f64 t_lo = std::nan(""), t_hi = std::nan("");
     if (args.size() >= 3 && !args[2].isEmpty() && !(args[2].isChar() || args[2].isString())) {
         const Value &v = args[2];
         if (v.numel() == 1) t_lo = v.toScalar();
@@ -138,7 +138,7 @@ void cornermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     keel::String method = keel::String::from("Harris");
-    double sensitivity = 0.04;
+    keel::f64 sensitivity = 0.04;
     Value filter_coef;
     keel::usize i = 1;
     if (i < args.size() && is_string(args[i])) {
@@ -191,8 +191,8 @@ void corner_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     keel::String method = keel::String::from("Harris");
     int maxN = 200;
-    double quality = 0.01;
-    double sensitivity = 0.04;
+    keel::f64 quality = 0.01;
+    keel::f64 sensitivity = 0.04;
     Value filter_coef;
     keel::usize i = 1;
 
@@ -240,7 +240,7 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, 5, "hough");
     auto *mr = ctx.engine->allocator();
-    double rho_res = 1.0;
+    keel::f64 rho_res = 1.0;
     Value theta_deg;
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     keel::usize i = 1;
@@ -258,10 +258,10 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             theta_deg = args[i + 1];
         } else if (nlo.starts_with("thetar")) {
             // 'ThetaResolution' (legacy): build theta = -90:tr:89.
-            const double tr = args[i + 1].toScalar();
+            const keel::f64 tr = args[i + 1].toScalar();
             const int n = keel::as<int>(std::ceil(90.0 / tr));
-            const double step = 90.0 / n;
-            keel::Array<double> tv(mr);
+            const keel::f64 step = 90.0 / n;
+            keel::Array<keel::f64> tv(mr);
             for (int k = -n; k < n; ++k) tv.push_back(k * step);
             theta_deg = Value::matrix(1, tv.size(), ValueType::DOUBLE, mr);
             for (keel::usize kk = 0; kk < tv.size(); ++kk)
@@ -285,8 +285,8 @@ void houghlines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 4, 8, "houghlines");
     auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
-    double fillgap = 20.0;
-    double minlength = 40.0;
+    keel::f64 fillgap = 20.0;
+    keel::f64 minlength = 40.0;
     keel::usize i = 4;
     while (i + 1 < args.size()) {
         if (!is_string(args[i]))
@@ -319,13 +319,13 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     keel::usize numpeaks = 1;
-    double threshold = -1.0;  // sentinel: use default
+    keel::f64 threshold = -1.0;  // sentinel: use default
     keel::usize nhoodRho = 0, nhoodTheta = 0;
     Value theta_deg;
 
     keel::usize i = 1;
     if (i < args.size() && !is_string(args[i])) {
-        const double npd = args[i].toScalar();
+        const keel::f64 npd = args[i].toScalar();
         if (!(npd > 0) || npd != std::floor(npd))
             throw Error("houghpeaks: NUMPEAKS must be a positive integer",
                         0, 0, "houghpeaks", "", "numkit:houghpeaks:numpeaks");
@@ -352,8 +352,8 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 throw Error("houghpeaks: NHoodSize must be a 2-elem vector",
                             0, 0, "houghpeaks", "",
                             "numkit:houghpeaks:nhoodSize");
-            const double a = v.elemAsDouble(0);
-            const double b = v.elemAsDouble(1);
+            const keel::f64 a = v.elemAsDouble(0);
+            const keel::f64 b = v.elemAsDouble(1);
             if (!(a > 0) || !(b > 0)
              || a != std::floor(a) || b != std::floor(b)
              || keel::as<int>(a) % 2 == 0
@@ -389,13 +389,13 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                     0, 0, "imfindcircles", "",
                     "numkit:imfindcircles:invalidRadiusRange");
     }
-    const double rmin = rr.elemAsDouble(0);
-    const double rmax = (rr.numel() == 2) ? rr.elemAsDouble(1) : rmin;
+    const keel::f64 rmin = rr.elemAsDouble(0);
+    const keel::f64 rmax = (rr.numel() == 2) ? rr.elemAsDouble(1) : rmin;
 
     keel::String object_polarity = keel::String::from("bright");
     keel::String method = keel::String::from("PhaseCode");
-    double sensitivity = 0.85;
-    double edge_threshold = -1.0;
+    keel::f64 sensitivity = 0.85;
+    keel::f64 edge_threshold = -1.0;
 
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
     if ((args.size() - 2) % 2 != 0) {

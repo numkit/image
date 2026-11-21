@@ -110,7 +110,7 @@ void wavelength2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // no max: absent from the R2025b reference build
     auto *mr = ctx.engine->allocator();
     keel::String cls = keel::String::from("double");
-    double gamma = 0.8;
+    keel::f64 gamma = 0.8;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (!args[1].isChar() && !args[1].isString())
             throw Error("wavelength2rgb: class must be a string",
@@ -146,7 +146,7 @@ void gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("gray: N must be a scalar integer",
                         0, 0, "gray", "", "numkit:gray:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("gray: N must be a scalar integer",
                         0, 0, "gray", "", "numkit:gray:n");
@@ -165,7 +165,7 @@ void hot_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("hot: N must be a scalar integer",
                         0, 0, "hot", "", "numkit:hot:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("hot: N must be a scalar integer",
                         0, 0, "hot", "", "numkit:hot:n");
@@ -184,7 +184,7 @@ void cool_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("cool: N must be a scalar integer",
                         0, 0, "cool", "", "numkit:cool:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("cool: N must be a scalar integer",
                         0, 0, "cool", "", "numkit:cool:n");
@@ -203,7 +203,7 @@ void spring_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("spring: N must be a scalar integer",
                         0, 0, "spring", "", "numkit:spring:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("spring: N must be a scalar integer",
                         0, 0, "spring", "", "numkit:spring:n");
@@ -222,7 +222,7 @@ void summer_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("summer: N must be a scalar integer",
                         0, 0, "summer", "", "numkit:summer:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("summer: N must be a scalar integer",
                         0, 0, "summer", "", "numkit:summer:n");
@@ -241,7 +241,7 @@ void autumn_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("autumn: N must be a scalar integer",
                         0, 0, "autumn", "", "numkit:autumn:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("autumn: N must be a scalar integer",
                         0, 0, "autumn", "", "numkit:autumn:n");
@@ -260,7 +260,7 @@ void winter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("winter: N must be a scalar integer",
                         0, 0, "winter", "", "numkit:winter:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("winter: N must be a scalar integer",
                         0, 0, "winter", "", "numkit:winter:n");
@@ -279,7 +279,7 @@ void copper_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("copper: N must be a scalar integer",
                         0, 0, "copper", "", "numkit:copper:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("copper: N must be a scalar integer",
                         0, 0, "copper", "", "numkit:copper:n");
@@ -298,7 +298,7 @@ void pink_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("pink: N must be a scalar integer",
                         0, 0, "pink", "", "numkit:pink:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("pink: N must be a scalar integer",
                         0, 0, "pink", "", "numkit:pink:n");
@@ -317,7 +317,7 @@ void hsv_cmap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("hsv: N must be a scalar integer",
                         0, 0, "hsv", "", "numkit:hsv:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("hsv: N must be a scalar integer",
                         0, 0, "hsv", "", "numkit:hsv:n");
@@ -336,7 +336,7 @@ void flag_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("flag: N must be a scalar integer",
                         0, 0, "flag", "", "numkit:flag:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("flag: N must be a scalar integer",
                         0, 0, "flag", "", "numkit:flag:n");
@@ -355,7 +355,7 @@ void prism_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("prism: N must be a scalar integer",
                         0, 0, "prism", "", "numkit:prism:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("prism: N must be a scalar integer",
                         0, 0, "prism", "", "numkit:prism:n");
@@ -374,7 +374,7 @@ void lines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("lines: N must be a scalar integer",
                         0, 0, "lines", "", "numkit:lines:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("lines: N must be a scalar integer",
                         0, 0, "lines", "", "numkit:lines:n");
@@ -393,7 +393,7 @@ void bone_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("bone: N must be a scalar integer",
                         0, 0, "bone", "", "numkit:bone:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("bone: N must be a scalar integer",
                         0, 0, "bone", "", "numkit:bone:n");
@@ -412,7 +412,7 @@ void white_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 1)
             throw Error("white: N must be a scalar integer",
                         0, 0, "white", "", "numkit:white:n");
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         if (!std::isfinite(d) || d != std::floor(d))
             throw Error("white: N must be a scalar integer",
                         0, 0, "white", "", "numkit:white:n");
@@ -456,7 +456,7 @@ void brighten_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "brighten");
     // no max: name-value tail in the reference
-    const double beta = args[1].toScalar();
+    const keel::f64 beta = args[1].toScalar();
     outs[0] = brighten(args[0], beta, ctx.engine->allocator());
 }
 
@@ -467,7 +467,7 @@ void contrast_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // no max: name-value tail in the reference
     int m = 64;
     if (args.size() >= 2 && !args[1].isEmpty()) {
-        const double d = args[1].toScalar();
+        const keel::f64 d = args[1].toScalar();
         if (!std::isfinite(d) || d < 2.0)
             throw Error("contrast: M must be a finite scalar >= 2",
                         0, 0, "contrast", "", "numkit:contrast:m");

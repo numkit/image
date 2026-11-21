@@ -40,7 +40,7 @@ namespace {
 // and 1.5 entries fall out naturally.
 
 // G at R or B locations.
-constexpr double K_G_at_RB[25] = {
+constexpr keel::f64 K_G_at_RB[25] = {
     0, 0, -1, 0, 0,
     0, 0,  2, 0, 0,
    -1, 2,  4, 2,-1,
@@ -49,7 +49,7 @@ constexpr double K_G_at_RB[25] = {
 };
 
 // R at G in R-row (or B at G in B-row).
-constexpr double K_C_at_G_sameRow[25] = {
+constexpr keel::f64 K_C_at_G_sameRow[25] = {
     0,  0,  0.5, 0,  0,
     0, -1,    0,-1,  0,
    -1,  4,    5, 4, -1,
@@ -58,7 +58,7 @@ constexpr double K_C_at_G_sameRow[25] = {
 };
 
 // R at G in B-row (or B at G in R-row).
-constexpr double K_C_at_G_diffRow[25] = {
+constexpr keel::f64 K_C_at_G_diffRow[25] = {
     0,    0, -1, 0,    0,
     0,   -1,  4,-1,    0,
     0.5,  0,  5, 0,    0.5,
@@ -67,7 +67,7 @@ constexpr double K_C_at_G_diffRow[25] = {
 };
 
 // R at B (or B at R).
-constexpr double K_C_at_C2[25] = {
+constexpr keel::f64 K_C_at_C2[25] = {
     0,    0, -1.5, 0,    0,
     0,    2,    0, 2,    0,
    -1.5,  0,    6, 0,   -1.5,
@@ -83,26 +83,26 @@ inline int mirror1(int k, int N) {
     return k;
 }
 
-inline double sampleI(const Value &I, int r, int c, keel::usize M, keel::usize N) {
+inline keel::f64 sampleI(const Value &I, int r, int c, keel::usize M, keel::usize N) {
     const int rp = mirror1(r, int(M));
     const int cp = mirror1(c, int(N));
     return I.elemAsDouble(keel::usize(rp) + keel::usize(cp) * M);
 }
 
-inline double conv5(const Value &I, int r, int c, keel::usize M, keel::usize N,
-                    const double *K)
+inline keel::f64 conv5(const Value &I, int r, int c, keel::usize M, keel::usize N,
+                    const keel::f64 *K)
 {
-    double acc = 0.0;
+    keel::f64 acc = 0.0;
     for (int dr = -2; dr <= 2; ++dr)
         for (int dc = -2; dc <= 2; ++dc) {
-            const double w = K[(dr + 2) * 5 + (dc + 2)];
+            const keel::f64 w = K[(dr + 2) * 5 + (dc + 2)];
             if (w != 0.0)
                 acc += w * sampleI(I, r + dr, c + dc, M, N);
         }
     return acc / 8.0;
 }
 
-inline void writeNativeInt(Value &out, keel::usize idx, double v, ValueType T)
+inline void writeNativeInt(Value &out, keel::usize idx, keel::f64 v, ValueType T)
 {
     if (v < 0.0) v = 0.0;
     switch (T) {
@@ -198,7 +198,7 @@ Value demosaic(const Value &I, keel::StringRef sensorAlignment,
     // 2^bps - 1 pass through unchanged. We accept-and-ignore the
     // parameter for API compatibility.
     (void)bitsPerSample;
-    const double maxVal = (T == ValueType::UINT8)   ? 255.0
+    const keel::f64 maxVal = (T == ValueType::UINT8)   ? 255.0
                         : (T == ValueType::UINT16)  ? 65535.0
                                                     : 4294967295.0;
 
@@ -212,8 +212,8 @@ Value demosaic(const Value &I, keel::StringRef sensorAlignment,
             const bool isR = ((r1 & 1) == r_par_r) && ((c1 & 1) == r_par_c);
             const bool isB = ((r1 & 1) == b_par_r) && ((c1 & 1) == b_par_c);
 
-            double R_v, G_v, B_v;
-            const double m = sampleI(I, r, c, M, N);
+            keel::f64 R_v, G_v, B_v;
+            const keel::f64 m = sampleI(I, r, c, M, N);
             if (isR) {
                 R_v = m;
                 G_v = conv5(I, r, c, M, N, K_G_at_RB);
@@ -236,7 +236,7 @@ Value demosaic(const Value &I, keel::StringRef sensorAlignment,
                 }
             }
 
-            auto clamp = [&](double v) {
+            auto clamp = [&](keel::f64 v) {
                 if (v < 0.0)      v = 0.0;
                 if (v > maxVal)   v = maxVal;
                 return v;

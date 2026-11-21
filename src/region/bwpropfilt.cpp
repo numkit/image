@@ -161,45 +161,45 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
 
 // ── Per-component attribute computations ──────────────────────────
 
-double attr_area(const Comp &c) { return keel::as<double>(c.rs.size()); }
+keel::f64 attr_area(const Comp &c) { return keel::as<keel::f64>(c.rs.size()); }
 
-double attr_equiv_diameter(const Comp &c)
+keel::f64 attr_equiv_diameter(const Comp &c)
 {
-    const double a = attr_area(c);
+    const keel::f64 a = attr_area(c);
     return 2.0 * std::sqrt(a / M_PI);
 }
 
-double attr_extent(const Comp &c)
+keel::f64 attr_extent(const Comp &c)
 {
     const int bw = c.cmax - c.cmin + 1;
     const int bh = c.rmax - c.rmin + 1;
     if (bw <= 0 || bh <= 0) return 0.0;
-    return attr_area(c) / (keel::as<double>(bw) * bh);
+    return attr_area(c) / (keel::as<keel::f64>(bw) * bh);
 }
 
 // Central moments with pixel-centroid correction (+1/12 on diagonal).
 struct Moments {
-    double cx, cy;          // centroid (column, row), 1-based MATLAB
-    double m20, m02, m11;   // raw (uncorrected) central moments
+    keel::f64 cx, cy;          // centroid (column, row), 1-based MATLAB
+    keel::f64 m20, m02, m11;   // raw (uncorrected) central moments
 };
 Moments central_moments(const Comp &c)
 {
     const keel::usize N = c.rs.size();
     Moments M{0, 0, 0, 0, 0};
     if (N == 0) return M;
-    double sr = 0, sc = 0;
+    keel::f64 sr = 0, sc = 0;
     for (keel::usize i = 0; i < N; ++i) {
         sr += c.rs[i];
         sc += c.cs[i];
     }
-    const double mr = sr / keel::as<double>(N);
-    const double mc = sc / keel::as<double>(N);
+    const keel::f64 mr = sr / keel::as<keel::f64>(N);
+    const keel::f64 mc = sc / keel::as<keel::f64>(N);
     M.cx = mc + 1.0;        // 1-based column
     M.cy = mr + 1.0;        // 1-based row
-    double m20 = 0, m02 = 0, m11 = 0;
+    keel::f64 m20 = 0, m02 = 0, m11 = 0;
     for (keel::usize i = 0; i < N; ++i) {
-        const double dc = c.cs[i] - mc;
-        const double dr = c.rs[i] - mr;
+        const keel::f64 dc = c.cs[i] - mc;
+        const keel::f64 dr = c.rs[i] - mr;
         m20 += dc * dc;
         m02 += dr * dr;
         m11 += dc * dr;
@@ -211,22 +211,22 @@ Moments central_moments(const Comp &c)
 }
 
 struct AxisInfo {
-    double major;
-    double minor;
-    double eccentricity;
-    double orientation_deg;
+    keel::f64 major;
+    keel::f64 minor;
+    keel::f64 eccentricity;
+    keel::f64 orientation_deg;
 };
 AxisInfo axis_info(const Comp &c)
 {
     Moments M = central_moments(c);
     // Apply pixel-centroid correction +1/12 on diagonal.
-    const double a = M.m20 + 1.0 / 12.0;
-    const double b = M.m02 + 1.0 / 12.0;
-    const double cc = M.m11;
-    const double diff_sq = (a - b) * (a - b);
-    const double sqrt_d = std::sqrt(diff_sq + 4.0 * cc * cc);
-    double lam1 = 0.5 * (a + b + sqrt_d);  // larger
-    double lam2 = 0.5 * (a + b - sqrt_d);  // smaller
+    const keel::f64 a = M.m20 + 1.0 / 12.0;
+    const keel::f64 b = M.m02 + 1.0 / 12.0;
+    const keel::f64 cc = M.m11;
+    const keel::f64 diff_sq = (a - b) * (a - b);
+    const keel::f64 sqrt_d = std::sqrt(diff_sq + 4.0 * cc * cc);
+    keel::f64 lam1 = 0.5 * (a + b + sqrt_d);  // larger
+    keel::f64 lam2 = 0.5 * (a + b - sqrt_d);  // smaller
     if (lam2 < 0.0) lam2 = 0.0;            // float safety
     AxisInfo ai;
     ai.major = 4.0 * std::sqrt(lam1);
@@ -235,7 +235,7 @@ AxisInfo axis_info(const Comp &c)
     else             ai.eccentricity = std::sqrt(1.0 - lam2 / lam1);
     // MATLAB convention: orientation = -0.5 * atan2(2*μ11, μ20 - μ02)
     // in degrees. Sign flip on μ11 because image y-axis runs downward.
-    double orient_rad;
+    keel::f64 orient_rad;
     if (cc == 0.0 && a == b) orient_rad = 0.0;
     else if (cc == 0.0)      orient_rad = (a < b) ? M_PI / 2.0 : 0.0;
     else                     orient_rad = -0.5 * std::atan2(2.0 * cc, a - b);
@@ -254,7 +254,7 @@ AxisInfo axis_info(const Comp &c)
 // Tomas-Holst weights for each of the 16 corner patterns (each pixel
 // of the 2x2 neighbourhood, classified by foreground/background).
 // Reference table from S. Tomas-Holst.
-static const double kPerimWeights[16] = {
+static const keel::f64 kPerimWeights[16] = {
     0.0,        // 0000
     1.207107,   // 0001  ~ 0.5 + sqrt(0.5)
     1.207107,   // 0010
@@ -272,7 +272,7 @@ static const double kPerimWeights[16] = {
     1.207107,   // 1110
     0.0         // 1111
 };
-double attr_perimeter(const Comp &c, int H, int W)
+keel::f64 attr_perimeter(const Comp &c, int H, int W)
 {
     // Build a per-component mask in (rmin..rmax, cmin..cmax).
     const int h = c.rmax - c.rmin + 1;
@@ -287,7 +287,7 @@ double attr_perimeter(const Comp &c, int H, int W)
         const int cc_ = c.cs[i] - c.cmin + 1;
         mask[keel::as<keel::usize>(r * wp + cc_)] = 1;
     }
-    double sum = 0.0;
+    keel::f64 sum = 0.0;
     // Walk every 2×2 corner in the padded mask, accumulating the
     // weight of that corner pattern.
     for (int r = 0; r < hp - 1; ++r)
@@ -307,7 +307,7 @@ double attr_perimeter(const Comp &c, int H, int W)
 
 // PerimeterOld: pre-2017 perimeter = count of (p, q) where p is fg
 // and q ∈ 4-connected neighbours is bg. Simple, no weighting.
-double attr_perimeter_old(const Comp &c, int H, int W)
+keel::f64 attr_perimeter_old(const Comp &c, int H, int W)
 {
     // Build padded mask as above.
     const int h = c.rmax - c.rmin + 1;
@@ -328,13 +328,13 @@ double attr_perimeter_old(const Comp &c, int H, int W)
             if (!mask[(r - 1) * wp + cc_]) ++per;
             if (!mask[(r + 1) * wp + cc_]) ++per;
         }
-    return keel::as<double>(per);
+    return keel::as<keel::f64>(per);
     (void)H; (void)W;
 }
 
-double attr_circularity(const Comp &c, int H, int W)
+keel::f64 attr_circularity(const Comp &c, int H, int W)
 {
-    const double per = attr_perimeter(c, H, W);
+    const keel::f64 per = attr_perimeter(c, H, W);
     if (per <= 0.0) return std::nan("");
     return 4.0 * M_PI * attr_area(c) / (per * per);
 }
@@ -343,7 +343,7 @@ double attr_circularity(const Comp &c, int H, int W)
 // connected component, that's 1 - holes. Use the same per-component
 // mask and apply the 8-conn vs 4-conn Euler formula via 2x2 quadtree
 // counting (Pratt 1991).
-double attr_euler_number(const Comp &c, int conn)
+keel::f64 attr_euler_number(const Comp &c, int conn)
 {
     const int h = c.rmax - c.rmin + 1;
     const int w = c.cmax - c.cmin + 1;
@@ -370,15 +370,15 @@ double attr_euler_number(const Comp &c, int conn)
             else if (p == 0b1001 || p == 0b0110) ++n_qd;
         }
     if (conn == 4)
-        return keel::as<double>(n_q1 - n_q3 + 2 * n_qd) / 4.0;
+        return keel::as<keel::f64>(n_q1 - n_q3 + 2 * n_qd) / 4.0;
     // 8-conn
-    return keel::as<double>(n_q1 - n_q3 - 2 * n_qd) / 4.0;
+    return keel::as<keel::f64>(n_q1 - n_q3 - 2 * n_qd) / 4.0;
 }
 
 // FilledArea: area + holes (the per-component imfill of the mask).
 // Implementation: flood-fill the background starting at the mask
 // border; the un-reached background is the holes.
-double attr_filled_area(const Comp &c)
+keel::f64 attr_filled_area(const Comp &c)
 {
     const int h = c.rmax - c.rmin + 1;
     const int w = c.cmax - c.cmin + 1;
@@ -424,8 +424,8 @@ double attr_filled_area(const Comp &c)
     // Subtract the border padding rectangle (which is always
     // background-reached). The padded mask was hp×wp; the original
     // pixel area is h×w. Border padding = hp·wp - h·w.
-    return keel::as<double>(filled) -
-        keel::as<double>(hp * wp - h * w);
+    return keel::as<keel::f64>(filled) -
+        keel::as<keel::f64>(hp * wp - h * w);
 }
 
 // ── Convex hull (Andrew's monotone chain) on pixel CORNERS ──────
@@ -433,11 +433,11 @@ double attr_filled_area(const Comp &c)
 // the 4 corners of every foreground pixel (i.e. each pixel
 // contributes 4 corners offset by ±0.5). The polygon area via
 // shoelace gives the exact convex area in pixels.
-double polygon_area(keel::ArrayRef<std::pair<double,double>> pts)
+keel::f64 polygon_area(keel::ArrayRef<std::pair<keel::f64,keel::f64>> pts)
 {
     const keel::usize N = pts.size();
     if (N < 3) return 0.0;
-    double s = 0.0;
+    keel::f64 s = 0.0;
     for (keel::usize i = 0; i < N; ++i) {
         const auto &p = pts[i];
         const auto &q = pts[(i + 1) % N];
@@ -446,17 +446,17 @@ double polygon_area(keel::ArrayRef<std::pair<double,double>> pts)
     return 0.5 * std::fabs(s);
 }
 
-keel::Array<std::pair<double,double>>
-convex_hull(keel::Array<std::pair<double,double>> pts)
+keel::Array<std::pair<keel::f64,keel::f64>>
+convex_hull(keel::Array<std::pair<keel::f64,keel::f64>> pts)
 {
     const keel::usize N = pts.size();
     if (N < 3) return pts;
     std::sort(pts.begin(), pts.end());
-    keel::Array<std::pair<double,double>> H;
+    keel::Array<std::pair<keel::f64,keel::f64>> H;
     H.reserve(2 * N);
-    auto cross = [](const std::pair<double,double> &O,
-                    const std::pair<double,double> &A,
-                    const std::pair<double,double> &B) -> double {
+    auto cross = [](const std::pair<keel::f64,keel::f64> &O,
+                    const std::pair<keel::f64,keel::f64> &A,
+                    const std::pair<keel::f64,keel::f64> &B) -> keel::f64 {
         return (A.first - O.first) * (B.second - O.second)
              - (A.second - O.second) * (B.first - O.first);
     };
@@ -478,18 +478,18 @@ convex_hull(keel::Array<std::pair<double,double>> pts)
     return H;
 }
 
-double attr_convex_area(const Comp &c)
+keel::f64 attr_convex_area(const Comp &c)
 {
     const keel::usize N = c.rs.size();
     if (N == 0) return 0.0;
     // Build pixel-corner point list. Each pixel (r, c) contributes
     // 4 corners at (c±0.5, r±0.5). For convex-hull purposes we just
     // dump all 4N points and rely on the hull to keep extremes.
-    keel::Array<std::pair<double,double>> pts;
+    keel::Array<std::pair<keel::f64,keel::f64>> pts;
     pts.reserve(4 * N);
     for (keel::usize i = 0; i < N; ++i) {
-        const double r = c.rs[i];
-        const double cc_ = c.cs[i];
+        const keel::f64 r = c.rs[i];
+        const keel::f64 cc_ = c.cs[i];
         pts.emplace_back(cc_ - 0.5, r - 0.5);
         pts.emplace_back(cc_ + 0.5, r - 0.5);
         pts.emplace_back(cc_ - 0.5, r + 0.5);
@@ -499,15 +499,15 @@ double attr_convex_area(const Comp &c)
     return polygon_area(H);
 }
 
-double attr_solidity(const Comp &c)
+keel::f64 attr_solidity(const Comp &c)
 {
-    const double ca = attr_convex_area(c);
+    const keel::f64 ca = attr_convex_area(c);
     if (ca <= 0.0) return std::nan("");
     return attr_area(c) / ca;
 }
 
 // ── Marker-aware attributes ──────────────────────────────────────
-double attr_mean_intensity(const Comp &c, const Value &marker)
+keel::f64 attr_mean_intensity(const Comp &c, const Value &marker)
 {
     const keel::usize N = c.rs.size();
     if (N == 0) return std::nan("");
@@ -516,29 +516,29 @@ double attr_mean_intensity(const Comp &c, const Value &marker)
     for (keel::usize i = 0; i < N; ++i)
         s += marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
-    return keel::as<double>(s / keel::as<long double>(N));
+    return keel::as<keel::f64>(s / keel::as<long double>(N));
 }
 
-double attr_min_intensity(const Comp &c, const Value &marker)
+keel::f64 attr_min_intensity(const Comp &c, const Value &marker)
 {
     if (c.rs.empty()) return std::nan("");
     const int H = keel::as<int>(marker.dims().rows());
-    double m = std::numeric_limits<double>::infinity();
+    keel::f64 m = std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
-        const double v = marker.elemAsDouble(keel::as<keel::usize>(
+        const keel::f64 v = marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
         if (v < m) m = v;
     }
     return m;
 }
 
-double attr_max_intensity(const Comp &c, const Value &marker)
+keel::f64 attr_max_intensity(const Comp &c, const Value &marker)
 {
     if (c.rs.empty()) return std::nan("");
     const int H = keel::as<int>(marker.dims().rows());
-    double m = -std::numeric_limits<double>::infinity();
+    keel::f64 m = -std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
-        const double v = marker.elemAsDouble(keel::as<keel::usize>(
+        const keel::f64 v = marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
         if (v > m) m = v;
     }
@@ -546,12 +546,12 @@ double attr_max_intensity(const Comp &c, const Value &marker)
 }
 
 // ── Compute attribute vector for all components ──────────────────
-keel::Array<double>
+keel::Array<keel::f64>
 compute_attribute(keel::ArrayRef<Comp> comps,
                   keel::StringRef attrib_lower,
                   const Value &marker, int conn, int H, int W)
 {
-    keel::Array<double> v(comps.size(), 0.0);
+    keel::Array<keel::f64> v(comps.size(), 0.0);
     if (attrib_lower == "area") {
         for (keel::usize i = 0; i < comps.size(); ++i)
             v[i] = attr_area(comps[i]);
@@ -637,7 +637,7 @@ void bwpropfilt_argcheck(const Value &BW, const Value &CC)
 
 Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
                  keel::StringRef attribute,
-                 double p_min, double p_max,
+                 keel::f64 p_min, keel::f64 p_max,
                  keel::usize keep_n, bool keep_largest,
                  int conn,
                  keel::Allocator *mr)
@@ -676,7 +676,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
     }
 
     // Compute attribute per component.
-    keel::Array<double> vals = compute_attribute(info.comps, attrib_lo,
+    keel::Array<keel::f64> vals = compute_attribute(info.comps, attrib_lo,
                                                   marker, info.conn,
                                                   info.H, info.W);
 
@@ -700,7 +700,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
         }
         const keel::usize p = std::min(keep_n, idx.size());
         // Tie-handling: include all values ≥ (or ≤) the N-th's value.
-        const double cutoff = vals[idx[p - 1]];
+        const keel::f64 cutoff = vals[idx[p - 1]];
         for (keel::usize i = 0; i < K; ++i) {
             if (keep_largest) {
                 if (vals[i] >= cutoff) keep[i] = 1;
@@ -728,7 +728,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
         // Build filtered PixelIdxList.
         keel::usize Kkept = 0;
         for (keel::usize k = 0; k < K; ++k) if (keep[k]) ++Kkept;
-        el.put(keel::String::from("NumObjects"), Value::scalar(keel::as<double>(Kkept), mr));
+        el.put(keel::String::from("NumObjects"), Value::scalar(keel::as<keel::f64>(Kkept), mr));
         Value cell = Value::cell(1, Kkept, mr);
         const Value &orig = *src.get("PixelIdxList");
         keel::usize w = 0;

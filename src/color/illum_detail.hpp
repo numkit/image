@@ -18,8 +18,8 @@ namespace numkit::image {
 
 // Grey-world illuminant estimate with an explicit Minkowski norm exponent.
 // illumgray() forwards here with norm_exp = 1.0.
-Value illumgray_impl(const Value &A, keel::ArrayRef<double> P,
-                     const Value &mask, double norm_exp,
+Value illumgray_impl(const Value &A, keel::ArrayRef<keel::f64> P,
+                     const Value &mask, keel::f64 norm_exp,
                      keel::Allocator *mr);
 
 } // namespace numkit::image

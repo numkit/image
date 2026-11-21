@@ -25,12 +25,12 @@ namespace numkit::image {
 
 // Write a sampled value `v` (native units) into output element idx i, clipping
 // integer types to their natural range.
-inline void writeNative(Value &out, keel::usize i, double v, ValueType t) {
+inline void writeNative(Value &out, keel::usize i, keel::f64 v, ValueType t) {
     switch (t) {
         case ValueType::DOUBLE:
             out.doubleDataMut()[i] = v; break;
         case ValueType::SINGLE:
-            out.singleDataMut()[i] = keel::as<float>(v); break;
+            out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
         case ValueType::UINT8: {
             if (v < 0.0) v = 0.0;
             if (v > 255.0) v = 255.0;
@@ -61,7 +61,7 @@ inline void writeNative(Value &out, keel::usize i, double v, ValueType t) {
 // geom.cpp.
 Value imresize3_core(const Value &V,
                      keel::usize outR, keel::usize outC, keel::usize outD,
-                     double scaleY, double scaleX, double scaleZ,
+                     keel::f64 scaleY, keel::f64 scaleX, keel::f64 scaleZ,
                      keel::StringRef method, bool antialias,
                      keel::Allocator *mr);
 

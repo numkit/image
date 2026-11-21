@@ -79,10 +79,10 @@ Value to_single01(const Value &A, keel::Allocator *mr)
         Value out = d.is3D()
             ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
             : Value::matrix(H, W, ValueType::SINGLE, mr);
-        const float *src = A.singleData();
-        float *dst = out.singleDataMut();
+        const keel::f32 *src = A.singleData();
+        keel::f32 *dst = out.singleDataMut();
         for (keel::usize i = 0; i < H * W * P; ++i) {
-            float v = src[i];
+            keel::f32 v = src[i];
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             dst[i] = v;
@@ -92,18 +92,18 @@ Value to_single01(const Value &A, keel::Allocator *mr)
     Value out = d.is3D()
         ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
         : Value::matrix(H, W, ValueType::SINGLE, mr);
-    float *dst = out.singleDataMut();
+    keel::f32 *dst = out.singleDataMut();
     for (keel::usize i = 0; i < H * W * P; ++i) {
-        const double raw = A.elemAsDouble(i);
-        float v;
+        const keel::f64 raw = A.elemAsDouble(i);
+        keel::f32 v;
         switch (t) {
-            case ValueType::UINT8:  v = keel::as<float>(raw) / 255.0f;   break;
-            case ValueType::UINT16: v = keel::as<float>(raw) / 65535.0f; break;
-            case ValueType::INT8:   v = (keel::as<float>(raw) + 128.0f) / 255.0f;   break;
-            case ValueType::INT16:  v = (keel::as<float>(raw) + 32768.0f) / 65535.0f; break;
+            case ValueType::UINT8:  v = keel::as<keel::f32>(raw) / 255.0f;   break;
+            case ValueType::UINT16: v = keel::as<keel::f32>(raw) / 65535.0f; break;
+            case ValueType::INT8:   v = (keel::as<keel::f32>(raw) + 128.0f) / 255.0f;   break;
+            case ValueType::INT16:  v = (keel::as<keel::f32>(raw) + 32768.0f) / 65535.0f; break;
             case ValueType::LOGICAL: v = raw == 0.0 ? 0.0f : 1.0f; break;
             default: {
-                v = keel::as<float>(raw);
+                v = keel::as<keel::f32>(raw);
                 if (v < 0.0f) v = 0.0f;
                 if (v > 1.0f) v = 1.0f;
                 break;
@@ -123,12 +123,12 @@ Value min_across_pages(const Value &A, keel::Allocator *mr)
     const keel::usize W = d.cols();
     const keel::usize P = d.is3D() ? d.pages() : 1;
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
-    float *dst = out.singleDataMut();
-    const float *src = A.singleData();
+    keel::f32 *dst = out.singleDataMut();
+    const keel::f32 *src = A.singleData();
     for (keel::usize i = 0; i < H * W; ++i) {
-        float m = src[i];
+        keel::f32 m = src[i];
         for (keel::usize p = 1; p < P; ++p) {
-            const float v = src[p * H * W + i];
+            const keel::f32 v = src[p * H * W + i];
             if (v < m) m = v;
         }
         dst[i] = m;
@@ -150,7 +150,7 @@ Value make_square_strel(int n, keel::Allocator *mr)
 // ── Dehaze: 1 - imopen(A./atm, strel) for approxdcp branch ────────
 // A is SINGLE, atm is the brightest RGB triple (1×3) or scalar; we
 // divide each plane and then min-across-pages.
-Value normalize_by_atm_then_min(const Value &A, keel::ArrayRef<float> atm,
+Value normalize_by_atm_then_min(const Value &A, keel::ArrayRef<keel::f32> atm,
                                 keel::Allocator *mr)
 {
     const auto &d = A.dims();
@@ -158,13 +158,13 @@ Value normalize_by_atm_then_min(const Value &A, keel::ArrayRef<float> atm,
     const keel::usize W = d.cols();
     const keel::usize P = d.is3D() ? d.pages() : 1;
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
-    float *dst = out.singleDataMut();
-    const float *src = A.singleData();
+    keel::f32 *dst = out.singleDataMut();
+    const keel::f32 *src = A.singleData();
     for (keel::usize i = 0; i < H * W; ++i) {
-        float m = std::numeric_limits<float>::infinity();
+        keel::f32 m = std::numeric_limits<keel::f32>::infinity();
         for (keel::usize p = 0; p < P; ++p) {
-            const float a = atm[p > atm.size() - 1 ? atm.size() - 1 : p];
-            const float v = (a == 0.0f) ? std::numeric_limits<float>::infinity()
+            const keel::f32 a = atm[p > atm.size() - 1 ? atm.size() - 1 : p];
+            const keel::f32 v = (a == 0.0f) ? std::numeric_limits<keel::f32>::infinity()
                                         : src[p * H * W + i] / a;
             if (v < m) m = v;
         }
@@ -180,15 +180,15 @@ struct Rect { keel::usize r0, c0, r1, c1; };  // inclusive
 
 Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
 {
-    const float *dd = dark.singleData();
+    const keel::f32 *dd = dark.singleData();
     const keel::usize H = dark.dims().rows();
-    auto mean_of = [&](const Rect &q) -> double {
-        double s = 0.0;
+    auto mean_of = [&](const Rect &q) -> keel::f64 {
+        keel::f64 s = 0.0;
         const keel::usize n = (q.r1 - q.r0 + 1) * (q.c1 - q.c0 + 1);
         for (keel::usize c = q.c0; c <= q.c1; ++c)
             for (keel::usize r = q.r0; r <= q.r1; ++r)
                 s += dd[c * H + r];
-        return s / keel::as<double>(n);
+        return s / keel::as<keel::f64>(n);
     };
     for (int lvl = 0; lvl < numLevels; ++lvl) {
         // MATLAB's quadrant indexing (1-based, all integer):
@@ -198,9 +198,9 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
         //   col mid = (Q.c0 + Q.c1) / 2
         // R2025b uses `round(...)` so we match that.
         const long rmid = keel::as<long>(std::round(
-            (keel::as<double>(Q.r0) + keel::as<double>(Q.r1)) / 2.0));
+            (keel::as<keel::f64>(Q.r0) + keel::as<keel::f64>(Q.r1)) / 2.0));
         const long cmid = keel::as<long>(std::round(
-            (keel::as<double>(Q.c0) + keel::as<double>(Q.c1)) / 2.0));
+            (keel::as<keel::f64>(Q.c0) + keel::as<keel::f64>(Q.c1)) / 2.0));
         const Rect q1{Q.r0,
                        Q.c0,
                        keel::as<keel::usize>(rmid),
@@ -217,7 +217,7 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
                        keel::as<keel::usize>(cmid + 1),
                        Q.r1,
                        Q.c1};
-        const double m[4] = {mean_of(q1), mean_of(q2), mean_of(q3), mean_of(q4)};
+        const keel::f64 m[4] = {mean_of(q1), mean_of(q2), mean_of(q3), mean_of(q4)};
         int best = 0;
         for (int k = 1; k < 4; ++k)
             if (m[k] > m[best]) best = k;
@@ -228,7 +228,7 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
 
 // Compute atmospheric light using the simpledcp quadtree algorithm.
 // A is SINGLE (H×W×P).
-keel::Array<float> simpledcp_atm_light(const Value &A,
+keel::Array<keel::f32> simpledcp_atm_light(const Value &A,
                                        keel::Allocator *mr)
 {
     const auto &d = A.dims();
@@ -238,7 +238,7 @@ keel::Array<float> simpledcp_atm_light(const Value &A,
     Rect Q{0, 0, H - 1, W - 1};
     if (H >= 64 && W >= 64) {
         const int winSize = keel::as<int>(std::ceil(
-            keel::as<double>(std::min(H, W)) / 400.0 * 15.0));
+            keel::as<keel::f64>(std::min(H, W)) / 400.0 * 15.0));
         Value se = make_square_strel(winSize, mr);
         Value darkChannel = min_across_pages(A, mr);
         Value dcEroded = imerode(darkChannel, se, mr);
@@ -246,15 +246,15 @@ keel::Array<float> simpledcp_atm_light(const Value &A,
     }
     // Pick pixel with minimum Euclidean distance to [1, 1, ..., 1]
     // in the final quadrant — i.e., the brightest pixel by L2 to ones.
-    const float *src = A.singleData();
-    double bestDist = std::numeric_limits<double>::infinity();
+    const keel::f32 *src = A.singleData();
+    keel::f64 bestDist = std::numeric_limits<keel::f64>::infinity();
     keel::usize bestR = Q.r0, bestC = Q.c0;
     for (keel::usize c = Q.c0; c <= Q.c1; ++c)
         for (keel::usize r = Q.r0; r <= Q.r1; ++r) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize p = 0; p < P; ++p) {
-                const double v = src[p * H * W + c * H + r];
-                const double d2 = keel::abs(1.0 - v);
+                const keel::f64 v = src[p * H * W + c * H + r];
+                const keel::f64 d2 = keel::abs(1.0 - v);
                 s += d2;     // sqrt(d2^2) == |d2|; matches MATLAB's
                             // sqrt(abs(brightIm-img).^2) then sum.
             }
@@ -264,7 +264,7 @@ keel::Array<float> simpledcp_atm_light(const Value &A,
                 bestC = c;
             }
         }
-    keel::Array<float> atm(P);
+    keel::Array<keel::f32> atm(P);
     for (keel::usize p = 0; p < P; ++p)
         atm[p] = src[p * H * W + bestC * H + bestR];
     return atm;
@@ -273,7 +273,7 @@ keel::Array<float> simpledcp_atm_light(const Value &A,
 // approxdcp atm light estimation: 0.1% brightest pixels of the
 // (eroded) dark channel; among those, pick the one with the highest
 // grayscale luminance (rgb2gray for RGB, A for grayscale).
-keel::Array<float> approxdcp_atm_light(const Value &A,
+keel::Array<keel::f32> approxdcp_atm_light(const Value &A,
                                        const Value &darkChannel,
                                        keel::Allocator *mr)
 {
@@ -281,7 +281,7 @@ keel::Array<float> approxdcp_atm_light(const Value &A,
     const keel::usize H = d.rows();
     const keel::usize W = d.cols();
     const keel::usize P = d.is3D() ? d.pages() : 1;
-    const float *dc = darkChannel.singleData();
+    const keel::f32 *dc = darkChannel.singleData();
     // 256-bin imhist on the dark channel.
     constexpr int NBINS = 256;
     keel::Array<keel::usize> hist(NBINS, 0);
@@ -292,15 +292,15 @@ keel::Array<float> approxdcp_atm_light(const Value &A,
         hist[b]++;
     }
     // Cumulative; find threshold for top 0.1% (1 - 0.001 = 0.999).
-    const double total = keel::as<double>(H * W);
-    double cum = 0;
+    const keel::f64 total = keel::as<keel::f64>(H * W);
+    keel::f64 cum = 0;
     int binIdx = NBINS - 1;
     for (int b = 0; b < NBINS; ++b) {
         cum += hist[b];
         if (cum / total >= 0.999) { binIdx = b; break; }
     }
-    const float binWidth = 1.0f / keel::as<float>(NBINS - 1);
-    const float cutoff = keel::as<float>(binIdx) / keel::as<float>(NBINS - 1)
+    const keel::f32 binWidth = 1.0f / keel::as<keel::f32>(NBINS - 1);
+    const keel::f32 cutoff = keel::as<keel::f32>(binIdx) / keel::as<keel::f32>(NBINS - 1)
                        - binWidth * 0.5f;
 
     // Build mask of pixels >= cutoff.
@@ -311,34 +311,34 @@ keel::Array<float> approxdcp_atm_light(const Value &A,
     } else {
         gray = A;
     }
-    const float *gv = gray.singleData();
-    const float *src = A.singleData();
-    float bestGray = -std::numeric_limits<float>::infinity();
+    const keel::f32 *gv = gray.singleData();
+    const keel::f32 *src = A.singleData();
+    keel::f32 bestGray = -std::numeric_limits<keel::f32>::infinity();
     long bestIdx = -1;
     for (keel::usize i = 0; i < H * W; ++i) {
         if (dc[i] >= cutoff) {
-            const float gval = gv[i];
+            const keel::f32 gval = gv[i];
             if (gval > bestGray) {
                 bestGray = gval;
                 bestIdx = keel::as<long>(i);
             }
         }
     }
-    keel::Array<float> atm(P);
+    keel::Array<keel::f32> atm(P);
     if (bestIdx < 0) {
         // No pixel above cutoff (shouldn't happen for sane input);
         // fall back to the pixel with maximum dark-channel value.
         keel::usize mi = 0;
-        float mv = dc[0];
+        keel::f32 mv = dc[0];
         for (keel::usize i = 1; i < H * W; ++i)
             if (dc[i] > mv) { mv = dc[i]; mi = i; }
         for (keel::usize p = 0; p < P; ++p)
             atm[p] = src[p * H * W + mi];
     } else {
         for (keel::usize p = 0; p < P; ++p) {
-            float v = src[p * H * W + bestIdx];
+            keel::f32 v = src[p * H * W + bestIdx];
             if (v == 0.0f)
-                v = std::numeric_limits<float>::epsilon();  // eps('single')
+                v = std::numeric_limits<keel::f32>::epsilon();  // eps('single')
             atm[p] = v;
         }
     }
@@ -352,36 +352,36 @@ keel::Array<float> approxdcp_atm_light(const Value &A,
 //   B(x) = radiance(x) * t_new + atm * (1 - t_new)
 //   B = clip(B, 0, 1)
 Value recover_radiance(const Value &A, const Value &transmissionMap,
-                       keel::ArrayRef<float> atm, double amount,
-                       double omega, keel::Allocator *mr)
+                       keel::ArrayRef<keel::f32> atm, keel::f64 amount,
+                       keel::f64 omega, keel::Allocator *mr)
 {
     const auto &d = A.dims();
     const keel::usize H = d.rows();
     const keel::usize W = d.cols();
     const keel::usize P = d.is3D() ? d.pages() : 1;
-    constexpr float t0 = 0.1f;
-    const float *src = A.singleData();
-    const float *tm = transmissionMap.singleData();
+    constexpr keel::f32 t0 = 0.1f;
+    const keel::f32 *src = A.singleData();
+    const keel::f32 *tm = transmissionMap.singleData();
     Value out;
     if (d.is3D())
         out = Value::matrix3d(H, W, P, ValueType::SINGLE, mr);
     else
         out = Value::matrix(H, W, ValueType::SINGLE, mr);
-    float *dst = out.singleDataMut();
-    const float famount = keel::as<float>(amount);
-    const float fomega = keel::as<float>(omega);
+    keel::f32 *dst = out.singleDataMut();
+    const keel::f32 famount = keel::as<keel::f32>(amount);
+    const keel::f32 fomega = keel::as<keel::f32>(omega);
     for (keel::usize i = 0; i < H * W; ++i) {
-        const float t = tm[i];
-        const float tb = 1.0f - fomega * (1.0f - t);
-        const float tt = (tb > t0) ? tb : t0;
-        const float tnew = std::min(1.0f, tb + famount);
+        const keel::f32 t = tm[i];
+        const keel::f32 tb = 1.0f - fomega * (1.0f - t);
+        const keel::f32 tt = (tb > t0) ? tb : t0;
+        const keel::f32 tnew = std::min(1.0f, tb + famount);
         for (keel::usize p = 0; p < P; ++p) {
-            const float a = atm[p > atm.size() - 1 ? atm.size() - 1 : p];
-            const float v = src[p * H * W + i];
-            float rad = a + (v - a) / tt;
+            const keel::f32 a = atm[p > atm.size() - 1 ? atm.size() - 1 : p];
+            const keel::f32 v = src[p * H * W + i];
+            keel::f32 rad = a + (v - a) / tt;
             if (rad < 0.0f) rad = 0.0f;
             if (rad > 1.0f) rad = 1.0f;
-            float b = rad * tnew + a * (1.0f - tnew);
+            keel::f32 b = rad * tnew + a * (1.0f - tnew);
             if (b < 0.0f) b = 0.0f;
             if (b > 1.0f) b = 1.0f;
             dst[p * H * W + i] = b;
@@ -396,11 +396,11 @@ Value one_minus(const Value &T, keel::Allocator *mr)
     const keel::usize H = T.dims().rows();
     const keel::usize W = T.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (T.type() == ValueType::SINGLE) {
-        const float *td = T.singleData();
+        const keel::f32 *td = T.singleData();
         for (keel::usize i = 0; i < H * W; ++i)
-            od[i] = 1.0 - keel::as<double>(td[i]);
+            od[i] = 1.0 - keel::as<keel::f64>(td[i]);
     } else {
         for (keel::usize i = 0; i < H * W; ++i)
             od[i] = 1.0 - T.elemAsDouble(i);
@@ -415,8 +415,8 @@ Value extract_plane(const Value &A, keel::usize p,
     const keel::usize H = A.dims().rows();
     const keel::usize W = A.dims().cols();
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
-    const float *src = A.singleData() + p * H * W;
-    std::memcpy(out.singleDataMut(), src, H * W * sizeof(float));
+    const keel::f32 *src = A.singleData() + p * H * W;
+    std::memcpy(out.singleDataMut(), src, H * W * sizeof(keel::f32));
     return out;
 }
 
@@ -431,14 +431,14 @@ Value stack_planes(keel::ArrayRef<Value> planes,
         // Return a 2-D matrix copy to preserve grayscale shape.
         Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
         std::memcpy(out.singleDataMut(), planes[0].singleData(),
-                    H * W * sizeof(float));
+                    H * W * sizeof(keel::f32));
         return out;
     }
     Value out = Value::matrix3d(H, W, P, ValueType::SINGLE, mr);
     for (keel::usize p = 0; p < P; ++p)
         std::memcpy(out.singleDataMut() + p * H * W,
                     planes[p].singleData(),
-                    H * W * sizeof(float));
+                    H * W * sizeof(keel::f32));
     return out;
 }
 
@@ -456,50 +456,50 @@ Value global_stretching(const Value &A, keel::Allocator *mr)
     const keel::usize P = d.is3D() ? d.pages() : 1;
     Value G = d.is3D() ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
                         : Value::matrix(H, W, ValueType::SINGLE, mr);
-    const float *src = A.singleData();
-    float *dst = G.singleDataMut();
+    const keel::f32 *src = A.singleData();
+    keel::f32 *dst = G.singleDataMut();
     for (keel::usize i = 0; i < H * W * P; ++i)
         dst[i] = std::pow(src[i], 0.75f);
-    Value Nd = mat2gray(G, std::numeric_limits<double>::quiet_NaN(),
-                        std::numeric_limits<double>::quiet_NaN(), mr);
+    Value Nd = mat2gray(G, std::numeric_limits<keel::f64>::quiet_NaN(),
+                        std::numeric_limits<keel::f64>::quiet_NaN(), mr);
     // mat2gray returns DOUBLE; convert to SINGLE for the rest of the
     // pipeline (cheap copy; keeps types consistent for stack_planes).
     Value N = d.is3D() ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
                         : Value::matrix(H, W, ValueType::SINGLE, mr);
     {
-        float *nd = N.singleDataMut();
-        const double *dd_ = Nd.doubleData();
+        keel::f32 *nd = N.singleDataMut();
+        const keel::f64 *dd_ = Nd.doubleData();
         for (keel::usize i = 0; i < H * W * P; ++i)
-            nd[i] = keel::as<float>(dd_[i]);
+            nd[i] = keel::as<keel::f32>(dd_[i]);
     }
-    constexpr double alpha = 0.8;
+    constexpr keel::f64 alpha = 0.8;
     // MATLAB: clipLimit = stretchlim(N, [0.001 0.999]);          % 2×P
     //         clipLimit = clipLimit + alpha *
     //                     (max(clipLimit, mean(clipLimit, 2)) - clipLimit);
     // The mean is taken ACROSS CHANNELS (dim 2), so each row of
     // clipLimit (low / high) gets the same channel-mean value
     // broadcast across all P channels.  Then per-channel imadjust.
-    keel::Array<double> lo_per(P), hi_per(P);
+    keel::Array<keel::f64> lo_per(P), hi_per(P);
     for (keel::usize p = 0; p < P; ++p) {
         Value plane = (P == 1) ? N : extract_plane(N, p, mr);
         Value cl = stretchlim(plane, 0.001, 0.999, mr);
         lo_per[p] = cl.elemAsDouble(0);
         hi_per[p] = cl.elemAsDouble(1);
     }
-    double sum_lo = 0.0, sum_hi = 0.0;
+    keel::f64 sum_lo = 0.0, sum_hi = 0.0;
     for (keel::usize p = 0; p < P; ++p) {
         sum_lo += lo_per[p];
         sum_hi += hi_per[p];
     }
-    const double mean_lo = sum_lo / keel::as<double>(P);
-    const double mean_hi = sum_hi / keel::as<double>(P);
+    const keel::f64 mean_lo = sum_lo / keel::as<keel::f64>(P);
+    const keel::f64 mean_hi = sum_hi / keel::as<keel::f64>(P);
     keel::Array<Value> outPlanes;
     outPlanes.reserve(P);
     for (keel::usize p = 0; p < P; ++p) {
         Value plane = (P == 1) ? N : extract_plane(N, p, mr);
-        const double lo_n = lo_per[p]
+        const keel::f64 lo_n = lo_per[p]
             + alpha * (std::max(lo_per[p], mean_lo) - lo_per[p]);
-        const double hi_n = hi_per[p]
+        const keel::f64 hi_n = hi_per[p]
             + alpha * (std::max(hi_per[p], mean_hi) - hi_per[p]);
         outPlanes.push_back(imadjust(plane, lo_n, hi_n, 0.0, 1.0, 1.0, mr));
     }
@@ -518,7 +518,7 @@ Value global_stretching(const Value &A, keel::Allocator *mr)
 //        1-T).  Inside, transmissionMap = 1-T, so 1 - transmissionMap
 //        = T. So gain = boostAmount * T. Final B = dehazed*(1+amount*
 //        boostAmount*T). Yes.
-Value boost_postproc(const Value &dehazed, double amount, double boost,
+Value boost_postproc(const Value &dehazed, keel::f64 amount, keel::f64 boost,
                      const Value &T_thick, keel::Allocator *mr)
 {
     const auto &d = dehazed.dims();
@@ -527,16 +527,16 @@ Value boost_postproc(const Value &dehazed, double amount, double boost,
     const keel::usize P = d.is3D() ? d.pages() : 1;
     Value out = d.is3D() ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
                           : Value::matrix(H, W, ValueType::SINGLE, mr);
-    const float *src = dehazed.singleData();
-    float *dst = out.singleDataMut();
-    const float famount = keel::as<float>(amount);
-    const float fboost  = keel::as<float>(boost);
+    const keel::f32 *src = dehazed.singleData();
+    keel::f32 *dst = out.singleDataMut();
+    const keel::f32 famount = keel::as<keel::f32>(amount);
+    const keel::f32 fboost  = keel::as<keel::f32>(boost);
     // T_thick is DOUBLE H×W.
     for (keel::usize i = 0; i < H * W; ++i) {
-        const float Tv = keel::as<float>(T_thick.elemAsDouble(i));
-        const float g = 1.0f + famount * fboost * Tv;
+        const keel::f32 Tv = keel::as<keel::f32>(T_thick.elemAsDouble(i));
+        const keel::f32 g = 1.0f + famount * fboost * Tv;
         for (keel::usize p = 0; p < P; ++p) {
-            float v = src[p * H * W + i] * g;
+            keel::f32 v = src[p * H * W + i] * g;
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             dst[p * H * W + i] = v;
@@ -560,10 +560,10 @@ Value cast_back(const Value &B, ValueType origClass,
                                   ValueType::SINGLE, mr);
         else
             out = Value::matrix(d.rows(), d.cols(), ValueType::SINGLE, mr);
-        const float *src = B.singleData();
-        float *dst = out.singleDataMut();
+        const keel::f32 *src = B.singleData();
+        keel::f32 *dst = out.singleDataMut();
         for (keel::usize i = 0; i < N; ++i) {
-            float v = src[i];
+            keel::f32 v = src[i];
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             dst[i] = v;
@@ -576,19 +576,19 @@ Value cast_back(const Value &B, ValueType origClass,
                                                ValueType::DOUBLE, mr)
                               : Value::matrix(d.rows(), d.cols(),
                                               ValueType::DOUBLE, mr);
-        double *dst = out.doubleDataMut();
+        keel::f64 *dst = out.doubleDataMut();
         const keel::usize N = B.numel();
         if (B.type() == ValueType::SINGLE) {
-            const float *src = B.singleData();
+            const keel::f32 *src = B.singleData();
             for (keel::usize i = 0; i < N; ++i) {
-                double v = keel::as<double>(src[i]);
+                keel::f64 v = keel::as<keel::f64>(src[i]);
                 if (v < 0.0) v = 0.0;
                 if (v > 1.0) v = 1.0;
                 dst[i] = v;
             }
         } else {
             for (keel::usize i = 0; i < N; ++i) {
-                double v = B.elemAsDouble(i);
+                keel::f64 v = B.elemAsDouble(i);
                 if (v < 0.0) v = 0.0;
                 if (v > 1.0) v = 1.0;
                 dst[i] = v;
@@ -603,10 +603,10 @@ Value cast_back(const Value &B, ValueType origClass,
     return im2uint8(B, mr);
 }
 
-void imreducehaze_argcheck(const Value &I, double amount,
+void imreducehaze_argcheck(const Value &I, keel::f64 amount,
                            keel::StringRef method,
                            keel::StringRef contrast_enhancement,
-                           double boost_amount,
+                           keel::f64 boost_amount,
                            keel::String &m_out, keel::String &ce_out,
                            bool &isRGB_out)
 {
@@ -650,11 +650,11 @@ void imreducehaze_argcheck(const Value &I, double amount,
 
 }  // namespace
 
-Value imreducehaze(const Value &I, double amount,
+Value imreducehaze(const Value &I, keel::f64 amount,
                    keel::StringRef method,
                    const Value &atmospheric_light,
                    keel::StringRef contrast_enhancement,
-                   double boost_amount,
+                   keel::f64 boost_amount,
                    Value &t_out, Value &L_out,
                    keel::Allocator *mr)
 {
@@ -678,7 +678,7 @@ Value imreducehaze(const Value &I, double amount,
     const keel::usize P = A.dims().is3D() ? A.dims().pages() : 1;
 
     // ── Resolve / estimate atmospheric light ─────────────────────
-    keel::Array<float> atm;
+    keel::Array<keel::f32> atm;
     if (!atmospheric_light.isEmpty()) {
         const keel::usize N = atmospheric_light.numel();
         if (isRGB && N != 3)
@@ -693,15 +693,15 @@ Value imreducehaze(const Value &I, double amount,
                         "numkit:imreducehaze:atmGray");
         atm.resize(P);
         for (keel::usize p = 0; p < P; ++p)
-            atm[p] = keel::as<float>(atmospheric_light.elemAsDouble(
+            atm[p] = keel::as<keel::f32>(atmospheric_light.elemAsDouble(
                 p >= N ? N - 1 : p));
     }
 
     // ── Dispatch on Method ───────────────────────────────────────
-    double omega;
+    keel::f64 omega;
     Value transmissionMap;
     int patchSize = keel::as<int>(std::ceil(
-        keel::as<double>(std::min(H, W)) / 400.0 * 15.0));
+        keel::as<keel::f64>(std::min(H, W)) / 400.0 * 15.0));
     if (patchSize < 1) patchSize = 1;
     Value se = make_square_strel(patchSize, mr);
 
@@ -711,14 +711,14 @@ Value imreducehaze(const Value &I, double amount,
         Value mp = min_across_pages(A, mr);
         const keel::usize N = mp.numel();
         Value tmap = Value::matrix(H, W, ValueType::SINGLE, mr);
-        float *td = tmap.singleDataMut();
-        const float *mpd = mp.singleData();
+        keel::f32 *td = tmap.singleDataMut();
+        const keel::f32 *mpd = mp.singleData();
         for (keel::usize i = 0; i < N; ++i) td[i] = 1.0f - mpd[i];
         // Guided filter: 5×5 (radius 2), eps = 0.01.
         // Self-guided (tmap is the transmission map; used as own guide).
         transmissionMap = imguidedfilter(tmap, tmap, 5, 0.01, mr);
         // Clamp [0, 1].
-        float *tt = transmissionMap.singleDataMut();
+        keel::f32 *tt = transmissionMap.singleDataMut();
         for (keel::usize i = 0; i < N; ++i) {
             if (tt[i] < 0.0f) tt[i] = 0.0f;
             if (tt[i] > 1.0f) tt[i] = 1.0f;
@@ -732,8 +732,8 @@ Value imreducehaze(const Value &I, double amount,
         Value normI = normalize_by_atm_then_min(A, atm, mr);
         Value opened = imopen(normI, se, mr);
         Value tmap = Value::matrix(H, W, ValueType::SINGLE, mr);
-        float *td = tmap.singleDataMut();
-        const float *od = opened.singleData();
+        keel::f32 *td = tmap.singleDataMut();
+        const keel::f32 *od = opened.singleData();
         const keel::usize N = tmap.numel();
         for (keel::usize i = 0; i < N; ++i) td[i] = 1.0f - od[i];
         // Guided filter: nhood = 2*radius+1, radius=ceil(min(H,W)/50).
@@ -744,13 +744,13 @@ Value imreducehaze(const Value &I, double amount,
         // imguidedfilter does not yet expose subsample, so we run
         // the full-resolution variant (slower but higher quality).
         int radius = keel::as<int>(std::ceil(
-            keel::as<double>(std::min(H, W)) / 50.0));
+            keel::as<keel::f64>(std::min(H, W)) / 50.0));
         if (radius < 1) radius = 1;
         const int nhood = 2 * radius + 1;
         Value guide = (P == 3) ? rgb2gray(A, mr) : A;
         transmissionMap = imguidedfilter(tmap, guide, nhood, 1e-4, mr);
         // Clamp [0, 1].
-        float *tt = transmissionMap.singleDataMut();
+        keel::f32 *tt = transmissionMap.singleDataMut();
         for (keel::usize i = 0; i < N; ++i) {
             if (tt[i] < 0.0f) tt[i] = 0.0f;
             if (tt[i] > 1.0f) tt[i] = 1.0f;
@@ -768,7 +768,7 @@ Value imreducehaze(const Value &I, double amount,
     // ── L output ────────────────────────────────────────────────
     if (isRGB) {
         L_out = Value::matrix(1, 3, ValueType::DOUBLE, mr);
-        double *ld = L_out.doubleDataMut();
+        keel::f64 *ld = L_out.doubleDataMut();
         ld[0] = atm[0]; ld[1] = atm[1]; ld[2] = atm[2];
     } else {
         L_out = Value::matrix(1, 1, ValueType::DOUBLE, mr);
@@ -780,7 +780,7 @@ Value imreducehaze(const Value &I, double amount,
     if (ce == "global") {
         enhanced = global_stretching(deHazed, mr);
     } else if (ce == "boost") {
-        const double bA = (boost_amount > 0.0) ? boost_amount : 0.1;
+        const keel::f64 bA = (boost_amount > 0.0) ? boost_amount : 0.1;
         enhanced = boost_postproc(deHazed, amount, bA, t_out, mr);
     } else {
         enhanced = deHazed;

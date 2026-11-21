@@ -136,12 +136,12 @@ bwlabel(const Value &BW, int conn, keel::Allocator *mr)
     const int W = (int)BW.dims().cols();
     auto [L, K] = label_components(read_bw(BW), H, W, conn);
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (int c = 0; c < W; ++c)
         for (int r = 0; r < H; ++r)
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r]
-                = double(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
-    return std::make_tuple(std::move(out), Value::scalar(double(K), mr));
+                = keel::f64(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
+    return std::make_tuple(std::move(out), Value::scalar(keel::f64(K), mr));
 }
 
 std::tuple<Value, Value>
@@ -207,12 +207,12 @@ bwlabeln(const Value &BW, int conn, keel::Allocator *mr)
     Value out = (BW.dims().pages() > 1)
         ? Value::matrix3d(BW.dims().rows(), BW.dims().cols(), BW.dims().pages(), ValueType::DOUBLE, mr)
         : Value::matrix(BW.dims().rows(), BW.dims().cols(), ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
         if (L[i] == 0) continue;
-        od[i] = double(remap[(keel::usize)find(L[i])]);
+        od[i] = keel::f64(remap[(keel::usize)find(L[i])]);
     }
-    return std::make_tuple(std::move(out), Value::scalar(double(K), mr));
+    return std::make_tuple(std::move(out), Value::scalar(keel::f64(K), mr));
 }
 
 Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
@@ -232,14 +232,14 @@ Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
     auto cc = Value::structArray(1, 1, mr);
     auto &el = cc.structArrayElem(0);
 
-    el.put(keel::String::from("Connectivity"), Value::scalar(double(conn), mr));
+    el.put(keel::String::from("Connectivity"), Value::scalar(keel::f64(conn), mr));
 
     Value sz = Value::matrix(1, 2, ValueType::DOUBLE, mr);
-    sz.doubleDataMut()[0] = double(H);
-    sz.doubleDataMut()[1] = double(W);
+    sz.doubleDataMut()[0] = keel::f64(H);
+    sz.doubleDataMut()[1] = keel::f64(W);
     el.put(keel::String::from("ImageSize"), std::move(sz));
 
-    el.put(keel::String::from("NumObjects"), Value::scalar(double(K), mr));
+    el.put(keel::String::from("NumObjects"), Value::scalar(keel::f64(K), mr));
 
     // Build PixelIdxList: 1xK cell of column-vector indices.
     Value pixList = Value::cell(1, keel::as<keel::usize>(K), mr);
@@ -254,8 +254,8 @@ Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
         for (keel::usize k = 0; k < (keel::usize)K; ++k) {
             const auto &v = lists[k];
             Value col = Value::matrix(v.size(), 1, ValueType::DOUBLE, mr);
-            double *cd = col.doubleDataMut();
-            for (keel::usize i = 0; i < v.size(); ++i) cd[i] = double(v[i]);
+            keel::f64 *cd = col.doubleDataMut();
+            for (keel::usize i = 0; i < v.size(); ++i) cd[i] = keel::f64(v[i]);
             pixList.cellAt(k) = std::move(col);
         }
     }
@@ -335,7 +335,7 @@ CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, keel::Array
                 keep[i] = objects_to_keep.elemAsDouble(i) != 0.0 ? 1 : 0;
         } else {
             for (keel::usize i = 0; i < N; ++i) {
-                const double v = objects_to_keep.elemAsDouble(i);
+                const keel::f64 v = objects_to_keep.elemAsDouble(i);
                 if (!std::isfinite(v) || v <= 0.0 || std::floor(v) != v)
                     throw Error("cc2bw: ObjectsToKeep must be positive "
                                 "integers or a logical vector",
@@ -384,7 +384,7 @@ Value labelmatrix(const Value &CC, keel::Allocator *mr)
             case ValueType::UINT32: L.uint32DataMut()[idx0]
                 = keel::as<keel::u32>(lab); break;
             default:                L.doubleDataMut()[idx0]
-                = keel::as<double>(lab);   break;
+                = keel::as<keel::f64>(lab);   break;
         }
     };
     for (keel::usize k = 0; k < K; ++k) {
@@ -426,7 +426,7 @@ Value cc2bw(const Value &CC, const Value &objects_to_keep,
 
 Value bwarea(const Value &BW, keel::Allocator *mr) {
     const keel::usize N = BW.numel();
-    double area = 0.0;
+    keel::f64 area = 0.0;
     for (keel::usize i = 0; i < N; ++i)
         if (BW.elemAsDouble(i) != 0.0) area += 1.0;
     return Value::scalar(area, mr);
@@ -517,11 +517,11 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
     if (Lout) {
         Value lab = Value::matrix(keel::as<keel::usize>(H),
                                   keel::as<keel::usize>(W), ValueType::DOUBLE, mr);
-        double *ld = lab.doubleDataMut();
+        keel::f64 *ld = lab.doubleDataMut();
         for (int r = 0; r < H; ++r)
             for (int c = 0; c < W; ++c)
                 ld[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
-                    keel::as<double>(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
+                    keel::as<keel::f64>(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
         *Lout = std::move(lab);
     }
 
@@ -571,9 +571,9 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
         if (!hasNeighbour) {
             // Cell entry: 1×2 [row col] (1-based).
             Value m = Value::matrix(1, 2, ValueType::DOUBLE, mr);
-            double *mb = m.doubleDataMut();
-            mb[0] = double(r0 + 1);
-            mb[1] = double(c0 + 1);
+            keel::f64 *mb = m.doubleDataMut();
+            mb[0] = keel::f64(r0 + 1);
+            mb[1] = keel::f64(c0 + 1);
             cellCol.cellAt(keel::as<keel::usize>(lab - 1)) = m;
             continue;
         }
@@ -620,10 +620,10 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
         // Pack into a P×2 [row col] (1-based).
         const keel::usize P = rows.size();
         Value m = Value::matrix(P, 2, ValueType::DOUBLE, mr);
-        double *mb = m.doubleDataMut();
+        keel::f64 *mb = m.doubleDataMut();
         for (keel::usize i = 0; i < P; ++i) {
-            mb[i]         = double(rows[i] + 1);
-            mb[P + i]     = double(cols[i] + 1);
+            mb[i]         = keel::f64(rows[i] + 1);
+            mb[P + i]     = keel::f64(cols[i] + 1);
         }
         cellCol.cellAt(keel::as<keel::usize>(lab - 1)) = m;
     }
@@ -641,7 +641,7 @@ namespace {
 // start/direction, so we start at the region's top-left-most pixel (r0,c0) and
 // go clockwise. Outer boundary only (holes not traced — MATLAB likewise warns
 // Perimeter is meant for hole-free regions). Single-pixel regions return 0.
-double regionPerimeter(keel::ArrayRef<int> L, int H, int W,
+keel::f64 regionPerimeter(keel::ArrayRef<int> L, int H, int W,
                        int lab, int r0, int c0)
 {
     static const int Dr8[8] = {-1, -1,  0,  1,  1,  1,  0, -1};
@@ -688,7 +688,7 @@ double regionPerimeter(keel::ArrayRef<int> L, int H, int W,
         if (t == 2) ++No; else ++Ne;
         if (t != stepType((i + 1) % steps)) ++Nc;           // circular corner count
     }
-    return 0.980 * (double)Ne + 1.406 * (double)No - 0.091 * (double)Nc;
+    return 0.980 * (keel::f64)Ne + 1.406 * (keel::f64)No - 0.091 * (keel::f64)Nc;
 }
 
 void regionprops_argcheck(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn)
@@ -738,7 +738,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
         // Quick scan: are any values > 1 with integer fractional part?
         const keel::usize N = (keel::usize)H * (keel::usize)W;
         for (keel::usize i = 0; i < N; ++i) {
-            const double v = BW_or_L.elemAsDouble(i);
+            const keel::f64 v = BW_or_L.elemAsDouble(i);
             if (v > 1.5) { looksLabelled = true; break; }
         }
     }
@@ -811,11 +811,11 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
     // Accumulators per label.
     const bool needMoments = wEllipse;
     keel::Array<long long> area(K + 1, 0);
-    keel::Array<double> sumX(K + 1, 0.0), sumY(keel::as<keel::usize>(K + 1), 0.0);
+    keel::Array<keel::f64> sumX(K + 1, 0.0), sumY(keel::as<keel::usize>(K + 1), 0.0);
     // First pixel (row-major scan order = top-left-most) per label, the
     // boundary-trace start for Perimeter.
     keel::Array<int> firstR(K + 1, -1), firstC(keel::as<keel::usize>(K + 1), -1);
-    keel::Array<double> sumXX(K + 1, 0.0), sumYY(keel::as<keel::usize>(K + 1), 0.0), sumXY(keel::as<keel::usize>(K + 1), 0.0);
+    keel::Array<keel::f64> sumXX(K + 1, 0.0), sumYY(keel::as<keel::usize>(K + 1), 0.0), sumXY(keel::as<keel::usize>(K + 1), 0.0);
     keel::Array<int> minX(K + 1, INT_MAX), minY(keel::as<keel::usize>(K + 1), INT_MAX);
     keel::Array<int> maxX(K + 1, INT_MIN), maxY(keel::as<keel::usize>(K + 1), INT_MIN);
     // Column-major 1-based linear indices per label (for PixelIdxList /
@@ -828,15 +828,15 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             if (lab <= 0 || lab > K) continue;
             ++area[(keel::usize)lab];
             if (firstR[(keel::usize)lab] < 0) { firstR[(keel::usize)lab] = r; firstC[(keel::usize)lab] = c; }
-            sumX[(keel::usize)lab] += double(c);
-            sumY[(keel::usize)lab] += double(r);
+            sumX[(keel::usize)lab] += keel::f64(c);
+            sumY[(keel::usize)lab] += keel::f64(r);
             if (needPixels)
                 pixIdx[(keel::usize)lab].push_back(
                     keel::as<long long>(c) * H + r + 1);   // col-major 1-based
             if (needMoments) {
-                sumXX[(keel::usize)lab] += double(c) * double(c);
-                sumYY[(keel::usize)lab] += double(r) * double(r);
-                sumXY[(keel::usize)lab] += double(c) * double(r);
+                sumXX[(keel::usize)lab] += keel::f64(c) * keel::f64(c);
+                sumYY[(keel::usize)lab] += keel::f64(r) * keel::f64(r);
+                sumXY[(keel::usize)lab] += keel::f64(c) * keel::f64(r);
             }
             if (c < minX[(keel::usize)lab]) minX[(keel::usize)lab] = c;
             if (r < minY[(keel::usize)lab]) minY[(keel::usize)lab] = r;
@@ -847,11 +847,11 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
     for (int lab = 1; lab <= K; ++lab) {
         auto &el = sa.structArrayElem(keel::as<keel::usize>(lab - 1));
         if (wArea) {
-            el.put(keel::String::from("Area"), Value::scalar(double(area[(keel::usize)lab]), mr));
+            el.put(keel::String::from("Area"), Value::scalar(keel::f64(area[(keel::usize)lab]), mr));
         }
         if (wCent) {
             // Centroid in MATLAB: 1-based (x, y) = (col+1, row+1) means.
-            const double a = double(area[(keel::usize)lab]);
+            const keel::f64 a = keel::f64(area[(keel::usize)lab]);
             Value cn = Value::matrix(1, 2, ValueType::DOUBLE, mr);
             cn.doubleDataMut()[0] = (a > 0.0) ? sumX[(keel::usize)lab] / a + 1.0 : 0.0;
             cn.doubleDataMut()[1] = (a > 0.0) ? sumY[(keel::usize)lab] / a + 1.0 : 0.0;
@@ -861,30 +861,30 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             // BoundingBox: [xmin-0.5, ymin-0.5, width, height]
             // (MATLAB returns 0.5-aligned floats).
             Value bb = Value::matrix(1, 4, ValueType::DOUBLE, mr);
-            bb.doubleDataMut()[0] = double(minX[(keel::usize)lab]) + 0.5;
-            bb.doubleDataMut()[1] = double(minY[(keel::usize)lab]) + 0.5;
-            bb.doubleDataMut()[2] = double(maxX[(keel::usize)lab] -
+            bb.doubleDataMut()[0] = keel::f64(minX[(keel::usize)lab]) + 0.5;
+            bb.doubleDataMut()[1] = keel::f64(minY[(keel::usize)lab]) + 0.5;
+            bb.doubleDataMut()[2] = keel::f64(maxX[(keel::usize)lab] -
                                             minX[(keel::usize)lab] + 1);
-            bb.doubleDataMut()[3] = double(maxY[(keel::usize)lab] -
+            bb.doubleDataMut()[3] = keel::f64(maxY[(keel::usize)lab] -
                                             minY[(keel::usize)lab] + 1);
             el.put(keel::String::from("BoundingBox"), bb);
         }
 
         // ── Moment / area / bbox based scalar shape descriptors ──
-        constexpr double kPi = 3.14159265358979323846;
-        const double N = double(area[(keel::usize)lab]);
+        constexpr keel::f64 kPi = 3.14159265358979323846;
+        const keel::f64 N = keel::f64(area[(keel::usize)lab]);
         if (wEquivD)
             el.put(keel::String::from("EquivDiameter"),
                    Value::scalar((N > 0.0) ? std::sqrt(4.0 * N / kPi) : 0.0, mr));
         if (wExtent) {
-            const double bw = double(maxX[(keel::usize)lab] - minX[(keel::usize)lab] + 1);
-            const double bh = double(maxY[(keel::usize)lab] - minY[(keel::usize)lab] + 1);
-            const double bba = bw * bh;
+            const keel::f64 bw = keel::f64(maxX[(keel::usize)lab] - minX[(keel::usize)lab] + 1);
+            const keel::f64 bh = keel::f64(maxY[(keel::usize)lab] - minY[(keel::usize)lab] + 1);
+            const keel::f64 bba = bw * bh;
             el.put(keel::String::from("Extent"),
                    Value::scalar((bba > 0.0) ? N / bba : 0.0, mr));
         }
         if (wPerim) {
-            const double per = (area[(keel::usize)lab] > 0 && firstR[(keel::usize)lab] >= 0)
+            const keel::f64 per = (area[(keel::usize)lab] > 0 && firstR[(keel::usize)lab] >= 0)
                 ? regionPerimeter(L, H, W, lab,
                                   firstR[(keel::usize)lab], firstC[(keel::usize)lab])
                 : 0.0;
@@ -895,28 +895,28 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             // variance correction (uniform unit-pixel), matching MATLAB
             // regionprops. y is flipped for the orientation because image
             // rows increase downward.
-            double major = 0.0, minor = 0.0, ecc = 0.0, orient = 0.0;
+            keel::f64 major = 0.0, minor = 0.0, ecc = 0.0, orient = 0.0;
             if (N > 0.0) {
-                const double xbar = sumX[(keel::usize)lab] / N;
-                const double ybar = sumY[(keel::usize)lab] / N;
-                const double uxx = sumXX[(keel::usize)lab] / N - xbar * xbar + 1.0 / 12.0;
-                const double uyy = sumYY[(keel::usize)lab] / N - ybar * ybar + 1.0 / 12.0;
-                const double uxy = sumXY[(keel::usize)lab] / N - xbar * ybar;
-                const double common =
+                const keel::f64 xbar = sumX[(keel::usize)lab] / N;
+                const keel::f64 ybar = sumY[(keel::usize)lab] / N;
+                const keel::f64 uxx = sumXX[(keel::usize)lab] / N - xbar * xbar + 1.0 / 12.0;
+                const keel::f64 uyy = sumYY[(keel::usize)lab] / N - ybar * ybar + 1.0 / 12.0;
+                const keel::f64 uxy = sumXY[(keel::usize)lab] / N - xbar * ybar;
+                const keel::f64 common =
                     std::sqrt((uxx - uyy) * (uxx - uyy) + 4.0 * uxy * uxy);
                 major = 2.0 * std::sqrt(2.0) * std::sqrt(uxx + uyy + common);
                 minor = 2.0 * std::sqrt(2.0) * std::sqrt(uxx + uyy - common);
                 if (major > 0.0) {
-                    const double a = major / 2.0, b = minor / 2.0;
-                    const double d = a * a - b * b;
+                    const keel::f64 a = major / 2.0, b = minor / 2.0;
+                    const keel::f64 d = a * a - b * b;
                     ecc = 2.0 * std::sqrt(d > 0.0 ? d : 0.0) / major;
                 }
                 // Orientation in degrees, range [-90, 90].
                 if (uxy == 0.0) {
                     orient = (uyy > uxx) ? 90.0 : 0.0;  // axis-aligned
                 } else {
-                    const double uxyM = -uxy;  // flip y (image rows go down)
-                    double num, den;
+                    const keel::f64 uxyM = -uxy;  // flip y (image rows go down)
+                    keel::f64 num, den;
                     if (uyy > uxx) {
                         num = uyy - uxx +
                               std::sqrt((uyy - uxx) * (uyy - uxx) + 4.0 * uxyM * uxyM);
@@ -942,50 +942,50 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             const keel::usize P = idxList.size();
             if (wPixIdx) {
                 Value pil = Value::matrix(P, 1, ValueType::DOUBLE, mr);
-                double *pd = pil.doubleDataMut();
+                keel::f64 *pd = pil.doubleDataMut();
                 for (keel::usize i = 0; i < P; ++i)
-                    pd[i] = keel::as<double>(idxList[i]);
+                    pd[i] = keel::as<keel::f64>(idxList[i]);
                 el.put(keel::String::from("PixelIdxList"), std::move(pil));
             }
             if (wPixList) {
                 // [x y] = [col row], 1-based, derived from the sorted index.
                 Value plv = Value::matrix(P, 2, ValueType::DOUBLE, mr);
-                double *pl = plv.doubleDataMut();
+                keel::f64 *pl = plv.doubleDataMut();
                 for (keel::usize i = 0; i < P; ++i) {
                     const long long z = idxList[i] - 1;     // 0-based col-major
                     const long long row0 = z % H;
                     const long long col0 = z / H;
-                    pl[i]     = keel::as<double>(col0 + 1);   // x = col
-                    pl[P + i] = keel::as<double>(row0 + 1);   // y = row
+                    pl[i]     = keel::as<keel::f64>(col0 + 1);   // x = col
+                    pl[P + i] = keel::as<keel::f64>(row0 + 1);   // y = row
                 }
                 el.put(keel::String::from("PixelList"), std::move(plv));
             }
             // ── Intensity measurements (grayscale image supplied) ──
             if (needIntensity) {
-                double sumI = 0.0, sumIx = 0.0, sumIy = 0.0;
-                double maxI = -std::numeric_limits<double>::infinity();
-                double minI =  std::numeric_limits<double>::infinity();
+                keel::f64 sumI = 0.0, sumIx = 0.0, sumIy = 0.0;
+                keel::f64 maxI = -std::numeric_limits<keel::f64>::infinity();
+                keel::f64 minI =  std::numeric_limits<keel::f64>::infinity();
                 Value pvv;
-                double *pv = nullptr;
+                keel::f64 *pv = nullptr;
                 if (wPixVal) {
                     pvv = Value::matrix(P, 1, ValueType::DOUBLE, mr);
                     pv = pvv.doubleDataMut();
                 }
                 for (keel::usize i = 0; i < P; ++i) {
                     const long long z = idxList[i] - 1;     // col-major 0-based
-                    const double iv = intensity.elemAsDouble(keel::as<keel::usize>(z));
+                    const keel::f64 iv = intensity.elemAsDouble(keel::as<keel::usize>(z));
                     sumI += iv;
                     if (iv > maxI) maxI = iv;
                     if (iv < minI) minI = iv;
                     if (wWCent) {
                         const long long row0 = z % H, col0 = z / H;
-                        sumIx += iv * keel::as<double>(col0 + 1);
-                        sumIy += iv * keel::as<double>(row0 + 1);
+                        sumIx += iv * keel::as<keel::f64>(col0 + 1);
+                        sumIy += iv * keel::as<keel::f64>(row0 + 1);
                     }
                     if (pv) pv[i] = iv;
                 }
                 if (wMeanI) el.put(keel::String::from("MeanIntensity"),
-                                   Value::scalar(P ? sumI / double(P) : 0.0, mr));
+                                   Value::scalar(P ? sumI / keel::f64(P) : 0.0, mr));
                 if (wMaxI)  el.put(keel::String::from("MaxIntensity"), Value::scalar(maxI, mr));
                 if (wMinI)  el.put(keel::String::from("MinIntensity"), Value::scalar(minI, mr));
                 if (wWCent) {
@@ -1017,30 +1017,30 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
 
 namespace {
 
-void dt1D(keel::ArrayRef<double> f, keel::Array<double> &d, keel::usize n)
+void dt1D(keel::ArrayRef<keel::f64> f, keel::Array<keel::f64> &d, keel::usize n)
 {
     // v[k] is the index of the k-th parabola in the lower envelope;
     // z[k] is the boundary between parabolas k-1 and k.
     keel::Array<long long> v(n);
-    keel::Array<double> z(n + 1);
+    keel::Array<keel::f64> z(n + 1);
     long long k = 0;
     v[0] = 0;
-    z[0] = -std::numeric_limits<double>::infinity();
-    z[1] =  std::numeric_limits<double>::infinity();
+    z[0] = -std::numeric_limits<keel::f64>::infinity();
+    z[1] =  std::numeric_limits<keel::f64>::infinity();
     for (long long q = 1; q < keel::as<long long>(n); ++q) {
         // Skip background pixels in f (they contribute Inf — no parabola).
         // Keep them anyway: their +Inf value pushes any candidate boundary
         // away to +Inf. That's fine.
-        double s;
+        keel::f64 s;
         for (;;) {
-            const double fq = f[keel::as<keel::usize>(q)];
-            const double fv = f[keel::as<keel::usize>(v[k])];
-            const double dq = keel::as<double>(q);
-            const double dv = keel::as<double>(v[k]);
+            const keel::f64 fq = f[keel::as<keel::usize>(q)];
+            const keel::f64 fv = f[keel::as<keel::usize>(v[k])];
+            const keel::f64 dq = keel::as<keel::f64>(q);
+            const keel::f64 dv = keel::as<keel::f64>(v[k]);
             if (std::isinf(fq) && std::isinf(fv)) {
                 // Both background — boundary is at -Inf, parabola q
                 // dominates from k onward.
-                s = -std::numeric_limits<double>::infinity();
+                s = -std::numeric_limits<keel::f64>::infinity();
             } else {
                 s = ((fq + dq * dq) - (fv + dv * dv)) / (2.0 * (dq - dv));
             }
@@ -1052,12 +1052,12 @@ void dt1D(keel::ArrayRef<double> f, keel::Array<double> &d, keel::usize n)
         ++k;
         v[keel::as<keel::usize>(k)] = q;
         z[keel::as<keel::usize>(k)] = s;
-        z[keel::as<keel::usize>(k) + 1] = std::numeric_limits<double>::infinity();
+        z[keel::as<keel::usize>(k) + 1] = std::numeric_limits<keel::f64>::infinity();
     }
     long long kk = 0;
     for (long long q = 0; q < keel::as<long long>(n); ++q) {
-        while (z[keel::as<keel::usize>(kk) + 1] < keel::as<double>(q)) ++kk;
-        const double dx = keel::as<double>(q - v[keel::as<keel::usize>(kk)]);
+        while (z[keel::as<keel::usize>(kk) + 1] < keel::as<keel::f64>(q)) ++kk;
+        const keel::f64 dx = keel::as<keel::f64>(q - v[keel::as<keel::usize>(kk)]);
         d[keel::as<keel::usize>(q)] = dx * dx +
             f[keel::as<keel::usize>(v[keel::as<keel::usize>(kk)])];
     }
@@ -1105,19 +1105,19 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
     if (H == 0 || W == 0) return out;
 
-    const double INF = std::numeric_limits<double>::infinity();
+    const keel::f64 INF = std::numeric_limits<keel::f64>::infinity();
     // Pull BW into a flat row-major foreground/background buffer.
-    keel::Array<double> f(H * W, 0.0);
+    keel::Array<keel::f64> f(H * W, 0.0);
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < W; ++c) {
             // nk storage is column-major: idx = c*H + r.
-            const double v = BW.elemAsDouble(c * H + r);
+            const keel::f64 v = BW.elemAsDouble(c * H + r);
             f[r * W + c] = (v != 0.0) ? 0.0 : INF;
         }
 
     // Pass 1: distance transform along each row (horizontal DT).
-    keel::Array<double> rowIn(W), rowOut(W);
-    keel::Array<double> g(H * W, 0.0);
+    keel::Array<keel::f64> rowIn(W), rowOut(W);
+    keel::Array<keel::f64> g(H * W, 0.0);
     for (keel::usize r = 0; r < H; ++r) {
         for (keel::usize c = 0; c < W; ++c) rowIn[c] = f[r * W + c];
         dt1D(rowIn, rowOut, W);
@@ -1126,21 +1126,21 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
 
     // Pass 2: distance transform along each column (vertical DT)
     // operating on the squared-distance result of pass 1.
-    keel::Array<double> colIn(H), colOut(H);
+    keel::Array<keel::f64> colIn(H), colOut(H);
     for (keel::usize c = 0; c < W; ++c) {
         for (keel::usize r = 0; r < H; ++r) colIn[r] = g[r * W + c];
         dt1D(colIn, colOut, H);
         for (keel::usize r = 0; r < H; ++r) {
-            const double sq = colOut[r];
+            const keel::f64 sq = colOut[r];
             // Take sqrt to get true Euclidean distance; +Inf survives.
-            const double d = std::isinf(sq) ? INF : std::sqrt(sq);
-            out.singleDataMut()[c * H + r] = keel::as<float>(d);
+            const keel::f64 d = std::isinf(sq) ? INF : std::sqrt(sq);
+            out.singleDataMut()[c * H + r] = keel::as<keel::f32>(d);
         }
     }
     return out;
 }
 
-Value roicolor(const Value &A, const Value &low_or_v, double high, bool is_range, keel::Allocator *mr)
+Value roicolor(const Value &A, const Value &low_or_v, keel::f64 high, bool is_range, keel::Allocator *mr)
 {
     const auto &d = A.dims();
     const keel::usize H = d.rows();
@@ -1154,16 +1154,16 @@ Value roicolor(const Value &A, const Value &low_or_v, double high, bool is_range
     keel::u8 *od = out.logicalDataMut();
 
     if (is_range) {
-        const double lo = low_or_v.toScalar();
-        const double hi = high;
+        const keel::f64 lo = low_or_v.toScalar();
+        const keel::f64 hi = high;
         for (keel::usize i = 0; i < N; ++i) {
-            const double v = A.elemAsDouble(i);
+            const keel::f64 v = A.elemAsDouble(i);
             od[i] = (v >= lo && v <= hi) ? 1u : 0u;
         }
     } else {
         const keel::usize M = low_or_v.numel();
         for (keel::usize i = 0; i < N; ++i) {
-            const double v = A.elemAsDouble(i);
+            const keel::f64 v = A.elemAsDouble(i);
             keel::u8 b = 0;
             for (keel::usize k = 0; k < M; ++k)
                 if (v == low_or_v.elemAsDouble(k)) { b = 1; break; }
@@ -1184,7 +1184,7 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     //   dr=-1: dc=-1→3, dc=0→2, dc=+1→1
     //   dr= 0: dc=-1→4, dc=0→NaN, dc=+1→0
     //   dr=+1: dc=-1→5, dc=0→6, dc=+1→7
-    auto dirCode = [](int dr, int dc) -> double {
+    auto dirCode = [](int dr, int dc) -> keel::f64 {
         if (dr == -1 && dc == -1) return 3.0;
         if (dr == -1 && dc ==  0) return 2.0;
         if (dr == -1 && dc ==  1) return 1.0;
@@ -1198,7 +1198,7 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     };
 
     // Read bound rows into vectors r, c.
-    keel::Array<double> rs(K), cs(K);
+    keel::Array<keel::f64> rs(K), cs(K);
     for (keel::usize k = 0; k < K; ++k) {
         // Column-major: bound[k, 0] = data[0*K + k]; bound[k, 1] = data[1*K + k].
         rs[k] = bound.elemAsDouble(0 * K + k);
@@ -1225,7 +1225,7 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
 
     // fcc — 1×nCodes.
     Value fcc = Value::matrix(1, nCodes, ValueType::DOUBLE, mr);
-    double *fd = fcc.doubleDataMut();
+    keel::f64 *fd = fcc.doubleDataMut();
     for (keel::usize k = 0; k < nCodes; ++k) {
         const int dr = keel::as<int>(rs[k + 1] - rs[k]);
         const int dc = keel::as<int>(cs[k + 1] - cs[k]);
@@ -1235,13 +1235,13 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
 
     // diff — mod 8 first-difference, cyclic.
     Value diffV = Value::matrix(1, nCodes, ValueType::DOUBLE, mr);
-    double *dd = diffV.doubleDataMut();
+    keel::f64 *dd = diffV.doubleDataMut();
     for (keel::usize k = 0; k < nCodes; ++k) {
-        const double a = fd[k];
-        const double b = fd[(k + 1) % nCodes];
-        const double d = b - a;
+        const keel::f64 a = fd[k];
+        const keel::f64 b = fd[(k + 1) % nCodes];
+        const keel::f64 d = b - a;
         // mod-8 (positive remainder).
-        double m = std::fmod(d, 8.0);
+        keel::f64 m = std::fmod(d, 8.0);
         if (m < 0.0) m += 8.0;
         dd[k] = m;
     }
@@ -1250,7 +1250,7 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     return out;
 }
 
-Value bwareafilt(const Value &BW, double lo, double hi, keel::usize n_keep, bool keep_largest, int conn, keel::Allocator *mr)
+Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep, bool keep_largest, int conn, keel::Allocator *mr)
 {
     bwareafilt_argcheck(BW);
     if (conn != 4) conn = 8;
@@ -1298,7 +1298,7 @@ Value bwareafilt(const Value &BW, double lo, double hi, keel::usize n_keep, bool
     } else {
         // Range form.
         for (int k = 1; k <= K; ++k) {
-            const double a = keel::as<double>(area[(keel::usize)k]);
+            const keel::f64 a = keel::as<keel::f64>(area[(keel::usize)k]);
             keep[(keel::usize)k] = (a >= lo && a <= hi) ? 1u : 0u;
         }
     }
@@ -1342,13 +1342,13 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::
     }
 
     keel::u8 *od = out.logicalDataMut();
-    keel::Array<double> idx_v;
+    keel::Array<keel::f64> idx_v;
     for (int c = 0; c < W; ++c)
         for (int r = 0; r < H; ++r) {
             const int k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
             const bool sel = (k > 0 && keep[(keel::usize)k]);
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] = sel ? 1u : 0u;
-            if (sel) idx_v.push_back(double((keel::usize)c * (keel::usize)H + (keel::usize)r + 1));
+            if (sel) idx_v.push_back(keel::f64((keel::usize)c * (keel::usize)H + (keel::usize)r + 1));
         }
     idx_out = Value::matrix(idx_v.size(), 1, ValueType::DOUBLE, mr);
     if (!idx_v.empty()) std::copy(idx_v.begin(), idx_v.end(),
@@ -1393,7 +1393,7 @@ Value bweuler(const Value &BW, int conn, keel::Allocator *mr)
             sum += lut[idx];
         }
     }
-    return Value::scalar(keel::as<double>(sum) / 4.0, mr);
+    return Value::scalar(keel::as<keel::f64>(sum) / 4.0, mr);
 }
 
 } // namespace numkit::image

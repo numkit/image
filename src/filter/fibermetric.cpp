@@ -58,8 +58,8 @@
 namespace numkit::image {
 namespace {
 
-constexpr double kFrangiBeta = 0.5;     // 2-D and 3-D blobness param
-constexpr double kFrangiAlpha = 0.5;    // 3-D plate-vs-line param
+constexpr keel::f64 kFrangiBeta = 0.5;     // 2-D and 3-D blobness param
+constexpr keel::f64 kFrangiAlpha = 0.5;    // 3-D plate-vs-line param
 
 // Replicate-boundary clamp.
 inline keel::usize clamp_idx(long i, keel::usize n)
@@ -69,7 +69,7 @@ inline keel::usize clamp_idx(long i, keel::usize n)
     return keel::as<keel::usize>(i);
 }
 
-double class_range(ValueType t)
+keel::f64 class_range(ValueType t)
 {
     switch (t) {
         case ValueType::UINT8:  return 255.0;
@@ -85,12 +85,12 @@ double class_range(ValueType t)
 // ── Convert input to working buffer (array of double) ─────────────
 struct Buf {
     keel::usize H = 0, W = 0, D = 1;
-    keel::Array<double> v;
+    keel::Array<keel::f64> v;
     bool is3d() const { return D > 1; }
-    double &at(keel::usize r, keel::usize c, keel::usize z = 0) {
+    keel::f64 &at(keel::usize r, keel::usize c, keel::usize z = 0) {
         return v[z * H * W + c * H + r];
     }
-    double at(keel::usize r, keel::usize c, keel::usize z = 0) const {
+    keel::f64 at(keel::usize r, keel::usize c, keel::usize z = 0) const {
         return v[z * H * W + c * H + r];
     }
 };
@@ -109,33 +109,33 @@ Buf to_double_buf(const Value &V)
 }
 
 // ── 1-D Gaussian kernel, length = 2·radius+1 ─────────────────────
-keel::Array<double> gauss1d(double sigma, int radius)
+keel::Array<keel::f64> gauss1d(keel::f64 sigma, int radius)
 {
     const int n = 2 * radius + 1;
-    keel::Array<double> k(n);
-    double s = 0.0;
+    keel::Array<keel::f64> k(n);
+    keel::f64 s = 0.0;
     for (int i = 0; i < n; ++i) {
-        const double x = i - radius;
+        const keel::f64 x = i - radius;
         k[keel::as<keel::usize>(i)] =
             std::exp(-0.5 * (x / sigma) * (x / sigma));
         s += k[keel::as<keel::usize>(i)];
     }
-    for (double &v : k) v /= s;
+    for (keel::f64 &v : k) v /= s;
     return k;
 }
 
 // Separable 2-D Gaussian filter, replicate boundary.
-Buf gauss2d(const Buf &In, double sigma)
+Buf gauss2d(const Buf &In, keel::f64 sigma)
 {
     const int rad = keel::as<int>(std::ceil(3.0 * sigma));
-    keel::Array<double> k = gauss1d(sigma, rad);
+    keel::Array<keel::f64> k = gauss1d(sigma, rad);
     const keel::usize H = In.H, W = In.W;
     Buf tmp; tmp.H = H; tmp.W = W; tmp.D = 1; tmp.v.resize(H * W, 0.0);
     Buf out; out.H = H; out.W = W; out.D = 1; out.v.resize(H * W, 0.0);
     // Rows pass.
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (int j = -rad; j <= rad; ++j) {
                 const keel::usize rr = clamp_idx(
                     keel::as<long>(r) + j, H);
@@ -146,7 +146,7 @@ Buf gauss2d(const Buf &In, double sigma)
     // Cols pass.
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (int j = -rad; j <= rad; ++j) {
                 const keel::usize cc = clamp_idx(
                     keel::as<long>(c) + j, W);
@@ -158,10 +158,10 @@ Buf gauss2d(const Buf &In, double sigma)
 }
 
 // Separable 3-D Gaussian filter, replicate boundary.
-Buf gauss3d(const Buf &In, double sigma)
+Buf gauss3d(const Buf &In, keel::f64 sigma)
 {
     const int rad = keel::as<int>(std::ceil(3.0 * sigma));
-    keel::Array<double> k = gauss1d(sigma, rad);
+    keel::Array<keel::f64> k = gauss1d(sigma, rad);
     const keel::usize H = In.H, W = In.W, D = In.D;
     Buf tmp;  tmp.H = H;  tmp.W = W;  tmp.D = D;  tmp.v.resize(H * W * D, 0.0);
     Buf tmp2; tmp2.H = H; tmp2.W = W; tmp2.D = D; tmp2.v.resize(H * W * D, 0.0);
@@ -170,7 +170,7 @@ Buf gauss3d(const Buf &In, double sigma)
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
                     const keel::usize rr = clamp_idx(
                         keel::as<long>(r) + j, H);
@@ -182,7 +182,7 @@ Buf gauss3d(const Buf &In, double sigma)
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
                     const keel::usize cc = clamp_idx(
                         keel::as<long>(c) + j, W);
@@ -194,7 +194,7 @@ Buf gauss3d(const Buf &In, double sigma)
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
                     const keel::usize zz = clamp_idx(
                         keel::as<long>(z) + j, D);
@@ -208,40 +208,40 @@ Buf gauss3d(const Buf &In, double sigma)
 // ── 2-D Frangi vesselness at one scale ─────────────────────────────
 // Hessian elements are γ-normalized by σ² (Frangi 1998, "Multiscale
 // vessel enhancement filtering", Eq. before Eq. 7: γ = 2 for vessels).
-Buf frangi2d(const Buf &Ig, double c, bool bright, double sigma)
+Buf frangi2d(const Buf &Ig, keel::f64 c, bool bright, keel::f64 sigma)
 {
     const keel::usize H = Ig.H, W = Ig.W;
     Buf out; out.H = H; out.W = W; out.D = 1; out.v.resize(H * W, 0.0);
-    const double beta_sq2 = 2.0 * kFrangiBeta * kFrangiBeta;
-    const double c_sq2    = 2.0 * c * c;
-    const double sigma2   = sigma * sigma;
+    const keel::f64 beta_sq2 = 2.0 * kFrangiBeta * kFrangiBeta;
+    const keel::f64 c_sq2    = 2.0 * c * c;
+    const keel::f64 sigma2   = sigma * sigma;
     for (keel::usize cc = 0; cc < W; ++cc) {
         for (keel::usize r = 0; r < H; ++r) {
             const keel::usize rm = clamp_idx(keel::as<long>(r) - 1, H);
             const keel::usize rp = clamp_idx(keel::as<long>(r) + 1, H);
             const keel::usize cm = clamp_idx(keel::as<long>(cc) - 1, W);
             const keel::usize cp = clamp_idx(keel::as<long>(cc) + 1, W);
-            const double v   = Ig.at(r,  cc);
-            const double Ixx = sigma2 * (Ig.at(r,  cp) - 2.0 * v + Ig.at(r,  cm));
-            const double Iyy = sigma2 * (Ig.at(rp, cc) - 2.0 * v + Ig.at(rm, cc));
-            const double Ixy = sigma2 * 0.25 *
+            const keel::f64 v   = Ig.at(r,  cc);
+            const keel::f64 Ixx = sigma2 * (Ig.at(r,  cp) - 2.0 * v + Ig.at(r,  cm));
+            const keel::f64 Iyy = sigma2 * (Ig.at(rp, cc) - 2.0 * v + Ig.at(rm, cc));
+            const keel::f64 Ixy = sigma2 * 0.25 *
                                       ( Ig.at(rp, cp) - Ig.at(rp, cm)
                                       - Ig.at(rm, cp) + Ig.at(rm, cm));
             // Eigenvalues of 2x2 symmetric: trace/2 ± sqrt((diff/2)² + Ixy²).
-            const double mean = 0.5 * (Ixx + Iyy);
-            const double diff = 0.5 * (Ixx - Iyy);
-            const double disc = std::sqrt(diff * diff + Ixy * Ixy);
-            double l1 = mean - disc;
-            double l2 = mean + disc;
+            const keel::f64 mean = 0.5 * (Ixx + Iyy);
+            const keel::f64 diff = 0.5 * (Ixx - Iyy);
+            const keel::f64 disc = std::sqrt(diff * diff + Ixy * Ixy);
+            keel::f64 l1 = mean - disc;
+            keel::f64 l2 = mean + disc;
             // Order by |.|: |λ1| ≤ |λ2|.
             if (std::fabs(l1) > std::fabs(l2)) std::swap(l1, l2);
             // Polarity check.
             if (bright) { if (l2 > 0.0) { out.at(r, cc) = 0.0; continue; } }
             else        { if (l2 < 0.0) { out.at(r, cc) = 0.0; continue; } }
             if (l2 == 0.0) { out.at(r, cc) = 0.0; continue; }
-            const double Rb_sq = (l1 / l2) * (l1 / l2);
-            const double S_sq  = l1 * l1 + l2 * l2;
-            const double V = std::exp(-Rb_sq / beta_sq2)
+            const keel::f64 Rb_sq = (l1 / l2) * (l1 / l2);
+            const keel::f64 S_sq  = l1 * l1 + l2 * l2;
+            const keel::f64 V = std::exp(-Rb_sq / beta_sq2)
                            * (1.0 - std::exp(-S_sq / c_sq2));
             out.at(r, cc) = V;
         }
@@ -252,37 +252,37 @@ Buf frangi2d(const Buf &Ig, double c, bool bright, double sigma)
 // ── 3-D Frangi vesselness at one scale ─────────────────────────────
 // 3x3 symmetric eigen decomposition via the closed-form trig solution
 // (Smith, 1961; widely cited for 3x3 symmetric Hessians).
-void eigvals_3x3(double a11, double a22, double a33,
-                 double a12, double a13, double a23,
-                 double &l1, double &l2, double &l3)
+void eigvals_3x3(keel::f64 a11, keel::f64 a22, keel::f64 a33,
+                 keel::f64 a12, keel::f64 a13, keel::f64 a23,
+                 keel::f64 &l1, keel::f64 &l2, keel::f64 &l3)
 {
     // Coefficients of characteristic polynomial λ³ − tr·λ² + ... − det.
-    const double p1 = a12 * a12 + a13 * a13 + a23 * a23;
+    const keel::f64 p1 = a12 * a12 + a13 * a13 + a23 * a23;
     if (p1 == 0.0) {
         // Diagonal already.
         l1 = a11; l2 = a22; l3 = a33;
     } else {
-        const double q = (a11 + a22 + a33) / 3.0;
-        const double p2 = (a11 - q) * (a11 - q)
+        const keel::f64 q = (a11 + a22 + a33) / 3.0;
+        const keel::f64 p2 = (a11 - q) * (a11 - q)
                         + (a22 - q) * (a22 - q)
                         + (a33 - q) * (a33 - q)
                         + 2.0 * p1;
-        const double p = std::sqrt(p2 / 6.0);
+        const keel::f64 p = std::sqrt(p2 / 6.0);
         if (p == 0.0) { l1 = l2 = l3 = q; return; }
-        const double b11 = (a11 - q) / p;
-        const double b22 = (a22 - q) / p;
-        const double b33 = (a33 - q) / p;
-        const double b12 = a12 / p;
-        const double b13 = a13 / p;
-        const double b23 = a23 / p;
+        const keel::f64 b11 = (a11 - q) / p;
+        const keel::f64 b22 = (a22 - q) / p;
+        const keel::f64 b33 = (a33 - q) / p;
+        const keel::f64 b12 = a12 / p;
+        const keel::f64 b13 = a13 / p;
+        const keel::f64 b23 = a23 / p;
         // det(B) / 2
-        const double r = 0.5 * (b11 * (b22 * b33 - b23 * b23)
+        const keel::f64 r = 0.5 * (b11 * (b22 * b33 - b23 * b23)
                                - b12 * (b12 * b33 - b23 * b13)
                                + b13 * (b12 * b23 - b22 * b13));
-        double rcl = r;
+        keel::f64 rcl = r;
         if (rcl < -1.0) rcl = -1.0;
         if (rcl >  1.0) rcl =  1.0;
-        const double phi = std::acos(rcl) / 3.0;
+        const keel::f64 phi = std::acos(rcl) / 3.0;
         l1 = q + 2.0 * p * std::cos(phi);
         l3 = q + 2.0 * p * std::cos(phi + 2.0 * M_PI / 3.0);
         l2 = 3.0 * q - l1 - l3;     // trace constraint
@@ -293,14 +293,14 @@ void eigvals_3x3(double a11, double a22, double a33,
     if (std::fabs(l1) > std::fabs(l2)) std::swap(l1, l2);
 }
 
-Buf frangi3d(const Buf &Ig, double c, bool bright, double sigma)
+Buf frangi3d(const Buf &Ig, keel::f64 c, bool bright, keel::f64 sigma)
 {
     const keel::usize H = Ig.H, W = Ig.W, D = Ig.D;
     Buf out; out.H = H; out.W = W; out.D = D; out.v.resize(H * W * D, 0.0);
-    const double alpha_sq2 = 2.0 * kFrangiAlpha * kFrangiAlpha;
-    const double beta_sq2  = 2.0 * kFrangiBeta  * kFrangiBeta;
-    const double c_sq2     = 2.0 * c * c;
-    const double sigma2    = sigma * sigma;
+    const keel::f64 alpha_sq2 = 2.0 * kFrangiAlpha * kFrangiAlpha;
+    const keel::f64 beta_sq2  = 2.0 * kFrangiBeta  * kFrangiBeta;
+    const keel::f64 c_sq2     = 2.0 * c * c;
+    const keel::f64 sigma2    = sigma * sigma;
     for (keel::usize z = 0; z < D; ++z) {
         const keel::usize zm = clamp_idx(keel::as<long>(z) - 1, D);
         const keel::usize zp = clamp_idx(keel::as<long>(z) + 1, D);
@@ -310,20 +310,20 @@ Buf frangi3d(const Buf &Ig, double c, bool bright, double sigma)
             for (keel::usize r = 0; r < H; ++r) {
                 const keel::usize rm = clamp_idx(keel::as<long>(r) - 1, H);
                 const keel::usize rp = clamp_idx(keel::as<long>(r) + 1, H);
-                const double v   = Ig.at(r, cc, z);
-                const double Ixx = sigma2 * (Ig.at(r,  cp, z) - 2.0 * v + Ig.at(r,  cm, z));
-                const double Iyy = sigma2 * (Ig.at(rp, cc, z) - 2.0 * v + Ig.at(rm, cc, z));
-                const double Izz = sigma2 * (Ig.at(r,  cc, zp) - 2.0 * v + Ig.at(r,  cc, zm));
-                const double Ixy = sigma2 * 0.25 *
+                const keel::f64 v   = Ig.at(r, cc, z);
+                const keel::f64 Ixx = sigma2 * (Ig.at(r,  cp, z) - 2.0 * v + Ig.at(r,  cm, z));
+                const keel::f64 Iyy = sigma2 * (Ig.at(rp, cc, z) - 2.0 * v + Ig.at(rm, cc, z));
+                const keel::f64 Izz = sigma2 * (Ig.at(r,  cc, zp) - 2.0 * v + Ig.at(r,  cc, zm));
+                const keel::f64 Ixy = sigma2 * 0.25 *
                                           (Ig.at(rp, cp, z) - Ig.at(rp, cm, z)
                                          - Ig.at(rm, cp, z) + Ig.at(rm, cm, z));
-                const double Ixz = sigma2 * 0.25 *
+                const keel::f64 Ixz = sigma2 * 0.25 *
                                           (Ig.at(r,  cp, zp) - Ig.at(r,  cm, zp)
                                          - Ig.at(r,  cp, zm) + Ig.at(r,  cm, zm));
-                const double Iyz = sigma2 * 0.25 *
+                const keel::f64 Iyz = sigma2 * 0.25 *
                                           (Ig.at(rp, cc, zp) - Ig.at(rm, cc, zp)
                                          - Ig.at(rp, cc, zm) + Ig.at(rm, cc, zm));
-                double l1, l2, l3;
+                keel::f64 l1, l2, l3;
                 eigvals_3x3(Ixx, Iyy, Izz, Ixy, Ixz, Iyz, l1, l2, l3);
                 // Polarity: require both l2 and l3 to have the right sign.
                 if (bright) {
@@ -332,12 +332,12 @@ Buf frangi3d(const Buf &Ig, double c, bool bright, double sigma)
                     if (l2 < 0.0 || l3 < 0.0) continue;
                 }
                 if (l2 == 0.0 || l3 == 0.0) continue;
-                const double Ra_sq  = (l2 / l3) * (l2 / l3);
-                const double prod23 = std::fabs(l2 * l3);
+                const keel::f64 Ra_sq  = (l2 / l3) * (l2 / l3);
+                const keel::f64 prod23 = std::fabs(l2 * l3);
                 if (prod23 == 0.0) continue;
-                const double Rb_sq = (l1 * l1) / prod23;
-                const double S_sq  = l1 * l1 + l2 * l2 + l3 * l3;
-                const double V = (1.0 - std::exp(-Ra_sq / alpha_sq2))
+                const keel::f64 Rb_sq = (l1 * l1) / prod23;
+                const keel::f64 S_sq  = l1 * l1 + l2 * l2 + l3 * l3;
+                const keel::f64 V = (1.0 - std::exp(-Ra_sq / alpha_sq2))
                                * std::exp(-Rb_sq / beta_sq2)
                                * (1.0 - std::exp(-S_sq / c_sq2));
                 out.at(r, cc, z) = V;
@@ -359,18 +359,18 @@ Value buf_to_value(const Buf &B, ValueType targetClass,
     else
         out = Value::matrix(B.H, B.W, targetClass, mr);
     if (targetClass == ValueType::DOUBLE) {
-        std::memcpy(out.doubleDataMut(), B.v.data(), N * sizeof(double));
+        std::memcpy(out.doubleDataMut(), B.v.data(), N * sizeof(keel::f64));
     } else {
         // SINGLE
-        float *od = out.singleDataMut();
+        keel::f32 *od = out.singleDataMut();
         for (keel::usize i = 0; i < N; ++i)
-            od[i] = keel::as<float>(B.v[i]);
+            od[i] = keel::as<keel::f32>(B.v[i]);
     }
     return out;
 }
 
-void fibermetric_argcheck(const Value &I, keel::ArrayRef<double> thickness_in,
-                          double structure_sensitivity)
+void fibermetric_argcheck(const Value &I, keel::ArrayRef<keel::f64> thickness_in,
+                          keel::f64 structure_sensitivity)
 {
     const auto &d = I.dims();
     if (d.rows() < 2 || d.cols() < 2)
@@ -381,14 +381,14 @@ void fibermetric_argcheck(const Value &I, keel::ArrayRef<double> thickness_in,
         throw Error("fibermetric: 3-D input must have at least 2 slices",
                     0, 0, "fibermetric", "", "numkit:fibermetric:slices");
 
-    for (double t : thickness_in)
+    for (keel::f64 t : thickness_in)
         if (!std::isfinite(t) || t <= 0.0 || std::floor(t) != t)
             throw Error("fibermetric: thickness must be a vector of positive "
                         "integers",
                         0, 0, "fibermetric", "",
                         "numkit:fibermetric:thickness");
 
-    double c = structure_sensitivity;
+    keel::f64 c = structure_sensitivity;
     if (c <= 0.0) c = class_range(I.type()) / 100.0;
     if (!std::isfinite(c) || c <= 0.0)
         throw Error("fibermetric: StructureSensitivity must be > 0",
@@ -398,8 +398,8 @@ void fibermetric_argcheck(const Value &I, keel::ArrayRef<double> thickness_in,
 
 }  // namespace
 
-Value fibermetric(const Value &I, keel::ArrayRef<double> thickness_in,
-                  double structure_sensitivity, bool bright_polarity,
+Value fibermetric(const Value &I, keel::ArrayRef<keel::f64> thickness_in,
+                  keel::f64 structure_sensitivity, bool bright_polarity,
                   keel::Allocator *mr)
 {
     fibermetric_argcheck(I, thickness_in, structure_sensitivity);
@@ -413,11 +413,11 @@ Value fibermetric(const Value &I, keel::ArrayRef<double> thickness_in,
                     0, 0, "fibermetric", "", "numkit:fibermetric:slices");
 
     // Default thickness.
-    static constexpr double kDefaultThickness[6] = {4.0, 6.0, 8.0, 10.0, 12.0, 14.0};
-    keel::ArrayRef<double> thickness = thickness_in.empty()
-        ? keel::ArrayRef<double>(kDefaultThickness, 6)
+    static constexpr keel::f64 kDefaultThickness[6] = {4.0, 6.0, 8.0, 10.0, 12.0, 14.0};
+    keel::ArrayRef<keel::f64> thickness = thickness_in.empty()
+        ? keel::ArrayRef<keel::f64>(kDefaultThickness, 6)
         : thickness_in;
-    for (double t : thickness)
+    for (keel::f64 t : thickness)
         if (!std::isfinite(t) || t <= 0.0 || std::floor(t) != t)
             throw Error("fibermetric: thickness must be a vector of positive "
                         "integers",
@@ -425,7 +425,7 @@ Value fibermetric(const Value &I, keel::ArrayRef<double> thickness_in,
                         "numkit:fibermetric:thickness");
 
     // Default c = range/100.
-    double c = structure_sensitivity;
+    keel::f64 c = structure_sensitivity;
     if (c <= 0.0) c = class_range(I.type()) / 100.0;
     if (!std::isfinite(c) || c <= 0.0)
         throw Error("fibermetric: StructureSensitivity must be > 0",
@@ -440,8 +440,8 @@ Value fibermetric(const Value &I, keel::ArrayRef<double> thickness_in,
     Buf Out; Out.H = In.H; Out.W = In.W; Out.D = In.D;
     Out.v.resize(In.v.size(), 0.0);
 
-    for (double t : thickness) {
-        const double sigma = t / 6.0;
+    for (keel::f64 t : thickness) {
+        const keel::f64 sigma = t / 6.0;
         Buf G = is3d ? gauss3d(In, sigma) : gauss2d(In, sigma);
         Buf V = is3d ? frangi3d(G, c, bright_polarity, sigma)
                      : frangi2d(G, c, bright_polarity, sigma);

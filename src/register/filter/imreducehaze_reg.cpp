@@ -35,11 +35,11 @@ void imreducehaze_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     const Value &I = args[0];
-    double amount = 1.0;
+    keel::f64 amount = 1.0;
     keel::String method = keel::String::from("simpledcp");
     Value atmLight;
     keel::String ce = keel::String::from("global");
-    double boostAmount = 0.0;  // sentinel: default-on-demand
+    keel::f64 boostAmount = 0.0;  // sentinel: default-on-demand
     bool boostExplicitlySet = false;
 
     keel::usize i = 1;

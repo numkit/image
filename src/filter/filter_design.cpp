@@ -84,7 +84,7 @@ template <typename Gen>
 Value makeKernel3(keel::Allocator *mr, Size3 s, Gen gen)
 {
     Value out = Value::matrix3d(s.H, s.W, s.P, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize p = 0; p < s.P; ++p)
         for (keel::usize c = 0; c < s.W; ++c)
             for (keel::usize r = 0; r < s.H; ++r)
@@ -93,12 +93,12 @@ Value makeKernel3(keel::Allocator *mr, Size3 s, Gen gen)
 }
 
 // Read sigma argument (scalar or 3-vec) with default fallback.
-struct Sig3 { double sx, sy, sz; };
-Sig3 parseSigma3(const Value &sig, double defv = 1.0)
+struct Sig3 { keel::f64 sx, sy, sz; };
+Sig3 parseSigma3(const Value &sig, keel::f64 defv = 1.0)
 {
     if (sig.isEmpty() || sig.isUnset()) return {defv, defv, defv};
     if (sig.isScalar()) {
-        const double s = sig.toScalar();
+        const keel::f64 s = sig.toScalar();
         return {s, s, s};
     }
     if (sig.numel() == 3) {
@@ -114,10 +114,10 @@ namespace {
 
 // Parse semiaxes (ellipsoid): scalar → [a a a], 3-vec → [a b c], default 5.
 // Order matches MATLAB: element 0 → rows, 1 → cols, 2 → pages.
-Sig3 parseSemiaxes(const Value &v, double defv = 5.0)
+Sig3 parseSemiaxes(const Value &v, keel::f64 defv = 5.0)
 {
     if (v.isEmpty() || v.isUnset()) return {defv, defv, defv};
-    if (v.isScalar()) { const double a = v.toScalar(); return {a, a, a}; }
+    if (v.isScalar()) { const keel::f64 a = v.toScalar(); return {a, a, a}; }
     if (v.numel() == 3)
         return {v.elemAsDouble(0), v.elemAsDouble(1), v.elemAsDouble(2)};
     throw Error("fspecial3: semiaxes must be a scalar or 3-element vector",
@@ -143,8 +143,8 @@ void fspecial3_argcheck(keel::StringRef type, const Value &a1, const Value &a2)
         return;
     }
     if (type == "laplacian") {
-        const double g1 = (!a1.isEmpty() && !a1.isUnset()) ? a1.toScalar() : 0.0;
-        const double g2 = (!a2.isEmpty() && !a2.isUnset()) ? a2.toScalar() : 0.0;
+        const keel::f64 g1 = (!a1.isEmpty() && !a1.isUnset()) ? a1.toScalar() : 0.0;
+        const keel::f64 g2 = (!a2.isEmpty() && !a2.isUnset()) ? a2.toScalar() : 0.0;
         if (g1 < 0.0)
             throw Error("fspecial3: Expected input number 2, GAMMA1, to be nonnegative.",
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadGamma");
@@ -196,7 +196,7 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
     fspecial3_argcheck(type, a1, a2);
     if (type == "average") {
         Size3 s = parseHsize(a1);
-        const double v = 1.0 / keel::as<double>(s.H * s.W * s.P);
+        const keel::f64 v = 1.0 / keel::as<keel::f64>(s.H * s.W * s.P);
         return makeKernel3(mr, s, [v](keel::usize, keel::usize, keel::usize) { return v; });
     }
 
@@ -204,22 +204,22 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         Size3 s = parseHsize(a1);
         // sigma element 0 → rows, 1 → cols, 2 → pages (MATLAB convention).
         Sig3 sg = parseSigma3(a2, 1.0);
-        const double sr = sg.sx, sc = sg.sy, sp = sg.sz;
-        const double cy = (keel::as<double>(s.H) - 1.0) / 2.0;
-        const double cx = (keel::as<double>(s.W) - 1.0) / 2.0;
-        const double cz = (keel::as<double>(s.P) - 1.0) / 2.0;
+        const keel::f64 sr = sg.sx, sc = sg.sy, sp = sg.sz;
+        const keel::f64 cy = (keel::as<keel::f64>(s.H) - 1.0) / 2.0;
+        const keel::f64 cx = (keel::as<keel::f64>(s.W) - 1.0) / 2.0;
+        const keel::f64 cz = (keel::as<keel::f64>(s.P) - 1.0) / 2.0;
         Value out = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = (keel::as<double>(r) - cy) / sr;
-            const double dc = (keel::as<double>(c) - cx) / sc;
-            const double dp = (keel::as<double>(p) - cz) / sp;
+            const keel::f64 dr = (keel::as<keel::f64>(r) - cy) / sr;
+            const keel::f64 dc = (keel::as<keel::f64>(c) - cx) / sc;
+            const keel::f64 dp = (keel::as<keel::f64>(p) - cz) / sp;
             return std::exp(-0.5 * (dr*dr + dc*dc + dp*dp));
         });
-        double sum = 0.0;
+        keel::f64 sum = 0.0;
         const keel::usize N = s.H * s.W * s.P;
-        const double *od = out.doubleData();
+        const keel::f64 *od = out.doubleData();
         for (keel::usize i = 0; i < N; ++i) sum += od[i];
         if (sum > 0.0) {
-            double *odm = out.doubleDataMut();
+            keel::f64 *odm = out.doubleDataMut();
             for (keel::usize i = 0; i < N; ++i) odm[i] /= sum;
         }
         return out;
@@ -228,7 +228,7 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
     if (type == "ellipsoid") {
         // semiaxes element 0 → rows, 1 → cols, 2 → pages.
         Sig3 ax = parseSemiaxes(a1, 5.0);
-        const double ar = ax.sx, ac = ax.sy, ap = ax.sz;
+        const keel::f64 ar = ax.sx, ac = ax.sy, ap = ax.sz;
         if (ar <= 0.0 || ac <= 0.0 || ap <= 0.0)
             throw Error("fspecial3: ellipsoid semiaxes must be positive",
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadSemiaxes");
@@ -236,21 +236,21 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         Size3 s{ keel::as<keel::usize>(2.0 * std::ceil(ar) + 1.0),
                  keel::as<keel::usize>(2.0 * std::ceil(ac) + 1.0),
                  keel::as<keel::usize>(2.0 * std::ceil(ap) + 1.0) };
-        const double cy = (keel::as<double>(s.H) - 1.0) / 2.0;
-        const double cx = (keel::as<double>(s.W) - 1.0) / 2.0;
-        const double cz = (keel::as<double>(s.P) - 1.0) / 2.0;
+        const keel::f64 cy = (keel::as<keel::f64>(s.H) - 1.0) / 2.0;
+        const keel::f64 cx = (keel::as<keel::f64>(s.W) - 1.0) / 2.0;
+        const keel::f64 cz = (keel::as<keel::f64>(s.P) - 1.0) / 2.0;
         Value out = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = (keel::as<double>(r) - cy) / ar;
-            const double dc = (keel::as<double>(c) - cx) / ac;
-            const double dp = (keel::as<double>(p) - cz) / ap;
+            const keel::f64 dr = (keel::as<keel::f64>(r) - cy) / ar;
+            const keel::f64 dc = (keel::as<keel::f64>(c) - cx) / ac;
+            const keel::f64 dp = (keel::as<keel::f64>(p) - cz) / ap;
             return (dr*dr + dc*dc + dp*dp <= 1.0) ? 1.0 : 0.0;
         });
-        double sum = 0.0;
+        keel::f64 sum = 0.0;
         const keel::usize N = s.H * s.W * s.P;
-        const double *od = out.doubleData();
+        const keel::f64 *od = out.doubleData();
         for (keel::usize i = 0; i < N; ++i) sum += od[i];
         if (sum > 0.0) {
-            double *odm = out.doubleDataMut();
+            keel::f64 *odm = out.doubleDataMut();
             for (keel::usize i = 0; i < N; ++i) odm[i] /= sum;
         }
         return out;
@@ -262,8 +262,8 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         // 6 face (1) neighbours carry (1−γ1−γ2); the centre is set so the
         // kernel sums to zero. Defaults γ1=γ2=0 → classic 6-neighbour
         // Laplacian (face +1, centre −6).
-        const double g1 = (!a1.isEmpty() && !a1.isUnset()) ? a1.toScalar() : 0.0;
-        const double g2 = (!a2.isEmpty() && !a2.isUnset()) ? a2.toScalar() : 0.0;
+        const keel::f64 g1 = (!a1.isEmpty() && !a1.isUnset()) ? a1.toScalar() : 0.0;
+        const keel::f64 g2 = (!a2.isEmpty() && !a2.isUnset()) ? a2.toScalar() : 0.0;
         if (g1 < 0.0)
             throw Error("fspecial3: Expected input number 2, GAMMA1, to be nonnegative.",
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadGamma");
@@ -273,12 +273,12 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         if (g1 + g2 > 1.0)
             throw Error("fspecial3: GAMMA1 + GAMMA2 should be less than or equal to 1 and greater than 0.",
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadGamma");
-        const double face   = 1.0 - g1 - g2;        // 6 neighbours, dist² 1
-        const double edge   = g1 / 4.0;             // 12 neighbours, dist² 2
-        const double corner = g2 / 4.0;             // 8 neighbours, dist² 3
-        const double center = -6.0 + 3.0 * g1 + 4.0 * g2;
+        const keel::f64 face   = 1.0 - g1 - g2;        // 6 neighbours, dist² 1
+        const keel::f64 edge   = g1 / 4.0;             // 12 neighbours, dist² 2
+        const keel::f64 corner = g2 / 4.0;             // 8 neighbours, dist² 3
+        const keel::f64 center = -6.0 + 3.0 * g1 + 4.0 * g2;
         Size3 ks{3, 3, 3};
-        return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> double {
+        return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> keel::f64 {
             const int dr = keel::as<int>(r) - 1;
             const int dc = keel::as<int>(c) - 1;
             const int dp = keel::as<int>(p) - 1;
@@ -296,40 +296,40 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         // zero-mean. Reduces to (r²−3σ²)/σ⁴·G in the isotropic case.
         Size3 s = parseHsize(a1);
         Sig3 sg = parseSigma3(a2, 1.0);
-        const double sr = sg.sx, sc = sg.sy, sp = sg.sz;
-        const double cy = (keel::as<double>(s.H) - 1.0) / 2.0;
-        const double cx = (keel::as<double>(s.W) - 1.0) / 2.0;
-        const double cz = (keel::as<double>(s.P) - 1.0) / 2.0;
+        const keel::f64 sr = sg.sx, sc = sg.sy, sp = sg.sz;
+        const keel::f64 cy = (keel::as<keel::f64>(s.H) - 1.0) / 2.0;
+        const keel::f64 cx = (keel::as<keel::f64>(s.W) - 1.0) / 2.0;
+        const keel::f64 cz = (keel::as<keel::f64>(s.P) - 1.0) / 2.0;
         const keel::usize N = s.H * s.W * s.P;
         // Step 1: normalised Gaussian.
         Value gK = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = (keel::as<double>(r) - cy) / sr;
-            const double dc = (keel::as<double>(c) - cx) / sc;
-            const double dp = (keel::as<double>(p) - cz) / sp;
+            const keel::f64 dr = (keel::as<keel::f64>(r) - cy) / sr;
+            const keel::f64 dc = (keel::as<keel::f64>(c) - cx) / sc;
+            const keel::f64 dp = (keel::as<keel::f64>(p) - cz) / sp;
             return std::exp(-0.5 * (dr*dr + dc*dc + dp*dp));
         });
-        double gsum = 0.0;
-        { const double *gd = gK.doubleData(); for (keel::usize i = 0; i < N; ++i) gsum += gd[i]; }
-        const double inv = (gsum > 0.0) ? 1.0 / gsum : 1.0;
-        const double sr2 = sr*sr, sc2 = sc*sc, sp2 = sp*sp;
-        const double *gd = gK.doubleData();
+        keel::f64 gsum = 0.0;
+        { const keel::f64 *gd = gK.doubleData(); for (keel::usize i = 0; i < N; ++i) gsum += gd[i]; }
+        const keel::f64 inv = (gsum > 0.0) ? 1.0 / gsum : 1.0;
+        const keel::f64 sr2 = sr*sr, sc2 = sc*sc, sp2 = sp*sp;
+        const keel::f64 *gd = gK.doubleData();
         // Step 2: multiply normalised G by the Laplacian factor.
         Value out = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = keel::as<double>(r) - cy;
-            const double dc = keel::as<double>(c) - cx;
-            const double dp = keel::as<double>(p) - cz;
-            const double Gn = gd[lin3(r, c, p, s.H, s.W)] * inv;  // normalised Gaussian
-            const double lap = (dr*dr - sr2) / (sr2*sr2)
+            const keel::f64 dr = keel::as<keel::f64>(r) - cy;
+            const keel::f64 dc = keel::as<keel::f64>(c) - cx;
+            const keel::f64 dp = keel::as<keel::f64>(p) - cz;
+            const keel::f64 Gn = gd[lin3(r, c, p, s.H, s.W)] * inv;  // normalised Gaussian
+            const keel::f64 lap = (dr*dr - sr2) / (sr2*sr2)
                              + (dc*dc - sc2) / (sc2*sc2)
                              + (dp*dp - sp2) / (sp2*sp2);
             return Gn * lap;
         });
         // Step 3: subtract mean so the kernel sums to zero.
-        double mean = 0.0;
-        const double *od = out.doubleData();
+        keel::f64 mean = 0.0;
+        const keel::f64 *od = out.doubleData();
         for (keel::usize i = 0; i < N; ++i) mean += od[i];
-        mean /= keel::as<double>(N);
-        double *odm = out.doubleDataMut();
+        mean /= keel::as<keel::f64>(N);
+        keel::f64 *odm = out.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i) odm[i] -= mean;
         return out;
     }
@@ -342,17 +342,17 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         if (!a1.isEmpty() && !a1.isUnset() && (a1.isChar() || a1.isString()))
             dir = a1.toString();
         const bool isSobel = (type == "sobel");
-        const double w0 = 1.0;
-        const double w1 = isSobel ? 2.0 : 1.0;
+        const keel::f64 w0 = 1.0;
+        const keel::f64 w1 = isSobel ? 2.0 : 1.0;
         Size3 ks{3, 3, 3};
-        return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> double {
+        return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> keel::f64 {
             const int dr = keel::as<int>(r) - 1;
             const int dc = keel::as<int>(c) - 1;
             const int dp = keel::as<int>(p) - 1;
-            auto sm = [&](int x) -> double { return (x == 0) ? w1 : w0; };
-            if (dir == "X" || dir == "x") return keel::as<double>(-dc) * sm(dr) * sm(dp);
-            if (dir == "Y" || dir == "y") return keel::as<double>(-dr) * sm(dc) * sm(dp);
-            if (dir == "Z" || dir == "z") return keel::as<double>(-dp) * sm(dr) * sm(dc);
+            auto sm = [&](int x) -> keel::f64 { return (x == 0) ? w1 : w0; };
+            if (dir == "X" || dir == "x") return keel::as<keel::f64>(-dc) * sm(dr) * sm(dp);
+            if (dir == "Y" || dir == "y") return keel::as<keel::f64>(-dr) * sm(dc) * sm(dp);
+            if (dir == "Z" || dir == "z") return keel::as<keel::f64>(-dp) * sm(dr) * sm(dc);
             throw Error("fspecial3: direction must be 'X', 'Y', or 'Z'",
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadDir");
         });
@@ -382,26 +382,26 @@ Value fwind2(keel::Allocator *mr, const Value &Hd, const Value &w)
 
     Value h = Value::matrix(H, W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return h;
-    double *hd = h.doubleDataMut();
+    keel::f64 *hd = h.doubleDataMut();
 
     // Compute h(m,n) = (1/(MN)) Σ_p Σ_q Hd(p,q) * exp(j 2π (mp/M + nq/N))
     // Hd is assumed real-symmetric so the imaginary part cancels out.
     // Output centered: m = -(H-1)/2 .. (H-1)/2, similarly n.
-    const double cM = (keel::as<double>(H) - 1.0) / 2.0;
-    const double cN = (keel::as<double>(W) - 1.0) / 2.0;
-    const double inv = 1.0 / keel::as<double>(H * W);
+    const keel::f64 cM = (keel::as<keel::f64>(H) - 1.0) / 2.0;
+    const keel::f64 cN = (keel::as<keel::f64>(W) - 1.0) / 2.0;
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(H * W);
     for (keel::usize mi = 0; mi < H; ++mi) {
-        const double m = keel::as<double>(mi) - cM;
+        const keel::f64 m = keel::as<keel::f64>(mi) - cM;
         for (keel::usize ni = 0; ni < W; ++ni) {
-            const double n = keel::as<double>(ni) - cN;
-            double acc_re = 0.0;
+            const keel::f64 n = keel::as<keel::f64>(ni) - cN;
+            keel::f64 acc_re = 0.0;
             for (keel::usize p = 0; p < H; ++p) {
-                const double fp = keel::as<double>(p) - cM;  // freq index centered
+                const keel::f64 fp = keel::as<keel::f64>(p) - cM;  // freq index centered
                 for (keel::usize q = 0; q < W; ++q) {
-                    const double fq = keel::as<double>(q) - cN;
-                    const double Hdv = Hd.elemAsDouble(p + q * H);
-                    const double phase = 2.0 * M_PI * (m * fp / keel::as<double>(H)
-                                                     + n * fq / keel::as<double>(W));
+                    const keel::f64 fq = keel::as<keel::f64>(q) - cN;
+                    const keel::f64 Hdv = Hd.elemAsDouble(p + q * H);
+                    const keel::f64 phase = 2.0 * M_PI * (m * fp / keel::as<keel::f64>(H)
+                                                     + n * fq / keel::as<keel::f64>(W));
                     acc_re += Hdv * std::cos(phase);
                 }
             }
@@ -409,10 +409,10 @@ Value fwind2(keel::Allocator *mr, const Value &Hd, const Value &w)
         }
     }
     // Normalise so DC gain matches input (MATLAB's fwind2 normalizes).
-    double sum = 0.0;
+    keel::f64 sum = 0.0;
     for (keel::usize i = 0; i < H * W; ++i) sum += hd[i];
     if (sum != 0.0) {
-        const double scale = 1.0 / sum;
+        const keel::f64 scale = 1.0 / sum;
         for (keel::usize i = 0; i < H * W; ++i) hd[i] *= scale;
     }
     return h;

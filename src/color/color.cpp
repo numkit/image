@@ -64,8 +64,8 @@ Layout detect_layout(const Value &x, const char *fn) {
 }
 
 // Read a [0,1] float from an integer image element with class scaling.
-inline double element_to_unit(const Value &x, keel::usize i) {
-    const double v = x.elemAsDouble(i);
+inline keel::f64 element_to_unit(const Value &x, keel::usize i) {
+    const keel::f64 v = x.elemAsDouble(i);
     switch (x.type()) {
         case ValueType::DOUBLE:
         case ValueType::SINGLE:  return v;
@@ -88,13 +88,13 @@ Value pixel_transform(const Value &x, const char *fn, Op op, keel::Allocator *mr
     auto lay = detect_layout(x, fn);
     Value out = alloc_out_double(lay, mr);
     if (lay.npix == 0) return out;
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     for (keel::usize p = 0; p < lay.npix; ++p) {
-        const double a = element_to_unit(x, p + 0 * lay.s_chan);
-        const double b = element_to_unit(x, p + 1 * lay.s_chan);
-        const double c = element_to_unit(x, p + 2 * lay.s_chan);
-        keel::StaticArray<double, 3> r = op(a, b, c);
+        const keel::f64 a = element_to_unit(x, p + 0 * lay.s_chan);
+        const keel::f64 b = element_to_unit(x, p + 1 * lay.s_chan);
+        const keel::f64 c = element_to_unit(x, p + 2 * lay.s_chan);
+        keel::StaticArray<keel::f64, 3> r = op(a, b, c);
         od[p + 0 * lay.s_chan] = r[0];
         od[p + 1 * lay.s_chan] = r[1];
         od[p + 2 * lay.s_chan] = r[2];
@@ -110,13 +110,13 @@ Value pixel_transform_raw(const Value &x, const char *fn, Op op, keel::Allocator
     auto lay = detect_layout(x, fn);
     Value out = alloc_out_double(lay, mr);
     if (lay.npix == 0) return out;
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     for (keel::usize p = 0; p < lay.npix; ++p) {
-        const double a = x.elemAsDouble(p + 0 * lay.s_chan);
-        const double b = x.elemAsDouble(p + 1 * lay.s_chan);
-        const double c = x.elemAsDouble(p + 2 * lay.s_chan);
-        keel::StaticArray<double, 3> r = op(a, b, c);
+        const keel::f64 a = x.elemAsDouble(p + 0 * lay.s_chan);
+        const keel::f64 b = x.elemAsDouble(p + 1 * lay.s_chan);
+        const keel::f64 c = x.elemAsDouble(p + 2 * lay.s_chan);
+        keel::StaticArray<keel::f64, 3> r = op(a, b, c);
         od[p + 0 * lay.s_chan] = r[0];
         od[p + 1 * lay.s_chan] = r[1];
         od[p + 2 * lay.s_chan] = r[2];
@@ -134,12 +134,12 @@ Value finalize_class(const Value &res01, ValueType cls, keel::Allocator *mr) {
     Value out = d.is3D() ? Value::matrix3d(d.rows(), d.cols(), d.pages(), cls, mr)
                          : Value::matrix(d.rows(), d.cols(), cls, mr);
     const keel::usize N = res01.numel();
-    const double *rd = res01.doubleData();
+    const keel::f64 *rd = res01.doubleData();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = rd[i];
-        const double c = std::clamp(v, 0.0, 1.0);
+        const keel::f64 v = rd[i];
+        const keel::f64 c = std::clamp(v, 0.0, 1.0);
         switch (cls) {
-            case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<float>(v); break;
+            case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
             case ValueType::UINT8:  out.uint8DataMut()[i]  = keel::as<keel::u8>(std::lround(c * 255.0)); break;
             case ValueType::UINT16: out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(c * 65535.0)); break;
             case ValueType::INT16:  out.int16DataMut()[i]  = keel::as<keel::i16>(std::lround(c * 65535.0) - 32768); break;
@@ -156,7 +156,7 @@ Value to_unit_double(const Value &x, keel::Allocator *mr) {
     Value out = d.is3D() ? Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr)
                          : Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
     const keel::usize N = x.numel();
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) od[i] = element_to_unit(x, i);
     return out;
 }
@@ -173,41 +173,41 @@ void color_layout_argcheck(const Value &x, const char *fn) {
 
 Value rgb2hsv(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2hsv");
-    return pixel_transform(x, "rgb2hsv", [](double r, double g, double b) {
+    return pixel_transform(x, "rgb2hsv", [](keel::f64 r, keel::f64 g, keel::f64 b) {
         const auto c = keel::image::rgb_to_hsv(r, g, b);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value hsv2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "hsv2rgb");
-    return pixel_transform_raw(x, "hsv2rgb", [](double h, double s, double v) {
+    return pixel_transform_raw(x, "hsv2rgb", [](keel::f64 h, keel::f64 s, keel::f64 v) {
         const auto c = keel::image::hsv_to_rgb(h, s, v);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value rgb2ntsc(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2ntsc");
-    return pixel_transform(x, "rgb2ntsc", [](double r, double g, double b) {
+    return pixel_transform(x, "rgb2ntsc", [](keel::f64 r, keel::f64 g, keel::f64 b) {
         const auto c = keel::image::rgb_to_ntsc(r, g, b);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value ntsc2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "ntsc2rgb");
-    return pixel_transform_raw(x, "ntsc2rgb", [](double y, double i, double q) {
+    return pixel_transform_raw(x, "ntsc2rgb", [](keel::f64 y, keel::f64 i, keel::f64 q) {
         const auto c = keel::image::ntsc_to_rgb(y, i, q);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value rgb2ycbcr(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2ycbcr");
-    Value res = pixel_transform(x, "rgb2ycbcr", [](double r, double g, double b) {
+    Value res = pixel_transform(x, "rgb2ycbcr", [](keel::f64 r, keel::f64 g, keel::f64 b) {
         const auto c = keel::image::rgb_to_ycbcr(r, g, b);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
     return finalize_class(res, x.type(), mr);
 }
@@ -218,58 +218,58 @@ Value ycbcr2rgb(const Value &x, keel::Allocator *mr) {
     const bool isInt = (cls == ValueType::UINT8 || cls == ValueType::UINT16
                         || cls == ValueType::INT16);
     Value src = isInt ? to_unit_double(x, mr) : x;
-    Value res = pixel_transform_raw(src, "ycbcr2rgb", [](double y, double cb, double cr) {
+    Value res = pixel_transform_raw(src, "ycbcr2rgb", [](keel::f64 y, keel::f64 cb, keel::f64 cr) {
         const auto c = keel::image::ycbcr_to_rgb(y, cb, cr);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
     return finalize_class(res, cls, mr);
 }
 
 Value rgb2xyz(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2xyz");
-    return pixel_transform(x, "rgb2xyz", [](double r, double g, double b) {
+    return pixel_transform(x, "rgb2xyz", [](keel::f64 r, keel::f64 g, keel::f64 b) {
         const auto c = keel::image::rgb_to_xyz(r, g, b);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value xyz2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "xyz2rgb");
-    return pixel_transform_raw(x, "xyz2rgb", [](double X, double Y, double Z) {
+    return pixel_transform_raw(x, "xyz2rgb", [](keel::f64 X, keel::f64 Y, keel::f64 Z) {
         const auto c = keel::image::xyz_to_rgb(X, Y, Z);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value xyz2lab(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "xyz2lab");
-    return pixel_transform_raw(x, "xyz2lab", [](double X, double Y, double Z) {
+    return pixel_transform_raw(x, "xyz2lab", [](keel::f64 X, keel::f64 Y, keel::f64 Z) {
         const auto c = keel::image::xyz_to_lab(X, Y, Z);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value lab2xyz(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "lab2xyz");
-    return pixel_transform_raw(x, "lab2xyz", [](double L, double a, double b) {
+    return pixel_transform_raw(x, "lab2xyz", [](keel::f64 L, keel::f64 a, keel::f64 b) {
         const auto c = keel::image::lab_to_xyz(L, a, b);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value rgb2lab(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "rgb2xyz");
-    return pixel_transform(x, "rgb2xyz", [](double r, double g, double b) {
+    return pixel_transform(x, "rgb2xyz", [](keel::f64 r, keel::f64 g, keel::f64 b) {
         const auto c = keel::image::rgb_to_lab(r, g, b);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
 Value lab2rgb(const Value &x, keel::Allocator *mr) {
     color_layout_argcheck(x, "lab2xyz");
-    return pixel_transform_raw(x, "lab2xyz", [](double L, double a, double b) {
+    return pixel_transform_raw(x, "lab2xyz", [](keel::f64 L, keel::f64 a, keel::f64 b) {
         const auto c = keel::image::lab_to_rgb(L, a, b);
-        return keel::StaticArray<double, 3>{c.c0, c.c1, c.c2};
+        return keel::StaticArray<keel::f64, 3>{c.c0, c.c1, c.c2};
     }, mr);
 }
 
@@ -293,11 +293,11 @@ inline void copy_plane(const Value &src, keel::usize plane,
     switch (T) {
         case ValueType::DOUBLE:
             std::memcpy(dst.doubleDataMut(),
-                        src.doubleData() + off, N * sizeof(double));
+                        src.doubleData() + off, N * sizeof(keel::f64));
             break;
         case ValueType::SINGLE:
             std::memcpy(dst.singleDataMut(),
-                        src.singleData() + off, N * sizeof(float));
+                        src.singleData() + off, N * sizeof(keel::f32));
             break;
         case ValueType::UINT8:
             std::memcpy(dst.uint8DataMut(),
@@ -318,7 +318,7 @@ inline void copy_plane(const Value &src, keel::usize plane,
         default:
             // Generic fallback — re-read elements.
             for (keel::usize i = 0; i < N; ++i) {
-                const double v = src.elemAsDouble(off + i);
+                const keel::f64 v = src.elemAsDouble(off + i);
                 dst.doubleDataMut()[i] = v;
             }
     }
@@ -348,19 +348,19 @@ namespace {
 // linear) and N×3 matrices. Returns the data flattened into a
 // keel::Array<double> of length 3*N (row-major: per-colour triple
 // stored consecutively).
-keel::Array<double> rgb_rows(const Value &v, const char *name) {
+keel::Array<keel::f64> rgb_rows(const Value &v, const char *name) {
     const auto &d = v.dims();
     const keel::usize H = d.rows();
     const keel::usize W = d.cols();
     if (v.numel() == 3) {
-        keel::Array<double> out(3);
+        keel::Array<keel::f64> out(3);
         for (keel::usize i = 0; i < 3; ++i) out[i] = v.elemAsDouble(i);
         return out;
     }
     if (W != 3)
         throw Error(keel::format("{} must be a 3-element or N-by-3 array", name),
                     0, 0, "colorangle", "", "numkit:colorangle:shape");
-    keel::Array<double> out(3 * H);
+    keel::Array<keel::f64> out(3 * H);
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < 3; ++c)
             // col-major source: idx = c*H + r → row-major dest: r*3 + c.
@@ -435,13 +435,13 @@ Value lab2double(const Value &lab, keel::Allocator *mr)
     Value out = L.is_3d
         ? Value::matrix3d(L.H, L.W, 3, ValueType::DOUBLE, mr)
         : Value::matrix(L.H, 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     for (keel::usize p = 0; p < L.npix; ++p) {
-        const double l_ = lab.elemAsDouble(lab_idx(L, p, 0));
-        const double a_ = lab.elemAsDouble(lab_idx(L, p, 1));
-        const double b_ = lab.elemAsDouble(lab_idx(L, p, 2));
-        double L_, a, b;
+        const keel::f64 l_ = lab.elemAsDouble(lab_idx(L, p, 0));
+        const keel::f64 a_ = lab.elemAsDouble(lab_idx(L, p, 1));
+        const keel::f64 b_ = lab.elemAsDouble(lab_idx(L, p, 2));
+        keel::f64 L_, a, b;
         switch (lab.type()) {
             case ValueType::UINT8:
                 L_ = l_ * (100.0 / 255.0);
@@ -476,10 +476,10 @@ Value lab2single(const Value &lab, keel::Allocator *mr)
     Value out = L.is_3d
         ? Value::matrix3d(L.H, L.W, 3, ValueType::SINGLE, mr)
         : Value::matrix(L.H, 3, ValueType::SINGLE, mr);
-    float *of = out.singleDataMut();
-    const double *src = asDouble.doubleData();
+    keel::f32 *of = out.singleDataMut();
+    const keel::f64 *src = asDouble.doubleData();
     for (keel::usize i = 0; i < 3 * L.npix; ++i)
-        of[i] = keel::as<float>(src[i]);
+        of[i] = keel::as<keel::f32>(src[i]);
     return out;
 }
 
@@ -495,8 +495,8 @@ Value lab2uint8(const Value &lab, keel::Allocator *mr)
 
     for (keel::usize p = 0; p < L.npix; ++p) {
         for (keel::usize ch = 0; ch < 3; ++ch) {
-            const double v = lab.elemAsDouble(lab_idx(L, p, ch));
-            double w;
+            const keel::f64 v = lab.elemAsDouble(lab_idx(L, p, ch));
+            keel::f64 w;
             switch (lab.type()) {
                 case ValueType::SINGLE:
                 case ValueType::DOUBLE: {
@@ -536,8 +536,8 @@ Value lab2uint16(const Value &lab, keel::Allocator *mr)
 
     for (keel::usize p = 0; p < L.npix; ++p) {
         for (keel::usize ch = 0; ch < 3; ++ch) {
-            const double v = lab.elemAsDouble(lab_idx(L, p, ch));
-            double w;
+            const keel::f64 v = lab.elemAsDouble(lab_idx(L, p, ch));
+            keel::f64 w;
             switch (lab.type()) {
                 case ValueType::SINGLE:
                 case ValueType::DOUBLE: {
@@ -567,8 +567,8 @@ Value lab2uint16(const Value &lab, keel::Allocator *mr)
 
 namespace {
 
-void wavelength_to_rgb(double lambda, double gamma,
-                       double &r, double &g, double &b)
+void wavelength_to_rgb(keel::f64 lambda, keel::f64 gamma,
+                       keel::f64 &r, keel::f64 &g, keel::f64 &b)
 {
     r = g = b = 0.0;
     if (lambda < 380.0 || lambda > 780.0) return;   // out-of-band → black
@@ -592,7 +592,7 @@ void wavelength_to_rgb(double lambda, double gamma,
         r = 1.0;
     }
 
-    double factor = 0.0;
+    keel::f64 factor = 0.0;
     if (lambda >= 380.0 && lambda < 420.0)
         factor = 0.3 + 0.7 * (lambda - 380.0) / 40.0;
     else if (lambda <= 700.0)
@@ -624,7 +624,7 @@ void colorgradient_argcheck(const Value &C, const Value &w, int n)
                     0, 0, "colorgradient", "", "numkit:colorgradient:w");
 }
 
-void wavelength2rgb_argcheck(double gamma, keel::StringRef out_class)
+void wavelength2rgb_argcheck(keel::f64 gamma, keel::StringRef out_class)
 {
     if (!(gamma >= 0.0 && gamma <= 1.0))
         throw Error("wavelength2rgb: gamma must be in [0, 1]",
@@ -675,7 +675,7 @@ void contrast_argcheck(const Value &x, int m)
                     0, 0, "contrast", "", "numkit:contrast:empty");
 }
 
-void brighten_argcheck(const Value &map, double beta)
+void brighten_argcheck(const Value &map, keel::f64 beta)
 {
     if (!(beta > -1.0 && beta < 1.0))
         throw Error("brighten: BETA must be a scalar in the range (-1, 1)",
@@ -785,7 +785,7 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
         throw Error("colorgradient: n must be >= 2",
                     0, 0, "colorgradient", "", "numkit:colorgradient:n");
 
-    keel::Array<double> wv;
+    keel::Array<keel::f64> wv;
     wv.reserve(K - 1);
     if (w.numel() == 0) {
         wv.resize(K - 1, 1.0);
@@ -797,11 +797,11 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
             wv.push_back(w.elemAsDouble(i));
     }
 
-    double total = 0.0;
-    for (double x : wv) total += x;
+    keel::f64 total = 0.0;
+    for (keel::f64 x : wv) total += x;
     if (total == 0.0) total = 1.0;
     keel::Array<int> wpos(K, 0);
-    double acc = 0.0;
+    keel::f64 acc = 0.0;
     wpos[0] = 1;
     for (int i = 0; i < K - 1; ++i) {
         acc += wv[(keel::usize)i];
@@ -811,7 +811,7 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
 
     Value map = Value::matrix(keel::as<keel::usize>(n), 3,
                               ValueType::DOUBLE, mr);
-    double *md = map.doubleDataMut();
+    keel::f64 *md = map.doubleDataMut();
 
     auto Cval = [&](int r, int c) {
         return C.elemAsDouble(keel::as<keel::usize>(c) * (keel::usize)K + (keel::usize)r);
@@ -823,11 +823,11 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
         if (p0 == p1) continue;
         const int len = p1 - p0 + 1;
         for (int ch = 0; ch < 3; ++ch) {
-            const double a = Cval(i,     ch);
-            const double b = Cval(i + 1, ch);
+            const keel::f64 a = Cval(i,     ch);
+            const keel::f64 b = Cval(i + 1, ch);
             for (int k = 0; k < len; ++k) {
-                const double t = (len == 1) ? 0.0 :
-                                 keel::as<double>(k) / (len - 1);
+                const keel::f64 t = (len == 1) ? 0.0 :
+                                 keel::as<keel::f64>(k) / (len - 1);
                 md[(keel::usize)ch * (keel::usize)n + (keel::usize)(p0 - 1 + k)] =
                     a + t * (b - a);
             }
@@ -836,7 +836,7 @@ Value colorgradient(const Value &C, const Value &w, int n, keel::Allocator *mr)
     return map;
 }
 
-Value wavelength2rgb(const Value &wavelength, keel::StringRef out_class, double gamma, keel::Allocator *mr)
+Value wavelength2rgb(const Value &wavelength, keel::StringRef out_class, keel::f64 gamma, keel::Allocator *mr)
 {
     wavelength2rgb_argcheck(gamma, out_class);
     if (!(gamma >= 0.0 && gamma <= 1.0))
@@ -863,15 +863,15 @@ Value wavelength2rgb(const Value &wavelength, keel::StringRef out_class, double 
         out = Value::matrix3d(H, W, 3, ValueType::DOUBLE, mr);
         plane = H * W;
     }
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     if (N == 1) {
-        double r, g, b;
+        keel::f64 r, g, b;
         wavelength_to_rgb(wavelength.toScalar(), gamma, r, g, b);
         od[0] = r; od[1] = g; od[2] = b;
     } else {
         for (keel::usize i = 0; i < N; ++i) {
-            double r, g, b;
+            keel::f64 r, g, b;
             wavelength_to_rgb(wavelength.elemAsDouble(i), gamma, r, g, b);
             od[0 * plane + i] = r;
             od[1 * plane + i] = g;
@@ -903,19 +903,19 @@ Value colorangle(const Value &rgb1, const Value &rgb2, keel::Allocator *mr)
 
     Value out = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     if (N == 0) return out;
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     for (keel::usize i = 0; i < N; ++i) {
-        const double *ai = &a[(Na == 1 ? 0 : i) * 3];
-        const double *bi = &b[(Nb == 1 ? 0 : i) * 3];
-        const double dot = ai[0]*bi[0] + ai[1]*bi[1] + ai[2]*bi[2];
-        const double na  = std::sqrt(ai[0]*ai[0] + ai[1]*ai[1] + ai[2]*ai[2]);
-        const double nb  = std::sqrt(bi[0]*bi[0] + bi[1]*bi[1] + bi[2]*bi[2]);
-        double angle;
+        const keel::f64 *ai = &a[(Na == 1 ? 0 : i) * 3];
+        const keel::f64 *bi = &b[(Nb == 1 ? 0 : i) * 3];
+        const keel::f64 dot = ai[0]*bi[0] + ai[1]*bi[1] + ai[2]*bi[2];
+        const keel::f64 na  = std::sqrt(ai[0]*ai[0] + ai[1]*ai[1] + ai[2]*ai[2]);
+        const keel::f64 nb  = std::sqrt(bi[0]*bi[0] + bi[1]*bi[1] + bi[2]*bi[2]);
+        keel::f64 angle;
         if (na == 0.0 && nb == 0.0)      angle = 0.0;
         else if (na == 0.0 || nb == 0.0) angle = std::nan("");
         else {
-            double c = dot / (na * nb);
+            keel::f64 c = dot / (na * nb);
             if (c >  1.0) c =  1.0;
             if (c < -1.0) c = -1.0;
             angle = std::acos(c) * 180.0 / M_PI;
@@ -929,14 +929,14 @@ Value gray_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = od[1] = od[2] = 0.0;
         return out;
     }
-    const double inv = 1.0 / keel::as<double>(n - 1);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
     for (int i = 0; i < n; ++i) {
-        const double v = keel::as<double>(i) * inv;
+        const keel::f64 v = keel::as<keel::f64>(i) * inv;
         // col-major: column 0 (R), column 1 (G), column 2 (B).
         od[0 * n + i] = v;
         od[1 * n + i] = v;
@@ -949,10 +949,10 @@ Value hot_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
-    auto R = [&](int r) -> double & { return od[0 * n + r]; };
-    auto G = [&](int r) -> double & { return od[1 * n + r]; };
-    auto B = [&](int r) -> double & { return od[2 * n + r]; };
+    keel::f64 *od = out.doubleDataMut();
+    auto R = [&](int r) -> keel::f64 & { return od[0 * n + r]; };
+    auto G = [&](int r) -> keel::f64 & { return od[1 * n + r]; };
+    auto B = [&](int r) -> keel::f64 & { return od[2 * n + r]; };
     if (n == 1) {
         R(0) = G(0) = B(0) = 1.0;
         return out;
@@ -967,16 +967,16 @@ Value hot_cmap(int n, keel::Allocator *mr)
     const int nel = idx;
     // R: r(1:idx) = i/nel; r(idx+1:end) = 1.
     for (int i = 0; i < n; ++i) R(i) = 1.0;
-    for (int i = 0; i < nel; ++i) R(i) = keel::as<double>(i + 1) / nel;
+    for (int i = 0; i < nel; ++i) R(i) = keel::as<keel::f64>(i + 1) / nel;
     // G: g(1:idx) = 0; g(idx+1:2*idx) = (1..idx)/idx; g(2*idx+1:end) = 1.
     for (int i = 0; i < n; ++i) G(i) = 0.0;
-    for (int i = 0; i < idx; ++i) G(idx + i) = keel::as<double>(i + 1) / idx;
+    for (int i = 0; i < idx; ++i) G(idx + i) = keel::as<keel::f64>(i + 1) / idx;
     for (int i = 2 * idx; i < n; ++i) G(i) = 1.0;
     // B: b(idx2:end) = (1..nel2)/nel2 where idx2 = 2*idx, nel2 = n - 2*idx.
     for (int i = 0; i < n; ++i) B(i) = 0.0;
     const int idx2 = 2 * idx;
     const int nel2 = n - idx2;
-    for (int i = 0; i < nel2; ++i) B(idx2 + i) = keel::as<double>(i + 1) / nel2;
+    for (int i = 0; i < nel2; ++i) B(idx2 + i) = keel::as<keel::f64>(i + 1) / nel2;
     return out;
 }
 
@@ -984,16 +984,16 @@ Value cool_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0]     = 0.0;  // R
         od[1]     = 1.0;  // G
         od[2]     = 1.0;  // B
         return out;
     }
-    const double inv = 1.0 / keel::as<double>(n - 1);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
     for (int i = 0; i < n; ++i) {
-        const double r = keel::as<double>(i) * inv;
+        const keel::f64 r = keel::as<keel::f64>(i) * inv;
         od[0 * n + i] = r;
         od[1 * n + i] = 1.0 - r;
         od[2 * n + i] = 1.0;
@@ -1005,14 +1005,14 @@ Value spring_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 1.0; od[1] = 0.0; od[2] = 1.0;
         return out;
     }
-    const double inv = 1.0 / keel::as<double>(n - 1);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
     for (int i = 0; i < n; ++i) {
-        const double g = keel::as<double>(i) * inv;
+        const keel::f64 g = keel::as<keel::f64>(i) * inv;
         od[0 * n + i] = 1.0;
         od[1 * n + i] = g;
         od[2 * n + i] = 1.0 - g;
@@ -1024,14 +1024,14 @@ Value summer_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 0.0; od[1] = 0.5; od[2] = 0.4;
         return out;
     }
-    const double inv = 1.0 / keel::as<double>(n - 1);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
     for (int i = 0; i < n; ++i) {
-        const double r = keel::as<double>(i) * inv;
+        const keel::f64 r = keel::as<keel::f64>(i) * inv;
         od[0 * n + i] = r;
         od[1 * n + i] = 0.5 + 0.5 * r;
         od[2 * n + i] = 0.4;
@@ -1043,15 +1043,15 @@ Value autumn_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 1.0; od[1] = 0.0; od[2] = 0.0;
         return out;
     }
-    const double inv = 1.0 / keel::as<double>(n - 1);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
     for (int i = 0; i < n; ++i) {
         od[0 * n + i] = 1.0;
-        od[1 * n + i] = keel::as<double>(i) * inv;
+        od[1 * n + i] = keel::as<keel::f64>(i) * inv;
         od[2 * n + i] = 0.0;
     }
     return out;
@@ -1061,14 +1061,14 @@ Value winter_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 0.0; od[1] = 0.0; od[2] = 1.0;
         return out;
     }
-    const double inv = 1.0 / keel::as<double>(n - 1);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
     for (int i = 0; i < n; ++i) {
-        const double g = keel::as<double>(i) * inv;
+        const keel::f64 g = keel::as<keel::f64>(i) * inv;
         od[0 * n + i] = 0.0;
         od[1 * n + i] = g;
         od[2 * n + i] = 1.0 - 0.5 * g;
@@ -1080,15 +1080,15 @@ Value copper_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = od[1] = od[2] = 0.0;
         return out;
     }
-    const double inv = 1.0 / keel::as<double>(n - 1);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
     for (int i = 0; i < n; ++i) {
-        const double x = keel::as<double>(i) * inv;
-        double r = 1.25 * x;
+        const keel::f64 x = keel::as<keel::f64>(i) * inv;
+        keel::f64 r = 1.25 * x;
         if (r > 1.0) r = 1.0;
         od[0 * n + i] = r;
         od[1 * n + i] = 0.7812 * x;
@@ -1101,27 +1101,27 @@ Value pink_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
-        const double v = std::sqrt(1.0 / 3.0);
+        const keel::f64 v = std::sqrt(1.0 / 3.0);
         od[0] = v; od[1] = v; od[2] = v;
         return out;
     }
     if (n == 2) {
-        const double s = std::sqrt(1.0 / 3.0);
-        const double s2 = std::sqrt(1.0 / 6.0);
+        const keel::f64 s = std::sqrt(1.0 / 3.0);
+        const keel::f64 s2 = std::sqrt(1.0 / 6.0);
         od[0 * n + 0] = s;  od[1 * n + 0] = s;  od[2 * n + 0] = s2;
         od[0 * n + 1] = 1;  od[1 * n + 1] = 1;  od[2 * n + 1] = 1;
         return out;
     }
     // n > 2.
     const int IDX = keel::as<int>(std::floor(3.0 / 8.0 * n));
-    const double base = 1.0 / (3.0 * IDX);
-    const double inv  = 1.0 / keel::as<double>(n - 1);
-    keel::Array<double> r(n), g(n), b(n);
+    const keel::f64 base = 1.0 / (3.0 * IDX);
+    const keel::f64 inv  = 1.0 / keel::as<keel::f64>(n - 1);
+    keel::Array<keel::f64> r(n), g(n), b(n);
 
     // R channel.
-    const double r_end = (2.0 / 3.0) * (IDX - 1) * inv + 1.0 / 3.0;
+    const keel::f64 r_end = (2.0 / 3.0) * (IDX - 1) * inv + 1.0 / 3.0;
     if (IDX == 1) {
         r[0] = base;
     } else {
@@ -1135,8 +1135,8 @@ Value pink_cmap(int n, keel::Allocator *mr)
     for (int i = 0; i < IDX; ++i)
         g[i] = (2.0 / 3.0) * i * inv;
     {
-        const double a = (2.0 / 3.0) * (IDX - 1) * inv;
-        const double bb = (2.0 / 3.0) * (2 * IDX - 1) * inv + 1.0 / 3.0;
+        const keel::f64 a = (2.0 / 3.0) * (IDX - 1) * inv;
+        const keel::f64 bb = (2.0 / 3.0) * (2 * IDX - 1) * inv + 1.0 / 3.0;
         const int len = IDX + 1;
         for (int j = 0; j < len; ++j) {
             const int pos = IDX - 1 + j;
@@ -1155,7 +1155,7 @@ Value pink_cmap(int n, keel::Allocator *mr)
         const int b_start = 2 * IDX - 1;
         if (b_start >= 0 && b_start < n) {
             const int len = n - 2 * IDX + 1;
-            const double a = (2.0 / 3.0) * b_start * inv;
+            const keel::f64 a = (2.0 / 3.0) * b_start * inv;
             for (int j = 0; j < len; ++j) {
                 const int pos = b_start + j;
                 if (pos >= n) break;
@@ -1177,16 +1177,16 @@ Value hsv_cmap(int n, keel::Allocator *mr)
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     if (n == 1) {
         Value out = Value::matrix(1, 3, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         od[0] = 1.0; od[1] = 0.0; od[2] = 0.0;
         return out;
     }
     // Build N×3 [hue, 1, 1] then dispatch through hsv2rgb.
     Value hsv_in = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *id = hsv_in.doubleDataMut();
-    const double inv = 1.0 / keel::as<double>(n);
+    keel::f64 *id = hsv_in.doubleDataMut();
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n);
     for (int i = 0; i < n; ++i) {
-        id[0 * n + i] = keel::as<double>(i) * inv;  // hue
+        id[0 * n + i] = keel::as<keel::f64>(i) * inv;  // hue
         id[1 * n + i] = 1.0;                            // saturation
         id[2 * n + i] = 1.0;                            // value
     }
@@ -1197,8 +1197,8 @@ Value flag_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
-    static constexpr double kFlag[4][3] = {
+    keel::f64 *od = out.doubleDataMut();
+    static constexpr keel::f64 kFlag[4][3] = {
         {1.0, 0.0, 0.0}, {1.0, 1.0, 1.0}, {0.0, 0.0, 1.0}, {0.0, 0.0, 0.0}
     };
     for (int i = 0; i < n; ++i) {
@@ -1214,8 +1214,8 @@ Value prism_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
-    static constexpr double kPrism[6][3] = {
+    keel::f64 *od = out.doubleDataMut();
+    static constexpr keel::f64 kPrism[6][3] = {
         {1.0, 0.0,        0.0},
         {1.0, 0.5,        0.0},
         {1.0, 1.0,        0.0},
@@ -1236,14 +1236,14 @@ Value lines_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         // MATLAB special-case: lines(1) → [0 0 1] (last fallback blue).
         od[0] = 0.0; od[1] = 0.0; od[2] = 1.0;
         return out;
     }
     // MATLAB R2025b factory axes colororder (7 rows).
-    static constexpr double kLines[7][3] = {
+    static constexpr keel::f64 kLines[7][3] = {
         {0.066, 0.443, 0.745},
         {0.866, 0.329, 0.000},
         {0.929, 0.694, 0.125},
@@ -1265,7 +1265,7 @@ Value bone_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
         od[0] = 0.125; od[1] = 0.125; od[2] = 0.125;
         return out;
@@ -1280,21 +1280,21 @@ Value bone_cmap(int n, keel::Allocator *mr)
         return out;
     }
     // n > 2.
-    const double inv = 1.0 / keel::as<double>(n - 1);
-    auto x = [&](int i) { return keel::as<double>(i) * inv; };
-    keel::Array<double> r(n), g(n), b(n);
+    const keel::f64 inv = 1.0 / keel::as<keel::f64>(n - 1);
+    auto x = [&](int i) { return keel::as<keel::f64>(i) * inv; };
+    keel::Array<keel::f64> r(n), g(n), b(n);
 
     // R channel.
     const int IDX_R = keel::as<int>(std::floor(0.75 * n));
     const int nel_R = n - IDX_R + 1;
     const int rem8  = n % 8;
-    double base_R = 0.0;
+    keel::f64 base_R = 0.0;
     if (rem8 == 2 || rem8 == 4)        base_R = 1.0 / (16.0 + 2.0 * (n - rem8));
     else if (rem8 == 5 || rem8 == 7)   base_R = 1.0 / (24.0 + 2.0 * (n - rem8));
     for (int i = 0; i < IDX_R; ++i) r[i] = (7.0 / 8.0) * x(i);
     {
-        const double a  = (7.0 / 8.0) * x(IDX_R - 1) + base_R;
-        const double bb = 1.0;
+        const keel::f64 a  = (7.0 / 8.0) * x(IDX_R - 1) + base_R;
+        const keel::f64 bb = 1.0;
         for (int j = 0; j < nel_R; ++j) {
             const int pos = IDX_R - 1 + j;
             if (pos < 0 || pos >= n) continue;
@@ -1307,8 +1307,8 @@ Value bone_cmap(int n, keel::Allocator *mr)
     for (int i = 0; i < IDX_G; ++i) g[i] = (7.0 / 8.0) * x(i);
     {
         const int len = IDX_G + 1;  // 1-based length idx..2*idx
-        const double a  = (7.0 / 8.0) * x(IDX_G - 1);
-        const double bb = (7.0 / 8.0) * x(2 * IDX_G - 1) + 0.125;
+        const keel::f64 a  = (7.0 / 8.0) * x(IDX_G - 1);
+        const keel::f64 bb = (7.0 / 8.0) * x(2 * IDX_G - 1) + 0.125;
         for (int j = 0; j < len; ++j) {
             const int pos = IDX_G - 1 + j;
             if (pos < 0 || pos >= n) continue;
@@ -1320,9 +1320,9 @@ Value bone_cmap(int n, keel::Allocator *mr)
 
     // B channel.
     {
-        const double base_B = 1.0 / (8.0 * IDX_G);
-        const double a  = base_B;
-        const double bb = (7.0 / 8.0) * x(IDX_G - 1) + 0.125;
+        const keel::f64 base_B = 1.0 / (8.0 * IDX_G);
+        const keel::f64 a  = base_B;
+        const keel::f64 bb = (7.0 / 8.0) * x(IDX_G - 1) + 0.125;
         const int nel_B = IDX_G;
         for (int j = 0; j < nel_B; ++j) {
             const int pos = j;
@@ -1351,9 +1351,9 @@ Value rgb2lin(const Value &A, keel::Allocator *mr)
     else if (A.type() == ValueType::SINGLE) in = A;
     else in = im2single(A, mr);
 
-    auto sRGBtoLin = [](double x) -> double {
-        const double s = (x < 0.0) ? -1.0 : 1.0;
-        const double ax = keel::abs(x);
+    auto sRGBtoLin = [](keel::f64 x) -> keel::f64 {
+        const keel::f64 s = (x < 0.0) ? -1.0 : 1.0;
+        const keel::f64 ax = keel::abs(x);
         if (ax < 0.04045) return s * (ax / 12.92);
         return s * std::pow((ax + 0.055) / 1.055, 2.4);
     };
@@ -1365,14 +1365,14 @@ Value rgb2lin(const Value &A, keel::Allocator *mr)
     const keel::usize N = in.numel();
 
     if (in.type() == ValueType::DOUBLE) {
-        const double *pin = in.doubleData();
-        double *pout = out.doubleDataMut();
+        const keel::f64 *pin = in.doubleData();
+        keel::f64 *pout = out.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i) pout[i] = sRGBtoLin(pin[i]);
     } else {
-        const float *pin = in.singleData();
-        float *pout = out.singleDataMut();
+        const keel::f32 *pin = in.singleData();
+        keel::f32 *pout = out.singleDataMut();
         for (keel::usize i = 0; i < N; ++i)
-            pout[i] = keel::as<float>(sRGBtoLin(keel::as<double>(pin[i])));
+            pout[i] = keel::as<keel::f32>(sRGBtoLin(keel::as<keel::f64>(pin[i])));
     }
     return out;
 }
@@ -1395,16 +1395,16 @@ Value xyz2double(const Value &xyz, keel::Allocator *mr)
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr)
         : Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
     const keel::usize N = xyz.numel();
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (t == ValueType::DOUBLE) {
-        const double *id = xyz.doubleData();
+        const keel::f64 *id = xyz.doubleData();
         for (keel::usize i = 0; i < N; ++i) od[i] = id[i];
     } else {
         // ICC: uint16 32768 ↔ 1.0 → divide by 32768.
         const keel::u16 *id = xyz.uint16Data();
-        constexpr double inv32768 = 1.0 / 32768.0;
+        constexpr keel::f64 inv32768 = 1.0 / 32768.0;
         for (keel::usize i = 0; i < N; ++i)
-            od[i] = keel::as<double>(id[i]) * inv32768;
+            od[i] = keel::as<keel::f64>(id[i]) * inv32768;
     }
     return out;
 }
@@ -1420,44 +1420,44 @@ Value contrast(const Value &x, int m, keel::Allocator *mr)
         throw Error("contrast: input image must be non-empty",
                     0, 0, "contrast", "", "numkit:contrast:empty");
 
-    double xmin = x.elemAsDouble(0), xmax = xmin;
+    keel::f64 xmin = x.elemAsDouble(0), xmax = xmin;
     for (keel::usize i = 1; i < Nx; ++i) {
-        const double v = x.elemAsDouble(i);
+        const keel::f64 v = x.elemAsDouble(i);
         if (v < xmin) xmin = v;
         if (v > xmax) xmax = v;
     }
-    const double range = xmax - xmin;
+    const keel::f64 range = xmax - xmin;
     // MATLAB rounds (m-1)*(x-xmin)/range. With xmin == xmax, div by zero —
     // MATLAB yields NaN map; we throw to keep output well-defined.
     if (!(range > 0.0))
         throw Error("contrast: image must have non-zero intensity range",
                     0, 0, "contrast", "", "numkit:contrast:flat");
 
-    keel::Array<double> sorted;
+    keel::Array<keel::f64> sorted;
     sorted.reserve(Nx + keel::as<keel::usize>(m + 1));
-    const double inv_range = 1.0 / range;
+    const keel::f64 inv_range = 1.0 / range;
     for (keel::usize i = 0; i < Nx; ++i) {
-        const double v = x.elemAsDouble(i);
+        const keel::f64 v = x.elemAsDouble(i);
         sorted.push_back(std::round((m - 1) * (v - xmin) * inv_range));
     }
     for (int k = 0; k <= m; ++k)
-        sorted.push_back(keel::as<double>(k));
+        sorted.push_back(keel::as<keel::f64>(k));
     std::sort(sorted.begin(), sorted.end());
 
     // f = 1-based positions where sorted[i+1] != sorted[i].
-    keel::Array<double> f;
+    keel::Array<keel::f64> f;
     f.reserve(m);
     for (keel::usize i = 0; i + 1 < sorted.size(); ++i)
         if (sorted[i + 1] != sorted[i])
-            f.push_back(keel::as<double>(i + 1));
+            f.push_back(keel::as<keel::f64>(i + 1));
     if (f.empty())
         return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-    const double fmax = f.back();  // sorted, last is max
+    const keel::f64 fmax = f.back();  // sorted, last is max
     const keel::usize N = f.size();
     Value out = Value::matrix(N, 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = f[i] / fmax;
+        const keel::f64 v = f[i] / fmax;
         od[0 * N + i] = v;
         od[1 * N + i] = v;
         od[2 * N + i] = v;
@@ -1465,22 +1465,22 @@ Value contrast(const Value &x, int m, keel::Allocator *mr)
     return out;
 }
 
-Value brighten(const Value &map, double beta, keel::Allocator *mr)
+Value brighten(const Value &map, keel::f64 beta, keel::Allocator *mr)
 {
     brighten_argcheck(map, beta);
     if (!(beta > -1.0 && beta < 1.0))
         throw Error("brighten: BETA must be a scalar in the range (-1, 1)",
                     0, 0, "brighten", "", "numkit:brighten:beta");
-    const double gamma = (beta > 0.0) ? (1.0 - beta) : (1.0 / (1.0 + beta));
+    const keel::f64 gamma = (beta > 0.0) ? (1.0 - beta) : (1.0 / (1.0 + beta));
     const auto &d = map.dims();
     if (d.is3D() || d.cols() != 3)
         throw Error("brighten: input must be an N-by-3 colormap",
                     0, 0, "brighten", "", "numkit:brighten:shape");
     const keel::usize N = map.numel();
     Value out = Value::matrix(d.rows(), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = map.elemAsDouble(i);
+        const keel::f64 v = map.elemAsDouble(i);
         od[i] = std::pow(v, gamma);
     }
     return out;
@@ -1509,9 +1509,9 @@ Value xyz2uint16(const Value &xyz, keel::Allocator *mr)
         const keel::u16 *id = xyz.uint16Data();
         for (keel::usize i = 0; i < N; ++i) od[i] = id[i];
     } else {
-        const double *id = xyz.doubleData();
+        const keel::f64 *id = xyz.doubleData();
         for (keel::usize i = 0; i < N; ++i) {
-            const double v = id[i] * 32768.0;
+            const keel::f64 v = id[i] * 32768.0;
             long r = (v <= 0.0) ? 0L : std::lround(v);
             if (r < 0L) r = 0L;
             if (r > 65535L) r = 65535L;
@@ -1563,16 +1563,16 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, keel::Allocator 
                               mr);
     const keel::usize plane = out_h * out_w;
     for (keel::usize i = 0; i < plane; ++i) {
-        const double l1 = A.elemAsDouble(0 * plane + i);
-        const double a1 = A.elemAsDouble(1 * plane + i);
-        const double b1 = A.elemAsDouble(2 * plane + i);
-        const double l2 = B.elemAsDouble(0 * plane + i);
-        const double a2 = B.elemAsDouble(1 * plane + i);
-        const double b2 = B.elemAsDouble(2 * plane + i);
-        const double dl = l1 - l2, da = a1 - a2, db = b1 - b2;
-        const double v = std::sqrt(dl*dl + da*da + db*db);
+        const keel::f64 l1 = A.elemAsDouble(0 * plane + i);
+        const keel::f64 a1 = A.elemAsDouble(1 * plane + i);
+        const keel::f64 b1 = A.elemAsDouble(2 * plane + i);
+        const keel::f64 l2 = B.elemAsDouble(0 * plane + i);
+        const keel::f64 a2 = B.elemAsDouble(1 * plane + i);
+        const keel::f64 b2 = B.elemAsDouble(2 * plane + i);
+        const keel::f64 dl = l1 - l2, da = a1 - a2, db = b1 - b2;
+        const keel::f64 v = std::sqrt(dl*dl + da*da + db*db);
         if (to_double) out.doubleDataMut()[i] = v;
-        else           out.singleDataMut()[i] = keel::as<float>(v);
+        else           out.singleDataMut()[i] = keel::as<keel::f32>(v);
     }
     return out;
 }
@@ -1581,7 +1581,7 @@ Value whitepoint(keel::StringRef illuminant, keel::Allocator *mr)
 {
     whitepoint_argcheck(illuminant);
 
-    double X = 0.0, Y = 0.0, Z = 0.0;
+    keel::f64 X = 0.0, Y = 0.0, Z = 0.0;
     if (illuminant.equals_ignore_ascii_case("a"))        { X = 1.0985; Y = 1.0; Z = 0.3558; }
     else if (illuminant.equals_ignore_ascii_case("c"))   { X = 0.9807; Y = 1.0; Z = 1.1823; }
     else if (illuminant.equals_ignore_ascii_case("d50")) { X = 0.96419865576090109; Y = 1.0;
@@ -1599,7 +1599,7 @@ Value whitepoint(keel::StringRef illuminant, keel::Allocator *mr)
                     0, 0, "whitepoint", "", "numkit:whitepoint:illum");
 
     Value out = Value::matrix(1, 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     od[0] = X; od[1] = Y; od[2] = Z;
     return out;
 }
@@ -1611,9 +1611,9 @@ Value lin2rgb(const Value &A, keel::Allocator *mr)
     else if (A.type() == ValueType::SINGLE) in = A;
     else in = im2single(A, mr);
 
-    auto linTosRGB = [](double x) -> double {
-        const double s = (x < 0.0) ? -1.0 : 1.0;
-        const double ax = keel::abs(x);
+    auto linTosRGB = [](keel::f64 x) -> keel::f64 {
+        const keel::f64 s = (x < 0.0) ? -1.0 : 1.0;
+        const keel::f64 ax = keel::abs(x);
         if (ax <= 0.0031308) return s * (12.92 * ax);
         return s * (1.055 * std::pow(ax, 1.0 / 2.4) - 0.055);
     };
@@ -1625,14 +1625,14 @@ Value lin2rgb(const Value &A, keel::Allocator *mr)
     const keel::usize N = in.numel();
 
     if (in.type() == ValueType::DOUBLE) {
-        const double *pin = in.doubleData();
-        double *pout = out.doubleDataMut();
+        const keel::f64 *pin = in.doubleData();
+        keel::f64 *pout = out.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i) pout[i] = linTosRGB(pin[i]);
     } else {
-        const float *pin = in.singleData();
-        float *pout = out.singleDataMut();
+        const keel::f32 *pin = in.singleData();
+        keel::f32 *pout = out.singleDataMut();
         for (keel::usize i = 0; i < N; ++i)
-            pout[i] = keel::as<float>(linTosRGB(keel::as<double>(pin[i])));
+            pout[i] = keel::as<keel::f32>(linTosRGB(keel::as<keel::f64>(pin[i])));
     }
     return out;
 }
@@ -1641,7 +1641,7 @@ Value white_cmap(int n, keel::Allocator *mr)
 {
     if (n <= 0) return Value::matrix(0, 3, ValueType::DOUBLE, mr);
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     const keel::usize total = keel::as<keel::usize>(n) * 3;
     for (keel::usize i = 0; i < total; ++i) od[i] = 1.0;
     return out;
@@ -1656,21 +1656,21 @@ Value cmap2gray(const Value &cmap, keel::Allocator *mr)
                     0, 0, "cmap2gray", "", "numkit:cmap2gray:shape");
     const keel::usize N = d.rows();
     Value out = Value::matrix(N, 3, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     // MATLAB R2020b+ derives Y from inv(YIQ→RGB) — first row of inv
     // matrix [1 0.956 0.621; 1 -0.272 -0.647; 1 -1.106 1.703]. Full
     // double-precision (matches MATLAB's runtime `inv` to 1 ULP):
     // [0.29893602129377539, 0.58704307445112136, 0.11402090425510331].
     // Output is N×3 with the same grayscale value replicated across
     // R/G/B, clipped to [0, 1].
-    constexpr double Cr = 0.29893602129377539;
-    constexpr double Cg = 0.58704307445112136;
-    constexpr double Cb = 0.11402090425510331;
+    constexpr keel::f64 Cr = 0.29893602129377539;
+    constexpr keel::f64 Cg = 0.58704307445112136;
+    constexpr keel::f64 Cb = 0.11402090425510331;
     for (keel::usize i = 0; i < N; ++i) {
-        const double r = cmap.elemAsDouble(0 * N + i);
-        const double g = cmap.elemAsDouble(1 * N + i);
-        const double b = cmap.elemAsDouble(2 * N + i);
-        double y = Cr * r + Cg * g + Cb * b;
+        const keel::f64 r = cmap.elemAsDouble(0 * N + i);
+        const keel::f64 g = cmap.elemAsDouble(1 * N + i);
+        const keel::f64 b = cmap.elemAsDouble(2 * N + i);
+        keel::f64 y = Cr * r + Cg * g + Cb * b;
         if (y < 0.0) y = 0.0;
         if (y > 1.0) y = 1.0;
         od[0 * N + i] = y;
@@ -1699,7 +1699,7 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, keel
                     0, 0, "label2rgb", "", "numkit:label2rgb:cmap");
     const keel::usize N = cmap.dims().rows();
 
-    double bg[3] = {1.0, 1.0, 1.0};
+    keel::f64 bg[3] = {1.0, 1.0, 1.0};
     if (background.numel() == 3) {
         bg[0] = background.elemAsDouble(0);
         bg[1] = background.elemAsDouble(1);
@@ -1712,9 +1712,9 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, keel
     if (H == 0 || W == 0) return out;
     keel::u8 *od = out.uint8DataMut();
     const keel::usize plane = H * W;
-    const double *cd = cmap.doubleData();
+    const keel::f64 *cd = cmap.doubleData();
 
-    auto sat = [](double v) -> keel::u8 {
+    auto sat = [](keel::f64 v) -> keel::u8 {
         v = std::round(v * 255.0);
         if (v < 0)   v = 0;
         if (v > 255) v = 255;
@@ -1722,7 +1722,7 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, keel
     };
 
     for (keel::usize i = 0; i < plane; ++i) {
-        const double lv = L.elemAsDouble(i);
+        const keel::f64 lv = L.elemAsDouble(i);
         const keel::i64 lab = keel::as<keel::i64>(lv);
         if (lv < 0 || lab != keel::as<keel::i64>(lv))
             throw Error("label2rgb: L must be non-negative integer-valued",

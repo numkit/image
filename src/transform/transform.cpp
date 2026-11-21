@@ -50,16 +50,16 @@ Value apply_along_columns(const Value &A, Fn1D &&fn1d, keel::Allocator *mr)
     const keel::usize N = A.dims().cols();
     Value out = Value::matrix(M, N, ValueType::DOUBLE, mr);
     if (M == 0 || N == 0) return out;
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
 
     auto col = Value::matrix(M, 1, ValueType::DOUBLE, mr);
-    double *cd = col.doubleDataMut();
+    keel::f64 *cd = col.doubleDataMut();
 
     for (keel::usize c = 0; c < N; ++c) {
         for (keel::usize r = 0; r < M; ++r)
             cd[r] = A.elemAsDouble(c * M + r);
         Value Y = fn1d(col, mr);
-        const double *yd = Y.doubleData();
+        const keel::f64 *yd = Y.doubleData();
         for (keel::usize r = 0; r < M; ++r)
             dst[c * M + r] = yd[r];
     }
@@ -75,23 +75,23 @@ Value apply_along_rows(const Value &A, Fn1D &&fn1d, keel::Allocator *mr)
     const keel::usize N = A.dims().cols();
     Value out = Value::matrix(M, N, ValueType::DOUBLE, mr);
     if (M == 0 || N == 0) return out;
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
 
     auto row = Value::matrix(N, 1, ValueType::DOUBLE, mr);
-    double *rd = row.doubleDataMut();
+    keel::f64 *rd = row.doubleDataMut();
 
     for (keel::usize r = 0; r < M; ++r) {
         for (keel::usize c = 0; c < N; ++c)
             rd[c] = A.elemAsDouble(c * M + r);
         Value Y = fn1d(row, mr);
-        const double *yd = Y.doubleData();
+        const keel::f64 *yd = Y.doubleData();
         for (keel::usize c = 0; c < N; ++c)
             dst[c * M + r] = yd[c];
     }
     return out;
 }
 
-void dctmtx_argcheck(double Nd)
+void dctmtx_argcheck(keel::f64 Nd)
 {
     if (!(Nd > 0.0) || std::floor(Nd) != Nd)
         throw Error("dctmtx: N must be a positive integer",
@@ -119,7 +119,7 @@ Value idct2(const Value &A, keel::Allocator *mr)
     return apply_along_rows(Y, idct1, mr);
 }
 
-Value dctmtx(double Nd, keel::Allocator *mr)
+Value dctmtx(keel::f64 Nd, keel::Allocator *mr)
 {
     // MATLAB's dctmtx(N) returns an N×N matrix D whose rows are the
     // DCT-II basis vectors:
@@ -130,15 +130,15 @@ Value dctmtx(double Nd, keel::Allocator *mr)
     const keel::usize N = keel::as<keel::usize>(Nd);
     Value D = Value::matrix(N, N, ValueType::DOUBLE, mr);
     if (N == 0) return D;
-    double *d = D.doubleDataMut();
-    const double w0 = std::sqrt(1.0 / keel::as<double>(N));
-    const double wk = std::sqrt(2.0 / keel::as<double>(N));
-    const double piOver2N = M_PI / (2.0 * keel::as<double>(N));
+    keel::f64 *d = D.doubleDataMut();
+    const keel::f64 w0 = std::sqrt(1.0 / keel::as<keel::f64>(N));
+    const keel::f64 wk = std::sqrt(2.0 / keel::as<keel::f64>(N));
+    const keel::f64 piOver2N = M_PI / (2.0 * keel::as<keel::f64>(N));
     for (keel::usize n = 0; n < N; ++n) {
         for (keel::usize k = 0; k < N; ++k) {
-            const double phase = piOver2N * keel::as<double>(k)
-                                 * keel::as<double>(2 * n + 1);
-            const double w = (k == 0) ? w0 : wk;
+            const keel::f64 phase = piOver2N * keel::as<keel::f64>(k)
+                                 * keel::as<keel::f64>(2 * n + 1);
+            const keel::f64 w = (k == 0) ? w0 : wk;
             // Column-major: element (k, n) at offset n*N + k.
             d[n * N + k] = w * std::cos(phase);
         }
@@ -154,7 +154,7 @@ Value integralImage(const Value &I, keel::Allocator *mr)
     const keel::usize H1 = H + 1;
     Value out = Value::matrix(H1, W + 1, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     // out[r+1, c+1] = out[r, c+1] + out[r+1, c] - out[r, c] + I[r, c].
     for (keel::usize c = 0; c < W; ++c) {
         const keel::usize cb = (c + 1) * H1;
@@ -180,7 +180,7 @@ Value integralImage3(const Value &V, keel::Allocator *mr)
     const keel::usize planeIn = H * W;
     Value out = Value::matrix3d(H1, W1, P + 1, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0 || P == 0) return out;
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     auto idx = [&](keel::usize r, keel::usize c, keel::usize p) {
         return p * plane1 + c * H1 + r;
     };
@@ -190,7 +190,7 @@ Value integralImage3(const Value &V, keel::Allocator *mr)
             const keel::usize c1 = c + 1;
             for (keel::usize r = 0; r < H; ++r) {
                 const keel::usize r1 = r + 1;
-                const double v = V.elemAsDouble(p * planeIn + c * H + r);
+                const keel::f64 v = V.elemAsDouble(p * planeIn + c * H + r);
                 od[idx(r1, c1, p1)] =
                       od[idx(r,  c1, p1)]
                     + od[idx(r1, c,  p1)]
@@ -210,7 +210,7 @@ namespace {
 
 // Modified Shepp-Logan ellipse parameters (Toft 1996, Table B.3).
 // Each row: [I, a, b, x0, y0, phi_deg].
-constexpr double kModSheppLogan[10][6] = {
+constexpr keel::f64 kModSheppLogan[10][6] = {
     { 1.0,  0.69,   0.92,   0.0,    0.0,      0.0},
     {-0.8,  0.6624, 0.874,  0.0,   -0.0184,   0.0},
     {-0.2,  0.11,   0.31,   0.22,   0.0,    -18.0},
@@ -225,7 +225,7 @@ constexpr double kModSheppLogan[10][6] = {
 
 // Original Shepp-Logan (1974), with the first ellipse intensity reduced
 // from 2.0 to 1.0 so the head intensity stays in [0, 1].
-constexpr double kSheppLogan[10][6] = {
+constexpr keel::f64 kSheppLogan[10][6] = {
     { 1.0,   0.69,   0.92,   0.0,    0.0,       0.0},
     {-0.98,  0.6624, 0.874,  0.0,   -0.0184,    0.0},
     {-0.02,  0.11,   0.31,   0.22,   0.0,     -18.0},
@@ -238,10 +238,10 @@ constexpr double kSheppLogan[10][6] = {
     { 0.01,  0.023,  0.046,  0.06,  -0.605,     0.0},
 };
 
-Value make_ellipse_matrix(const double (*src)[6], keel::usize rows, keel::Allocator *mr)
+Value make_ellipse_matrix(const keel::f64 (*src)[6], keel::usize rows, keel::Allocator *mr)
 {
     Value E = Value::matrix(rows, 6, ValueType::DOUBLE, mr);
-    double *ed = E.doubleDataMut();
+    keel::f64 *ed = E.doubleDataMut();
     // Column-major: ed[c * rows + r] = src[r][c].
     for (keel::usize r = 0; r < rows; ++r)
         for (keel::usize c = 0; c < 6; ++c)
@@ -273,7 +273,7 @@ Value phantom_argcheck(const Value &model_or_E, keel::Allocator *mr)
     }
 }
 
-void bestblk_argcheck(const Value &IMS, double k, Value &IMSC, keel::Allocator *mr)
+void bestblk_argcheck(const Value &IMS, keel::f64 k, Value &IMSC, keel::Allocator *mr)
 {
     internal::requireRealKernelImage(IMS, "bestblk", "IMS", 1);
     if (IMS.type() == ValueType::CHAR)
@@ -365,43 +365,43 @@ phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
 
     Value head = Value::matrix(n, n, ValueType::DOUBLE, mr);
     if (n == 0) return {std::move(head), std::move(E)};
-    double *hd = head.doubleDataMut();
+    keel::f64 *hd = head.doubleDataMut();
 
     // Build x grid: xvals[i] = -1 + 2i/(n-1) for n > 1; -1 for n == 1.
-    keel::Array<double> xvals(n);
+    keel::Array<keel::f64> xvals(n);
     if (n == 1) xvals[0] = -1.0;
     else
         for (keel::usize i = 0; i < n; ++i)
-            xvals[i] = -1.0 + 2.0 * keel::as<double>(i)
-                              / keel::as<double>(n - 1);
+            xvals[i] = -1.0 + 2.0 * keel::as<keel::f64>(i)
+                              / keel::as<keel::f64>(n - 1);
 
     const keel::usize nE = E.dims().rows();
-    const double *ed = E.doubleData();
+    const keel::f64 *ed = E.doubleData();
     auto Eat = [&](keel::usize r, keel::usize c) {
         return ed[c * nE + r];
     };
 
     for (keel::usize k = 0; k < nE; ++k) {
-        const double I  = Eat(k, 0);
-        const double a  = Eat(k, 1);
-        const double b  = Eat(k, 2);
-        const double x0 = Eat(k, 3);
-        const double y0 = Eat(k, 4);
-        const double phi = Eat(k, 5) * M_PI / 180.0;
-        const double a2  = a * a;
-        const double b2  = b * b;
-        const double cos_p = std::cos(phi);
-        const double sin_p = std::sin(phi);
+        const keel::f64 I  = Eat(k, 0);
+        const keel::f64 a  = Eat(k, 1);
+        const keel::f64 b  = Eat(k, 2);
+        const keel::f64 x0 = Eat(k, 3);
+        const keel::f64 y0 = Eat(k, 4);
+        const keel::f64 phi = Eat(k, 5) * M_PI / 180.0;
+        const keel::f64 a2  = a * a;
+        const keel::f64 b2  = b * b;
+        const keel::f64 cos_p = std::cos(phi);
+        const keel::f64 sin_p = std::sin(phi);
 
         // xgrid[r, c] = xvals[c]; y = rot90(xgrid) → y[r, c] = xvals[n-1-r].
         for (keel::usize c = 0; c < n; ++c) {
-            const double xg_c = xvals[c];
-            const double x = xg_c - x0;
+            const keel::f64 xg_c = xvals[c];
+            const keel::f64 x = xg_c - x0;
             const keel::usize col_off = c * n;
             for (keel::usize r = 0; r < n; ++r) {
-                const double y = xvals[n - 1 - r] - y0;
-                const double u = x * cos_p + y * sin_p;
-                const double v = y * cos_p - x * sin_p;
+                const keel::f64 y = xvals[n - 1 - r] - y0;
+                const keel::f64 u = x * cos_p + y * sin_p;
+                const keel::f64 v = y * cos_p - x * sin_p;
                 if ((u * u) / a2 + (v * v) / b2 <= 1.0)
                     hd[col_off + r] += I;
             }
@@ -410,7 +410,7 @@ phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
     return {std::move(head), std::move(E)};
 }
 
-Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
+Value bestblk(const Value &IMS, keel::f64 k, keel::Allocator *mr)
 {
     Value IMSC;
     bestblk_argcheck(IMS, k, IMSC, mr);
@@ -419,7 +419,7 @@ Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
     const keel::usize nd = IMSu.numel();
     const long long K = keel::as<long long>(std::floor(k));
     Value out = Value::matrix(1, nd, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     for (keel::usize d = 0; d < nd; ++d) {
         const long long dim = keel::as<long long>(
@@ -427,14 +427,14 @@ Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
         if (dim < 1)
             throw Error("bestblk: IMS entries must be positive",
                         0, 0, "bestblk", "", "numkit:bestblk:vals");
-        if (dim <= K) { od[d] = keel::as<double>(dim); continue; }
+        if (dim <= K) { od[d] = keel::as<keel::f64>(dim); continue; }
 
         // Scan p = K, K-1, ..., ceil(min(dim/10, K/2)). Pick largest p
         // with smallest mod(-dim, p); strict-less on the descending
         // walk keeps the higher p on ties. Octave's : range stops at
         // ceil(lo_double) when the lower bound is non-integer.
-        const double lo_d = std::min(keel::as<double>(dim) / 10.0,
-                                     keel::as<double>(K) / 2.0);
+        const keel::f64 lo_d = std::min(keel::as<keel::f64>(dim) / 10.0,
+                                     keel::as<keel::f64>(K) / 2.0);
         long long lo = keel::as<long long>(std::ceil(lo_d));
         if (lo < 1) lo = 1;
         long long bestP   = K;
@@ -446,7 +446,7 @@ Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
                 bestP   = p;
             }
         }
-        od[d] = keel::as<double>(bestP);
+        od[d] = keel::as<keel::f64>(bestP);
     }
     // Class-preserving result (probed R2025b: single / uint8 IMS come
     // back in their class).
@@ -506,8 +506,8 @@ Value fftconv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allo
             for (keel::usize r = 0; r < Hf; ++r)
                 dst[c * Hf + r] = src[c * Hp + r];
     } else {
-        const double *src = Yfull.doubleData();
-        double *dst       = Y.doubleDataMut();
+        const keel::f64 *src = Yfull.doubleData();
+        keel::f64 *dst       = Y.doubleDataMut();
         for (keel::usize c = 0; c < Wf; ++c)
             for (keel::usize r = 0; r < Hf; ++r)
                 dst[c * Hf + r] = src[c * Hp + r];
@@ -548,8 +548,8 @@ Value fftconv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allo
             for (keel::usize r = 0; r < outH; ++r)
                 dst[c * outH + r] = src[(c + c0) * Hf + (r + r0)];
     } else {
-        const double *src = Y.doubleData();
-        double *dst       = Ycrop.doubleDataMut();
+        const keel::f64 *src = Y.doubleData();
+        keel::f64 *dst       = Ycrop.doubleDataMut();
         for (keel::usize c = 0; c < outW; ++c)
             for (keel::usize r = 0; r < outH; ++r)
                 dst[c * outH + r] = src[(c + c0) * Hf + (r + r0)];
@@ -623,8 +623,8 @@ Value otf2psf(const Value &OTF, keel::ArrayRef<keel::usize> outsize, keel::Alloc
             for (keel::usize i = 0; i < outH; ++i)
                 dst[j * outH + i] = src[j * inH + i];
     } else {
-        const double *src = shifted.doubleData();
-        double *dst = cropped.doubleDataMut();
+        const keel::f64 *src = shifted.doubleData();
+        keel::f64 *dst = cropped.doubleDataMut();
         for (keel::usize j = 0; j < outW; ++j)
             for (keel::usize i = 0; i < outH; ++i)
                 dst[j * outH + i] = src[j * inH + i];
@@ -659,18 +659,18 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
     // global centering, so we can also drop it there for clarity.
     Value a = Value::matrix(mH, mW, ValueType::DOUBLE, mr);
     Value b = Value::matrix(bH, bW, ValueType::DOUBLE, mr);
-    double *ad = a.doubleDataMut();
-    double *bd = b.doubleDataMut();
+    keel::f64 *ad = a.doubleDataMut();
+    keel::f64 *bd = b.doubleDataMut();
 
     long double sa = 0.0L;
     for (keel::usize i = 0; i < mN; ++i) sa += templ.elemAsDouble(i);
-    const double ma = (mN > 0) ? keel::as<double>(sa / keel::as<long double>(mN)) : 0.0;
+    const keel::f64 ma = (mN > 0) ? keel::as<keel::f64>(sa / keel::as<long double>(mN)) : 0.0;
     for (keel::usize i = 0; i < mN; ++i)     ad[i] = templ.elemAsDouble(i) - ma;
     for (keel::usize i = 0; i < bH * bW; ++i) bd[i] = img.elemAsDouble(i);
 
     // Reversed template ar = rot180(a). Column-major: ar[(mW-1-c)*mH + (mH-1-r)] = a[c*mH + r].
     Value ar = Value::matrix(mH, mW, ValueType::DOUBLE, mr);
-    double *ard = ar.doubleDataMut();
+    keel::f64 *ard = ar.doubleDataMut();
     for (keel::usize c = 0; c < mW; ++c)
         for (keel::usize r = 0; r < mH; ++r)
             ard[(mW - 1 - c) * mH + (mH - 1 - r)] = ad[c * mH + r];
@@ -680,12 +680,12 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
 
     // Denominator pieces use a1 = ones(size(a)).
     Value a1 = Value::matrix(mH, mW, ValueType::DOUBLE, mr);
-    double *a1d = a1.doubleDataMut();
+    keel::f64 *a1d = a1.doubleDataMut();
     for (keel::usize i = 0; i < mN; ++i) a1d[i] = 1.0;
 
     // b_sq = b .^ 2.
     Value b_sq = Value::matrix(bH, bW, ValueType::DOUBLE, mr);
-    double *bsd = b_sq.doubleDataMut();
+    keel::f64 *bsd = b_sq.doubleDataMut();
     for (keel::usize i = 0; i < bH * bW; ++i) bsd[i] = bd[i] * bd[i];
 
     Value sum_b_sq = signal::conv2(b_sq, a1, "full", mr);
@@ -695,12 +695,12 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
     const keel::usize outH = bH + mH - 1;
     const keel::usize outW = bW + mW - 1;
     Value c_denom = Value::matrix(outH, outW, ValueType::DOUBLE, mr);
-    double *cdd = c_denom.doubleDataMut();
-    const double *sbsd = sum_b_sq.doubleData();
-    const double *sbd  = sum_b.doubleData();
+    keel::f64 *cdd = c_denom.doubleDataMut();
+    const keel::f64 *sbsd = sum_b_sq.doubleData();
+    const keel::f64 *sbd  = sum_b.doubleData();
     for (keel::usize i = 0; i < outH * outW; ++i) {
-        double v = sbsd[i] - (sbd[i] * sbd[i]) /
-                              keel::as<double>(mN > 0 ? mN : 1);
+        keel::f64 v = sbsd[i] - (sbd[i] * sbd[i]) /
+                              keel::as<keel::f64>(mN > 0 ? mN : 1);
         if (v < 0.0) v = 0.0;
         cdd[i] = v;
     }
@@ -708,15 +708,15 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
     // sumsq(a).
     long double sumsq_a = 0.0L;
     for (keel::usize i = 0; i < mN; ++i) sumsq_a += keel::as<long double>(ad[i]) * ad[i];
-    const double sa2 = keel::as<double>(sumsq_a);
+    const keel::f64 sa2 = keel::as<keel::f64>(sumsq_a);
 
     // c = c_num / sqrt(c_denom * sumsq_a); inf/nan → 0.
     Value c_out = Value::matrix(outH, outW, ValueType::DOUBLE, mr);
-    double *cod = c_out.doubleDataMut();
-    const double *cnd = c_num.doubleData();
+    keel::f64 *cod = c_out.doubleDataMut();
+    const keel::f64 *cnd = c_num.doubleData();
     for (keel::usize i = 0; i < outH * outW; ++i) {
-        const double denom = std::sqrt(cdd[i] * sa2);
-        double v = (denom > 0.0) ? cnd[i] / denom : 0.0;
+        const keel::f64 denom = std::sqrt(cdd[i] * sa2);
+        keel::f64 v = (denom > 0.0) ? cnd[i] / denom : 0.0;
         if (!std::isfinite(v)) v = 0.0;
         cod[i] = v;
     }
@@ -729,27 +729,27 @@ Value checkerboard(keel::usize side, keel::usize M, keel::usize N, keel::Allocat
     const keel::usize W = 2 * N * side;
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0 || side == 0) return out;
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     // Tile pattern: 2*side × 2*side. Build via linspace(-1, 1, 2*side):
     //   x[i] = -1 + 2 * i / (2*side - 1)
     // tile(r, c) = (x[r] * x[c]) < 0  → 1.0 in opposite-sign quadrants.
     const keel::usize S2 = 2 * side;
-    keel::Array<double> x(S2);
+    keel::Array<keel::f64> x(S2);
     if (S2 == 1) x[0] = -1.0;
     else
         for (keel::usize i = 0; i < S2; ++i)
-            x[i] = -1.0 + 2.0 * keel::as<double>(i)
-                          / keel::as<double>(S2 - 1);
+            x[i] = -1.0 + 2.0 * keel::as<keel::f64>(i)
+                          / keel::as<keel::f64>(S2 - 1);
 
     // Right half (cols ≥ W/2) is dimmed to 0.7.
     const keel::usize halfW = W / 2;
     for (keel::usize c = 0; c < W; ++c) {
-        const double xc = x[c % S2];
-        const double dim = (c >= halfW) ? 0.7 : 1.0;
+        const keel::f64 xc = x[c % S2];
+        const keel::f64 dim = (c >= halfW) ? 0.7 : 1.0;
         for (keel::usize r = 0; r < H; ++r) {
-            const double xr = x[r % S2];
-            const double tile = (xr * xc < 0.0) ? 1.0 : 0.0;
+            const keel::f64 xr = x[r % S2];
+            const keel::f64 tile = (xr * xc < 0.0) ? 1.0 : 0.0;
             od[c * H + r] = tile * dim;
         }
     }
@@ -777,11 +777,11 @@ Value to_double_pmr(const Value &I, keel::Allocator *mr)
     Value out = d.is3D()
         ? Value::matrix3d(H, W, d.pages(), ValueType::DOUBLE, mr)
         : Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     const keel::usize N = I.numel();
     switch (I.type()) {
         case ValueType::DOUBLE:
-            std::memcpy(od, I.doubleData(), N * sizeof(double)); break;
+            std::memcpy(od, I.doubleData(), N * sizeof(keel::f64)); break;
         case ValueType::SINGLE:
             for (keel::usize i = 0; i < N; ++i) od[i] = I.singleData()[i]; break;
         case ValueType::UINT8:
@@ -807,28 +807,28 @@ Value real_back_to_class(const Value &Jd, ValueType outT,
         ? Value::matrix3d(d.rows(), d.cols(), d.pages(), outT, mr)
         : Value::matrix(d.rows(), d.cols(), outT, mr);
     const keel::usize N = Jd.numel();
-    const double *src = Jd.doubleData();
-    auto sat_u8  = [](double v) {
+    const keel::f64 *src = Jd.doubleData();
+    auto sat_u8  = [](keel::f64 v) {
         if (v <= 0.0) return keel::u8{0};
         if (v >= 1.0) return keel::u8{255};
         return keel::as<keel::u8>(std::lround(v * 255.0));
     };
-    auto sat_u16 = [](double v) {
+    auto sat_u16 = [](keel::f64 v) {
         if (v <= 0.0) return keel::u16{0};
         if (v >= 1.0) return keel::u16{65535};
         return keel::as<keel::u16>(std::lround(v * 65535.0));
     };
-    auto sat_i16 = [](double v) {
+    auto sat_i16 = [](keel::f64 v) {
         if (v <= 0.0) return keel::i16{-32768};
         if (v >= 1.0) return keel::i16{32767};
         return keel::as<keel::i16>(std::lround(v * 65535.0 - 32768.0));
     };
     switch (outT) {
         case ValueType::DOUBLE:
-            std::memcpy(out.doubleDataMut(), src, N * sizeof(double)); break;
+            std::memcpy(out.doubleDataMut(), src, N * sizeof(keel::f64)); break;
         case ValueType::SINGLE:
             for (keel::usize i = 0; i < N; ++i)
-                out.singleDataMut()[i] = keel::as<float>(src[i]);
+                out.singleDataMut()[i] = keel::as<keel::f32>(src[i]);
             break;
         case ValueType::UINT8:
             for (keel::usize i = 0; i < N; ++i)
@@ -853,7 +853,7 @@ Value real_back_to_class(const Value &Jd, ValueType outT,
 // spectrum scalars S_u and S_x (after the array case has been
 // reduced via fftn-and-abs). Returns DOUBLE J of size(I).
 Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
-                                 double S_u, double S_x,
+                                 keel::f64 S_u, keel::f64 S_x,
                                  keel::Allocator *mr)
 {
     const auto &dI = I.dims();
@@ -881,11 +881,11 @@ Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
     const keel::c64 *Hd = Hcplx.data();
     // denom = |H|^2 * S_x + S_u, clamped at sqrt(eps).
     Value denom = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *denomD = denom.doubleDataMut();
-    const double sqrt_eps = std::sqrt(std::numeric_limits<double>::epsilon());
+    keel::f64 *denomD = denom.doubleDataMut();
+    const keel::f64 sqrt_eps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
     for (keel::usize i = 0; i < plane; ++i) {
-        const double m2 = Hd[i].real() * Hd[i].real() + Hd[i].imag() * Hd[i].imag();
-        double d = m2 * S_x + S_u;
+        const keel::f64 m2 = Hd[i].real() * Hd[i].real() + Hd[i].imag() * Hd[i].imag();
+        keel::f64 d = m2 * S_x + S_u;
         if (d < sqrt_eps) d = sqrt_eps;
         denomD[i] = d;
     }
@@ -898,7 +898,7 @@ Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
     for (keel::usize pg = 0; pg < P; ++pg) {
         Value Ip = is3 ? Value::matrix(H, W, ValueType::DOUBLE, mr) : I;
         if (is3) {
-            double *ipd = Ip.doubleDataMut();
+            keel::f64 *ipd = Ip.doubleDataMut();
             for (keel::usize i = 0; i < plane; ++i)
                 ipd[i] = I.doubleData()[pg * plane + i];
         }
@@ -919,23 +919,23 @@ Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
             // G(k) = conj(H(k)) * S_x / denom(k); multiply by FI(k).
             const keel::c64 Hk = Hd[i];
             const keel::c64 Hc{Hk.real(), -Hk.imag()};
-            const double g_scale = S_x / denomD[i];
+            const keel::f64 g_scale = S_x / denomD[i];
             const keel::c64 Gk{Hc.real() * g_scale, Hc.imag() * g_scale};
             fg[i] = keel::c64{Gk.real() * fi[i].real() - Gk.imag() * fi[i].imag(),
                             Gk.real() * fi[i].imag() + Gk.imag() * fi[i].real()};
         }
         Value Jp = signal::ifft2(FG, -1, -1, mr);
         // IFFT2 may also collapse to DOUBLE for purely-real spectra.
-        auto jp_at = [&](keel::usize i) -> double {
+        auto jp_at = [&](keel::usize i) -> keel::f64 {
             if (Jp.isComplex()) return Jp.complexData()[i].real();
             return Jp.elemAsDouble(i);
         };
         if (is3) {
-            double *jod = J.doubleDataMut();
+            keel::f64 *jod = J.doubleDataMut();
             for (keel::usize i = 0; i < plane; ++i)
                 jod[pg * plane + i] = jp_at(i);
         } else {
-            double *jod = J.doubleDataMut();
+            keel::f64 *jod = J.doubleDataMut();
             for (keel::usize i = 0; i < plane; ++i)
                 jod[i] = jp_at(i);
         }
@@ -990,7 +990,7 @@ void edgetaper_argcheck(const Value &I, const Value &PSF)
 
 } // anonymous
 
-Value deconvwnr(const Value &I, const Value &PSF, double nsr,
+Value deconvwnr(const Value &I, const Value &PSF, keel::f64 nsr,
                 keel::Allocator *mr)
 {
     deconvwnr_nsr_argcheck(I, PSF);
@@ -1018,10 +1018,10 @@ Value deconvwnr(const Value &I, const Value &PSF,
     const keel::usize W = dI.cols();
     const keel::usize plane = H * W;
 
-    auto build_S = [&](const Value &acf, const char *name) -> std::pair<bool, keel::Array<double>> {
+    auto build_S = [&](const Value &acf, const char *name) -> std::pair<bool, keel::Array<keel::f64>> {
         if (acf.numel() == 1) {
             // Scalar: uniform spectrum equal to that value.
-            keel::Array<double> v(mr);
+            keel::Array<keel::f64> v(mr);
             v.push_back(acf.toScalar());
             return {true, std::move(v)};
         }
@@ -1029,10 +1029,10 @@ Value deconvwnr(const Value &I, const Value &PSF,
             && !acf.dims().is3D()) {
             // Same-size ACF: |fft2(acf)|
             Value F = signal::fft2(acf, -1, -1, mr);
-            keel::Array<double> S(plane, 0.0, mr);
+            keel::Array<keel::f64> S(plane, 0.0, mr);
             const keel::c64 *fc = F.complexData();
             for (keel::usize i = 0; i < plane; ++i) {
-                const double m = std::sqrt(fc[i].real() * fc[i].real()
+                const keel::f64 m = std::sqrt(fc[i].real() * fc[i].real()
                                          + fc[i].imag() * fc[i].imag());
                 S[i] = m;
             }
@@ -1067,15 +1067,15 @@ Value deconvwnr(const Value &I, const Value &PSF,
         }
         const keel::c64 *Hd = Hcplx.data();
         Value denom = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *denomD = denom.doubleDataMut();
-        const double sqrt_eps = std::sqrt(std::numeric_limits<double>::epsilon());
-        auto get_S = [&](const keel::Array<double> &S, keel::usize i, bool scalar) {
+        keel::f64 *denomD = denom.doubleDataMut();
+        const keel::f64 sqrt_eps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
+        auto get_S = [&](const keel::Array<keel::f64> &S, keel::usize i, bool scalar) {
             return scalar ? S[0] : S[i];
         };
         for (keel::usize i = 0; i < plane; ++i) {
-            const double m2 = Hd[i].real() * Hd[i].real()
+            const keel::f64 m2 = Hd[i].real() * Hd[i].real()
                             + Hd[i].imag() * Hd[i].imag();
-            double d = m2 * get_S(S_x, i, sx_scalar) + get_S(S_u, i, su_scalar);
+            keel::f64 d = m2 * get_S(S_x, i, sx_scalar) + get_S(S_u, i, su_scalar);
             if (d < sqrt_eps) d = sqrt_eps;
             denomD[i] = d;
         }
@@ -1085,7 +1085,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
         for (keel::usize pg = 0; pg < P; ++pg) {
             Value Ip = is3 ? Value::matrix(H, W, ValueType::DOUBLE, mr) : Id;
             if (is3) {
-                double *ipd = Ip.doubleDataMut();
+                keel::f64 *ipd = Ip.doubleDataMut();
                 for (keel::usize i = 0; i < plane; ++i)
                     ipd[i] = Id.doubleData()[pg * plane + i];
             }
@@ -1104,23 +1104,23 @@ Value deconvwnr(const Value &I, const Value &PSF,
             for (keel::usize i = 0; i < plane; ++i) {
                 const keel::c64 Hk = Hd[i];
                 const keel::c64 Hc{Hk.real(), -Hk.imag()};
-                const double sx_i = get_S(S_x, i, sx_scalar);
-                const double g_scale = sx_i / denomD[i];
+                const keel::f64 sx_i = get_S(S_x, i, sx_scalar);
+                const keel::f64 g_scale = sx_i / denomD[i];
                 const keel::c64 Gk{Hc.real() * g_scale, Hc.imag() * g_scale};
                 fg[i] = keel::c64{Gk.real() * fi[i].real() - Gk.imag() * fi[i].imag(),
                                 Gk.real() * fi[i].imag() + Gk.imag() * fi[i].real()};
             }
             Value Jp = signal::ifft2(FG, -1, -1, mr);
-            auto jp_at = [&](keel::usize i) -> double {
+            auto jp_at = [&](keel::usize i) -> keel::f64 {
                 if (Jp.isComplex()) return Jp.complexData()[i].real();
                 return Jp.elemAsDouble(i);
             };
             if (is3) {
-                double *jod = J.doubleDataMut();
+                keel::f64 *jod = J.doubleDataMut();
                 for (keel::usize i = 0; i < plane; ++i)
                     jod[pg * plane + i] = jp_at(i);
             } else {
-                double *jod = J.doubleDataMut();
+                keel::f64 *jod = J.doubleDataMut();
                 for (keel::usize i = 0; i < plane; ++i) jod[i] = jp_at(i);
             }
         }
@@ -1159,14 +1159,14 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
     const ValueType inT = I.type();
     Value Id   = to_double_pmr(I, mr);
     Value PSFd = to_double_pmr(PSF, mr);
-    const double *psfd = PSFd.doubleData();
+    const keel::f64 *psfd = PSFd.doubleData();
 
     // Track input range for the final clip.
-    double Imin =  std::numeric_limits<double>::infinity();
-    double Imax = -std::numeric_limits<double>::infinity();
+    keel::f64 Imin =  std::numeric_limits<keel::f64>::infinity();
+    keel::f64 Imax = -std::numeric_limits<keel::f64>::infinity();
     {
         const keel::usize N = Id.numel();
-        const double *id = Id.doubleData();
+        const keel::f64 *id = Id.doubleData();
         for (keel::usize k = 0; k < N; ++k) {
             if (id[k] < Imin) Imin = id[k];
             if (id[k] > Imax) Imax = id[k];
@@ -1175,7 +1175,7 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
 
     auto compute_beta = [&](keel::usize dim, keel::usize sizeI_n) {
         // proj over the OTHER dim of PSF.
-        keel::Array<double> proj(mr);
+        keel::Array<keel::f64> proj(mr);
         if (dim == 0) {
             // sum along columns (per row).
             proj.resize(PH, 0.0);
@@ -1192,12 +1192,12 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
         // fft length = sizeI(n) - 1.
         const keel::usize L = sizeI_n - 1;
         Value vec = Value::matrix(1, L, ValueType::DOUBLE, mr);
-        double *vd = vec.doubleDataMut();
+        keel::f64 *vd = vec.doubleDataMut();
         for (keel::usize k = 0; k < L; ++k)
             vd[k] = (k < proj.size()) ? proj[k] : 0.0;
         // F = fft(proj_padded) — dim=0 → first non-singleton (cols of 1×L row).
         Value F = signal::fft(vec, -1, 0, mr);
-        keel::Array<double> Zsq(L, 0.0, mr);
+        keel::Array<keel::f64> Zsq(L, 0.0, mr);
         if (F.isComplex()) {
             const keel::c64 *fc = F.complexData();
             for (keel::usize k = 0; k < L; ++k)
@@ -1205,7 +1205,7 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
                        + fc[k].imag() * fc[k].imag();
         } else {
             for (keel::usize k = 0; k < L; ++k) {
-                const double v = F.elemAsDouble(k);
+                const keel::f64 v = F.elemAsDouble(k);
                 Zsq[k] = v * v;
             }
         }
@@ -1213,7 +1213,7 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
         Value Zv = Value::matrix(1, L, ValueType::DOUBLE, mr);
         for (keel::usize k = 0; k < L; ++k) Zv.doubleDataMut()[k] = Zsq[k];
         Value Z = signal::ifft(Zv, -1, 0, mr);
-        keel::Array<double> zr(L, 0.0, mr);
+        keel::Array<keel::f64> zr(L, 0.0, mr);
         if (Z.isComplex()) {
             const keel::c64 *zc = Z.complexData();
             for (keel::usize k = 0; k < L; ++k) zr[k] = zc[k].real();
@@ -1223,18 +1223,18 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
         // Make symmetric: append first element.
         zr.push_back(zr.front());
         // Normalise by max.
-        double zmax = 0.0;
-        for (double v : zr) if (v > zmax) zmax = v;
+        keel::f64 zmax = 0.0;
+        for (keel::f64 v : zr) if (v > zmax) zmax = v;
         if (zmax > 0.0) for (auto &v : zr) v /= zmax;
         return zr;       // length sizeI_n
     };
 
-    keel::Array<double> beta_r = compute_beta(0, H);
-    keel::Array<double> beta_c = compute_beta(1, W);
+    keel::Array<keel::f64> beta_r = compute_beta(0, H);
+    keel::Array<keel::f64> beta_c = compute_beta(1, W);
 
     // alpha = (1 - beta_r) * (1 - beta_c)'  — H × W outer product.
     Value alpha = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *ad = alpha.doubleDataMut();
+    keel::f64 *ad = alpha.doubleDataMut();
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r)
             ad[c * H + r] = (1.0 - beta_r[r]) * (1.0 - beta_c[c]);
@@ -1266,18 +1266,18 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
         fg[i] = keel::c64{Fic[i].real() * Hc[i].real() - Fic[i].imag() * Hc[i].imag(),
                         Fic[i].real() * Hc[i].imag() + Fic[i].imag() * Hc[i].real()};
     Value Blur = signal::ifft2(FG, -1, -1, mr);
-    auto blur_at = [&](keel::usize i) -> double {
+    auto blur_at = [&](keel::usize i) -> keel::f64 {
         if (Blur.isComplex()) return Blur.complexData()[i].real();
         return Blur.elemAsDouble(i);
     };
 
     // J = alpha .* I + (1 - alpha) .* blurredI, clipped to [Imin, Imax].
     Value Jd = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *jd = Jd.doubleDataMut();
-    const double *id = Id.doubleData();
+    keel::f64 *jd = Jd.doubleDataMut();
+    const keel::f64 *id = Id.doubleData();
     for (keel::usize i = 0; i < plane; ++i) {
-        const double a = ad[i];
-        double v = a * id[i] + (1.0 - a) * blur_at(i);
+        const keel::f64 a = ad[i];
+        keel::f64 v = a * id[i] + (1.0 - a) * blur_at(i);
         if (v < Imin) v = Imin;
         if (v > Imax) v = Imax;
         jd[i] = v;
@@ -1288,7 +1288,7 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
         // SINGLE: cast back.
         Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
         for (keel::usize i = 0; i < plane; ++i)
-            out.singleDataMut()[i] = keel::as<float>(jd[i]);
+            out.singleDataMut()[i] = keel::as<keel::f32>(jd[i]);
         return out;
     }
     return real_back_to_class(Jd, inT, mr);
@@ -1327,42 +1327,42 @@ namespace {
 // Brent's method (translation of MATLAB R2025b fminbnd) — find
 // minimum of unimodal f on [ax, bx] within TolX tolerance.
 template<typename F>
-double fminbnd_brent(F f, double ax, double bx,
-                     double tol = 1e-4, int maxiter = 500)
+keel::f64 fminbnd_brent(F f, keel::f64 ax, keel::f64 bx,
+                     keel::f64 tol = 1e-4, int maxiter = 500)
 {
-    const double seps  = std::sqrt(std::numeric_limits<double>::epsilon());
-    const double c     = 0.5 * (3.0 - std::sqrt(5.0));   // golden ratio
-    double a = ax, b = bx;
-    double v = a + c * (b - a);
-    double w = v, xf = v;
-    double d = 0.0, e = 0.0;
-    double x  = xf;
-    double fx = f(x);
-    double fv = fx, fw = fx;
+    const keel::f64 seps  = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
+    const keel::f64 c     = 0.5 * (3.0 - std::sqrt(5.0));   // golden ratio
+    keel::f64 a = ax, b = bx;
+    keel::f64 v = a + c * (b - a);
+    keel::f64 w = v, xf = v;
+    keel::f64 d = 0.0, e = 0.0;
+    keel::f64 x  = xf;
+    keel::f64 fx = f(x);
+    keel::f64 fv = fx, fw = fx;
     int iter = 0;
-    double xm = 0.5 * (a + b);
-    double tol1 = seps * std::fabs(xf) + tol / 3.0;
-    double tol2 = 2.0 * tol1;
+    keel::f64 xm = 0.5 * (a + b);
+    keel::f64 tol1 = seps * std::fabs(xf) + tol / 3.0;
+    keel::f64 tol2 = 2.0 * tol1;
 
     while (std::fabs(xf - xm) > tol2 - 0.5 * (b - a)) {
         if (++iter > maxiter) break;
         bool gold = true;
         if (std::fabs(e) > tol1) {
             // parabolic fit
-            double r = (xf - w) * (fx - fv);
-            double q = (xf - v) * (fx - fw);
-            double p = (xf - v) * q - (xf - w) * r;
+            keel::f64 r = (xf - w) * (fx - fv);
+            keel::f64 q = (xf - v) * (fx - fw);
+            keel::f64 p = (xf - v) * q - (xf - w) * r;
             q = 2.0 * (q - r);
             if (q > 0.0) p = -p;
             q = std::fabs(q);
-            double etemp = e;
+            keel::f64 etemp = e;
             e = d;
             if (std::fabs(p) < std::fabs(0.5 * q * etemp)
                 && p > q * (a - xf) && p < q * (b - xf)) {
                 d = p / q;
-                double u = xf + d;
+                keel::f64 u = xf + d;
                 if (u - a < tol2 || b - u < tol2) {
-                    double si = (xm - xf >= 0.0) ? 1.0 : -1.0;
+                    keel::f64 si = (xm - xf >= 0.0) ? 1.0 : -1.0;
                     d = tol1 * si;
                 }
                 gold = false;
@@ -1372,9 +1372,9 @@ double fminbnd_brent(F f, double ax, double bx,
             e = (xf >= xm) ? (a - xf) : (b - xf);
             d = c * e;
         }
-        double si = (d >= 0.0) ? 1.0 : -1.0;
-        double u  = xf + ((std::fabs(d) >= tol1) ? d : tol1 * si);
-        double fu = f(u);
+        keel::f64 si = (d >= 0.0) ? 1.0 : -1.0;
+        keel::f64 u  = xf + ((std::fabs(d) >= tol1) ? d : tol1 * si);
+        keel::f64 fu = f(u);
         if (fu <= fx) {
             if (u >= xf) a = xf; else b = xf;
             v = w;  fv = fw;
@@ -1397,7 +1397,7 @@ double fminbnd_brent(F f, double ax, double bx,
     return xf;
 }
 
-void deconvreg_argcheck(const Value &PSF, double np, double lo, double hi)
+void deconvreg_argcheck(const Value &PSF, keel::f64 np, keel::f64 lo, keel::f64 hi)
 {
     if (PSF.dims().is3D())
         throw Error("deconvreg: PSF must be 2-D (slice 3-D inputs and "
@@ -1418,7 +1418,7 @@ void deconvreg_argcheck(const Value &PSF, double np, double lo, double hi)
 } // anonymous (Brent)
 
 DeconvregResult deconvreg(const Value &I, const Value &PSF,
-                          double np, double lo, double hi,
+                          keel::f64 np, keel::f64 lo, keel::f64 hi,
                           const Value &regop,
                           keel::Allocator *mr)
 {
@@ -1465,7 +1465,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
         // 2-D Laplacian per MATLAB source:
         //   regop = [0 1 0; 1 -4 1; 0 1 0]
         REGOP_in = Value::matrix(3, 3, ValueType::DOUBLE, mr);
-        double *rd = REGOP_in.doubleDataMut();
+        keel::f64 *rd = REGOP_in.doubleDataMut();
         // column-major:
         //   col 0: [0; 1; 0]
         //   col 1: [1; -4; 1]
@@ -1491,8 +1491,8 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     }
 
     // Pre-compute spectral magnitudes.
-    keel::Array<double> H2(plane, 0.0, mr);
-    keel::Array<double> R2(plane, 0.0, mr);
+    keel::Array<keel::f64> H2(plane, 0.0, mr);
+    keel::Array<keel::f64> R2(plane, 0.0, mr);
     for (keel::usize i = 0; i < plane; ++i) {
         H2[i] = Hcplx[i].real() * Hcplx[i].real()
               + Hcplx[i].imag() * Hcplx[i].imag();
@@ -1501,7 +1501,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     }
 
     // Determine λ — fixed-or-search.
-    double lagra;
+    keel::f64 lagra;
     if (lo == hi) {
         lagra = lo;
     } else {
@@ -1515,26 +1515,26 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
             for (keel::usize i = 0; i < plane; ++i)
                 FIcplx[i] = keel::c64{FI.elemAsDouble(i), 0.0};
         }
-        keel::Array<double> R4G2(plane, 0.0, mr);
-        keel::Array<double> H4  (plane, 0.0, mr);
-        keel::Array<double> R4  (plane, 0.0, mr);
-        keel::Array<double> H2R22(plane, 0.0, mr);
+        keel::Array<keel::f64> R4G2(plane, 0.0, mr);
+        keel::Array<keel::f64> H4  (plane, 0.0, mr);
+        keel::Array<keel::f64> R4  (plane, 0.0, mr);
+        keel::Array<keel::f64> H2R22(plane, 0.0, mr);
         for (keel::usize i = 0; i < plane; ++i) {
-            const double absFI = std::sqrt(FIcplx[i].real() * FIcplx[i].real()
+            const keel::f64 absFI = std::sqrt(FIcplx[i].real() * FIcplx[i].real()
                                          + FIcplx[i].imag() * FIcplx[i].imag());
-            const double r4g2  = R2[i] * absFI;
+            const keel::f64 r4g2  = R2[i] * absFI;
             R4G2[i] = r4g2 * r4g2;
             H4[i]   = H2[i] * H2[i];
             R4[i]   = R2[i] * R2[i];
             H2R22[i] = 2.0 * H2[i] * R2[i];
         }
-        const double scaled_np = np * keel::as<double>(plane);
-        const double seps = std::sqrt(std::numeric_limits<double>::epsilon());
+        const keel::f64 scaled_np = np * keel::as<keel::f64>(plane);
+        const keel::f64 seps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
 
-        auto ResOffset = [&](double L) -> double {
-            double s = 0.0;
+        auto ResOffset = [&](keel::f64 L) -> keel::f64 {
+            keel::f64 s = 0.0;
             for (keel::usize i = 0; i < plane; ++i) {
-                const double denom = H4[i] + L * H2R22[i]
+                const keel::f64 denom = H4[i] + L * H2R22[i]
                                    + L * L * R4[i] + seps;
                 s += R4G2[i] / denom;
             }
@@ -1553,24 +1553,24 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
         for (keel::usize i = 0; i < plane; ++i)
             FIcplx[i] = keel::c64{FI.elemAsDouble(i), 0.0};
     }
-    const double seps = std::sqrt(std::numeric_limits<double>::epsilon());
+    const keel::f64 seps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
 
     Value FG = Value::matrix(H, W, ValueType::COMPLEX, mr);
     keel::c64 *fg = FG.complexDataMut();
     for (keel::usize i = 0; i < plane; ++i) {
-        double denom = H2[i] + lagra * R2[i];
+        keel::f64 denom = H2[i] + lagra * R2[i];
         if (denom < seps) denom = seps;
         const keel::c64 Hc{Hcplx[i].real(), -Hcplx[i].imag()};
         // (conj(H) / denom) * FI
-        const double inv = 1.0 / denom;
+        const keel::f64 inv = 1.0 / denom;
         const keel::c64 G{Hc.real() * inv, Hc.imag() * inv};
         fg[i] = keel::c64{G.real() * FIcplx[i].real() - G.imag() * FIcplx[i].imag(),
                         G.real() * FIcplx[i].imag() + G.imag() * FIcplx[i].real()};
     }
     Value Jc = signal::ifft2(FG, -1, -1, mr);
     Value Jd = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *jd = Jd.doubleDataMut();
-    auto jc_at = [&](keel::usize i) -> double {
+    keel::f64 *jd = Jd.doubleDataMut();
+    auto jc_at = [&](keel::usize i) -> keel::f64 {
         if (Jc.isComplex()) return Jc.complexData()[i].real();
         return Jc.elemAsDouble(i);
     };

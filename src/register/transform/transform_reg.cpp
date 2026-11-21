@@ -123,7 +123,7 @@ void bestblk_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, 2, "bestblk");
     auto *mr = ctx.engine->allocator();
-    const double k = (args.size() >= 2 && !args[1].isEmpty())
+    const keel::f64 k = (args.size() >= 2 && !args[1].isEmpty())
                        ? args[1].toScalar() : 100.0;
     Value v = bestblk(args[0], k, mr);
     if (nargout <= 1) { outs[0] = std::move(v); return; }
@@ -162,8 +162,8 @@ void deconvreg_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 2, 5, "deconvreg");
     auto *mr = ctx.engine->allocator();
-    double np = 0.0;
-    double lo = 1e-9, hi = 1e9;
+    keel::f64 np = 0.0;
+    keel::f64 lo = 1e-9, hi = 1e9;
     Value regop = Value::Empty;
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (args[2].numel() != 1)
@@ -234,7 +234,7 @@ void checkerboard_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 0, 3, "checkerboard");
     keel::usize side = 10, M = 4, N = 4;
     if (args.size() >= 1 && !args[0].isEmpty()) {
-        const double s = args[0].toScalar();
+        const keel::f64 s = args[0].toScalar();
         if (s < 0.0 || s != std::floor(s))
             throw Error("checkerboard: SIDE must be a non-negative integer",
                         0, 0, "checkerboard", "", "numkit:checkerboard:side");

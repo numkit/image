@@ -69,7 +69,7 @@ CS parse_color_space(keel::StringRef s)
 }
 
 // ── Gamma encode / decode helpers ────────────────────────────────
-double gamma_decode(double v, CS cs)
+keel::f64 gamma_decode(keel::f64 v, CS cs)
 {
     switch (cs) {
         case CS::sRGB:
@@ -86,7 +86,7 @@ double gamma_decode(double v, CS cs)
     }
 }
 
-double gamma_encode(double v, CS cs)
+keel::f64 gamma_encode(keel::f64 v, CS cs)
 {
     switch (cs) {
         case CS::sRGB:
@@ -116,7 +116,7 @@ double gamma_encode(double v, CS cs)
 //   functions so callers see D65 XYZ consistently.
 
 // Matrix-vector multiplication 3x3 · 3.
-inline void mat3_mul_vec3(const double M[9], const double v[3], double out[3])
+inline void mat3_mul_vec3(const keel::f64 M[9], const keel::f64 v[3], keel::f64 out[3])
 {
     out[0] = M[0] * v[0] + M[1] * v[1] + M[2] * v[2];
     out[1] = M[3] * v[0] + M[4] * v[1] + M[5] * v[2];
@@ -124,16 +124,16 @@ inline void mat3_mul_vec3(const double M[9], const double v[3], double out[3])
 }
 
 // 3x3 matrix inverse via cofactors.
-inline void mat3_inv(const double M[9], double Inv[9])
+inline void mat3_inv(const keel::f64 M[9], keel::f64 Inv[9])
 {
-    const double a = M[0], b = M[1], c = M[2];
-    const double d = M[3], e = M[4], f = M[5];
-    const double g = M[6], h = M[7], i = M[8];
-    const double A = e * i - f * h;
-    const double B = -(d * i - f * g);
-    const double C = d * h - e * g;
-    const double det = a * A + b * B + c * C;
-    const double invd = 1.0 / det;
+    const keel::f64 a = M[0], b = M[1], c = M[2];
+    const keel::f64 d = M[3], e = M[4], f = M[5];
+    const keel::f64 g = M[6], h = M[7], i = M[8];
+    const keel::f64 A = e * i - f * h;
+    const keel::f64 B = -(d * i - f * g);
+    const keel::f64 C = d * h - e * g;
+    const keel::f64 det = a * A + b * B + c * C;
+    const keel::f64 invd = 1.0 / det;
     Inv[0] = A * invd;
     Inv[1] = -(b * i - c * h) * invd;
     Inv[2] = (b * f - c * e) * invd;
@@ -146,53 +146,53 @@ inline void mat3_inv(const double M[9], double Inv[9])
 }
 
 // 3x3 · 3x3 matrix multiply.
-inline void mat3_mul(const double A[9], const double B[9], double Out[9])
+inline void mat3_mul(const keel::f64 A[9], const keel::f64 B[9], keel::f64 Out[9])
 {
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < 3; ++j) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (int k = 0; k < 3; ++k) s += A[3 * i + k] * B[3 * k + j];
             Out[3 * i + j] = s;
         }
 }
 
 // Whitepoint XYZ (Y normalised to 1).
-constexpr double kD65[3] = {0.95047, 1.00000, 1.08883};
-constexpr double kD50[3] = {0.96422, 1.00000, 0.82521};
+constexpr keel::f64 kD65[3] = {0.95047, 1.00000, 1.08883};
+constexpr keel::f64 kD50[3] = {0.96422, 1.00000, 0.82521};
 
 // sRGB / linear-RGB primaries to XYZ (D65), per IEC 61966-2-1.
-constexpr double kMsRGB_D65[9] = {
+constexpr keel::f64 kMsRGB_D65[9] = {
     0.4124564, 0.3575761, 0.1804375,
     0.2126729, 0.7151522, 0.0721750,
     0.0193339, 0.1191920, 0.9503041
 };
 // Adobe RGB (1998) to XYZ (D65), per Adobe spec.
-constexpr double kMAdobe_D65[9] = {
+constexpr keel::f64 kMAdobe_D65[9] = {
     0.5767309, 0.1855540, 0.1881852,
     0.2973769, 0.6273491, 0.0752741,
     0.0270343, 0.0706872, 0.9911085
 };
 // ProPhoto RGB (ROMM RGB) to XYZ (D50), per the ROMM spec.
-constexpr double kMProPhoto_D50[9] = {
+constexpr keel::f64 kMProPhoto_D50[9] = {
     0.7976749, 0.1351917, 0.0313534,
     0.2880402, 0.7118741, 0.0000857,
     0.0000000, 0.0000000, 0.8252100
 };
 
 // Bradford matrix (LMS basis, CIECAM02 Bradford variant).
-constexpr double kMBradford[9] = {
+constexpr keel::f64 kMBradford[9] = {
      0.8951,  0.2664, -0.1614,
     -0.7502,  1.7135,  0.0367,
      0.0389, -0.0685,  1.0296
 };
 // Von Kries / Hunt-Pointer-Estevez normalized to D65 basis.
-constexpr double kMVonKries[9] = {
+constexpr keel::f64 kMVonKries[9] = {
      0.4002400,  0.7076000, -0.0808100,
     -0.2263000,  1.1653200,  0.0457000,
      0.0000000,  0.0000000,  0.9182200
 };
 
-const double *cs_to_xyz_matrix(CS cs)
+const keel::f64 *cs_to_xyz_matrix(CS cs)
 {
     switch (cs) {
         case CS::sRGB:
@@ -215,56 +215,56 @@ bool cs_native_d50(CS cs)
 //   M_d50_to_d65 = M_B⁻¹ · diag(M_B · D65 / M_B · D50) · M_B
 //   M_d65_to_d50 is its inverse.
 
-void make_bradford_adapt(const double src_xyz[3], const double dst_xyz[3],
-                         double Out[9])
+void make_bradford_adapt(const keel::f64 src_xyz[3], const keel::f64 dst_xyz[3],
+                         keel::f64 Out[9])
 {
-    double LMS_src[3], LMS_dst[3];
+    keel::f64 LMS_src[3], LMS_dst[3];
     mat3_mul_vec3(kMBradford, src_xyz, LMS_src);
     mat3_mul_vec3(kMBradford, dst_xyz, LMS_dst);
-    double D[9] = {
+    keel::f64 D[9] = {
         LMS_dst[0] / LMS_src[0], 0, 0,
         0, LMS_dst[1] / LMS_src[1], 0,
         0, 0, LMS_dst[2] / LMS_src[2]
     };
-    double Mb_inv[9];
+    keel::f64 Mb_inv[9];
     mat3_inv(kMBradford, Mb_inv);
-    double tmp[9];
+    keel::f64 tmp[9];
     mat3_mul(D, kMBradford, tmp);
     mat3_mul(Mb_inv, tmp, Out);
 }
 
-void make_adapt(const double src_xyz[3], const double dst_xyz[3],
-                const double M[9], double Out[9])
+void make_adapt(const keel::f64 src_xyz[3], const keel::f64 dst_xyz[3],
+                const keel::f64 M[9], keel::f64 Out[9])
 {
-    double LMS_src[3], LMS_dst[3];
+    keel::f64 LMS_src[3], LMS_dst[3];
     mat3_mul_vec3(M, src_xyz, LMS_src);
     mat3_mul_vec3(M, dst_xyz, LMS_dst);
-    double D[9] = {
+    keel::f64 D[9] = {
         LMS_dst[0] / LMS_src[0], 0, 0,
         0, LMS_dst[1] / LMS_src[1], 0,
         0, 0, LMS_dst[2] / LMS_src[2]
     };
-    double M_inv[9];
+    keel::f64 M_inv[9];
     mat3_inv(M, M_inv);
-    double tmp[9];
+    keel::f64 tmp[9];
     mat3_mul(D, M, tmp);
     mat3_mul(M_inv, tmp, Out);
 }
 
 // Convert encoded RGB triplet (in CS-native gamma) → XYZ (D65).
-void rgb_to_xyz_d65(const double rgb[3], CS cs, double xyz[3])
+void rgb_to_xyz_d65(const keel::f64 rgb[3], CS cs, keel::f64 xyz[3])
 {
     // 1. Gamma decode to linear.
-    double lin[3];
+    keel::f64 lin[3];
     lin[0] = gamma_decode(rgb[0], cs);
     lin[1] = gamma_decode(rgb[1], cs);
     lin[2] = gamma_decode(rgb[2], cs);
     // 2. Apply CS-native matrix.
-    double xyz_native[3];
+    keel::f64 xyz_native[3];
     mat3_mul_vec3(cs_to_xyz_matrix(cs), lin, xyz_native);
     // 3. If CS is D50-native (ProPhoto), Bradford-adapt to D65.
     if (cs_native_d50(cs)) {
-        double M_adapt[9];
+        keel::f64 M_adapt[9];
         make_bradford_adapt(kD50, kD65, M_adapt);
         mat3_mul_vec3(M_adapt, xyz_native, xyz);
     } else {
@@ -275,12 +275,12 @@ void rgb_to_xyz_d65(const double rgb[3], CS cs, double xyz[3])
 }
 
 // Convert XYZ (D65) → encoded RGB in CS-native gamma.
-void xyz_d65_to_rgb(const double xyz_d65[3], CS cs, double rgb[3])
+void xyz_d65_to_rgb(const keel::f64 xyz_d65[3], CS cs, keel::f64 rgb[3])
 {
     // 1. If CS is D50-native, Bradford-adapt D65 → D50 first.
-    double xyz_native[3];
+    keel::f64 xyz_native[3];
     if (cs_native_d50(cs)) {
-        double M_adapt[9];
+        keel::f64 M_adapt[9];
         make_bradford_adapt(kD65, kD50, M_adapt);
         mat3_mul_vec3(M_adapt, xyz_d65, xyz_native);
     } else {
@@ -289,10 +289,10 @@ void xyz_d65_to_rgb(const double xyz_d65[3], CS cs, double rgb[3])
         xyz_native[2] = xyz_d65[2];
     }
     // 2. Apply inverse matrix.
-    double M[9], M_inv[9];
+    keel::f64 M[9], M_inv[9];
     std::memcpy(M, cs_to_xyz_matrix(cs), sizeof(M));
     mat3_inv(M, M_inv);
-    double lin[3];
+    keel::f64 lin[3];
     mat3_mul_vec3(M_inv, xyz_native, lin);
     // 3. Gamma encode.
     rgb[0] = gamma_encode(lin[0], cs);
@@ -307,7 +307,7 @@ void xyz_d65_to_rgb(const double xyz_d65[3], CS cs, double rgb[3])
 // decodes inside rgb_to_xyz_d65).
 struct RGBPlane {
     keel::usize H = 0, W = 0;
-    keel::Array<double> v;  // 3 channels, column-major: ch*H*W + c*H + r
+    keel::Array<keel::f64> v;  // 3 channels, column-major: ch*H*W + c*H + r
 };
 
 RGBPlane to_double_rgb01(const Value &A)
@@ -318,7 +318,7 @@ RGBPlane to_double_rgb01(const Value &A)
     out.v.resize(H * W * 3);
     const ValueType t = A.type();
     for (keel::usize i = 0; i < H * W * 3; ++i) {
-        const double raw = A.elemAsDouble(i);
+        const keel::f64 raw = A.elemAsDouble(i);
         switch (t) {
             case ValueType::UINT8:  out.v[i] = raw / 255.0;   break;
             case ValueType::UINT16: out.v[i] = raw / 65535.0; break;
@@ -336,7 +336,7 @@ Value rgb_to_value(const RGBPlane &P, ValueType outClass,
     auto write_uint8 = [&]() {
         keel::u8 *od = out.uint8DataMut();
         for (keel::usize i = 0; i < H * W * 3; ++i) {
-            double v = std::round(P.v[i] * 255.0);
+            keel::f64 v = std::round(P.v[i] * 255.0);
             if (v < 0.0)   v = 0.0;
             if (v > 255.0) v = 255.0;
             od[i] = keel::as<keel::u8>(v);
@@ -345,20 +345,20 @@ Value rgb_to_value(const RGBPlane &P, ValueType outClass,
     auto write_uint16 = [&]() {
         keel::u16 *od = out.uint16DataMut();
         for (keel::usize i = 0; i < H * W * 3; ++i) {
-            double v = std::round(P.v[i] * 65535.0);
+            keel::f64 v = std::round(P.v[i] * 65535.0);
             if (v < 0.0)     v = 0.0;
             if (v > 65535.0) v = 65535.0;
             od[i] = keel::as<keel::u16>(v);
         }
     };
     auto write_single = [&]() {
-        float *od = out.singleDataMut();
+        keel::f32 *od = out.singleDataMut();
         for (keel::usize i = 0; i < H * W * 3; ++i)
-            od[i] = keel::as<float>(P.v[i]);
+            od[i] = keel::as<keel::f32>(P.v[i]);
     };
     auto write_double = [&]() {
-        double *od = out.doubleDataMut();
-        std::memcpy(od, P.v.data(), H * W * 3 * sizeof(double));
+        keel::f64 *od = out.doubleDataMut();
+        std::memcpy(od, P.v.data(), H * W * 3 * sizeof(keel::f64));
     };
     switch (outClass) {
         case ValueType::UINT8:  write_uint8();  break;
@@ -441,10 +441,10 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
 
     // Build illuminant_rgb01 (illuminant in encoded RGB, scaled like
     // im2double would: integer → /max, float → as-is).
-    double ill_rgb01[3];
+    keel::f64 ill_rgb01[3];
     const ValueType ill_t = illuminant_in.type();
     for (int k = 0; k < 3; ++k) {
-        double v = illuminant_in.elemAsDouble(k);
+        keel::f64 v = illuminant_in.elemAsDouble(k);
         if (ill_t == ValueType::UINT8)  v /= 255.0;
         if (ill_t == ValueType::UINT16) v /= 65535.0;
         ill_rgb01[k] = v;
@@ -454,14 +454,14 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
                     0, 0, "chromadapt", "", "numkit:chromadapt:illBlack");
 
     // Compute illuminant XYZ (D65).
-    double ill_xyz[3];
+    keel::f64 ill_xyz[3];
     rgb_to_xyz_d65(ill_rgb01, cs, ill_xyz);
     // Replace zeros with eps to avoid div-by-0.
-    const double eps_d = std::numeric_limits<double>::epsilon();
+    const keel::f64 eps_d = std::numeric_limits<keel::f64>::epsilon();
     for (int k = 0; k < 3; ++k)
         if (ill_xyz[k] == 0.0) ill_xyz[k] = eps_d;
     // Normalize so Y=1.
-    const double Y = ill_xyz[1];
+    const keel::f64 Y = ill_xyz[1];
     ill_xyz[0] /= Y; ill_xyz[1] /= Y; ill_xyz[2] /= Y;
 
     RGBPlane in_rgb = to_double_rgb01(A);
@@ -470,7 +470,7 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
 
     if (method.equals_ignore_ascii_case("simple")) {
         // illuminant_rgb01_normalized = xyz_d65_to_rgb(ill_xyz, cs)
-        double ill_rgb_norm[3];
+        keel::f64 ill_rgb_norm[3];
         xyz_d65_to_rgb(ill_xyz, cs, ill_rgb_norm);
         // Avoid zero denominators.
         for (int k = 0; k < 3; ++k) {
@@ -483,22 +483,22 @@ Value chromadapt(const Value &A, const Value &illuminant_in,
                     in_rgb.v[ch * H * W + i] / ill_rgb_norm[ch];
     } else {
         // Bradford / vonKries adaptation matrix.
-        double M_adapt[9];
-        const double *Madapt_mat = method.equals_ignore_ascii_case("bradford")
+        keel::f64 M_adapt[9];
+        const keel::f64 *Madapt_mat = method.equals_ignore_ascii_case("bradford")
                                        ? kMBradford
                                        : kMVonKries;
         make_adapt(ill_xyz, kD65, Madapt_mat, M_adapt);
         // For each pixel: A_RGB → linear → XYZ (D65) → adapted XYZ →
         // linear RGB → encoded RGB.
         for (keel::usize i = 0; i < H * W; ++i) {
-            const double rgb_in[3] = { in_rgb.v[0 * H * W + i],
+            const keel::f64 rgb_in[3] = { in_rgb.v[0 * H * W + i],
                                        in_rgb.v[1 * H * W + i],
                                        in_rgb.v[2 * H * W + i] };
-            double xyz[3];
+            keel::f64 xyz[3];
             rgb_to_xyz_d65(rgb_in, cs, xyz);
-            double xyz_adapt[3];
+            keel::f64 xyz_adapt[3];
             mat3_mul_vec3(M_adapt, xyz, xyz_adapt);
-            double rgb_out[3];
+            keel::f64 rgb_out[3];
             xyz_d65_to_rgb(xyz_adapt, cs, rgb_out);
             out_rgb.v[0 * H * W + i] = rgb_out[0];
             out_rgb.v[1 * H * W + i] = rgb_out[1];

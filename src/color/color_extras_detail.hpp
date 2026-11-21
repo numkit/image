@@ -28,6 +28,6 @@ keel::String lower(keel::StringRef s);
 
 // Parse a MATLAB ColorSpec (single letter or full name) into RGB in [0,1].
 // Returns false if unrecognised.
-bool parseColorSpec(keel::StringRef name, double rgb[3]);
+bool parseColorSpec(keel::StringRef name, keel::f64 rgb[3]);
 
 } // namespace numkit::image

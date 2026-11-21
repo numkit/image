@@ -93,7 +93,7 @@ void fspecial_argcheck(keel::StringRef type)
 
 } // anonymous
 
-Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, double pad_value, keel::StringRef direction, keel::Allocator *mr)
+Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, keel::f64 pad_value, keel::StringRef direction, keel::Allocator *mr)
 {
     padarray_argcheck(x);
     const auto &d = x.dims();
@@ -127,7 +127,7 @@ Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, double
 
     // Read source value at (r, c, p) folded according to mode; for
     // Constant mode, return pad_value when out of range.
-    auto src = [&](int r, int c, int p) -> double {
+    auto src = [&](int r, int c, int p) -> keel::f64 {
         if (mode == PadMode::Constant) {
             if (r < 0 || r >= H || c < 0 || c >= W || p < 0 || p >= P) return pad_value;
             const keel::usize plane = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
@@ -143,10 +143,10 @@ Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, double
     };
 
     // Storage helpers per output type.
-    auto store = [&](keel::usize outIdx, double v) {
+    auto store = [&](keel::usize outIdx, keel::f64 v) {
         switch (x.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[outIdx] = v; break;
-            case ValueType::SINGLE: out.singleDataMut()[outIdx] = (float)v; break;
+            case ValueType::SINGLE: out.singleDataMut()[outIdx] = (keel::f32)v; break;
             case ValueType::UINT8: {
                 if (v < 0) v = 0; if (v > 255) v = 255;
                 out.uint8DataMut()[outIdx] = (keel::u8)std::lround(v);
@@ -176,7 +176,7 @@ Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, double
     for (int p = 0; p < P2; ++p) {
         for (int c = 0; c < W2; ++c) {
             for (int r = 0; r < H2; ++r) {
-                const double v = src(r - prR, c - prC, P == 1 ? 0 : p - prP);
+                const keel::f64 v = src(r - prR, c - prC, P == 1 ? 0 : p - prP);
                 const keel::usize outIdx = (keel::usize)p * plane2 + (keel::usize)c * H2 + (keel::usize)r;
                 store(outIdx, v);
             }
@@ -191,30 +191,30 @@ Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, double
 
 namespace {
 
-Value mat_double(keel::ArrayRef<double> v, int rows, int cols, keel::Allocator *mr) {
+Value mat_double(keel::ArrayRef<keel::f64> v, int rows, int cols, keel::Allocator *mr) {
     Value out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    if (!v.empty()) std::memcpy(out.doubleDataMut(), v.data(), v.size() * sizeof(double));
+    if (!v.empty()) std::memcpy(out.doubleDataMut(), v.data(), v.size() * sizeof(keel::f64));
     return out;
 }
 
 Value fspecial_average(int rows, int cols, keel::Allocator *mr) {
-    const double w = 1.0 / (double(rows) * double(cols));
-    keel::Array<double> data(keel::usize(rows) * keel::usize(cols), w);
+    const keel::f64 w = 1.0 / (keel::f64(rows) * keel::f64(cols));
+    keel::Array<keel::f64> data(keel::usize(rows) * keel::usize(cols), w);
     return mat_double(data, rows, cols, mr);
 }
 
-Value fspecial_gaussian(int rows, int cols, double sigma, keel::Allocator *mr) {
+Value fspecial_gaussian(int rows, int cols, keel::f64 sigma, keel::Allocator *mr) {
     if (sigma <= 0.0) throw Error("fspecial: sigma must be positive",
                                   0, 0, "fspecial", "", "numkit:fspecial:sigma");
-    const double cy = (rows - 1) / 2.0;
-    const double cx = (cols - 1) / 2.0;
-    const double inv2s2 = 1.0 / (2.0 * sigma * sigma);
-    keel::Array<double> k(keel::usize(rows) * keel::usize(cols), 0.0);
-    double sum = 0.0;
+    const keel::f64 cy = (rows - 1) / 2.0;
+    const keel::f64 cx = (cols - 1) / 2.0;
+    const keel::f64 inv2s2 = 1.0 / (2.0 * sigma * sigma);
+    keel::Array<keel::f64> k(keel::usize(rows) * keel::usize(cols), 0.0);
+    keel::f64 sum = 0.0;
     for (int c = 0; c < cols; ++c)
         for (int r = 0; r < rows; ++r) {
-            const double dy = r - cy, dx = c - cx;
-            const double v = std::exp(-(dx * dx + dy * dy) * inv2s2);
+            const keel::f64 dy = r - cy, dx = c - cx;
+            const keel::f64 v = std::exp(-(dx * dx + dy * dy) * inv2s2);
             k[keel::usize(c) * keel::usize(rows) + keel::usize(r)] = v;
             sum += v;
         }
@@ -222,12 +222,12 @@ Value fspecial_gaussian(int rows, int cols, double sigma, keel::Allocator *mr) {
     return mat_double(k, rows, cols, mr);
 }
 
-Value fspecial_laplacian(double alpha, keel::Allocator *mr) {
+Value fspecial_laplacian(keel::f64 alpha, keel::Allocator *mr) {
     // 3×3 Laplacian, controlled by alpha ∈ [0, 1] (default 0.2 in MATLAB).
     if (alpha < 0.0) alpha = 0.0; if (alpha > 1.0) alpha = 1.0;
-    const double a = alpha;
-    const double s = 1.0 / (a + 1.0);
-    const double k[9] = {
+    const keel::f64 a = alpha;
+    const keel::f64 s = 1.0 / (a + 1.0);
+    const keel::f64 k[9] = {
         s * a / 4.0,         s * (1.0 - a) / 4.0, s * a / 4.0,         // col 0
         s * (1.0 - a) / 4.0, s * (-1.0),          s * (1.0 - a) / 4.0, // col 1
         s * a / 4.0,         s * (1.0 - a) / 4.0, s * a / 4.0,         // col 2
@@ -235,34 +235,34 @@ Value fspecial_laplacian(double alpha, keel::Allocator *mr) {
     return mat_double({k, 9}, 3, 3, mr);
 }
 
-Value fspecial_log(int rows, int cols, double sigma, keel::Allocator *mr) {
+Value fspecial_log(int rows, int cols, keel::f64 sigma, keel::Allocator *mr) {
     // Laplacian-of-Gaussian. Convention from MATLAB: zero-mean, normalized.
-    const double cy = (rows - 1) / 2.0;
-    const double cx = (cols - 1) / 2.0;
-    const double s2 = sigma * sigma;
-    keel::Array<double> g(keel::usize(rows) * keel::usize(cols), 0.0);
-    keel::Array<double> log_k(keel::usize(rows) * keel::usize(cols), 0.0);
-    double gsum = 0.0;
+    const keel::f64 cy = (rows - 1) / 2.0;
+    const keel::f64 cx = (cols - 1) / 2.0;
+    const keel::f64 s2 = sigma * sigma;
+    keel::Array<keel::f64> g(keel::usize(rows) * keel::usize(cols), 0.0);
+    keel::Array<keel::f64> log_k(keel::usize(rows) * keel::usize(cols), 0.0);
+    keel::f64 gsum = 0.0;
     for (int c = 0; c < cols; ++c)
         for (int r = 0; r < rows; ++r) {
-            const double dy = r - cy, dx = c - cx;
-            const double rsq = dx * dx + dy * dy;
-            const double e = std::exp(-rsq / (2.0 * s2));
+            const keel::f64 dy = r - cy, dx = c - cx;
+            const keel::f64 rsq = dx * dx + dy * dy;
+            const keel::f64 e = std::exp(-rsq / (2.0 * s2));
             g[keel::usize(c) * keel::usize(rows) + keel::usize(r)] = e;
             gsum += e;
         }
     if (gsum > 0.0) for (auto &v : g) v /= gsum;
     for (int c = 0; c < cols; ++c)
         for (int r = 0; r < rows; ++r) {
-            const double dy = r - cy, dx = c - cx;
-            const double rsq = dx * dx + dy * dy;
+            const keel::f64 dy = r - cy, dx = c - cx;
+            const keel::f64 rsq = dx * dx + dy * dy;
             const keel::usize i = keel::usize(c) * keel::usize(rows) + keel::usize(r);
             log_k[i] = (rsq - 2.0 * s2) / (s2 * s2) * g[i];
         }
     // Mean subtraction so kernel sums to zero.
-    double mean = 0.0;
+    keel::f64 mean = 0.0;
     for (auto v : log_k) mean += v;
-    mean /= double(log_k.size());
+    mean /= keel::f64(log_k.size());
     for (auto &v : log_k) v -= mean;
     return mat_double(log_k, rows, cols, mr);
 }
@@ -270,17 +270,17 @@ Value fspecial_log(int rows, int cols, double sigma, keel::Allocator *mr) {
 Value fspecial_sobel(keel::Allocator *mr) {
     // MATLAB convention: [1 2 1; 0 0 0; -1 -2 -1]. Column-major storage:
     // col0 = [1, 0, -1], col1 = [2, 0, -2], col2 = [1, 0, -1].
-    const double k[9] = {1, 0, -1,   2, 0, -2,   1, 0, -1};
+    const keel::f64 k[9] = {1, 0, -1,   2, 0, -2,   1, 0, -1};
     return mat_double({k, 9}, 3, 3, mr);
 }
 
 Value fspecial_prewitt(keel::Allocator *mr) {
     // [1 1 1; 0 0 0; -1 -1 -1] column-major.
-    const double k[9] = {1, 0, -1,   1, 0, -1,   1, 0, -1};
+    const keel::f64 k[9] = {1, 0, -1,   1, 0, -1,   1, 0, -1};
     return mat_double({k, 9}, 3, 3, mr);
 }
 
-Value fspecial_disk(double rad, keel::Allocator *mr) {
+Value fspecial_disk(keel::f64 rad, keel::Allocator *mr) {
     if (rad <= 0.0) throw Error("fspecial: radius must be positive",
                                 0, 0, "fspecial", "", "numkit:fspecial:radius");
     // MATLAB R2025b fspecial('disk',rad): each cell's weight is the EXACT
@@ -288,30 +288,30 @@ Value fspecial_disk(double rad, keel::Allocator *mr) {
     // sub-pixel area-coverage integral), not a linear-taper approximation.
     const int crad = int(std::ceil(rad - 0.5));
     const int side = 2 * crad + 1;
-    const double r2 = rad * rad;
-    keel::Array<double> sg(keel::usize(side) * keel::usize(side), 0.0);
-    auto clamp1 = [](double v) { return v < -1.0 ? -1.0 : (v > 1.0 ? 1.0 : v); };
-    auto sq = [](double v) { return v * v; };
+    const keel::f64 r2 = rad * rad;
+    keel::Array<keel::f64> sg(keel::usize(side) * keel::usize(side), 0.0);
+    auto clamp1 = [](keel::f64 v) { return v < -1.0 ? -1.0 : (v > 1.0 ? 1.0 : v); };
+    auto sq = [](keel::f64 v) { return v * v; };
     for (int ii = 0; ii < side; ++ii)
         for (int jj = 0; jj < side; ++jj) {
-            const double y = double(-crad + ii);   // row coordinate
-            const double x = double(-crad + jj);   // col coordinate
-            const double ax = keel::abs(x), ay = keel::abs(y);
-            const double maxxy = std::max(ax, ay), minxy = std::min(ax, ay);
-            const double m1 = (r2 < sq(maxxy + 0.5) + sq(minxy - 0.5))
+            const keel::f64 y = keel::f64(-crad + ii);   // row coordinate
+            const keel::f64 x = keel::f64(-crad + jj);   // col coordinate
+            const keel::f64 ax = keel::abs(x), ay = keel::abs(y);
+            const keel::f64 maxxy = std::max(ax, ay), minxy = std::min(ax, ay);
+            const keel::f64 m1 = (r2 < sq(maxxy + 0.5) + sq(minxy - 0.5))
                 ? (minxy - 0.5)
                 : std::sqrt(std::max(0.0, r2 - sq(maxxy + 0.5)));
-            const double m2 = (r2 > sq(maxxy - 0.5) + sq(minxy + 0.5))
+            const keel::f64 m2 = (r2 > sq(maxxy - 0.5) + sq(minxy + 0.5))
                 ? (minxy + 0.5)
                 : std::sqrt(std::max(0.0, r2 - sq(maxxy - 0.5)));
             const bool mask =
                 ((r2 < sq(maxxy + 0.5) + sq(minxy + 0.5)) &&
                  (r2 > sq(maxxy - 0.5) + sq(minxy - 0.5))) ||
                 ((minxy == 0.0) && (maxxy - 0.5 < rad) && (maxxy + 0.5 >= rad));
-            double s = 0.0;
+            keel::f64 s = 0.0;
             if (mask) {
-                const double a1 = std::asin(clamp1(m1 / rad));
-                const double a2 = std::asin(clamp1(m2 / rad));
+                const keel::f64 a1 = std::asin(clamp1(m1 / rad));
+                const keel::f64 a2 = std::asin(clamp1(m2 / rad));
                 s = r2 * (0.5 * (a2 - a1) +
                           0.25 * (std::sin(2.0 * a2) - std::sin(2.0 * a1)))
                     - (maxxy - 0.5) * (m2 - m1) + (m1 - minxy + 0.5);
@@ -319,14 +319,14 @@ Value fspecial_disk(double rad, keel::Allocator *mr) {
             if (sq(maxxy + 0.5) + sq(minxy + 0.5) < r2) s += 1.0;
             sg[keel::usize(jj) * keel::usize(side) + keel::usize(ii)] = s;
         }
-    auto at = [&](int i, int j) -> double & {
+    auto at = [&](int i, int j) -> keel::f64 & {
         return sg[keel::usize(j) * keel::usize(side) + keel::usize(i)];   // (row i, col j)
     };
     at(crad, crad) = std::min(M_PI * r2, M_PI / 2.0);
     if (crad > 0 && rad > crad - 0.5 && r2 < sq(crad - 0.5) + 0.25) {
-        const double mm = std::sqrt(std::max(0.0, r2 - sq(crad - 0.5)));
-        const double mmn = mm / rad;
-        const double sg0 = 2.0 * (r2 * (0.5 * std::asin(clamp1(mmn)) +
+        const keel::f64 mm = std::sqrt(std::max(0.0, r2 - sq(crad - 0.5)));
+        const keel::f64 mmn = mm / rad;
+        const keel::f64 sg0 = 2.0 * (r2 * (0.5 * std::asin(clamp1(mmn)) +
                           0.25 * std::sin(2.0 * std::asin(clamp1(mmn))))
                           - mm * (crad - 0.5));
         at(2 * crad, crad) = sg0; at(crad, 2 * crad) = sg0;
@@ -335,27 +335,27 @@ Value fspecial_disk(double rad, keel::Allocator *mr) {
         at(crad, 1) -= sg0;            at(1, crad) -= sg0;
     }
     at(crad, crad) = std::min(at(crad, crad), 1.0);
-    double sum = 0.0;
-    for (double v : sg) sum += v;
+    keel::f64 sum = 0.0;
+    for (keel::f64 v : sg) sum += v;
     if (sum > 0.0) for (auto &v : sg) v /= sum;
     return mat_double(sg, side, side, mr);
 }
 
-Value fspecial_motion(double len_in, double theta, keel::Allocator *mr) {
+Value fspecial_motion(keel::f64 len_in, keel::f64 theta, keel::Allocator *mr) {
     // MATLAB R2025b fspecial('motion',len,theta): a motion-blur PSF — a line
     // of `len` pixels at `theta` degrees (counter-clockwise from the
     // horizontal), anti-aliased by bilinear interpolation. Ported verbatim
     // from fspecial.m's 'motion' case (validated isequal across angles
     // 0/30/45/90/120/135 and lengths 5..15 before this port).
-    const double EPS = 2.2204460492503131e-16;   // eps
-    const double linewdt = 1.0;
-    const double len  = std::max(1.0, len_in);
-    const double half = (len - 1.0) / 2.0;
-    double tmod = std::fmod(theta, 180.0);
+    const keel::f64 EPS = 2.2204460492503131e-16;   // eps
+    const keel::f64 linewdt = 1.0;
+    const keel::f64 len  = std::max(1.0, len_in);
+    const keel::f64 half = (len - 1.0) / 2.0;
+    keel::f64 tmod = std::fmod(theta, 180.0);
     if (tmod < 0.0) tmod += 180.0;
-    const double phi    = tmod / 180.0 * M_PI;
-    const double cosphi = std::cos(phi), sinphi = std::sin(phi);
-    const double xsign  = (cosphi > 0.0) ? 1.0 : (cosphi < 0.0 ? -1.0 : 0.0);
+    const keel::f64 phi    = tmod / 180.0 * M_PI;
+    const keel::f64 cosphi = std::cos(phi), sinphi = std::sin(phi);
+    const keel::f64 xsign  = (cosphi > 0.0) ? 1.0 : (cosphi < 0.0 ? -1.0 : 0.0);
 
     const long sx = (long)std::trunc(half * cosphi + linewdt * xsign - len * EPS);
     const long sy = (long)std::trunc(half * sinphi + linewdt - len * EPS);
@@ -363,27 +363,27 @@ Value fspecial_motion(double len_in, double theta, keel::Allocator *mr) {
     const int nrow = (int)sy + 1;
 
     // Half-matrix of (signed) perpendicular distances to the rotated line.
-    keel::Array<double> D((keel::usize)nrow * (keel::usize)ncol, 0.0);
+    keel::Array<keel::f64> D((keel::usize)nrow * (keel::usize)ncol, 0.0);
     for (int r = 0; r < nrow; ++r)
         for (int c = 0; c < ncol; ++c) {
-            const double x = (double)c * xsign;
-            const double y = (double)r;
-            double d = y * cosphi - x * sinphi;
-            const double rad = std::hypot(x, y);
+            const keel::f64 x = (keel::f64)c * xsign;
+            const keel::f64 y = (keel::f64)r;
+            keel::f64 d = y * cosphi - x * sinphi;
+            const keel::f64 rad = std::hypot(x, y);
             if (rad >= half && keel::abs(d) <= linewdt) {
                 // Pixel past the line's end: distance to the end-point.
-                const double x2 = (cosphi != 0.0)
+                const keel::f64 x2 = (cosphi != 0.0)
                     ? half - keel::abs((x + d * sinphi) / cosphi) : 0.0;
                 d = std::sqrt(d * d + x2 * x2);
             }
-            double w = linewdt + EPS - keel::abs(d);
+            keel::f64 w = linewdt + EPS - keel::abs(d);
             if (w < 0.0) w = 0.0;
             D[(keel::usize)r * (keel::usize)ncol + (keel::usize)c] = w;
         }
 
     // Unfold the half-matrix to the full PSF via 180-degree symmetry.
     const int H = 2 * nrow - 1, W = 2 * ncol - 1;
-    keel::Array<double> Hm((keel::usize)H * (keel::usize)W, 0.0);
+    keel::Array<keel::f64> Hm((keel::usize)H * (keel::usize)W, 0.0);
     auto Dat = [&](int r, int c) { return D[(keel::usize)r * (keel::usize)ncol + (keel::usize)c]; };
     for (int r = 0; r < nrow; ++r)                       // rot90(D,2) top-left
         for (int c = 0; c < ncol; ++c)
@@ -392,13 +392,13 @@ Value fspecial_motion(double len_in, double theta, keel::Allocator *mr) {
         for (int c = 0; c < ncol; ++c)
             Hm[(keel::usize)(nrow - 1 + r) * (keel::usize)W + (keel::usize)(ncol - 1 + c)] = Dat(r, c);
 
-    double s = 0.0;
-    for (double v : Hm) s += v;
+    keel::f64 s = 0.0;
+    for (keel::f64 v : Hm) s += v;
     s += EPS * len * len;
     for (auto &v : Hm) v /= s;
 
     // Column-major output; flipud when cosphi > 0 (MATLAB convention).
-    keel::Array<double> out((keel::usize)H * (keel::usize)W);
+    keel::Array<keel::f64> out((keel::usize)H * (keel::usize)W);
     for (int c = 0; c < W; ++c)
         for (int r = 0; r < H; ++r) {
             const int rr = (cosphi > 0.0) ? (H - 1 - r) : r;
@@ -407,7 +407,7 @@ Value fspecial_motion(double len_in, double theta, keel::Allocator *mr) {
     return mat_double(out, H, W, mr);
 }
 
-Value fspecial_unsharp(double alpha, keel::Allocator *mr) {
+Value fspecial_unsharp(keel::f64 alpha, keel::Allocator *mr) {
     // MATLAB R2025b fspecial('unsharp',alpha): the 3x3 unsharp-contrast
     // enhancement filter h = [-a a-1 -a; a-1 a+5 a-1; -a a-1 -a]/(a+1),
     // with alpha in [0,1] (default 0.2). Sums to 1 (a sharpening Laplacian:
@@ -415,20 +415,20 @@ Value fspecial_unsharp(double alpha, keel::Allocator *mr) {
     if (!(alpha >= 0.0 && alpha <= 1.0))
         throw Error("fspecial: unsharp alpha must be in [0, 1]",
                     0, 0, "fspecial", "", "numkit:fspecial:alpha");
-    const double a = alpha;
-    const double d = a + 1.0;
-    double k[9] = {
+    const keel::f64 a = alpha;
+    const keel::f64 d = a + 1.0;
+    keel::f64 k[9] = {
         -a,    a - 1, -a,       // col 0 (symmetric, so col == row order)
         a - 1, a + 5, a - 1,    // col 1
         -a,    a - 1, -a        // col 2
     };
-    for (double &v : k) v /= d;
+    for (keel::f64 &v : k) v /= d;
     return mat_double({k, 9}, 3, 3, mr);
 }
 
 } // anonymous
 
-Value fspecial(keel::StringRef type, keel::ArrayRef<double> params, keel::Allocator *mr)
+Value fspecial(keel::StringRef type, keel::ArrayRef<keel::f64> params, keel::Allocator *mr)
 {
     fspecial_argcheck(type);
     if (type == "average") {
@@ -439,32 +439,32 @@ Value fspecial(keel::StringRef type, keel::ArrayRef<double> params, keel::Alloca
     if (type == "gaussian") {
         int rows = params.size() >= 1 ? int(params[0]) : 3;
         int cols = params.size() >= 2 ? int(params[1]) : rows;
-        double sigma = params.size() >= 3 ? params[2] : 0.5;
+        keel::f64 sigma = params.size() >= 3 ? params[2] : 0.5;
         return fspecial_gaussian(rows, cols, sigma, mr);
     }
     if (type == "laplacian") {
-        double alpha = params.size() >= 1 ? params[0] : 0.2;
+        keel::f64 alpha = params.size() >= 1 ? params[0] : 0.2;
         return fspecial_laplacian(alpha, mr);
     }
     if (type == "log") {
         int rows = params.size() >= 1 ? int(params[0]) : 5;
         int cols = params.size() >= 2 ? int(params[1]) : rows;
-        double sigma = params.size() >= 3 ? params[2] : 0.5;
+        keel::f64 sigma = params.size() >= 3 ? params[2] : 0.5;
         return fspecial_log(rows, cols, sigma, mr);
     }
     if (type == "sobel")   return fspecial_sobel(mr);
     if (type == "prewitt") return fspecial_prewitt(mr);
     if (type == "disk") {
-        double radius = params.size() >= 1 ? params[0] : 5.0;
+        keel::f64 radius = params.size() >= 1 ? params[0] : 5.0;
         return fspecial_disk(radius, mr);
     }
     if (type == "unsharp") {
-        double alpha = params.size() >= 1 ? params[0] : 0.2;
+        keel::f64 alpha = params.size() >= 1 ? params[0] : 0.2;
         return fspecial_unsharp(alpha, mr);
     }
     if (type == "motion") {
-        double len   = params.size() >= 1 ? params[0] : 9.0;
-        double theta = params.size() >= 2 ? params[1] : 0.0;
+        keel::f64 len   = params.size() >= 1 ? params[0] : 9.0;
+        keel::f64 theta = params.size() >= 2 ? params[1] : 0.0;
         return fspecial_motion(len, theta, mr);
     }
     throw Error(keel::format("fspecial: unknown filter type '{}'", type),
@@ -477,8 +477,8 @@ Value fspecial(keel::StringRef type, keel::ArrayRef<double> params, keel::Alloca
 
 namespace {
 
-inline double sample_padded(const Value &I, int r, int c, int H, int W,
-                            PadMode mode, double pv) {
+inline keel::f64 sample_padded(const Value &I, int r, int c, int H, int W,
+                            PadMode mode, keel::f64 pv) {
     if (mode == PadMode::Constant) {
         if (r < 0 || r >= H || c < 0 || c >= W) return pv;
     } else {
@@ -488,10 +488,10 @@ inline double sample_padded(const Value &I, int r, int c, int H, int W,
     return I.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
 }
 
-inline void store_classed(Value &out, keel::usize i, double v, ValueType t) {
+inline void store_classed(Value &out, keel::usize i, keel::f64 v, ValueType t) {
     switch (t) {
         case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
-        case ValueType::SINGLE: out.singleDataMut()[i] = (float)v; break;
+        case ValueType::SINGLE: out.singleDataMut()[i] = (keel::f32)v; break;
         case ValueType::UINT8: {
             if (v < 0) v = 0; if (v > 255) v = 255;
             out.uint8DataMut()[i] = (keel::u8)std::lround(v); break;
@@ -605,7 +605,7 @@ void medfilt2_argcheck(const Value &I)
                                 internal::ImgClasses::FloatIntLog);
 }
 
-void imsharpen_argcheck(const Value &I, double threshold)
+void imsharpen_argcheck(const Value &I, keel::f64 threshold)
 {
     internal::requireImageClass(I, "imsharpen", "I", 1,
                                 internal::ImgClasses::FloatInt);
@@ -616,14 +616,14 @@ void imsharpen_argcheck(const Value &I, double threshold)
 
 } // anonymous
 
-Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_value, bool full, bool flip_kernel, keel::Allocator *mr)
+Value imfilter(const Value &I, const Value &h, PadMode boundary, keel::f64 pad_value, bool full, bool flip_kernel, keel::Allocator *mr)
 {
     imfilter_argcheck(I, h);
     if (I.isComplex() || h.isComplex()) {
         auto extractPart = [&](const Value &V, bool imagPart) -> Value {
             const auto &d = V.dims();
             Value out = Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
-            double *od = out.doubleDataMut();
+            keel::f64 *od = out.doubleDataMut();
             const keel::usize N = V.numel();
             if (V.isComplex()) {
                 const auto *cd = V.complexData();
@@ -652,10 +652,10 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
             : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
         Value out = Value::matrix(outH, outW, ValueType::COMPLEX, mr);
         keel::c64 *od = out.complexDataMut();
-        const double *rrd = rr.doubleData();
-        const double *rid = ri.doubleData();
-        const double *ird = ir.doubleData();
-        const double *iid = ii.doubleData();
+        const keel::f64 *rrd = rr.doubleData();
+        const keel::f64 *rid = ri.doubleData();
+        const keel::f64 *ird = ir.doubleData();
+        const keel::f64 *iid = ii.doubleData();
         for (keel::usize i = 0; i < outH * outW; ++i)
             od[i] = keel::c64(rrd[i] - iid[i], rid[i] + ird[i]);
         return out;
@@ -687,13 +687,13 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
     if (outH == 0 || outW == 0) return out;
 
     // Read kernel into a contiguous double buffer.
-    keel::Array<double> kbuf((keel::usize)kH * (keel::usize)kW);
+    keel::Array<keel::f64> kbuf((keel::usize)kH * (keel::usize)kW);
     for (keel::usize i = 0; i < kbuf.size(); ++i) kbuf[i] = h.elemAsDouble(i);
 
     // For 'same' correlation: output(r,c) = Σ_{ki, kj} kernel[ki, kj]
     //                                       · I[r + ki - half_r, c + kj - half_c].
     // For 'conv': flip the kernel by 180° before applying.
-    auto getK = [&](int ki, int kj) -> double {
+    auto getK = [&](int ki, int kj) -> keel::f64 {
         const int kki = flip_kernel ? (kH - 1 - ki) : ki;
         const int kkj = flip_kernel ? (kW - 1 - kj) : kj;
         return kbuf[(keel::usize)kkj * (keel::usize)kH + (keel::usize)kki];
@@ -703,7 +703,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
         // 'full' mode: index translation inside the larger output grid.
         for (int oc = 0; oc < outW; ++oc) {
             for (int orow = 0; orow < outH; ++orow) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int kj = 0; kj < kW; ++kj) {
                     const int c_in = oc - kj;
                     if (c_in < 0 || c_in >= W) continue;
@@ -723,8 +723,8 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
         // are accumulated in the SAME kj-major / ki-minor order as the scalar
         // loop, so the result is bit-for-bit identical. The border keeps the
         // scalar sample_padded reduction (exact boundary semantics).
-        const double *src = I.doubleData();
-        double *dst = out.doubleDataMut();
+        const keel::f64 *src = I.doubleData();
+        keel::f64 *dst = out.doubleDataMut();
         const int ir0 = std::max(0, half_r), ir1 = std::min(H, H - kH + 1 + half_r);
         const int ic0 = std::max(0, half_c), ic1 = std::min(W, W - kW + 1 + half_c);
 
@@ -743,13 +743,13 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
                 [&](keel::usize cs, keel::usize ce) {
                     for (keel::usize cc = cs; cc < ce; ++cc) {
                         const int oc = ic0 + (int)cc;
-                        double *dcol = dst + (keel::usize)oc * (keel::usize)H;
+                        keel::f64 *dcol = dst + (keel::usize)oc * (keel::usize)H;
                         for (int r = ir0; r < ir1; ++r) dcol[r] = 0.0;
                         for (int kj = 0; kj < kW; ++kj) {
                             const int c_in = oc + kj - half_c;
                             for (int ki = 0; ki < kH; ++ki) {
-                                const double w = getK(ki, kj);
-                                const double *scol = src + (keel::usize)c_in * (keel::usize)H + (ki - half_r);
+                                const keel::f64 w = getK(ki, kj);
+                                const keel::f64 *scol = src + (keel::usize)c_in * (keel::usize)H + (ki - half_r);
                                 for (int r = ir0; r < ir1; ++r) dcol[r] += w * scol[r];
                             }
                         }
@@ -761,7 +761,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
             const bool colInterior = (oc >= ic0 && oc < ic1);
             for (int orow = 0; orow < H; ++orow) {
                 if (colInterior && orow >= ir0 && orow < ir1) continue;
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int kj = 0; kj < kW; ++kj) {
                     const int c_in = oc + kj - half_c;
                     for (int ki = 0; ki < kH; ++ki) {
@@ -776,7 +776,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
     } else {
         for (int oc = 0; oc < W; ++oc) {
             for (int orow = 0; orow < H; ++orow) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int kj = 0; kj < kW; ++kj) {
                     const int c_in = oc + kj - half_c;
                     for (int ki = 0; ki < kH; ++ki) {
@@ -797,7 +797,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, double pad_valu
 // equals g⊗g (Gaussian, box) this is exactly the full 2-D convolution but
 // costs O(2k) instead of O(k²), keeps the intermediate un-quantised between
 // passes (matches MATLAB), and hits imfilter's fast double path. 2-D only.
-static Value applySeparableSym(const Value &I, keel::ArrayRef<double> g,
+static Value applySeparableSym(const Value &I, keel::ArrayRef<keel::f64> g,
                                keel::Allocator *mr)
 {
     const int k = (int)g.size();
@@ -810,7 +810,7 @@ static Value applySeparableSym(const Value &I, keel::ArrayRef<double> g,
         Id = I;
     } else {
         Id = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *dd = Id.doubleDataMut();
+        keel::f64 *dd = Id.doubleDataMut();
         for (keel::usize i = 0; i < (keel::usize)H * (keel::usize)W; ++i) dd[i] = I.elemAsDouble(i);
     }
     Value tmp = imfilter(Id,  gRow, PadMode::Replicate, 0.0, false, false, mr);
@@ -818,12 +818,12 @@ static Value applySeparableSym(const Value &I, keel::ArrayRef<double> g,
     if (I.type() == ValueType::DOUBLE) return res;
 
     Value out = Value::matrix(H, W, I.type(), mr);
-    const double *rd = res.doubleData();
+    const keel::f64 *rd = res.doubleData();
     for (keel::usize i = 0; i < (keel::usize)H * (keel::usize)W; ++i) store_classed(out, i, rd[i], I.type());
     return out;
 }
 
-Value imgaussfilt(const Value &I, double sigma, int filter_size, keel::Allocator *mr)
+Value imgaussfilt(const Value &I, keel::f64 sigma, int filter_size, keel::Allocator *mr)
 {
     if (filter_size <= 0) {
         // Default: 2·ceil(2σ) + 1.
@@ -843,12 +843,12 @@ Value imgaussfilt(const Value &I, double sigma, int filter_size, keel::Allocator
     // the intermediate isn't re-quantised between passes (matches MATLAB) and
     // so both passes hit imfilter's fast double path, then convert back to the
     // input class.
-    const double cx = (filter_size - 1) / 2.0;
-    const double inv2s2 = 1.0 / (2.0 * sigma * sigma);
-    keel::Array<double> g((keel::usize)filter_size);
-    double sum = 0.0;
+    const keel::f64 cx = (filter_size - 1) / 2.0;
+    const keel::f64 inv2s2 = 1.0 / (2.0 * sigma * sigma);
+    keel::Array<keel::f64> g((keel::usize)filter_size);
+    keel::f64 sum = 0.0;
     for (int i = 0; i < filter_size; ++i) {
-        const double d = i - cx;
+        const keel::f64 d = i - cx;
         g[i] = std::exp(-d * d * inv2s2);
         sum += g[i];
     }
@@ -913,13 +913,13 @@ Value imboxfilt(const Value &I, int filter_size, keel::Allocator *mr)
         return out;
     }
 
-    keel::Array<double> S((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
+    keel::Array<keel::f64> S((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
 
     // Summed-area table S (column-major): S[c*Hs + r] = Σ P[0..r-1, 0..c-1],
     // where P is I replicate-padded by hk. First row/col are zero; we read
     // the padded source value on the fly (clamped indices) — no explicit pad
     // buffer. Recurrence: S[r][c] = P[r-1][c-1] + S[r-1][c] + S[r][c-1] - S[r-1][c-1].
-    auto Sat = [&](int r, int c) -> double & { return S[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
+    auto Sat = [&](int r, int c) -> keel::f64 & { return S[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
     for (int c = 0; c < Ws; ++c) Sat(0, c) = 0.0;
     for (int r = 0; r < Hs; ++r) Sat(r, 0) = 0.0;
     for (int c = 1; c < Ws; ++c) {
@@ -927,16 +927,16 @@ Value imboxfilt(const Value &I, int filter_size, keel::Allocator *mr)
         const keel::usize srcCol = (keel::usize)sc * (keel::usize)H;
         for (int r = 1; r < Hs; ++r) {
             const int sr = std::min(std::max((r - 1) - hk, 0), H - 1); // padded→source row
-            const double p = I.elemAsDouble(srcCol + (keel::usize)sr);
+            const keel::f64 p = I.elemAsDouble(srcCol + (keel::usize)sr);
             Sat(r, c) = p + Sat(r - 1, c) + Sat(r, c - 1) - Sat(r - 1, c - 1);
         }
     }
 
-    const double invk2 = 1.0 / ((double)k * (double)k);
+    const keel::f64 invk2 = 1.0 / ((keel::f64)k * (keel::f64)k);
     for (int c = 0; c < W; ++c)
         for (int r = 0; r < H; ++r) {
             // Output (r,c) → padded window rows [r, r+k), cols [c, c+k).
-            const double sum = Sat(r + k, c + k) - Sat(r, c + k) - Sat(r + k, c) + Sat(r, c);
+            const keel::f64 sum = Sat(r + k, c + k) - Sat(r, c + k) - Sat(r + k, c) + Sat(r, c);
             store_classed(out, (keel::usize)c * (keel::usize)H + (keel::usize)r, sum * invk2, I.type());
         }
     return out;
@@ -951,7 +951,7 @@ Value imboxfilt(const Value &I, int filter_size, keel::Allocator *mr)
 // (4 lookups → O(1) per pixel regardless of filter size).
 // Output is (H - fH + 1) x (W - fW + 1) — only the no-boundary core.
 // For 3-D input the filter is applied per-channel.
-Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
+Value integralBoxFilter(const Value &I, int fH, int fW, keel::f64 normFactor,
                          keel::Allocator *mr)
 {
     integralBoxFilter_argcheck(I, fH, fW);
@@ -968,7 +968,7 @@ Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
     Value out = (C == 1)
         ? Value::matrix(outH, outW, ValueType::DOUBLE, mr)
         : Value::matrix3d(outH, outW, C, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     const keel::usize inPlane = H1 * W1;
     // normFactor is a MULTIPLIER (MATLAB semantics): out = boxSum * normFactor.
@@ -983,7 +983,7 @@ Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
                 const keel::usize r1 = oi + keel::as<keel::usize>(fH);
                 // Column-major indexing for I: idx = c·inPlane + col·H1 + row.
                 const keel::usize base = c * inPlane;
-                const double s =
+                const keel::f64 s =
                       I.elemAsDouble(base + c1 * H1 + r1)
                     - I.elemAsDouble(base + c1 * H1 + r0)
                     - I.elemAsDouble(base + c0 * H1 + r1)
@@ -1008,7 +1008,7 @@ Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
 // core, matching MATLAB. `normFactor` is a MULTIPLIER (MATLAB semantics):
 // each box sum is multiplied by it.
 Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
-                         double normFactor, keel::Allocator *mr)
+                         keel::f64 normFactor, keel::Allocator *mr)
 {
     integralBoxFilter3_argcheck(I, fH, fW, fP);
     const auto &d = I.dims();
@@ -1024,11 +1024,11 @@ Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
     Value out = (outD > 1)
         ? Value::matrix3d(outH, outW, outD, ValueType::DOUBLE, mr)
         : Value::matrix(outH, outW, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
 
     const keel::usize plane = H1 * W1;  // page stride in I
     // Column-major, page-major index into the integral volume I.
-    auto Iat = [&](keel::usize r, keel::usize c, keel::usize p) -> double {
+    auto Iat = [&](keel::usize r, keel::usize c, keel::usize p) -> keel::f64 {
         return I.elemAsDouble(p * plane + c * H1 + r);
     };
 
@@ -1038,7 +1038,7 @@ Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
             const keel::usize c0 = oj, c1 = oj + keel::as<keel::usize>(fW);
             for (keel::usize oi = 0; oi < outH; ++oi) {
                 const keel::usize r0 = oi, r1 = oi + keel::as<keel::usize>(fH);
-                const double s =
+                const keel::f64 s =
                       Iat(r1, c1, p1)
                     - Iat(r0, c1, p1) - Iat(r1, c0, p1) - Iat(r1, c1, p0)
                     + Iat(r0, c0, p1) + Iat(r0, c1, p0) + Iat(r1, c0, p0)
@@ -1111,7 +1111,7 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
              + keel::as<long long>(c) * H + r;
     };
 
-    auto getDouble = [&](long long idx) -> double {
+    auto getDouble = [&](long long idx) -> keel::f64 {
         return idx < 0 ? 0.0 : A.elemAsDouble(keel::as<keel::usize>(idx));
     };
 
@@ -1121,7 +1121,7 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
 
     const long long plane = keel::as<long long>(H) * W;
     const int pMax = is3D ? D : 1;
-    keel::Array<double> vals;
+    keel::Array<keel::f64> vals;
     if (!fastByte)
         vals.reserve(keel::as<keel::usize>(fH) * keel::as<keel::usize>(fW) *
                      keel::as<keel::usize>(is3D ? fD : 1));
@@ -1170,7 +1170,7 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
             std::sort(vals.begin(), vals.end());
             // Smallest-wins-on-tie (see fastByte path comment).
             int bestCnt = -1;
-            double bestVal = 0.0;
+            keel::f64 bestVal = 0.0;
             for (keel::usize vi = 0; vi < vals.size(); ) {
                 keel::usize vj = vi + 1;
                 while (vj < vals.size() && vals[vj] == vals[vi]) ++vj;
@@ -1186,7 +1186,7 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                               + keel::as<keel::usize>(c) * H + keel::as<keel::usize>(r);
             switch (vt) {
                 case ValueType::DOUBLE: out.doubleDataMut()[dst] = bestVal; break;
-                case ValueType::SINGLE: out.singleDataMut()[dst] = keel::as<float>(bestVal); break;
+                case ValueType::SINGLE: out.singleDataMut()[dst] = keel::as<keel::f32>(bestVal); break;
                 case ValueType::UINT16: out.uint16DataMut()[dst] = keel::as<keel::u16>(bestVal); break;
                 case ValueType::UINT32: out.uint32DataMut()[dst] = keel::as<keel::u32>(bestVal); break;
                 case ValueType::INT8:   out.int8DataMut()[dst]   = keel::as<keel::i8>(bestVal); break;
@@ -1217,9 +1217,9 @@ Value modefilt3D(const Value &A, int fH, int fW, int fD,
 // Median of 9 via a branchless 19-comparator sorting network (Devillard's
 // opt_med9) — faster than nth_element for the ubiquitous 3×3 window because
 // it has no partitioning/branch overhead. Median = element at sorted index 4.
-inline double med9(double p[9])
+inline keel::f64 med9(keel::f64 p[9])
 {
-    #define NUMKIT_PIX_SORT(a, b) do { if (p[a] > p[b]) { const double t = p[a]; p[a] = p[b]; p[b] = t; } } while (0)
+    #define NUMKIT_PIX_SORT(a, b) do { if (p[a] > p[b]) { const keel::f64 t = p[a]; p[a] = p[b]; p[b] = t; } } while (0)
     NUMKIT_PIX_SORT(1, 2); NUMKIT_PIX_SORT(4, 5); NUMKIT_PIX_SORT(7, 8);
     NUMKIT_PIX_SORT(0, 1); NUMKIT_PIX_SORT(3, 4); NUMKIT_PIX_SORT(6, 7);
     NUMKIT_PIX_SORT(1, 2); NUMKIT_PIX_SORT(4, 5); NUMKIT_PIX_SORT(7, 8);
@@ -1309,11 +1309,11 @@ Value medfilt2(const Value &I, int rows, int cols, keel::Allocator *mr)
     // Fast path: 3×3 double → branchless median-of-9 sorting network (the
     // uint8 3×3 case already took the Huang path above). Zero-pad border.
     if (rows == 3 && cols == 3 && I.type() == ValueType::DOUBLE) {
-        const double *src = I.doubleData();
-        double *dst = out.doubleDataMut();
+        const keel::f64 *src = I.doubleData();
+        keel::f64 *dst = out.doubleDataMut();
         for (int oc = 0; oc < W; ++oc)
             for (int orow = 0; orow < H; ++orow) {
-                double p[9];
+                keel::f64 p[9];
                 int m = 0;
                 for (int kj = 0; kj < 3; ++kj)
                     for (int ki = 0; ki < 3; ++ki) {
@@ -1326,16 +1326,16 @@ Value medfilt2(const Value &I, int rows, int cols, keel::Allocator *mr)
         return out;
     }
 
-    keel::Array<double> window;
+    keel::Array<keel::f64> window;
     window.reserve((keel::usize)rows * (keel::usize)cols);
 
     // Typed pointers for the common image classes — avoids the per-element
     // elemAsDouble() type-switch in the hot window-gather loop.
-    const double  *sd = (I.type() == ValueType::DOUBLE) ? I.doubleData() : nullptr;
+    const keel::f64  *sd = (I.type() == ValueType::DOUBLE) ? I.doubleData() : nullptr;
     const keel::u8 *su = (I.type() == ValueType::UINT8)  ? I.uint8Data()  : nullptr;
-    auto getv = [&](keel::usize idx) -> double {
+    auto getv = [&](keel::usize idx) -> keel::f64 {
         if (sd) return sd[idx];
-        if (su) return keel::as<double>(su[idx]);
+        if (su) return keel::as<keel::f64>(su[idx]);
         return I.elemAsDouble(idx);
     };
 
@@ -1357,11 +1357,11 @@ Value medfilt2(const Value &I, int rows, int cols, keel::Allocator *mr)
             std::nth_element(window.begin(),
                              window.begin() + window.size() / 2,
                              window.end());
-            double med = window[window.size() / 2];
+            keel::f64 med = window[window.size() / 2];
             if ((window.size() & 1) == 0) {
                 // Even count: average of two middle values. nth_element put
                 // the upper-middle in place; find max of the lower half.
-                double left_max = -std::numeric_limits<double>::infinity();
+                keel::f64 left_max = -std::numeric_limits<keel::f64>::infinity();
                 for (auto it = window.begin();
                      it != window.begin() + window.size() / 2; ++it)
                     if (*it > left_max) left_max = *it;
@@ -1384,7 +1384,7 @@ Value medfilt2(const Value &I, int rows, int cols, keel::Allocator *mr)
 // MATLAB R2025b defaults: radius=1, amount=0.8, threshold=0. Output
 // has the same class as the input (saturating cast for ints).
 
-Value imsharpen(const Value &I, double radius, double amount, double threshold, keel::Allocator *mr)
+Value imsharpen(const Value &I, keel::f64 radius, keel::f64 amount, keel::f64 threshold, keel::Allocator *mr)
 {
     imsharpen_argcheck(I, threshold);
     if (!(radius > 0.0)) radius = 1.0;
@@ -1411,24 +1411,24 @@ Value imsharpen(const Value &I, double radius, double amount, double threshold, 
     // store_classed(DOUBLE) is a plain write).
     if (I.type() == ValueType::DOUBLE && !I.isComplex() &&
         blurred.type() == ValueType::DOUBLE && !blurred.isComplex()) {
-        const double *Id = I.doubleData();
-        const double *Bd = blurred.doubleData();
-        double *od = out.doubleDataMut();
+        const keel::f64 *Id = I.doubleData();
+        const keel::f64 *Bd = blurred.doubleData();
+        keel::f64 *od = out.doubleDataMut();
         if (!useThreshold) {
             for (keel::usize i = 0; i < N; ++i)
                 od[i] = Id[i] + amount * (Id[i] - Bd[i]);
         } else {
-            keel::Array<double> Hbuf(N);
-            double max_abs = 0.0;
+            keel::Array<keel::f64> Hbuf(N);
+            keel::f64 max_abs = 0.0;
             for (keel::usize i = 0; i < N; ++i) {
-                const double v = Id[i] - Bd[i];
+                const keel::f64 v = Id[i] - Bd[i];
                 Hbuf[i] = v;
-                const double a = keel::abs(v);
+                const keel::f64 a = keel::abs(v);
                 if (a > max_abs) max_abs = a;
             }
-            const double thr_abs = threshold * max_abs;
+            const keel::f64 thr_abs = threshold * max_abs;
             for (keel::usize i = 0; i < N; ++i) {
-                double h = Hbuf[i];
+                keel::f64 h = Hbuf[i];
                 if (keel::abs(h) < thr_abs) h = 0.0;
                 od[i] = Id[i] + amount * h;
             }
@@ -1437,19 +1437,19 @@ Value imsharpen(const Value &I, double radius, double amount, double threshold, 
     }
 
     // Generic path (single / uintN / int16, or complex) — unchanged.
-    keel::Array<double> Hbuf(N);
-    double max_abs = 0.0;
+    keel::Array<keel::f64> Hbuf(N);
+    keel::f64 max_abs = 0.0;
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = I.elemAsDouble(i) - blurred.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i) - blurred.elemAsDouble(i);
         Hbuf[i] = v;
-        const double a = keel::abs(v);
+        const keel::f64 a = keel::abs(v);
         if (a > max_abs) max_abs = a;
     }
-    const double thr_abs = threshold * max_abs;
+    const keel::f64 thr_abs = threshold * max_abs;
     for (keel::usize i = 0; i < N; ++i) {
-        double h = Hbuf[i];
+        keel::f64 h = Hbuf[i];
         if (useThreshold && keel::abs(h) < thr_abs) h = 0.0;
-        const double v = I.elemAsDouble(i) + amount * h;
+        const keel::f64 v = I.elemAsDouble(i) + amount * h;
         store_classed(out, i, v, I.type());
     }
     return out;
@@ -1535,7 +1535,7 @@ void im2col_argcheck(const Value &A, int m, int n, keel::StringRef block_type)
                     0, 0, "im2col", "", "numkit:im2col:type");
 }
 
-void imbilatfilt_argcheck(const Value &I, double degreeOfSmoothing)
+void imbilatfilt_argcheck(const Value &I, keel::f64 degreeOfSmoothing)
 {
     internal::requireImageClass(I, "imbilatfilt", "I", 1,
                                 internal::ImgClasses::FloatInt);
@@ -1656,7 +1656,7 @@ Value im2col(const Value &A, int m, int n, keel::StringRef block_type, keel::All
 // precomputed once per call. Range weight is per (centre, neighbour)
 // pair — we eat the per-pixel exp; same cost as MATLAB's reference.
 
-Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma, keel::Allocator *mr)
+Value imbilatfilt(const Value &I, keel::f64 degreeOfSmoothing, keel::f64 spatialSigma, keel::Allocator *mr)
 {
     imbilatfilt_argcheck(I, degreeOfSmoothing);
     if (!(spatialSigma > 0.0)) spatialSigma = 1.0;
@@ -1679,15 +1679,15 @@ Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma,
                                  win, std::min(H, W)),
                     0, 0, "imbilatfilt", "",
                     "numkit:imbilatfilt:nhoodTooBig");
-    const double inv2ss = 0.5 / (spatialSigma * spatialSigma);
-    const double inv2dos = 0.5 / degreeOfSmoothing;
+    const keel::f64 inv2ss = 0.5 / (spatialSigma * spatialSigma);
+    const keel::f64 inv2dos = 0.5 / degreeOfSmoothing;
 
     // Precompute spatial weights — flat (win*win) row-major (di, dj).
-    keel::Array<double> sw((keel::usize)win * (keel::usize)win);
+    keel::Array<keel::f64> sw((keel::usize)win * (keel::usize)win);
     for (int di = -half; di <= half; ++di)
         for (int dj = -half; dj <= half; ++dj)
             sw[(keel::usize)(di + half) * (keel::usize)win + (keel::usize)(dj + half)]
-                = std::exp(-(double)(di*di + dj*dj) * inv2ss);
+                = std::exp(-(keel::f64)(di*di + dj*dj) * inv2ss);
 
     auto clamp = [](int v, int lo, int hi) {
         if (v < lo) return lo;
@@ -1697,22 +1697,22 @@ Value imbilatfilt(const Value &I, double degreeOfSmoothing, double spatialSigma,
 
     for (keel::usize oc = 0; oc < W; ++oc) {
         for (keel::usize orow = 0; orow < H; ++orow) {
-            const double Ic = I.elemAsDouble(oc * H + orow);
-            double sum_w = 0.0, sum_v = 0.0;
+            const keel::f64 Ic = I.elemAsDouble(oc * H + orow);
+            keel::f64 sum_w = 0.0, sum_v = 0.0;
             for (int dj = -half; dj <= half; ++dj) {
                 const int c = clamp((int)oc + dj, 0, (int)W - 1);
                 for (int di = -half; di <= half; ++di) {
                     const int r = clamp((int)orow + di, 0, (int)H - 1);
-                    const double v = I.elemAsDouble((keel::usize)c * H + (keel::usize)r);
-                    const double dI = v - Ic;
-                    const double rw = std::exp(-(dI * dI) * inv2dos);
-                    const double w = sw[(keel::usize)(di + half) * (keel::usize)win
+                    const keel::f64 v = I.elemAsDouble((keel::usize)c * H + (keel::usize)r);
+                    const keel::f64 dI = v - Ic;
+                    const keel::f64 rw = std::exp(-(dI * dI) * inv2dos);
+                    const keel::f64 w = sw[(keel::usize)(di + half) * (keel::usize)win
                                           + (keel::usize)(dj + half)] * rw;
                     sum_w += w;
                     sum_v += w * v;
                 }
             }
-            const double j = (sum_w > 0.0) ? sum_v / sum_w : Ic;
+            const keel::f64 j = (sum_w > 0.0) ? sum_v / sum_w : Ic;
             store_classed(out, oc * H + orow, j, I.type());
         }
     }
@@ -1809,10 +1809,10 @@ Value col2im(const Value &B, int m, int n, int mm, int nn, keel::StringRef block
         switch (T) {
             case ValueType::DOUBLE:
                 std::memcpy(A.doubleDataMut(), B.doubleData(),
-                            N * sizeof(double)); break;
+                            N * sizeof(keel::f64)); break;
             case ValueType::SINGLE:
                 std::memcpy(A.singleDataMut(), B.singleData(),
-                            N * sizeof(float)); break;
+                            N * sizeof(keel::f32)); break;
             case ValueType::UINT8:
                 std::memcpy(A.uint8DataMut(), B.uint8Data(), N); break;
             case ValueType::UINT16:
@@ -1886,12 +1886,12 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
     if (I.isComplex()) {
         const auto *cd = I.complexData();
         if (mode == "salt & pepper" || mode == "salt&pepper") {
-            const double d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
+            const keel::f64 d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
             Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
             auto *od = out.complexDataMut();
             for (keel::usize i = 0; i < N; ++i) {
                 keel::c64 z = cd[i];
-                const double u = keel::random::uniform_f64(rng);
+                const keel::f64 u = keel::random::uniform_f64(rng);
                 if      (u < d * 0.5) z = keel::c64(0.0, 0.0);
                 else if (u < d)       z = keel::c64(1.0, 0.0);
                 od[i] = z;
@@ -1899,18 +1899,18 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
             return out;
         }
         Value Ir = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *ird = Ir.doubleDataMut();
+        keel::f64 *ird = Ir.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i) ird[i] = cd[i].real();
         Value Jr = imnoise(rng, Ir, mode, p1, p2, mr);
         Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
         auto *od = out.complexDataMut();
-        const double *jrd = Jr.doubleData();
+        const keel::f64 *jrd = Jr.doubleData();
         for (keel::usize i = 0; i < N; ++i)
             od[i] = keel::c64(jrd[i], cd[i].imag());
         return out;
     }
 
-    auto toUnit = [&](double v) -> double {
+    auto toUnit = [&](keel::f64 v) -> keel::f64 {
         switch (T) {
             case ValueType::UINT8:   return v / 255.0;
             case ValueType::UINT16:  return v / 65535.0;
@@ -1919,7 +1919,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
             default:                 return v;
         }
     };
-    auto fromUnit = [&](Value &out, keel::usize i, double v) {
+    auto fromUnit = [&](Value &out, keel::usize i, keel::f64 v) {
         if (v < 0.0) v = 0.0;
         if (v > 1.0) v = 1.0;
         switch (T) {
@@ -1930,7 +1930,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
                 out.uint16DataMut()[i] =
                     (keel::u16)std::lround(v * 65535.0); break;
             case ValueType::INT16: {
-                double w = std::lround(v * 65535.0) - 32768.0;
+                keel::f64 w = std::lround(v * 65535.0) - 32768.0;
                 if (w < -32768.0) w = -32768.0;
                 if (w >  32767.0) w =  32767.0;
                 out.int16DataMut()[i] = (keel::i16)w; break;
@@ -1938,7 +1938,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
             case ValueType::LOGICAL:
                 out.logicalDataMut()[i] = v >= 0.5 ? 1u : 0u; break;
             case ValueType::SINGLE:
-                out.singleDataMut()[i] = (float)v; break;
+                out.singleDataMut()[i] = (keel::f32)v; break;
             default:
                 out.doubleDataMut()[i] = v; break;
         }
@@ -1948,46 +1948,46 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
 
 
     if (mode == "gaussian") {
-        const double m = (p1.numel() > 0) ? p1.toScalar() : 0.0;
-        const double v = (p2.numel() > 0) ? p2.toScalar() : 0.01;
-        const double sigma = std::sqrt(std::max(v, 0.0));
+        const keel::f64 m = (p1.numel() > 0) ? p1.toScalar() : 0.0;
+        const keel::f64 v = (p2.numel() > 0) ? p2.toScalar() : 0.01;
+        const keel::f64 sigma = std::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
-            const double x = toUnit(I.elemAsDouble(i));
+            const keel::f64 x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + m + keel::random::normal_f64(rng, 0.0, sigma));
         }
     }
     else if (mode == "salt & pepper" || mode == "salt&pepper") {
-        const double d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
+        const keel::f64 d = (p1.numel() > 0) ? p1.toScalar() : 0.05;
         for (keel::usize i = 0; i < N; ++i) {
-            double x = toUnit(I.elemAsDouble(i));
-            const double u = keel::random::uniform_f64(rng);
+            keel::f64 x = toUnit(I.elemAsDouble(i));
+            const keel::f64 u = keel::random::uniform_f64(rng);
             if      (u < d * 0.5) x = 0.0;       // pepper
             else if (u < d)       x = 1.0;       // salt
             fromUnit(out, i, x);
         }
     }
     else if (mode == "speckle") {
-        const double v = (p1.numel() > 0) ? p1.toScalar() : 0.04;
-        const double sigma = std::sqrt(std::max(v, 0.0));
+        const keel::f64 v = (p1.numel() > 0) ? p1.toScalar() : 0.04;
+        const keel::f64 sigma = std::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
-            const double x = toUnit(I.elemAsDouble(i));
+            const keel::f64 x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + x * keel::random::normal_f64(rng, 0.0, sigma));
         }
     }
     else if (mode == "poisson") {
         // Scale per class: integer classes use their max as the count
         // unit; double/single use a large fixed scale so noise is small.
-        double scale;
+        keel::f64 scale;
         switch (T) {
             case ValueType::UINT8:   scale = 255.0;   break;
             case ValueType::UINT16:  scale = 65535.0; break;
             default:                 scale = 1e12;    break;
         }
         for (keel::usize i = 0; i < N; ++i) {
-            const double x = toUnit(I.elemAsDouble(i));
-            const double mean = std::max(x * scale, 0.0);
+            const keel::f64 x = toUnit(I.elemAsDouble(i));
+            const keel::f64 mean = std::max(x * scale, 0.0);
             const keel::u64 k = keel::random::poisson_u64(rng, mean);
-            fromUnit(out, i, keel::as<double>(k) / scale);
+            fromUnit(out, i, keel::as<keel::f64>(k) / scale);
         }
     }
     else if (mode == "localvar") {
@@ -1995,8 +1995,8 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
             throw Error("imnoise('localvar', V): V must match I in size",
                         0, 0, "imnoise", "", "numkit:imnoise:localvar");
         for (keel::usize i = 0; i < N; ++i) {
-            const double x = toUnit(I.elemAsDouble(i));
-            const double v = std::max(p1.elemAsDouble(i), 0.0);
+            const keel::f64 x = toUnit(I.elemAsDouble(i));
+            const keel::f64 v = std::max(p1.elemAsDouble(i), 0.0);
             fromUnit(out, i, x + keel::random::normal_f64(rng, 0.0, std::sqrt(v)));
         }
     }
@@ -2031,7 +2031,7 @@ DomainOffsets domain_offsets(const Value &domain) {
     return r;
 }
 
-inline double sample_sym(const Value &I, int r, int c, int H, int W) {
+inline keel::f64 sample_sym(const Value &I, int r, int c, int H, int W) {
     r = fold_index(r, H, PadMode::Symmetric);
     c = fold_index(c, W, PadMode::Symmetric);
     return I.elemAsDouble(keel::as<keel::usize>(c) *
@@ -2053,7 +2053,7 @@ void ordfilt2_argcheck(const Value &A, const Value &domain)
                                 internal::ImgClasses::AnyNumericReal);
 }
 
-void imsmooth_argcheck(const Value &I, keel::StringRef name, double sigma)
+void imsmooth_argcheck(const Value &I, keel::StringRef name, keel::f64 sigma)
 {
     internal::requireImageClass(I, "imsmooth", "I", 1,
                                 internal::ImgClasses::FloatIntLog);
@@ -2178,7 +2178,7 @@ void imdiffusefilt_argcheck(const Value &I, keel::StringRef connectivity,
                     "numkit:imdiffusefilt:cond");
 }
 
-void imgaborfilt_argcheck(const Value &A_in, double wavelength, double sfb, double aspect)
+void imgaborfilt_argcheck(const Value &A_in, keel::f64 wavelength, keel::f64 sfb, keel::f64 aspect)
 {
     if (A_in.dims().is3D())
         throw Error("imgaborfilt: A must be 2-D",
@@ -2225,18 +2225,18 @@ Value stdfilt(const Value &I, const Value &domain, keel::Allocator *mr)
             if (dom->elemAsDouble(i) == 0.0) rect = false;
         if (rect) {
             const int rh = kH / 2, ch = kW / 2;     // match domain_offsets centring
-            const double n = (double)kH * (double)kW;
+            const keel::f64 n = (keel::f64)kH * (keel::f64)kW;
             const int Hp = H + kH - 1, Wp = W + kW - 1;
             const int Hs = Hp + 1, Ws = Wp + 1;
             keel::ArenaTemp arena = keel::get_scratch(mr);
-            keel::Array<double> Sx((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
-            keel::Array<double> Sxx((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
-            auto X  = [&](int r, int c) -> double & { return Sx[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
-            auto XX = [&](int r, int c) -> double & { return Sxx[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
+            keel::Array<keel::f64> Sx((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
+            keel::Array<keel::f64> Sxx((keel::usize)Hs * (keel::usize)Ws, arena.allocator());
+            auto X  = [&](int r, int c) -> keel::f64 & { return Sx[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
+            auto XX = [&](int r, int c) -> keel::f64 & { return Sxx[(keel::usize)c * (keel::usize)Hs + (keel::usize)r]; };
             // Typed source read (no per-element elemAsDouble dispatch) for the
             // common image classes; integer values are exact in a double SAT.
             const keel::u8  *su8 = (I.type() == ValueType::UINT8)  ? I.uint8Data()  : nullptr;
-            const double        *sdd = (I.type() == ValueType::DOUBLE) ? I.doubleData() : nullptr;
+            const keel::f64        *sdd = (I.type() == ValueType::DOUBLE) ? I.doubleData() : nullptr;
             for (int c = 0; c < Ws; ++c) { X(0, c) = 0.0; XX(0, c) = 0.0; }
             for (int r = 0; r < Hs; ++r) { X(r, 0) = 0.0; XX(r, 0) = 0.0; }
             for (int c = 1; c < Ws; ++c) {
@@ -2245,17 +2245,17 @@ Value stdfilt(const Value &I, const Value &domain, keel::Allocator *mr)
                 for (int r = 1; r < Hs; ++r) {
                     const int sr = fold_index((r - 1) - rh, H, PadMode::Symmetric);
                     const keel::usize idx = scol + (keel::usize)sr;
-                    const double p = su8 ? (double)su8[idx] : sdd ? sdd[idx] : I.elemAsDouble(idx);
+                    const keel::f64 p = su8 ? (keel::f64)su8[idx] : sdd ? sdd[idx] : I.elemAsDouble(idx);
                     X(r, c)  = p       + X(r - 1, c)  + X(r, c - 1)  - X(r - 1, c - 1);
                     XX(r, c) = p * p   + XX(r - 1, c) + XX(r, c - 1) - XX(r - 1, c - 1);
                 }
             }
-            double *od2 = out.doubleDataMut();
+            keel::f64 *od2 = out.doubleDataMut();
             for (int c = 0; c < W; ++c)
                 for (int r = 0; r < H; ++r) {
-                    const double s  = X(r + kH, c + kW)  - X(r, c + kW)  - X(r + kH, c)  + X(r, c);
-                    const double s2 = XX(r + kH, c + kW) - XX(r, c + kW) - XX(r + kH, c) + XX(r, c);
-                    double var = (n > 1.0) ? (s2 - s * s / n) / (n - 1.0) : 0.0;
+                    const keel::f64 s  = X(r + kH, c + kW)  - X(r, c + kW)  - X(r + kH, c)  + X(r, c);
+                    const keel::f64 s2 = XX(r + kH, c + kW) - XX(r, c + kW) - XX(r + kH, c) + XX(r, c);
+                    keel::f64 var = (n > 1.0) ? (s2 - s * s / n) / (n - 1.0) : 0.0;
                     if (var < 0.0) var = 0.0;   // clamp tiny negatives from FP cancellation
                     od2[(keel::usize)c * (keel::usize)H + (keel::usize)r] = std::sqrt(var);
                 }
@@ -2267,30 +2267,30 @@ Value stdfilt(const Value &I, const Value &domain, keel::Allocator *mr)
     const keel::usize M = dom_offs.offs.size();
     if (M == 0) return out;
 
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
-            double sum = 0.0;
+            keel::f64 sum = 0.0;
             for (keel::usize k = 0; k < M; ++k)
                 sum += sample_sym(I, r + dom_offs.offs[k].first,
                                      c + dom_offs.offs[k].second, H, W);
-            const double mu = sum / keel::as<double>(M);
-            double v = 0.0;
+            const keel::f64 mu = sum / keel::as<keel::f64>(M);
+            keel::f64 v = 0.0;
             for (keel::usize k = 0; k < M; ++k) {
-                const double d = sample_sym(I,
+                const keel::f64 d = sample_sym(I,
                                             r + dom_offs.offs[k].first,
                                             c + dom_offs.offs[k].second,
                                             H, W) - mu;
                 v += d * d;
             }
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
-                (M > 1) ? std::sqrt(v / keel::as<double>(M - 1)) : 0.0;
+                (M > 1) ? std::sqrt(v / keel::as<keel::f64>(M - 1)) : 0.0;
         }
     }
     return out;
 }
 
-Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, PadMode boundary, double pad_value, keel::Allocator *mr)
+Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, PadMode boundary, keel::f64 pad_value, keel::Allocator *mr)
 {
     ordfilt2_argcheck(A, domain);
     // Logical input → logical output (probed R2025b): order-statistic on
@@ -2311,13 +2311,13 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
     const int ch = keel::as<int>(kW) / 2;
     const bool has_S = (S.numel() == domain.numel());
 
-    struct Off { int dr; int dc; double s; };
+    struct Off { int dr; int dc; keel::f64 s; };
     keel::Array<Off> offs;
     offs.reserve(kH * kW);
     for (keel::usize c = 0; c < kW; ++c)
         for (keel::usize r = 0; r < kH; ++r)
             if (domain.elemAsDouble(c * kH + r) != 0.0) {
-                const double s = has_S ? S.elemAsDouble(c * kH + r) : 0.0;
+                const keel::f64 s = has_S ? S.elemAsDouble(c * kH + r) : 0.0;
                 offs.push_back({keel::as<int>(r) - rh,
                                 keel::as<int>(c) - ch, s});
             }
@@ -2327,7 +2327,7 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
         throw Error("ordfilt2: nth-order index out of range",
                     0, 0, "ordfilt2", "", "numkit:ordfilt2:nth");
 
-    auto sample = [&](int r, int c) -> double {
+    auto sample = [&](int r, int c) -> keel::f64 {
         if (boundary == PadMode::Constant) {
             if (r < 0 || c < 0 || r >= H || c >= W) return pad_value;
         } else {
@@ -2337,7 +2337,7 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
         return A.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
     };
 
-    keel::Array<double> nb(M);
+    keel::Array<keel::f64> nb(M);
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             for (int k = 0; k < M; ++k) {
@@ -2356,7 +2356,7 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
 }
 
 std::tuple<Value, Value>
-wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allocator *mr)
+wiener2(const Value &I, keel::usize nh, keel::usize nw, keel::f64 noise, keel::Allocator *mr)
 {
     const ValueType cls = I.type();
     const keel::usize H = I.dims().rows();
@@ -2381,16 +2381,16 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
     // Build h×w box kernel.
     Value k = Value::matrix(nh, nw, ValueType::DOUBLE, mr);
     {
-        const double a = 1.0 / keel::as<double>(nh * nw);
-        double *kd = k.doubleDataMut();
+        const keel::f64 a = 1.0 / keel::as<keel::f64>(nh * nw);
+        keel::f64 *kd = k.doubleDataMut();
         for (keel::usize i = 0; i < nh * nw; ++i) kd[i] = a;
     }
 
     // Squared image.
     Value Id_sq = Value::matrix(H, W, ValueType::DOUBLE, mr);
     {
-        const double *id = Id.doubleData();
-        double *od = Id_sq.doubleDataMut();
+        const keel::f64 *id = Id.doubleData();
+        keel::f64 *od = Id_sq.doubleDataMut();
         for (keel::usize i = 0; i < H * W; ++i) od[i] = id[i] * id[i];
     }
 
@@ -2401,9 +2401,9 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
     // variance_im = mean_sq - mean_im^2.
     Value var_im = Value::matrix(H, W, ValueType::DOUBLE, mr);
     {
-        double *vd = var_im.doubleDataMut();
-        const double *m  = mean_im.doubleData();
-        const double *ms = mean_sq.doubleData();
+        keel::f64 *vd = var_im.doubleDataMut();
+        const keel::f64 *m  = mean_im.doubleData();
+        const keel::f64 *ms = mean_sq.doubleData();
         for (keel::usize i = 0; i < H * W; ++i)
             vd[i] = ms[i] - m[i] * m[i];
     }
@@ -2413,22 +2413,22 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
         long double s = 0.0L;
         for (keel::usize i = 0; i < H * W; ++i)
             s += var_im.doubleData()[i];
-        noise = keel::as<double>(s / keel::as<long double>(H * W));
+        noise = keel::as<keel::f64>(s / keel::as<long double>(H * W));
     }
 
     // var_orig = max(0, var_im - noise).
     // out = mean + var_orig / (var_orig + noise) * (Id - mean).
     Value out_d = Value::matrix(H, W, ValueType::DOUBLE, mr);
     {
-        const double *id = Id.doubleData();
-        const double *m  = mean_im.doubleData();
-        double *vd       = var_im.doubleDataMut();
-        double *od       = out_d.doubleDataMut();
+        const keel::f64 *id = Id.doubleData();
+        const keel::f64 *m  = mean_im.doubleData();
+        keel::f64 *vd       = var_im.doubleDataMut();
+        keel::f64 *od       = out_d.doubleDataMut();
         for (keel::usize i = 0; i < H * W; ++i) {
-            double vo = vd[i] - noise;
+            keel::f64 vo = vd[i] - noise;
             if (vo < 0.0) vo = 0.0;
-            const double denom = vo + noise;
-            const double w = (denom > 0.0) ? vo / denom : 0.0;
+            const keel::f64 denom = vo + noise;
+            const keel::f64 w = (denom > 0.0) ? vo / denom : 0.0;
             od[i] = m[i] + w * (id[i] - m[i]);
         }
     }
@@ -2438,9 +2438,9 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
     if (cls == ValueType::DOUBLE) out = std::move(out_d);
     else if (cls == ValueType::SINGLE) {
         out = Value::matrix(H, W, ValueType::SINGLE, mr);
-        const double *o = out_d.doubleData();
-        float *of = out.singleDataMut();
-        for (keel::usize i = 0; i < H * W; ++i) of[i] = keel::as<float>(o[i]);
+        const keel::f64 *o = out_d.doubleData();
+        keel::f32 *of = out.singleDataMut();
+        for (keel::usize i = 0; i < H * W; ++i) of[i] = keel::as<keel::f32>(o[i]);
     } else if (cls == ValueType::UINT8) out = im2uint8(out_d, mr);
     else if (cls == ValueType::UINT16) out = im2uint16(out_d, mr);
     else if (cls == ValueType::INT16)  out = im2int16(out_d, mr);
@@ -2449,7 +2449,7 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
     return {std::move(out), Value::scalar(noise, mr)};
 }
 
-Value imsmooth(const Value &I, keel::StringRef name, double sigma, keel::Allocator *mr)
+Value imsmooth(const Value &I, keel::StringRef name, keel::f64 sigma, keel::Allocator *mr)
 {
     imsmooth_argcheck(I, name, sigma);
 
@@ -2460,10 +2460,10 @@ Value imsmooth(const Value &I, keel::StringRef name, double sigma, keel::Allocat
     const int h = keel::as<int>(std::ceil(3.0 * sigma));
     const int K = 2 * h + 1;
 
-    keel::Array<double> f((keel::usize)K);
-    double s = 0.0;
+    keel::Array<keel::f64> f((keel::usize)K);
+    keel::f64 s = 0.0;
     for (int i = -h; i <= h; ++i) {
-        f[(keel::usize)(i + h)] = std::exp(-(double)i * i / (2.0 * sigma * sigma));
+        f[(keel::usize)(i + h)] = std::exp(-(keel::f64)i * i / (2.0 * sigma * sigma));
         s += f[(keel::usize)(i + h)];
     }
     for (int i = 0; i < K; ++i) f[(keel::usize)i] /= s;
@@ -2473,10 +2473,10 @@ Value imsmooth(const Value &I, keel::StringRef name, double sigma, keel::Allocat
     if (H == 0 || W == 0) return out;
 
     for (int p = 0; p < P; ++p) {
-        keel::Array<double> tmp((keel::usize)H * (keel::usize)W, 0.0);
+        keel::Array<keel::f64> tmp((keel::usize)H * (keel::usize)W, 0.0);
         for (int r = 0; r < H; ++r) {
             for (int c = 0; c < W; ++c) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -h; k <= h; ++k) {
                     const int cs = fold_index(c + k, W, PadMode::Symmetric);
                     const keel::usize srcIdx =
@@ -2489,7 +2489,7 @@ Value imsmooth(const Value &I, keel::StringRef name, double sigma, keel::Allocat
         }
         for (int c = 0; c < W; ++c) {
             for (int r = 0; r < H; ++r) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -h; k <= h; ++k) {
                     const int rs = fold_index(r + k, H, PadMode::Symmetric);
                     acc += f[(keel::usize)(k + h)] *
@@ -2531,7 +2531,7 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
     if (H == 0 || W == 0 || P == 0) return out;
 
     const keel::usize total = (keel::usize)H * (keel::usize)W * (keel::usize)P;
-    keel::Array<double> a(total), b(total);
+    keel::Array<keel::f64> a(total), b(total);
     // Load V into a (double).
     for (keel::usize i = 0; i < total; ++i) a[i] = V.elemAsDouble(i);
 
@@ -2539,14 +2539,14 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
     for (int p = 0; p < P; ++p) {
         for (int c = 0; c < W; ++c) {
             for (int r = 0; r < H; ++r) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -hh; k <= hh; ++k) {
                     const int rs = fold_index(r + k, H, PadMode::Replicate);
                     acc += a[(keel::usize)p * (keel::usize)H * (keel::usize)W +
                               (keel::usize)c * (keel::usize)H + (keel::usize)rs];
                 }
                 b[(keel::usize)p * (keel::usize)H * (keel::usize)W +
-                  (keel::usize)c * (keel::usize)H + (keel::usize)r] = acc / (double)fH;
+                  (keel::usize)c * (keel::usize)H + (keel::usize)r] = acc / (keel::f64)fH;
             }
         }
     }
@@ -2554,14 +2554,14 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
     for (int p = 0; p < P; ++p) {
         for (int r = 0; r < H; ++r) {
             for (int c = 0; c < W; ++c) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -hw; k <= hw; ++k) {
                     const int cs = fold_index(c + k, W, PadMode::Replicate);
                     acc += b[(keel::usize)p * (keel::usize)H * (keel::usize)W +
                               (keel::usize)cs * (keel::usize)H + (keel::usize)r];
                 }
                 a[(keel::usize)p * (keel::usize)H * (keel::usize)W +
-                  (keel::usize)c * (keel::usize)H + (keel::usize)r] = acc / (double)fW;
+                  (keel::usize)c * (keel::usize)H + (keel::usize)r] = acc / (keel::f64)fW;
             }
         }
     }
@@ -2569,7 +2569,7 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
     for (int p = 0; p < P; ++p) {
         for (int c = 0; c < W; ++c) {
             for (int r = 0; r < H; ++r) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -hp; k <= hp; ++k) {
                     const int ps = fold_index(p + k, P, PadMode::Replicate);
                     acc += a[(keel::usize)ps * (keel::usize)H * (keel::usize)W +
@@ -2578,7 +2578,7 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
                 store_classed(out,
                               (keel::usize)p * (keel::usize)H * (keel::usize)W +
                                   (keel::usize)c * (keel::usize)H + (keel::usize)r,
-                              acc / (double)fP, cls);
+                              acc / (keel::f64)fP, cls);
             }
         }
     }
@@ -2586,25 +2586,25 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
 }
 
 // 1-D Gaussian kernel of length 2*ceil(2σ)+1, normalised.
-static keel::Array<double> gauss1d_kernel(double sigma) {
+static keel::Array<keel::f64> gauss1d_kernel(keel::f64 sigma) {
     if (!(sigma > 0.0)) sigma = 0.5;
     int half = keel::as<int>(std::ceil(2.0 * sigma));
     if (half < 1) half = 1;
     const int K = 2 * half + 1;
-    keel::Array<double> k(K);
-    double sum = 0.0;
-    const double inv2s2 = 0.5 / (sigma * sigma);
+    keel::Array<keel::f64> k(K);
+    keel::f64 sum = 0.0;
+    const keel::f64 inv2s2 = 0.5 / (sigma * sigma);
     for (int i = -half; i <= half; ++i) {
-        const double w = std::exp(-keel::as<double>(i * i) * inv2s2);
+        const keel::f64 w = std::exp(-keel::as<keel::f64>(i * i) * inv2s2);
         k[keel::as<keel::usize>(i + half)] = w;
         sum += w;
     }
-    const double inv = 1.0 / sum;
-    for (double &x : k) x *= inv;
+    const keel::f64 inv = 1.0 / sum;
+    for (keel::f64 &x : k) x *= inv;
     return k;
 }
 
-Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::Allocator *mr)
+Value imgaussfilt3(const Value &V, keel::f64 sigH, keel::f64 sigW, keel::f64 sigP, keel::Allocator *mr)
 {
     imgaussfilt3_argcheck(V);
     const ValueType cls = V.type();
@@ -2625,14 +2625,14 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
     const keel::usize total = keel::as<keel::usize>(H)
                        * keel::as<keel::usize>(W)
                        * keel::as<keel::usize>(P);
-    keel::Array<double> a(total), b(total);
+    keel::Array<keel::f64> a(total), b(total);
     for (keel::usize i = 0; i < total; ++i) a[i] = V.elemAsDouble(i);
 
     // Pass 1: along H axis.
     for (int p = 0; p < P; ++p) {
         for (int c = 0; c < W; ++c) {
             for (int r = 0; r < H; ++r) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -hH; k <= hH; ++k) {
                     const int rs = fold_index(r + k, H, PadMode::Replicate);
                     acc += kH[keel::as<keel::usize>(k + hH)] *
@@ -2646,7 +2646,7 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
     for (int p = 0; p < P; ++p) {
         for (int r = 0; r < H; ++r) {
             for (int c = 0; c < W; ++c) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -hW; k <= hW; ++k) {
                     const int cs = fold_index(c + k, W, PadMode::Replicate);
                     acc += kW[keel::as<keel::usize>(k + hW)] *
@@ -2660,7 +2660,7 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
     for (int p = 0; p < P; ++p) {
         for (int c = 0; c < W; ++c) {
             for (int r = 0; r < H; ++r) {
-                double acc = 0.0;
+                keel::f64 acc = 0.0;
                 for (int k = -hP; k <= hP; ++k) {
                     const int ps = fold_index(p + k, P, PadMode::Replicate);
                     acc += kP[keel::as<keel::usize>(k + hP)] *
@@ -2702,7 +2702,7 @@ Value medfilt3(const Value &V, int M, int N, int P, keel::Allocator *mr)
     const keel::usize nbhd = keel::as<keel::usize>(M) * keel::as<keel::usize>(N)
                       * keel::as<keel::usize>(P);
 
-    keel::Array<double> window;
+    keel::Array<keel::f64> window;
     window.reserve(nbhd);
     for (int p = 0; p < D; ++p) {
         for (int c = 0; c < W; ++c) {
@@ -2724,9 +2724,9 @@ Value medfilt3(const Value &V, int M, int N, int P, keel::Allocator *mr)
                 std::nth_element(window.begin(),
                                  window.begin() + window.size() / 2,
                                  window.end());
-                double med = window[window.size() / 2];
+                keel::f64 med = window[window.size() / 2];
                 if ((window.size() & 1) == 0) {
-                    double left_max = -std::numeric_limits<double>::infinity();
+                    keel::f64 left_max = -std::numeric_limits<keel::f64>::infinity();
                     for (auto it = window.begin();
                          it != window.begin() + window.size() / 2; ++it)
                         if (*it > left_max) left_max = *it;
@@ -2756,7 +2756,7 @@ Value convmtx2(const Value &h, int m, int n, keel::Allocator *mr)
 
     Value T = Value::matrix(P, Q, ValueType::DOUBLE, mr);
     if (P == 0 || Q == 0) return T;
-    double *Td = T.doubleDataMut();
+    keel::f64 *Td = T.doubleDataMut();
     // T is col-major; column k corresponds to input position (r_in, c_in)
     // (1-based). For each kernel cell (i, j), set
     // T(out_r + (out_c-1)*out_rows, k) = h(i, j),
@@ -2767,7 +2767,7 @@ Value convmtx2(const Value &h, int m, int n, keel::Allocator *mr)
                            + keel::as<keel::usize>(r_in);
             for (int j = 0; j < N; ++j) {
                 for (int i = 0; i < M; ++i) {
-                    const double hv = h.elemAsDouble(
+                    const keel::f64 hv = h.elemAsDouble(
                         keel::as<keel::usize>(j) * keel::as<keel::usize>(M)
                         + keel::as<keel::usize>(i));
                     if (hv == 0.0) continue;
@@ -2809,13 +2809,13 @@ Value entropyfilt(const Value &I, const Value &domain, keel::Allocator *mr)
     const keel::usize M = dom_offs.offs.size();
     if (M == 0) return out;
 
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     keel::Array<int> hist(nbins, 0);
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
             std::fill(hist.begin(), hist.end(), 0);
             for (keel::usize k = 0; k < M; ++k) {
-                const double v = sample_sym(Iu,
+                const keel::f64 v = sample_sym(Iu,
                                             r + dom_offs.offs[k].first,
                                             c + dom_offs.offs[k].second,
                                             H, W);
@@ -2824,12 +2824,12 @@ Value entropyfilt(const Value &I, const Value &domain, keel::Allocator *mr)
                 if (b >= nbins)   b = nbins - 1;
                 ++hist[(keel::usize)b];
             }
-            const double total = keel::as<double>(M);
-            double H_bits = 0.0;
+            const keel::f64 total = keel::as<keel::f64>(M);
+            keel::f64 H_bits = 0.0;
             for (int b = 0; b < nbins; ++b) {
                 const int n = hist[(keel::usize)b];
                 if (n <= 0) continue;
-                const double p = keel::as<double>(n) / total;
+                const keel::f64 p = keel::as<keel::f64>(n) / total;
                 H_bits -= p * std::log2(p);
             }
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] = H_bits;
@@ -2868,10 +2868,10 @@ Value rangefilt(const Value &I, const Value &domain, keel::Allocator *mr)
 
     for (int c = 0; c < W; ++c) {
         for (int r = 0; r < H; ++r) {
-            double mn =  std::numeric_limits<double>::infinity();
-            double mx = -std::numeric_limits<double>::infinity();
+            keel::f64 mn =  std::numeric_limits<keel::f64>::infinity();
+            keel::f64 mx = -std::numeric_limits<keel::f64>::infinity();
             for (keel::usize k = 0; k < M; ++k) {
-                const double v = sample_sym(I,
+                const keel::f64 v = sample_sym(I,
                                             r + dom_offs.offs[k].first,
                                             c + dom_offs.offs[k].second,
                                             H, W);
@@ -2898,10 +2898,10 @@ freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
     // k = 1..N. (Even N: starts at -1 and stops at 1 - 2/N.)
     Value f1V = Value::matrix(M, 1, ValueType::DOUBLE, mr);
     Value f2V = Value::matrix(N, 1, ValueType::DOUBLE, mr);
-    double *f1 = f1V.doubleDataMut();
-    double *f2 = f2V.doubleDataMut();
-    for (keel::usize i = 0; i < M; ++i) f1[i] = -1.0 + 2.0 * keel::as<double>(i) / keel::as<double>(M);
-    for (keel::usize j = 0; j < N; ++j) f2[j] = -1.0 + 2.0 * keel::as<double>(j) / keel::as<double>(N);
+    keel::f64 *f1 = f1V.doubleDataMut();
+    keel::f64 *f2 = f2V.doubleDataMut();
+    for (keel::usize i = 0; i < M; ++i) f1[i] = -1.0 + 2.0 * keel::as<keel::f64>(i) / keel::as<keel::f64>(M);
+    for (keel::usize j = 0; j < N; ++j) f2[j] = -1.0 + 2.0 * keel::as<keel::f64>(j) / keel::as<keel::f64>(N);
 
     Value HV = Value::matrix(M, N, ValueType::COMPLEX, mr);
     if (P == 0 || Q == 0) return {std::move(HV), std::move(f1V), std::move(f2V)};
@@ -2910,17 +2910,17 @@ freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
     // H[i, j] = Σ_p Σ_q h[p,q] · exp(+iπ·(f1[i]·(p - cp) + f2[j]·(q - cq)))
     // where (cp, cq) = (⌊(P-1)/2⌋, ⌊(Q-1)/2⌋) are the kernel centre
     // offsets. Matches MATLAB: real for symmetric h, complex otherwise.
-    const double cp = keel::as<double>((P > 0 ? (P - 1) / 2 : 0));
-    const double cq = keel::as<double>((Q > 0 ? (Q - 1) / 2 : 0));
+    const keel::f64 cp = keel::as<keel::f64>((P > 0 ? (P - 1) / 2 : 0));
+    const keel::f64 cq = keel::as<keel::f64>((Q > 0 ? (Q - 1) / 2 : 0));
     keel::Array<keel::c64> phase_p_i(M * P), phase_q_j(N * Q);
     for (keel::usize i = 0; i < M; ++i)
         for (keel::usize p = 0; p < P; ++p) {
-            const double a = M_PI * f1[i] * (keel::as<double>(p) - cp);
+            const keel::f64 a = M_PI * f1[i] * (keel::as<keel::f64>(p) - cp);
             phase_p_i[p + i * P] = {std::cos(a), std::sin(a)};
         }
     for (keel::usize j = 0; j < N; ++j)
         for (keel::usize q = 0; q < Q; ++q) {
-            const double a = M_PI * f2[j] * (keel::as<double>(q) - cq);
+            const keel::f64 a = M_PI * f2[j] * (keel::as<keel::f64>(q) - cq);
             phase_q_j[q + j * Q] = {std::cos(a), std::sin(a)};
         }
     for (keel::usize j = 0; j < N; ++j) {
@@ -2929,7 +2929,7 @@ freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
             for (keel::usize q = 0; q < Q; ++q) {
                 const keel::c64 pq = phase_q_j[q + j * Q];
                 for (keel::usize p = 0; p < P; ++p) {
-                    const double hpq = h.elemAsDouble(p + q * P);
+                    const keel::f64 hpq = h.elemAsDouble(p + q * P);
                     sum += hpq * (phase_p_i[p + i * P] * pq);
                 }
             }
@@ -2977,9 +2977,9 @@ Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
     }
     const ValueType cls = filtRes.type();
     Value out = Value::matrix(H, W, cls, mr);
-    auto store = [&](keel::usize i, double v) {
+    auto store = [&](keel::usize i, keel::f64 v) {
         switch (cls) {
-            case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<float>(v); break;
+            case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
             case ValueType::UINT8:  out.uint8DataMut()[i]  = keel::as<keel::u8>(std::lround(v)); break;
             case ValueType::UINT16: out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v)); break;
             case ValueType::UINT32: out.uint32DataMut()[i] = keel::as<keel::u32>(std::lround(v)); break;
@@ -3027,7 +3027,7 @@ Value roifilt2(const Value &h, const Value &I, const Value &BW,
 //
 // Grayscale guide only here. Default ε = 0.01 · range².
 Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
-                     double eps_in,
+                     keel::f64 eps_in,
                      keel::Allocator *mr)
 {
     imguidedfilter_argcheck(A, nhood);
@@ -3044,9 +3044,9 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
                     "numkit:imguidedfilter:gshape");
 
     // Resolve default ε per A's class.
-    double eps = eps_in;
+    keel::f64 eps = eps_in;
     if (eps < 0) {
-        double range = 1.0;
+        keel::f64 range = 1.0;
         switch (A.type()) {
             case ValueType::UINT8:  range = 255.0;       break;
             case ValueType::UINT16: range = 65535.0;     break;
@@ -3070,8 +3070,8 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
     Value II = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value IP = Value::matrix(H, W, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < N; ++i) {
-        const double gi = Gd.doubleData()[i];
-        const double ai = Ad.doubleData()[i];
+        const keel::f64 gi = Gd.doubleData()[i];
+        const keel::f64 ai = Ad.doubleData()[i];
         II.doubleDataMut()[i] = gi * gi;
         IP.doubleDataMut()[i] = gi * ai;
     }
@@ -3085,11 +3085,11 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
     Value a_ = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value b_ = Value::matrix(H, W, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < N; ++i) {
-        const double mI = meanI.doubleData()[i];
-        const double mP = meanP.doubleData()[i];
-        const double varI  = corrI.doubleData()[i]  - mI * mI;
-        const double covIP = corrIP.doubleData()[i] - mI * mP;
-        const double a = covIP / (varI + eps);
+        const keel::f64 mI = meanI.doubleData()[i];
+        const keel::f64 mP = meanP.doubleData()[i];
+        const keel::f64 varI  = corrI.doubleData()[i]  - mI * mI;
+        const keel::f64 covIP = corrIP.doubleData()[i] - mI * mP;
+        const keel::f64 a = covIP / (varI + eps);
         a_.doubleDataMut()[i] = a;
         b_.doubleDataMut()[i] = mP - a * mI;
     }
@@ -3107,16 +3107,16 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
     const ValueType outT = A.type();
     if (outT == ValueType::DOUBLE) return Bd;
     Value Bout = Value::matrix(H, W, outT, mr);
-    auto saturate = [&](double v, double lo, double hi) {
+    auto saturate = [&](keel::f64 v, keel::f64 lo, keel::f64 hi) {
         v = std::round(v);
         if (v < lo) v = lo;
         if (v > hi) v = hi;
         return v;
     };
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = Bd.doubleData()[i];
+        const keel::f64 v = Bd.doubleData()[i];
         switch (outT) {
-            case ValueType::SINGLE:  Bout.singleDataMut()[i] = keel::as<float>(v); break;
+            case ValueType::SINGLE:  Bout.singleDataMut()[i] = keel::as<keel::f32>(v); break;
             case ValueType::UINT8:   Bout.uint8DataMut()[i]  = keel::as<keel::u8>(saturate(v, 0.0, 255.0)); break;
             case ValueType::UINT16:  Bout.uint16DataMut()[i] = keel::as<keel::u16>(saturate(v, 0.0, 65535.0)); break;
             case ValueType::INT8:    Bout.int8DataMut()[i]   = keel::as<keel::i8>(saturate(v, -128.0, 127.0)); break;
@@ -3162,13 +3162,13 @@ Value imdiffusefilt(const Value &I,
     };
 
     // Resolve gradientThreshold vector (length nThresh).
-    keel::Array<double> threshVec(mr);
+    keel::Array<keel::f64> threshVec(mr);
     if (thresh.numel() == 0) {
         threshVec.push_back(0.1 * class_range_diff());
     } else {
         threshVec.reserve(thresh.numel());
         for (keel::usize i = 0; i < thresh.numel(); ++i) {
-            const double v = thresh.elemAsDouble(i);
+            const keel::f64 v = thresh.elemAsDouble(i);
             if (!(v > 0) || !std::isfinite(v))
                 throw Error("imdiffusefilt: GradientThreshold must be a "
                             "positive finite scalar or vector",
@@ -3197,15 +3197,15 @@ Value imdiffusefilt(const Value &I,
     // non-double inputs MATLAB uses single — we use double which
     // gives identical results for our integer-bit-comparison cases).
     const keel::usize Npix = M * W;
-    keel::Array<double> img(Npix, 0.0, mr);
+    keel::Array<keel::f64> img(Npix, 0.0, mr);
     for (keel::usize i = 0; i < Npix; ++i) img[i] = I.elemAsDouble(i);
 
     // Padded image with replicate border: (M+2) x (W+2).
     const keel::usize Mp = M + 2;
     const keel::usize Wp = W + 2;
-    keel::Array<double> pad(Mp * Wp, 0.0, mr);
+    keel::Array<keel::f64> pad(Mp * Wp, 0.0, mr);
 
-    auto refresh_padded = [&](const keel::Array<double> &src) {
+    auto refresh_padded = [&](const keel::Array<keel::f64> &src) {
         // Interior: pad(r+1, c+1) = src(r, c) for r=0..M-1, c=0..W-1.
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < M; ++r)
@@ -3222,18 +3222,18 @@ Value imdiffusefilt(const Value &I,
         }
     };
 
-    auto conductance = [&](double diff, double K) {
-        const double r = diff / K;
+    auto conductance = [&](keel::f64 diff, keel::f64 K) {
+        const keel::f64 r = diff / K;
         if (conduction == "exponential") return std::exp(-(r * r));
         return 1.0 / (1.0 + r * r);
     };
 
     const bool isMax = (connectivity == "maximal");
-    const double diffusionRate = isMax ? (1.0 / 8.0) : (1.0 / 4.0);
-    const double inv_dd2 = 0.5;  // 1 / dd² = 1/2 for diagonal
+    const keel::f64 diffusionRate = isMax ? (1.0 / 8.0) : (1.0 / 4.0);
+    const keel::f64 inv_dd2 = 0.5;  // 1 / dd² = 1/2 for diagonal
 
     for (keel::usize it = 0; it < N; ++it) {
-        const double K = threshVec[it];
+        const keel::f64 K = threshVec[it];
         refresh_padded(img);
 
         // Accessor: padded(r, c) → pad[c * Mp + r].
@@ -3241,35 +3241,35 @@ Value imdiffusefilt(const Value &I,
             return pad[c * Mp + r];
         };
 
-        keel::Array<double> upd(Npix, 0.0, mr);
+        keel::Array<keel::f64> upd(Npix, 0.0, mr);
 
         for (keel::usize c = 0; c < W; ++c) {
             for (keel::usize r = 0; r < M; ++r) {
                 // 0-indexed in image; padded coords = (r+1, c+1).
-                const double ci = img[c * M + r];
+                const keel::f64 ci = img[c * M + r];
                 // diffNorth at this pixel = above - center =
                 //   pad(r, c+1) - pad(r+1, c+1)
-                const double dN = P(r,     c + 1) - ci;
+                const keel::f64 dN = P(r,     c + 1) - ci;
                 // diffSouth = below - center
-                const double dS = P(r + 2, c + 1) - ci;
+                const keel::f64 dS = P(r + 2, c + 1) - ci;
                 // diffEast  = right - center
-                const double dE = P(r + 1, c + 2) - ci;
+                const keel::f64 dE = P(r + 1, c + 2) - ci;
                 // diffWest  = left - center
-                const double dW = P(r + 1, c)     - ci;
-                const double fN = conductance(dN, K) * dN;
-                const double fS = conductance(dS, K) * dS;
-                const double fE = conductance(dE, K) * dE;
-                const double fW = conductance(dW, K) * dW;
-                double delta = fN + fS + fE + fW;
+                const keel::f64 dW = P(r + 1, c)     - ci;
+                const keel::f64 fN = conductance(dN, K) * dN;
+                const keel::f64 fS = conductance(dS, K) * dS;
+                const keel::f64 fE = conductance(dE, K) * dE;
+                const keel::f64 fW = conductance(dW, K) * dW;
+                keel::f64 delta = fN + fS + fE + fW;
                 if (isMax) {
-                    const double dNW = P(r,     c)     - ci;
-                    const double dNE = P(r,     c + 2) - ci;
-                    const double dSW = P(r + 2, c)     - ci;
-                    const double dSE = P(r + 2, c + 2) - ci;
-                    const double fNW = conductance(dNW, K) * dNW;
-                    const double fNE = conductance(dNE, K) * dNE;
-                    const double fSW = conductance(dSW, K) * dSW;
-                    const double fSE = conductance(dSE, K) * dSE;
+                    const keel::f64 dNW = P(r,     c)     - ci;
+                    const keel::f64 dNE = P(r,     c + 2) - ci;
+                    const keel::f64 dSW = P(r + 2, c)     - ci;
+                    const keel::f64 dSE = P(r + 2, c + 2) - ci;
+                    const keel::f64 fNW = conductance(dNW, K) * dNW;
+                    const keel::f64 fNE = conductance(dNE, K) * dNE;
+                    const keel::f64 fSW = conductance(dSW, K) * dSW;
+                    const keel::f64 fSE = conductance(dSE, K) * dSE;
                     delta += inv_dd2 * (fNW + fNE + fSW + fSE);
                 }
                 upd[c * M + r] = ci + diffusionRate * delta;
@@ -3286,16 +3286,16 @@ Value imdiffusefilt(const Value &I,
         return out;
     }
     out = Value::matrix(M, W, inT, mr);
-    auto saturate = [&](double v, double lo, double hi) {
+    auto saturate = [&](keel::f64 v, keel::f64 lo, keel::f64 hi) {
         v = std::round(v);
         if (v < lo) v = lo;
         if (v > hi) v = hi;
         return v;
     };
     for (keel::usize i = 0; i < Npix; ++i) {
-        const double v = img[i];
+        const keel::f64 v = img[i];
         switch (inT) {
-            case ValueType::SINGLE:  out.singleDataMut()[i] = keel::as<float>(v); break;
+            case ValueType::SINGLE:  out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
             case ValueType::UINT8:   out.uint8DataMut()[i]  = keel::as<keel::u8>(saturate(v, 0.0, 255.0)); break;
             case ValueType::UINT16:  out.uint16DataMut()[i] = keel::as<keel::u16>(saturate(v, 0.0, 65535.0)); break;
             case ValueType::UINT32:  out.uint32DataMut()[i] = keel::as<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
@@ -3328,8 +3328,8 @@ Value imdiffusefilt(const Value &I,
 //
 // References:
 //   Jain & Farrokhnia 1991; Kruizinga & Petkov 1999.
-void imgaborfilt(const Value &A_in, double wavelength, double orientation,
-                 double sfb, double aspect,
+void imgaborfilt(const Value &A_in, keel::f64 wavelength, keel::f64 orientation,
+                 keel::f64 sfb, keel::f64 aspect,
                  Value &mag_out, Value &phase_out,
                  keel::Allocator *mr)
 {
@@ -3341,10 +3341,10 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
                             ? ValueType::SINGLE : ValueType::DOUBLE;
 
     // Sigma parameters.
-    const double sigmaX = wavelength / M_PI * std::sqrt(std::log(2.0) / 2.0)
+    const keel::f64 sigmaX = wavelength / M_PI * std::sqrt(std::log(2.0) / 2.0)
                         * (std::pow(2.0, sfb) + 1.0)
                         / (std::pow(2.0, sfb) - 1.0);
-    const double sigmaY = sigmaX / aspect;
+    const keel::f64 sigmaY = sigmaX / aspect;
     const long Rx = keel::as<long>(std::ceil(7.0 * sigmaX));
     const long Ry = keel::as<long>(std::ceil(7.0 * sigmaY));
     const long r = std::max(Rx, Ry);
@@ -3372,43 +3372,43 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
     }
 
     // Normalised frequency vectors u (length Np), v (length Mp).
-    auto freq_vec = [&](keel::usize Nlen, keel::Array<double> &out) {
+    auto freq_vec = [&](keel::usize Nlen, keel::Array<keel::f64> &out) {
         out.resize(Nlen);
         if (Nlen == 1) { out[0] = 0.0; return; }
         if (Nlen % 2 == 1) {
-            const double lo = -0.5 + 1.0 / (2.0 * Nlen);
-            const double hi =  0.5 - 1.0 / (2.0 * Nlen);
-            const double step = (hi - lo) / (Nlen - 1);
+            const keel::f64 lo = -0.5 + 1.0 / (2.0 * Nlen);
+            const keel::f64 hi =  0.5 - 1.0 / (2.0 * Nlen);
+            const keel::f64 step = (hi - lo) / (Nlen - 1);
             for (keel::usize i = 0; i < Nlen; ++i) out[i] = lo + step * i;
         } else {
-            const double lo = -0.5;
-            const double hi = 0.5 - 1.0 / Nlen;
-            const double step = (hi - lo) / (Nlen - 1);
+            const keel::f64 lo = -0.5;
+            const keel::f64 hi = 0.5 - 1.0 / Nlen;
+            const keel::f64 step = (hi - lo) / (Nlen - 1);
             for (keel::usize i = 0; i < Nlen; ++i) out[i] = lo + step * i;
         }
     };
-    keel::Array<double> u(mr), v(mr);
+    keel::Array<keel::f64> u(mr), v(mr);
     freq_vec(Np, u);
     freq_vec(Mp, v);
 
-    const double theta_rad = orientation * M_PI / 180.0;
-    const double cosT = std::cos(theta_rad);
-    const double sinT = std::sin(theta_rad);
-    const double sigmau = 1.0 / (2.0 * M_PI * sigmaX);
-    const double sigmav = 1.0 / (2.0 * M_PI * sigmaY);
-    const double freq   = 1.0 / wavelength;
-    const double A_const = 2.0 * M_PI * sigmaX * sigmaY;
+    const keel::f64 theta_rad = orientation * M_PI / 180.0;
+    const keel::f64 cosT = std::cos(theta_rad);
+    const keel::f64 sinT = std::sin(theta_rad);
+    const keel::f64 sigmau = 1.0 / (2.0 * M_PI * sigmaX);
+    const keel::f64 sigmav = 1.0 / (2.0 * M_PI * sigmaY);
+    const keel::f64 freq   = 1.0 / wavelength;
+    const keel::f64 A_const = 2.0 * M_PI * sigmaX * sigmaY;
 
     // Build H in COMPLEX domain (real values; imag = 0). Stored col-major:
     // H(r, c) → c*Mp + r.
-    keel::Array<double> H(Np_pix, 0.0, mr);
+    keel::Array<keel::f64> H(Np_pix, 0.0, mr);
     for (keel::usize c = 0; c < Np; ++c) {
-        const double uc = u[c];
+        const keel::f64 uc = u[c];
         for (keel::usize r2 = 0; r2 < Mp; ++r2) {
-            const double vc = v[r2];
-            const double Upr = uc * cosT - vc * sinT;
-            const double Vpr = uc * sinT + vc * cosT;
-            const double e = -0.5 * ((Upr - freq) * (Upr - freq) / (sigmau * sigmau)
+            const keel::f64 vc = v[r2];
+            const keel::f64 Upr = uc * cosT - vc * sinT;
+            const keel::f64 Vpr = uc * sinT + vc * cosT;
+            const keel::f64 e = -0.5 * ((Upr - freq) * (Upr - freq) / (sigmau * sigmau)
                                    + Vpr * Vpr / (sigmav * sigmav));
             H[c * Mp + r2] = A_const * std::exp(e);
         }
@@ -3418,8 +3418,8 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
     // ifftshift is the inverse of fftshift; for even N it's identical.
     // Easy impl: cyclic shift each dim by -floor(N/2) (which equals
     // shift right by ceil(N/2) when going from "0 at center" to "0 at origin").
-    auto ifftshift_2d = [&](const keel::Array<double> &in,
-                            keel::Array<double> &out) {
+    auto ifftshift_2d = [&](const keel::Array<keel::f64> &in,
+                            keel::Array<keel::f64> &out) {
         out.resize(Np_pix);
         const keel::usize shR_eff = Mp / 2;          // floor(Mp/2) for fftshift
         const keel::usize shC_eff = Np / 2;
@@ -3434,7 +3434,7 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
             }
         }
     };
-    keel::Array<double> Hshift(mr);
+    keel::Array<keel::f64> Hshift(mr);
     ifftshift_2d(H, Hshift);
 
     // Multiply: prod = Afc .* Hshift (real-valued H).
@@ -3464,15 +3464,15 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
         for (keel::usize rr = 0; rr < M; ++rr) {
             const keel::usize src = (c + r) * Mp + (rr + r);
             const keel::c64 z = out_at(src);
-            const double m = std::hypot(z.real(), z.imag());
-            const double p = std::atan2(z.imag(), z.real());
+            const keel::f64 m = std::hypot(z.real(), z.imag());
+            const keel::f64 p = std::atan2(z.imag(), z.real());
             const keel::usize dst = c * M + rr;
             if (outT == ValueType::DOUBLE) {
                 mag_out.doubleDataMut()[dst]   = m;
                 phase_out.doubleDataMut()[dst] = p;
             } else {
-                mag_out.singleDataMut()[dst]   = keel::as<float>(m);
-                phase_out.singleDataMut()[dst] = keel::as<float>(p);
+                mag_out.singleDataMut()[dst]   = keel::as<keel::f32>(m);
+                phase_out.singleDataMut()[dst] = keel::as<keel::f32>(p);
             }
         }
     }
@@ -3502,23 +3502,23 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
 // 2-D grayscale only.
 namespace {
 
-double immerkaer_dos(const Value &I, keel::Allocator * /*mr*/) {
+keel::f64 immerkaer_dos(const Value &I, keel::Allocator * /*mr*/) {
     const keel::usize H = I.dims().rows();
     const keel::usize W = I.dims().cols();
     if (H < 3 || W < 3) return 1.0;
 
     // MATLAB always casts to single in estimateDegreeOfSmoothing.m, so
     // we do the same to bit-match (matters at the ~1e-8 level).
-    const float K[3][3] = {{1, -2, 1}, {-2, 4, -2}, {1, -2, 1}};
+    const keel::f32 K[3][3] = {{1, -2, 1}, {-2, 4, -2}, {1, -2, 1}};
     const keel::usize Mp = H + 2;
     const keel::usize Wp = W + 2;
-    auto Ival = [&](keel::usize r, keel::usize c) -> float {
-        return keel::as<float>(I.elemAsDouble(c * H + r));
+    auto Ival = [&](keel::usize r, keel::usize c) -> keel::f32 {
+        return keel::as<keel::f32>(I.elemAsDouble(c * H + r));
     };
-    float sum_abs = 0.0f;
+    keel::f32 sum_abs = 0.0f;
     for (keel::usize oc = 0; oc < Wp; ++oc) {
         for (keel::usize orr = 0; orr < Mp; ++orr) {
-            float s = 0.0f;
+            keel::f32 s = 0.0f;
             for (int i = 0; i < 3; ++i) {
                 for (int j = 0; j < 3; ++j) {
                     const long ir = keel::as<long>(orr) - i;
@@ -3532,11 +3532,11 @@ double immerkaer_dos(const Value &I, keel::Allocator * /*mr*/) {
             sum_abs += std::fabs(s);
         }
     }
-    const float dos = sum_abs * std::sqrt(keel::as<float>(M_PI) * 0.5f)
+    const keel::f32 dos = sum_abs * std::sqrt(keel::as<keel::f32>(M_PI) * 0.5f)
                     / (6.0f * (W - 2) * (H - 2));
     return (dos == 0.0f)
-            ? keel::as<double>(std::numeric_limits<float>::epsilon())
-            : keel::as<double>(dos);
+            ? keel::as<keel::f64>(std::numeric_limits<keel::f32>::epsilon())
+            : keel::as<keel::f64>(dos);
 }
 
 void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
@@ -3568,9 +3568,9 @@ void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
 
 } // anonymous
 
-void imnlmfilt(const Value &I, double dos,
+void imnlmfilt(const Value &I, keel::f64 dos,
                int swsize, int cwsize,
-               Value &J_out, double &est_out,
+               Value &J_out, keel::f64 &est_out,
                keel::Allocator *mr)
 {
     imnlmfilt_argcheck(I, swsize, cwsize);
@@ -3581,11 +3581,11 @@ void imnlmfilt(const Value &I, double dos,
     const keel::usize N = H * W;
 
     // Cast I to DOUBLE.
-    keel::Array<double> Iv(N, 0.0, mr);
+    keel::Array<keel::f64> Iv(N, 0.0, mr);
     for (keel::usize i = 0; i < N; ++i) Iv[i] = I.elemAsDouble(i);
 
     // Resolve h.
-    double h = dos;
+    keel::f64 h = dos;
     if (h < 0) {
         Value Ivv = Value::matrix(H, W, ValueType::DOUBLE, mr);
         for (keel::usize i = 0; i < N; ++i) Ivv.doubleDataMut()[i] = Iv[i];
@@ -3600,7 +3600,7 @@ void imnlmfilt(const Value &I, double dos,
     const keel::usize Wp = W + 2 * pad;
 
     // Build replicate-padded image.
-    keel::Array<double> P(Mp * Wp, 0.0, mr);
+    keel::Array<keel::f64> P(Mp * Wp, 0.0, mr);
     for (keel::usize c = 0; c < Wp; ++c) {
         for (keel::usize r = 0; r < Mp; ++r) {
             const long ir = keel::as<long>(r) - pad;
@@ -3612,19 +3612,19 @@ void imnlmfilt(const Value &I, double dos,
         }
     }
 
-    const double inv_h2 = 1.0 / (h * h);
-    const double inv_cwsq = 1.0 / keel::as<double>(cwsize * cwsize);
+    const keel::f64 inv_h2 = 1.0 / (h * h);
+    const keel::f64 inv_cwsq = 1.0 / keel::as<keel::f64>(cwsize * cwsize);
 
     // Build output.
-    keel::Array<double> Out(N, 0.0, mr);
+    keel::Array<keel::f64> Out(N, 0.0, mr);
 
     for (keel::usize c = 0; c < W; ++c) {
         for (keel::usize r = 0; r < H; ++r) {
             const keel::usize pr = r + pad;
             const keel::usize pc = c + pad;
-            double sum_w = 0.0;
-            double sum_wI = 0.0;
-            double max_w = 0.0;
+            keel::f64 sum_w = 0.0;
+            keel::f64 sum_wI = 0.0;
+            keel::f64 max_w = 0.0;
 
             // Iterate search window q = p + (dr, dc).
             for (int dc = -sh; dc <= sh; ++dc) {
@@ -3633,17 +3633,17 @@ void imnlmfilt(const Value &I, double dos,
                     const keel::usize qr = pr + dr;
                     const keel::usize qc = pc + dc;
                     // Compute squared patch distance.
-                    double d2 = 0.0;
+                    keel::f64 d2 = 0.0;
                     for (int ac = -ch; ac <= ch; ++ac) {
                         for (int ar = -ch; ar <= ch; ++ar) {
-                            const double a = P[(pc + ac) * Mp + (pr + ar)];
-                            const double b = P[(qc + ac) * Mp + (qr + ar)];
-                            const double d = a - b;
+                            const keel::f64 a = P[(pc + ac) * Mp + (pr + ar)];
+                            const keel::f64 b = P[(qc + ac) * Mp + (qr + ar)];
+                            const keel::f64 d = a - b;
                             d2 += d * d;
                         }
                     }
                     d2 *= inv_cwsq;
-                    const double w = std::exp(-d2 * inv_h2);
+                    const keel::f64 w = std::exp(-d2 * inv_h2);
                     sum_w  += w;
                     sum_wI += w * P[qc * Mp + qr];
                     if (w > max_w) max_w = w;
@@ -3660,20 +3660,20 @@ void imnlmfilt(const Value &I, double dos,
     // Cast back to input class.
     J_out = Value::matrix(H, W, outT, mr);
     if (outT == ValueType::DOUBLE) {
-        double *p = J_out.doubleDataMut();
+        keel::f64 *p = J_out.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i) p[i] = Out[i];
     } else if (outT == ValueType::SINGLE) {
-        float *p = J_out.singleDataMut();
-        for (keel::usize i = 0; i < N; ++i) p[i] = keel::as<float>(Out[i]);
+        keel::f32 *p = J_out.singleDataMut();
+        for (keel::usize i = 0; i < N; ++i) p[i] = keel::as<keel::f32>(Out[i]);
     } else {
-        auto saturate = [&](double v, double lo, double hi) {
+        auto saturate = [&](keel::f64 v, keel::f64 lo, keel::f64 hi) {
             v = std::round(v);
             if (v < lo) v = lo;
             if (v > hi) v = hi;
             return v;
         };
         for (keel::usize i = 0; i < N; ++i) {
-            const double v = Out[i];
+            const keel::f64 v = Out[i];
             switch (outT) {
                 case ValueType::UINT8:  J_out.uint8DataMut()[i]  = keel::as<keel::u8>(saturate(v, 0.0, 255.0)); break;
                 case ValueType::UINT16: J_out.uint16DataMut()[i] = keel::as<keel::u16>(saturate(v, 0.0, 65535.0)); break;

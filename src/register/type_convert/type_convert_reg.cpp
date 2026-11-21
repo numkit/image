@@ -61,8 +61,8 @@ void mat2gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "mat2gray");
-    double lo = std::numeric_limits<double>::quiet_NaN();
-    double hi = std::numeric_limits<double>::quiet_NaN();
+    keel::f64 lo = std::numeric_limits<keel::f64>::quiet_NaN();
+    keel::f64 hi = std::numeric_limits<keel::f64>::quiet_NaN();
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].numel() != 2)
             throw Error("mat2gray: range must be a 2-element vector",
@@ -99,7 +99,7 @@ void gray2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     int n = (args[0].type() == ValueType::LOGICAL) ? 2 : 64;
     if (args.size() >= 2 && !args[1].isEmpty())
         {
-        const double nv = argcheck::expectedReal(args[1], 2, "n", "gray2ind");
+        const keel::f64 nv = argcheck::expectedReal(args[1], 2, "n", "gray2ind");
         argcheck::expectedInteger(nv, 2, "n", "gray2ind");
         argcheck::expectedBetween(nv, 1, 65536, 2, "n", "gray2ind");
         n = keel::as<int>(nv);

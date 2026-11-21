@@ -67,25 +67,25 @@ namespace numkit::image {
 namespace {
 
 // 5-tap binomial kernel weights / 16.
-constexpr float kK0 = 1.0f / 16.0f;
-constexpr float kK1 = 4.0f / 16.0f;
-constexpr float kK2 = 6.0f / 16.0f;
-constexpr float kK3 = 4.0f / 16.0f;
-constexpr float kK4 = 1.0f / 16.0f;
+constexpr keel::f32 kK0 = 1.0f / 16.0f;
+constexpr keel::f32 kK1 = 4.0f / 16.0f;
+constexpr keel::f32 kK2 = 6.0f / 16.0f;
+constexpr keel::f32 kK3 = 4.0f / 16.0f;
+constexpr keel::f32 kK4 = 1.0f / 16.0f;
 
 // 5-tap binomial for upsample: each 1-D pass scaled by 2 (so the
 // separable 2-D filter sees a total factor of 4, compensating for the
 // 1-in-4 nonzero density after zero-insert upsampling).
-constexpr float kU0 = 2.0f / 16.0f;
-constexpr float kU1 = 8.0f / 16.0f;
-constexpr float kU2 = 12.0f / 16.0f;
-constexpr float kU3 = 8.0f / 16.0f;
-constexpr float kU4 = 2.0f / 16.0f;
+constexpr keel::f32 kU0 = 2.0f / 16.0f;
+constexpr keel::f32 kU1 = 8.0f / 16.0f;
+constexpr keel::f32 kU2 = 12.0f / 16.0f;
+constexpr keel::f32 kU3 = 8.0f / 16.0f;
+constexpr keel::f32 kU4 = 2.0f / 16.0f;
 
 // A 2-D plane buffer (single precision, column-major to match Value).
 struct Plane {
     keel::usize H = 0, W = 0;
-    keel::Array<float> v;
+    keel::Array<keel::f32> v;
     Plane() = default;
     Plane(keel::usize h, keel::usize w) : H(h), W(w), v(h * w, 0.0f) {}
     Plane clone() const {
@@ -95,8 +95,8 @@ struct Plane {
         p.v = v.clone();
         return p;
     }
-    float &at(keel::usize r, keel::usize c) { return v[c * H + r]; }
-    float at(keel::usize r, keel::usize c) const { return v[c * H + r]; }
+    keel::f32 &at(keel::usize r, keel::usize c) { return v[c * H + r]; }
+    keel::f32 at(keel::usize r, keel::usize c) const { return v[c * H + r]; }
 };
 
 // Read a single plane (page `p`) from a Value into a Plane buffer.
@@ -112,15 +112,15 @@ Plane to_single_plane(const Value &I, keel::usize page)
     const ValueType t = I.type();
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            const double raw = I.elemAsDouble(off + c * H + r);
-            float v;
+            const keel::f64 raw = I.elemAsDouble(off + c * H + r);
+            keel::f32 v;
             switch (t) {
-                case ValueType::UINT8:  v = float(raw) / 255.0f;       break;
-                case ValueType::UINT16: v = float(raw) / 65535.0f;     break;
-                case ValueType::INT8:   v = (float(raw) + 128.0f) / 255.0f; break;
-                case ValueType::INT16:  v = (float(raw) + 32768.0f) / 65535.0f; break;
+                case ValueType::UINT8:  v = keel::f32(raw) / 255.0f;       break;
+                case ValueType::UINT16: v = keel::f32(raw) / 65535.0f;     break;
+                case ValueType::INT8:   v = (keel::f32(raw) + 128.0f) / 255.0f; break;
+                case ValueType::INT16:  v = (keel::f32(raw) + 32768.0f) / 65535.0f; break;
                 case ValueType::LOGICAL: v = raw == 0.0 ? 0.0f : 1.0f; break;
-                default:                v = keel::as<float>(raw);   break;
+                default:                v = keel::as<keel::f32>(raw);   break;
             }
             P.at(r, c) = v;
         }
@@ -160,7 +160,7 @@ Plane pyrdownsample(const Plane &P)
     Plane tmp(H, W);
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            const float v = kK0 * P.at(clamp_idx((long)r - 2, H), c)
+            const keel::f32 v = kK0 * P.at(clamp_idx((long)r - 2, H), c)
                           + kK1 * P.at(clamp_idx((long)r - 1, H), c)
                           + kK2 * P.at(r,                            c)
                           + kK3 * P.at(clamp_idx((long)r + 1, H), c)
@@ -171,7 +171,7 @@ Plane pyrdownsample(const Plane &P)
     Plane sm(H, W);
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            const float v = kK0 * tmp.at(r, clamp_idx((long)c - 2, W))
+            const keel::f32 v = kK0 * tmp.at(r, clamp_idx((long)c - 2, W))
                           + kK1 * tmp.at(r, clamp_idx((long)c - 1, W))
                           + kK2 * tmp.at(r, c)
                           + kK3 * tmp.at(r, clamp_idx((long)c + 1, W))
@@ -216,7 +216,7 @@ Plane pyrupsample(const Plane &P, keel::usize Htarget, keel::usize Wtarget)
     Plane tmp(Htarget, Wtarget);
     for (keel::usize c = 0; c < Wtarget; ++c)
         for (keel::usize r = 0; r < Htarget; ++r) {
-            const float v = kU0 * up.at(clamp_idx((long)r - 2, Htarget), c)
+            const keel::f32 v = kU0 * up.at(clamp_idx((long)r - 2, Htarget), c)
                           + kU1 * up.at(clamp_idx((long)r - 1, Htarget), c)
                           + kU2 * up.at(r,                                  c)
                           + kU3 * up.at(clamp_idx((long)r + 1, Htarget), c)
@@ -227,7 +227,7 @@ Plane pyrupsample(const Plane &P, keel::usize Htarget, keel::usize Wtarget)
     Plane out(Htarget, Wtarget);
     for (keel::usize c = 0; c < Wtarget; ++c)
         for (keel::usize r = 0; r < Htarget; ++r) {
-            const float v = kU0 * tmp.at(r, clamp_idx((long)c - 2, Wtarget))
+            const keel::f32 v = kU0 * tmp.at(r, clamp_idx((long)c - 2, Wtarget))
                           + kU1 * tmp.at(r, clamp_idx((long)c - 1, Wtarget))
                           + kU2 * tmp.at(r, c)
                           + kU3 * tmp.at(r, clamp_idx((long)c + 1, Wtarget))
@@ -238,16 +238,16 @@ Plane pyrupsample(const Plane &P, keel::usize Htarget, keel::usize Wtarget)
 }
 
 // ── Remap (Paris-Hasinoff Eq. 4) ─────────────────────────────────
-Plane remap_image(const Plane &I, float g, float sigma, float alpha, float beta)
+Plane remap_image(const Plane &I, keel::f32 g, keel::f32 sigma, keel::f32 alpha, keel::f32 beta)
 {
     Plane out(I.H, I.W);
-    const float inv_sigma = sigma > 0.0f ? 1.0f / sigma : 0.0f;
+    const keel::f32 inv_sigma = sigma > 0.0f ? 1.0f / sigma : 0.0f;
     for (keel::usize i = 0; i < I.H * I.W; ++i) {
-        const float v = I.v[i];
-        const float d = v - g;
-        const float ad = std::fabs(d);
-        const float sgn = (d > 0.0f) - (d < 0.0f);
-        float nd;
+        const keel::f32 v = I.v[i];
+        const keel::f32 d = v - g;
+        const keel::f32 ad = std::fabs(d);
+        const keel::f32 sgn = (d > 0.0f) - (d < 0.0f);
+        keel::f32 nd;
         if (sigma == 0.0f) {
             // d/sigma is ill-defined; the detail branch collapses to
             // g (since 0^alpha → 0 for alpha > 0). All pixels go
@@ -255,7 +255,7 @@ Plane remap_image(const Plane &I, float g, float sigma, float alpha, float beta)
             nd = sgn * beta * ad;
         } else if (ad <= sigma) {
             // Detail curve.
-            const float t = ad * inv_sigma;
+            const keel::f32 t = ad * inv_sigma;
             nd = sgn * sigma * std::pow(t, alpha);
         } else {
             // Edge curve.
@@ -267,19 +267,19 @@ Plane remap_image(const Plane &I, float g, float sigma, float alpha, float beta)
 }
 
 // ── llfCore (Aubry-Paris fast variant) ────────────────────────────
-Plane llf_core(const Plane &input, float sigma, float alpha, float beta,
+Plane llf_core(const Plane &input, keel::f32 sigma, keel::f32 alpha, keel::f32 beta,
                int numIntensityLevels, int numPyramidLevels)
 {
     // Find global min / max.
-    float minVal = input.v[0], maxVal = input.v[0];
-    for (float x : input.v) {
+    keel::f32 minVal = input.v[0], maxVal = input.v[0];
+    for (keel::f32 x : input.v) {
         if (x < minVal) minVal = x;
         if (x > maxVal) maxVal = x;
     }
 
     // ── Special case 1: 1 sample ────────────────────────────────
     if (numIntensityLevels == 1) {
-        const float refVal = 0.5f * (minVal + maxVal);
+        const keel::f32 refVal = 0.5f * (minVal + maxVal);
         return remap_image(input, refVal, sigma, alpha, beta);
     }
 
@@ -301,10 +301,10 @@ Plane llf_core(const Plane &input, float sigma, float alpha, float beta,
         outL[i] = Plane(inG[i].H, inG[i].W);   // zeroed
 
     // ── Sequentially accumulate over N intensity samples ───────
-    const float delta = (maxVal - minVal) / float(numIntensityLevels - 1);
+    const keel::f32 delta = (maxVal - minVal) / keel::f32(numIntensityLevels - 1);
     keel::Array<Plane> rG(numPyramidLevels);
     for (int k = 0; k < numIntensityLevels; ++k) {
-        const float refVal = minVal + float(k) * delta;
+        const keel::f32 refVal = minVal + keel::f32(k) * delta;
         rG[0] = remap_image(input, refVal, sigma, alpha, beta);
         for (int i = 1; i < numPyramidLevels; ++i)
             rG[i] = pyrdownsample(rG[i - 1]);
@@ -312,10 +312,10 @@ Plane llf_core(const Plane &input, float sigma, float alpha, float beta,
         for (int i = numPyramidLevels - 2; i >= 0; --i) {
             Plane up = pyrupsample(rG[i + 1], rG[i].H, rG[i].W);
             for (keel::usize j = 0; j < outL[i].v.size(); ++j) {
-                const float rL = rG[i].v[j] - up.v[j];
-                const float w = 1.0f
+                const keel::f32 rL = rG[i].v[j] - up.v[j];
+                const keel::f32 w = 1.0f
                     - std::fabs(inG[i].v[j] - refVal) / delta;
-                const float ww = w > 0.0f ? w : 0.0f;
+                const keel::f32 ww = w > 0.0f ? w : 0.0f;
                 outL[i].v[j] += ww * rL;
             }
         }
@@ -338,10 +338,10 @@ struct RGBSplit {
 };
 RGBSplit rgb_to_gray_with_ratios(const Plane &R, const Plane &G, const Plane &B)
 {
-    constexpr float kRC = 0.298936021293776f;
-    constexpr float kGC = 0.587043074451121f;
-    constexpr float kBC = 0.114020904255103f;
-    const float eps_s = std::numeric_limits<float>::epsilon();
+    constexpr keel::f32 kRC = 0.298936021293776f;
+    constexpr keel::f32 kGC = 0.587043074451121f;
+    constexpr keel::f32 kBC = 0.114020904255103f;
+    const keel::f32 eps_s = std::numeric_limits<keel::f32>::epsilon();
     RGBSplit s;
     s.gray = Plane(R.H, R.W);
     s.r = R.clone(); s.g = G.clone(); s.b = B.clone();
@@ -349,9 +349,9 @@ RGBSplit rgb_to_gray_with_ratios(const Plane &R, const Plane &G, const Plane &B)
     s.ratio_g = Plane(R.H, R.W);
     s.ratio_b = Plane(R.H, R.W);
     for (keel::usize i = 0; i < R.v.size(); ++i) {
-        const float y = kRC * R.v[i] + kGC * G.v[i] + kBC * B.v[i];
+        const keel::f32 y = kRC * R.v[i] + kGC * G.v[i] + kBC * B.v[i];
         s.gray.v[i] = y;
-        const float yp = y + eps_s;
+        const keel::f32 yp = y + eps_s;
         s.ratio_r.v[i] = R.v[i] / yp;
         s.ratio_g.v[i] = G.v[i] / yp;
         s.ratio_b.v[i] = B.v[i] / yp;
@@ -365,25 +365,25 @@ Value plane_to_value(const Plane &P, ValueType target,
 {
     Value out;
     const keel::usize H = P.H, W = P.W;
-    auto sat_uint8 = [](float v) -> keel::u8 {
+    auto sat_uint8 = [](keel::f32 v) -> keel::u8 {
         v = std::round(v * 255.0f);
         if (v < 0.0f)   v = 0.0f;
         if (v > 255.0f) v = 255.0f;
         return keel::as<keel::u8>(v);
     };
-    auto sat_uint16 = [](float v) -> keel::u16 {
+    auto sat_uint16 = [](keel::f32 v) -> keel::u16 {
         v = std::round(v * 65535.0f);
         if (v < 0.0f)     v = 0.0f;
         if (v > 65535.0f) v = 65535.0f;
         return keel::as<keel::u16>(v);
     };
-    auto sat_int8 = [](float v) -> keel::i8 {
+    auto sat_int8 = [](keel::f32 v) -> keel::i8 {
         v = std::round(v * 255.0f - 128.0f);
         if (v < -128.0f) v = -128.0f;
         if (v > 127.0f)  v = 127.0f;
         return keel::as<keel::i8>(v);
     };
-    auto sat_int16 = [](float v) -> keel::i16 {
+    auto sat_int16 = [](keel::f32 v) -> keel::i16 {
         // im2int16 of single in [0,1]: round(x*65535-32768).
         v = std::round(v * 65535.0f - 32768.0f);
         if (v < -32768.0f) v = -32768.0f;
@@ -417,16 +417,16 @@ Value plane_to_value(const Plane &P, ValueType target,
         }
         case ValueType::SINGLE: {
             out = Value::matrix(H, W, ValueType::SINGLE, mr);
-            float *od = out.singleDataMut();
-            std::memcpy(od, P.v.data(), H * W * sizeof(float));
+            keel::f32 *od = out.singleDataMut();
+            std::memcpy(od, P.v.data(), H * W * sizeof(keel::f32));
             break;
         }
         default: {
             // Fallback: double (e.g. for double inputs that MATLAB
             // doesn't accept but a caller might pass anyway).
             out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-            double *od = out.doubleDataMut();
-            for (keel::usize i = 0; i < H * W; ++i) od[i] = keel::as<double>(P.v[i]);
+            keel::f64 *od = out.doubleDataMut();
+            for (keel::usize i = 0; i < H * W; ++i) od[i] = keel::as<keel::f64>(P.v[i]);
             break;
         }
     }
@@ -446,7 +446,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
             case ValueType::UINT8: {
                 keel::u8 *od = out.uint8DataMut() + off;
                 for (keel::usize i = 0; i < H * W; ++i) {
-                    float v = std::round(P.v[i] * 255.0f);
+                    keel::f32 v = std::round(P.v[i] * 255.0f);
                     if (v < 0)    v = 0;
                     if (v > 255)  v = 255;
                     od[i] = keel::as<keel::u8>(v);
@@ -456,7 +456,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
             case ValueType::UINT16: {
                 keel::u16 *od = out.uint16DataMut() + off;
                 for (keel::usize i = 0; i < H * W; ++i) {
-                    float v = std::round(P.v[i] * 65535.0f);
+                    keel::f32 v = std::round(P.v[i] * 65535.0f);
                     if (v < 0)     v = 0;
                     if (v > 65535) v = 65535;
                     od[i] = keel::as<keel::u16>(v);
@@ -466,7 +466,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
             case ValueType::INT8: {
                 keel::i8 *od = out.int8DataMut() + off;
                 for (keel::usize i = 0; i < H * W; ++i) {
-                    float v = std::round(P.v[i] * 255.0f - 128.0f);
+                    keel::f32 v = std::round(P.v[i] * 255.0f - 128.0f);
                     if (v < -128) v = -128;
                     if (v >  127) v =  127;
                     od[i] = keel::as<keel::i8>(v);
@@ -476,7 +476,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
             case ValueType::INT16: {
                 keel::i16 *od = out.int16DataMut() + off;
                 for (keel::usize i = 0; i < H * W; ++i) {
-                    float v = std::round(P.v[i] * 65535.0f - 32768.0f);
+                    keel::f32 v = std::round(P.v[i] * 65535.0f - 32768.0f);
                     if (v < -32768) v = -32768;
                     if (v >  32767) v =  32767;
                     od[i] = keel::as<keel::i16>(v);
@@ -484,14 +484,14 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
                 break;
             }
             case ValueType::SINGLE: {
-                float *od = out.singleDataMut() + off;
-                std::memcpy(od, P.v.data(), H * W * sizeof(float));
+                keel::f32 *od = out.singleDataMut() + off;
+                std::memcpy(od, P.v.data(), H * W * sizeof(keel::f32));
                 break;
             }
             default: {
-                double *od = out.doubleDataMut() + off;
+                keel::f64 *od = out.doubleDataMut() + off;
                 for (keel::usize i = 0; i < H * W; ++i)
-                    od[i] = keel::as<double>(P.v[i]);
+                    od[i] = keel::as<keel::f64>(P.v[i]);
                 break;
             }
         }
@@ -502,18 +502,18 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
     return out;
 }
 
-int auto_intensity_levels(double alpha)
+int auto_intensity_levels(keel::f64 alpha)
 {
     if (alpha < 0.1) return 50;
     if (alpha < 0.9) {
         // round(((50*0.9 - 16*0.1) - (50-16)*alpha) / 0.8)
-        const double num = (50.0 * 0.9 - 16.0 * 0.1) - (50.0 - 16.0) * alpha;
+        const keel::f64 num = (50.0 * 0.9 - 16.0 * 0.1) - (50.0 - 16.0) * alpha;
         return keel::as<int>(std::round(num / 0.8));
     }
     return 16;
 }
 
-void locallapfilt_argcheck(const Value &I, double sigma, double alpha, double beta,
+void locallapfilt_argcheck(const Value &I, keel::f64 sigma, keel::f64 alpha, keel::f64 beta,
                            bool &isGray_out)
 {
     if (!std::isfinite(sigma) || sigma < 0.0)
@@ -540,7 +540,7 @@ void locallapfilt_argcheck(const Value &I, double sigma, double alpha, double be
 
 } // namespace
 
-Value locallapfilt(const Value &I, double sigma, double alpha, double beta,
+Value locallapfilt(const Value &I, keel::f64 sigma, keel::f64 alpha, keel::f64 beta,
                    int num_intensity_levels, bool process_luminance,
                    keel::Allocator *mr)
 {
@@ -570,9 +570,9 @@ Value locallapfilt(const Value &I, double sigma, double alpha, double beta,
     }
     if (numPyrLevels < 1) numPyrLevels = 1;
 
-    const float fsigma = keel::as<float>(sigma);
-    const float falpha = keel::as<float>(alpha);
-    const float fbeta  = keel::as<float>(beta);
+    const keel::f32 fsigma = keel::as<keel::f32>(sigma);
+    const keel::f32 falpha = keel::as<keel::f32>(alpha);
+    const keel::f32 fbeta  = keel::as<keel::f32>(beta);
 
     if (isGray) {
         Plane P = to_single_plane(I, 0);

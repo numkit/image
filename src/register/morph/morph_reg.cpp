@@ -63,7 +63,7 @@ void strel_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
     keel::String shape = keel::String::from("square");
     if (args[0].isChar() || args[0].isString()) shape = args[0].toString();
-    keel::Array<double> params;
+    keel::Array<keel::f64> params;
     Value arbitrary;
     for (keel::usize i = 1; i < args.size(); ++i) {
         if (!(args[i].isChar() || args[i].isString())) {
@@ -153,7 +153,7 @@ void imhmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imhmax");
-    const double h = args[1].toScalar();
+    const keel::f64 h = args[1].toScalar();
     const int conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imhmax"),
@@ -166,7 +166,7 @@ void imhmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, "imhmin");
     // no max: name-value tail in the reference
-    const double h = args[1].toScalar();
+    const keel::f64 h = args[1].toScalar();
     const int conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imhmin"),
@@ -178,7 +178,7 @@ void imextendedmax_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imextendedmax");
-    const double h = args[1].toScalar();
+    const keel::f64 h = args[1].toScalar();
     const int conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imextendedmax"),
@@ -190,7 +190,7 @@ void imextendedmin_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                        keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "imextendedmin");
-    const double h = args[1].toScalar();
+    const keel::f64 h = args[1].toScalar();
     const int conn = (args.size() >= 3 && !args[2].isEmpty())
                      ? argcheck::expectedOneOf(
             argcheck::expectedReal(args[2], 3, "conn", "imextendedmin"),
@@ -340,7 +340,7 @@ void bwhitmiss_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::u8 *s1 = se1.logicalDataMut();
         keel::u8 *s2 = se2.logicalDataMut();
         for (keel::usize i = 0; i < N; ++i) {
-            const double v = iv.elemAsDouble(i);
+            const keel::f64 v = iv.elemAsDouble(i);
             s1[i] = (v ==  1.0) ? 1u : 0u;
             s2[i] = (v == -1.0) ? 1u : 0u;
         }
@@ -370,7 +370,7 @@ void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     int n = 1;
     if (args.size() >= 3 && !args[2].isEmpty()) {
-        const double v = args[2].toScalar();
+        const keel::f64 v = args[2].toScalar();
         if (std::isinf(v)) n = -1;
         else               n = keel::as<int>(v);
     }
@@ -399,7 +399,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         argcheck::expectedReal(args[3], 4, "conn", "bwtraceboundary"),
         {4, 8}, 4, "conn", "bwtraceboundary");
     if (args.size() >= 5 && !args[4].isEmpty()) {
-        const double v = args[4].toScalar();
+        const keel::f64 v = args[4].toScalar();
         if (!std::isinf(v)) {
             if (!(v > 0))
                 throw Error("bwtraceboundary: N must be positive or Inf",

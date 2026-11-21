@@ -37,7 +37,7 @@ namespace detail {
 void reducepoly_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)
 {
     argcheck::checkNargin(a.size(), 1, 2, "reducepoly");
-    double tol = 0.001;
+    keel::f64 tol = 0.001;
     if (a.size() >= 2 && !a[1].isEmpty()) tol = a[1].toScalar();
     o[0] = reducepoly(a[0], tol, c.engine->allocator());
 }
@@ -58,7 +58,7 @@ void grayconnected_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<V
         argcheck::expectedReal(a[1], 2, "row", "grayconnected"), 2, "row", "grayconnected");
     const int col = argcheck::expectedPositiveInteger(
         argcheck::expectedReal(a[2], 3, "col", "grayconnected"), 3, "col", "grayconnected");
-    double tol = -1.0;
+    keel::f64 tol = -1.0;
     if (a.size() >= 4 && !a[3].isEmpty()) tol = a[3].toScalar();
     o[0] = grayconnected(a[0], row, col, tol, c.engine->allocator());
 }
@@ -106,7 +106,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
 
     // Identify which signature is in play, then determine where the
     // name-value pairs start.
-    double ref_gray_val = 0.0;
+    keel::f64 ref_gray_val = 0.0;
     keel::usize nv_start = 2;
 
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
@@ -124,7 +124,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
         if (cnt == 0)
             throw Error("graydiffweight: MASK must contain at least one true",
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:emptyMask");
-        ref_gray_val = keel::as<double>(sum / keel::as<long double>(cnt));
+        ref_gray_val = keel::as<keel::f64>(sum / keel::as<long double>(cnt));
         nv_start = 2;
     }
     else if (!a1_str && a[1].numel() == 1 &&
@@ -157,7 +157,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
             sum += I.elemAsDouble(lin);
             ++cnt;
         }
-        ref_gray_val = keel::as<double>(sum / keel::as<long double>(cnt));
+        ref_gray_val = keel::as<keel::f64>(sum / keel::as<long double>(cnt));
         nv_start = has_P ? 4 : 3;
     }
     else {
@@ -167,8 +167,8 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
     }
 
     // Name-value pairs.
-    double rolloff = 0.5;
-    double cutoff  = std::numeric_limits<double>::infinity();
+    keel::f64 rolloff = 0.5;
+    keel::f64 cutoff  = std::numeric_limits<keel::f64>::infinity();
     keel::usize i = nv_start;
     while (i + 1 < a.size()) {
         if (!is_string(a[i]))
@@ -209,9 +209,9 @@ void gradientweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
     auto *mr = c.engine->allocator();
     const Value &I = a[0];
 
-    double sigma_x = 1.5, sigma_y = 1.5;
-    double rolloff = 3.0;
-    double cutoff  = 0.25;
+    keel::f64 sigma_x = 1.5, sigma_y = 1.5;
+    keel::f64 rolloff = 3.0;
+    keel::f64 cutoff  = 0.25;
 
     keel::usize nv_start = 1;
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
@@ -297,8 +297,8 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
 
     // Helper: pull [lo, hi] from a Value that's either a 2-elem extent
     // vector or a scalar (treated as a degenerate extent).
-    auto extent = [&](const Value &v, double dflt_lo, double dflt_hi,
-                      double &lo, double &hi) {
+    auto extent = [&](const Value &v, keel::f64 dflt_lo, keel::f64 dflt_hi,
+                      keel::f64 &lo, keel::f64 &hi) {
         if (v.numel() == 0) { lo = dflt_lo; hi = dflt_hi; }
         else if (v.numel() == 1) {
             lo = hi = v.toScalar();
@@ -308,7 +308,7 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
         }
     };
 
-    double xlo = 0, xhi = 0, ylo = 0, yhi = 0;
+    keel::f64 xlo = 0, xhi = 0, ylo = 0, yhi = 0;
     keel::usize M = 0, N = 0;
     Value xi, yi;
 
@@ -318,22 +318,22 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             const Value &A = a[0];
             M = A.dims().rows();
             N = A.dims().cols();
-            xlo = 1.0;  xhi = keel::as<double>(N);
-            ylo = 1.0;  yhi = keel::as<double>(M);
+            xlo = 1.0;  xhi = keel::as<keel::f64>(N);
+            ylo = 1.0;  yhi = keel::as<keel::f64>(M);
             xi = a[1]; yi = a[2];
             break;
         }
         case 4: {
             // (M, N, xi, yi)
-            const double Md = a[0].toScalar();
-            const double Nd = a[1].toScalar();
+            const keel::f64 Md = a[0].toScalar();
+            const keel::f64 Nd = a[1].toScalar();
             if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
             M = keel::as<keel::usize>(Md);
             N = keel::as<keel::usize>(Nd);
-            xlo = 1.0;  xhi = keel::as<double>(N);
-            ylo = 1.0;  yhi = keel::as<double>(M);
+            xlo = 1.0;  xhi = keel::as<keel::f64>(N);
+            ylo = 1.0;  yhi = keel::as<keel::f64>(M);
             xi = a[2]; yi = a[3];
             break;
         }
@@ -342,22 +342,22 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             const Value &A = a[2];
             M = A.dims().rows();
             N = A.dims().cols();
-            extent(a[0], 1.0, keel::as<double>(N), xlo, xhi);
-            extent(a[1], 1.0, keel::as<double>(M), ylo, yhi);
+            extent(a[0], 1.0, keel::as<keel::f64>(N), xlo, xhi);
+            extent(a[1], 1.0, keel::as<keel::f64>(M), ylo, yhi);
             xi = a[3]; yi = a[4];
             break;
         }
         case 6: {
             // (x, y, M, N, xi, yi)
-            const double Md = a[2].toScalar();
-            const double Nd = a[3].toScalar();
+            const keel::f64 Md = a[2].toScalar();
+            const keel::f64 Nd = a[3].toScalar();
             if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
             M = keel::as<keel::usize>(Md);
             N = keel::as<keel::usize>(Nd);
-            extent(a[0], 1.0, keel::as<double>(N), xlo, xhi);
-            extent(a[1], 1.0, keel::as<double>(M), ylo, yhi);
+            extent(a[0], 1.0, keel::as<keel::f64>(N), xlo, xhi);
+            extent(a[1], 1.0, keel::as<keel::f64>(M), ylo, yhi);
             xi = a[4]; yi = a[5];
             break;
         }
@@ -366,7 +366,7 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
     // Build the auto-closed xi/yi for the multi-output forms (matches
     // MATLAB's behaviour: outputs the closed polygon as a column vector).
     const keel::usize n0 = xi.numel();
-    keel::Array<double> xc(mr), yc(mr);
+    keel::Array<keel::f64> xc(mr), yc(mr);
     xc.reserve(n0 + 1);
     yc.reserve(n0 + 1);
     for (keel::usize i = 0; i < n0; ++i) {
@@ -438,7 +438,7 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
     const keel::usize W = A.dims().cols();
 
     // Build 1-based linear seed indices.
-    keel::Array<double> indices(mr);
+    keel::Array<keel::f64> indices(mr);
     if (nargs == 2) {
         const Value &arg2 = a[1];
         if (arg2.isLogical()) {
@@ -448,7 +448,7 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
                             0, 0, "graydist", "", "numkit:graydist:maskSize");
             const keel::u8 *m = arg2.logicalData();
             for (keel::usize i = 0; i < arg2.numel(); ++i)
-                if (m[i]) indices.push_back(keel::as<double>(i + 1));
+                if (m[i]) indices.push_back(keel::as<keel::f64>(i + 1));
         } else {
             // Linear indices.
             indices.reserve(arg2.numel());
@@ -471,7 +471,7 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
                             0, 0, "graydist", "", "numkit:graydist:crBounds");
             // Column-major 1-based linear index.
             const keel::usize lin = (cc - 1) * H + rr;  // 1-based
-            indices.push_back(keel::as<double>(lin));
+            indices.push_back(keel::as<keel::f64>(lin));
         }
     } else {
         throw Error("graydist: too many positional arguments",
@@ -512,7 +512,7 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
     const keel::usize H = BW.dims().rows();
     const keel::usize W = BW.dims().cols();
 
-    keel::Array<double> indices(mr);
+    keel::Array<keel::f64> indices(mr);
     if (nargs == 2) {
         const Value &arg2 = a[1];
         if (arg2.isLogical()) {
@@ -522,7 +522,7 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
                             "numkit:bwdistgeodesic:maskSize");
             const keel::u8 *m = arg2.logicalData();
             for (keel::usize i = 0; i < arg2.numel(); ++i)
-                if (m[i]) indices.push_back(keel::as<double>(i + 1));
+                if (m[i]) indices.push_back(keel::as<keel::f64>(i + 1));
         } else {
             indices.reserve(arg2.numel());
             for (keel::usize i = 0; i < arg2.numel(); ++i)
@@ -544,7 +544,7 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
                             0, 0, "bwdistgeodesic", "",
                             "numkit:bwdistgeodesic:crBounds");
             const keel::usize lin = (cc - 1) * H + rr;
-            indices.push_back(keel::as<double>(lin));
+            indices.push_back(keel::as<keel::f64>(lin));
         }
     } else {
         throw Error("bwdistgeodesic: too many positional arguments",
@@ -563,8 +563,8 @@ void poly2mask_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value
 {
     argcheck::checkNargin(a.size(), 4, 4, "poly2mask");
     auto *mr = c.engine->allocator();
-    const double Md = a[2].toScalar();
-    const double Nd = a[3].toScalar();
+    const keel::f64 Md = a[2].toScalar();
+    const keel::f64 Nd = a[3].toScalar();
     if (!std::isfinite(Md) || !std::isfinite(Nd)
      || Md < 0.0 || Nd < 0.0
      || Md != std::floor(Md) || Nd != std::floor(Nd))

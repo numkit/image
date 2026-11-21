@@ -23,7 +23,7 @@ namespace numkit::image {
 
 namespace {
 
-double class_peak(ValueType t) {
+keel::f64 class_peak(ValueType t) {
     switch (t) {
         case ValueType::UINT8:  return 255.0;
         case ValueType::UINT16: return 65535.0;
@@ -35,9 +35,9 @@ double class_peak(ValueType t) {
 // Element-wise difference squared, summed. Complex inputs use |zA−zB|²
 // (probed R2025b: immse computes the absolute-square error, not the
 // real-part difference).
-double sum_squared_error(const Value &A, const Value &B) {
+keel::f64 sum_squared_error(const Value &A, const Value &B) {
     const keel::usize N = A.numel();
-    double s = 0.0;
+    keel::f64 s = 0.0;
     if (A.isComplex() || B.isComplex()) {
         // Either side may be real (complex pairs with double — probed).
         const bool ac = A.isComplex(), bc = B.isComplex();
@@ -52,7 +52,7 @@ double sum_squared_error(const Value &A, const Value &B) {
         return s;
     }
     for (keel::usize i = 0; i < N; ++i) {
-        const double d = A.elemAsDouble(i) - B.elemAsDouble(i);
+        const keel::f64 d = A.elemAsDouble(i) - B.elemAsDouble(i);
         s += d * d;
     }
     return s;
@@ -109,19 +109,19 @@ void corr2_argcheck(const Value &A, const Value &B) {
 
 Value immse(const Value &A, const Value &B, keel::Allocator *mr) {
     immse_argcheck(A, B);
-    const double mse = (A.numel() > 0)
-                       ? sum_squared_error(A, B) / double(A.numel())
+    const keel::f64 mse = (A.numel() > 0)
+                       ? sum_squared_error(A, B) / keel::f64(A.numel())
                        : 0.0;
     return Value::scalar(mse, mr);
 }
 
-Value psnr(const Value &A, const Value &B, double peak, keel::Allocator *mr) {
+Value psnr(const Value &A, const Value &B, keel::f64 peak, keel::Allocator *mr) {
     psnr_argcheck(A, B);
     if (std::isnan(peak)) peak = class_peak(A.type());
-    if (A.numel() == 0) return Value::scalar(std::numeric_limits<double>::infinity(), mr);
-    const double mse = sum_squared_error(A, B) / double(A.numel());
-    if (mse == 0.0) return Value::scalar(std::numeric_limits<double>::infinity(), mr);
-    const double db = 10.0 * std::log10(peak * peak / mse);
+    if (A.numel() == 0) return Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr);
+    const keel::f64 mse = sum_squared_error(A, B) / keel::f64(A.numel());
+    if (mse == 0.0) return Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr);
+    const keel::f64 db = 10.0 * std::log10(peak * peak / mse);
     return Value::scalar(db, mr);
 }
 
@@ -132,8 +132,8 @@ Value ssim(const Value &A, const Value &B, keel::Allocator *mr) {
     if (H == 0 || W == 0) return Value::scalar(1.0, mr);
 
     auto unit = [&](const Value &X) {
-        keel::Array<double> out(X.numel(), mr);
-        const double scale = 1.0 / class_peak(X.type());
+        keel::Array<keel::f64> out(X.numel(), mr);
+        const keel::f64 scale = 1.0 / class_peak(X.type());
         for (keel::usize i = 0; i < X.numel(); ++i)
             out[i] = X.elemAsDouble(i) * scale;
         return out;
@@ -148,7 +148,7 @@ Value mean2(const Value &A, keel::Allocator *mr)
     if (N == 0) return Value::scalar(std::nan(""), mr);
     long double s = 0.0L;
     for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
-    return Value::scalar(keel::as<double>(s / keel::as<long double>(N)),
+    return Value::scalar(keel::as<keel::f64>(s / keel::as<long double>(N)),
                          mr);
 }
 
@@ -167,7 +167,7 @@ Value std2(const Value &A, keel::Allocator *mr)
     }
     // std2 wraps std(I(:)) → sample std (normalize by N-1).
     v /= keel::as<long double>(N - 1);
-    return Value::scalar(keel::as<double>(std::sqrt((double)v)), mr);
+    return Value::scalar(keel::as<keel::f64>(std::sqrt((keel::f64)v)), mr);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -199,7 +199,7 @@ Value std2(const Value &A, keel::Allocator *mr)
 
 namespace {
 
-double class_dynamic_range(ValueType t)
+keel::f64 class_dynamic_range(ValueType t)
 {
     switch (t) {
         case ValueType::UINT8:  return 255.0;
@@ -213,19 +213,19 @@ double class_dynamic_range(ValueType t)
 // gaussian at positions (0..N-1) - (N-1)/2 with σ=1, normalised to
 // sum to 1. For N=1 returns [1.0]. For N=5 returns
 // [0.0545, 0.2442, 0.4026, 0.2442, 0.0545].
-keel::Array<double> default_scale_weights(int N)
+keel::Array<keel::f64> default_scale_weights(int N)
 {
     if (N < 1) N = 1;
-    keel::Array<double> w(N);
+    keel::Array<keel::f64> w(N);
     if (N == 1) { w[0] = 1.0; return w; }
-    const double half = (N - 1) / 2.0;
-    double s = 0.0;
+    const keel::f64 half = (N - 1) / 2.0;
+    keel::f64 s = 0.0;
     for (int i = 0; i < N; ++i) {
-        const double x = i - half;
+        const keel::f64 x = i - half;
         w[i] = std::exp(-0.5 * x * x);
         s += w[i];
     }
-    for (double &v : w) v /= s;
+    for (keel::f64 &v : w) v /= s;
     return w;
 }
 
@@ -238,10 +238,10 @@ Value to_double_image(const Value &A, keel::Allocator *mr)
     const keel::usize H = A.dims().rows();
     const keel::usize W = A.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     const ValueType t = A.type();
     for (keel::usize i = 0; i < H * W; ++i) {
-        double v = A.elemAsDouble(i);
+        keel::f64 v = A.elemAsDouble(i);
         if (t == ValueType::INT16) v += 32768.0;
         // uint8 / uint16 / single / double all keep raw value.
         od[i] = v;
@@ -260,8 +260,8 @@ Value lowpass_2x2(const Value &X, keel::Allocator *mr)
     const keel::usize H = X.dims().rows();
     const keel::usize W = X.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
-    const double *xd = X.doubleData();
+    keel::f64 *od = out.doubleDataMut();
+    const keel::f64 *xd = X.doubleData();
     for (keel::usize c = 0; c < W; ++c) {
         const keel::usize cn = (c + 1 < W) ? (c + 1) : (W - 1);  // replicate
         for (keel::usize r = 0; r < H; ++r) {
@@ -284,8 +284,8 @@ Value downsample_2(const Value &X, keel::Allocator *mr)
     const keel::usize Ho = (H + 1) / 2;
     const keel::usize Wo = (W + 1) / 2;
     Value out = Value::matrix(Ho, Wo, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
-    const double *xd = X.doubleData();
+    keel::f64 *od = out.doubleDataMut();
+    const keel::f64 *xd = X.doubleData();
     for (keel::usize c = 0; c < Wo; ++c)
         for (keel::usize r = 0; r < Ho; ++r)
             od[c * Ho + r] = xd[(c * 2) * H + (r * 2)];
@@ -296,7 +296,7 @@ Value downsample_2(const Value &X, keel::Allocator *mr)
 // false, the map is (2σxy+C2)/(σx²+σy²+C2). If true, full SSIM
 // (Wang-Bovik Eq. 13) with the luminance term.
 Value ssim_map_double(const Value &A, const Value &B,
-                      const Value &gK, double C1, double C2,
+                      const Value &gK, keel::f64 C1, keel::f64 C2,
                       bool include_luminance,
                       keel::Allocator *mr)
 {
@@ -312,13 +312,13 @@ Value ssim_map_double(const Value &A, const Value &B,
     Value AA = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value BB = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value AB = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    const double *ad = A.doubleData();
-    const double *bd = B.doubleData();
-    double *aa = AA.doubleDataMut();
-    double *bb = BB.doubleDataMut();
-    double *ab = AB.doubleDataMut();
+    const keel::f64 *ad = A.doubleData();
+    const keel::f64 *bd = B.doubleData();
+    keel::f64 *aa = AA.doubleDataMut();
+    keel::f64 *bb = BB.doubleDataMut();
+    keel::f64 *ab = AB.doubleDataMut();
     for (keel::usize i = 0; i < H * W; ++i) {
-        const double a = ad[i], b = bd[i];
+        const keel::f64 a = ad[i], b = bd[i];
         aa[i] = a * a;
         bb[i] = b * b;
         ab[i] = a * b;
@@ -328,28 +328,28 @@ Value ssim_map_double(const Value &A, const Value &B,
     Value sab = box(AB);
 
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
-    const double *mua_d = mu_a.doubleData();
-    const double *mub_d = mu_b.doubleData();
-    const double *sa2_d = sa2.doubleData();
-    const double *sb2_d = sb2.doubleData();
-    const double *sab_d = sab.doubleData();
+    keel::f64 *od = out.doubleDataMut();
+    const keel::f64 *mua_d = mu_a.doubleData();
+    const keel::f64 *mub_d = mu_b.doubleData();
+    const keel::f64 *sa2_d = sa2.doubleData();
+    const keel::f64 *sb2_d = sb2.doubleData();
+    const keel::f64 *sab_d = sab.doubleData();
     for (keel::usize i = 0; i < H * W; ++i) {
-        const double mua = mua_d[i];
-        const double mub = mub_d[i];
-        const double mu_xy = mua * mub;
-        const double mux2 = mua * mua;
-        const double muy2 = mub * mub;
-        double vx = sa2_d[i] - mux2;
-        double vy = sb2_d[i] - muy2;
+        const keel::f64 mua = mua_d[i];
+        const keel::f64 mub = mub_d[i];
+        const keel::f64 mu_xy = mua * mub;
+        const keel::f64 mux2 = mua * mua;
+        const keel::f64 muy2 = mub * mub;
+        keel::f64 vx = sa2_d[i] - mux2;
+        keel::f64 vy = sb2_d[i] - muy2;
         if (vx < 0.0) vx = 0.0;
         if (vy < 0.0) vy = 0.0;
-        const double cov = sab_d[i] - mu_xy;
-        const double num2 = 2.0 * cov + C2;
-        const double den2 = vx + vy + C2;
+        const keel::f64 cov = sab_d[i] - mu_xy;
+        const keel::f64 num2 = 2.0 * cov + C2;
+        const keel::f64 den2 = vx + vy + C2;
         if (include_luminance) {
-            const double num1 = 2.0 * mu_xy + C1;
-            const double den1 = mux2 + muy2 + C1;
+            const keel::f64 num1 = 2.0 * mu_xy + C1;
+            const keel::f64 den1 = mux2 + muy2 + C1;
             od[i] = (den1 != 0.0 && den2 != 0.0)
                   ? (num1 * num2) / (den1 * den2) : 1.0;
         } else {
@@ -362,17 +362,17 @@ Value ssim_map_double(const Value &A, const Value &B,
 }
 
 // Cast a DOUBLE Value to SINGLE (or pass through for DOUBLE).
-Value cast_score_value(double v, ValueType originalClass,
+Value cast_score_value(keel::f64 v, ValueType originalClass,
                        keel::Allocator *mr)
 {
     if (originalClass == ValueType::DOUBLE)
         return Value::scalar(v, mr);
     Value out = Value::matrix(1, 1, ValueType::SINGLE, mr);
-    out.singleDataMut()[0] = keel::as<float>(v);
+    out.singleDataMut()[0] = keel::as<keel::f32>(v);
     return out;
 }
 
-void multissim_argcheck(const Value &A, const Value &Iref, int num_scales, double sigma)
+void multissim_argcheck(const Value &A, const Value &Iref, int num_scales, keel::f64 sigma)
 {
     internal::requireImageClass(A, "multissim", "A", 1,
                                 internal::ImgClasses::FloatInt);
@@ -398,8 +398,8 @@ void multissim_argcheck(const Value &A, const Value &Iref, int num_scales, doubl
 
 Value multissim(const Value &A, const Value &Iref,
                 int num_scales,
-                keel::ArrayRef<double> scale_weights_in,
-                double sigma, double dynamic_range_in,
+                keel::ArrayRef<keel::f64> scale_weights_in,
+                keel::f64 sigma, keel::f64 dynamic_range_in,
                 keel::Array<Value> *quality_maps_out,
                 keel::Allocator *mr)
 {
@@ -423,22 +423,22 @@ Value multissim(const Value &A, const Value &Iref,
     }
 
     // ── Resolve dynamic range / C constants ─────────────────────
-    const double L = (dynamic_range_in > 0.0)
+    const keel::f64 L = (dynamic_range_in > 0.0)
                    ? dynamic_range_in
                    : class_dynamic_range(origClass);
-    const double C1 = (0.01 * L) * (0.01 * L);
-    const double C2 = (0.03 * L) * (0.03 * L);
+    const keel::f64 C1 = (0.01 * L) * (0.01 * L);
+    const keel::f64 C2 = (0.03 * L) * (0.03 * L);
 
     // ── Resolve / normalize scale weights ───────────────────────
-    keel::Array<double> sw = scale_weights_in.empty()
+    keel::Array<keel::f64> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
-        : keel::Array<double>::from(scale_weights_in);
+        : keel::Array<keel::f64>::from(scale_weights_in);
     if (keel::as<int>(sw.size()) != num_scales)
         throw Error("multissim: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim", "",
                     "numkit:multissim:swLen");
-    double swsum = 0.0;
-    for (double v : sw) {
+    keel::f64 swsum = 0.0;
+    for (keel::f64 v : sw) {
         if (v < 0.0)
             throw Error("multissim: ScaleWeights must be non-negative",
                         0, 0, "multissim", "",
@@ -450,14 +450,14 @@ Value multissim(const Value &A, const Value &Iref,
                     "positive element",
                     0, 0, "multissim", "",
                     "numkit:multissim:swZero");
-    for (double &v : sw) v /= swsum;
+    for (keel::f64 &v : sw) v /= swsum;
 
     // ── Gaussian kernel ────────────────────────────────────────
     const int filtRadius = keel::as<int>(std::ceil(sigma * 3.0));
     const int filtSize = 2 * filtRadius + 1;
     Value gK = fspecial("gaussian",
-                        { keel::as<double>(filtSize),
-                          keel::as<double>(filtSize), sigma }, mr);
+                        { keel::as<keel::f64>(filtSize),
+                          keel::as<keel::f64>(filtSize), sigma }, mr);
 
     // ── Promote to DOUBLE for computation ───────────────────────
     Value Ad = to_double_image(A, mr);
@@ -465,11 +465,11 @@ Value multissim(const Value &A, const Value &Iref,
 
     // ── Multi-scale loop ────────────────────────────────────────
     if (quality_maps_out) quality_maps_out->clear();
-    double total_log_score = 0.0;
+    keel::f64 total_log_score = 0.0;
     bool has_log = true;            // accumulate in log domain for stability
-    double total_score = 1.0;       // fallback (in case log fails)
+    keel::f64 total_score = 1.0;       // fallback (in case log fails)
 
-    auto apply_weight = [](double base, double exponent) -> double {
+    auto apply_weight = [](keel::f64 base, keel::f64 exponent) -> keel::f64 {
         // base may be slightly negative due to float noise; clamp.
         if (exponent != std::floor(exponent) && base < 0.0) base = 0.0;
         return std::pow(base, exponent);
@@ -482,11 +482,11 @@ Value multissim(const Value &A, const Value &Iref,
         // Mean of ssimmap.
         const keel::usize Nm = ssimmap.numel();
         long double s = 0.0L;
-        const double *sd = ssimmap.doubleData();
+        const keel::f64 *sd = ssimmap.doubleData();
         for (keel::usize k = 0; k < Nm; ++k) s += sd[k];
-        const double mean_map = keel::as<double>(
+        const keel::f64 mean_map = keel::as<keel::f64>(
             s / keel::as<long double>(Nm));
-        const double per_scale = apply_weight(mean_map, sw[i]);
+        const keel::f64 per_scale = apply_weight(mean_map, sw[i]);
         total_score *= per_scale;
         if (mean_map > 0.0) {
             total_log_score += sw[i] * std::log(mean_map);
@@ -499,7 +499,7 @@ Value multissim(const Value &A, const Value &Iref,
             Bd = downsample_2(lowpass_2x2(Bd, mr), mr);
         }
     }
-    double score = has_log ? std::exp(total_log_score) : total_score;
+    keel::f64 score = has_log ? std::exp(total_log_score) : total_score;
 
     return cast_score_value(score, origClass, mr);
 }
@@ -525,14 +525,14 @@ namespace {
 // Volume buffer mirror of the 2-D "image-in-DOUBLE" used by multissim.
 struct Vol {
     keel::usize H = 0, W = 0, D = 0;
-    keel::Array<double> v;  // column-major: idx = z*H*W + c*H + r
+    keel::Array<keel::f64> v;  // column-major: idx = z*H*W + c*H + r
     Vol() = default;
     Vol(keel::usize h, keel::usize w, keel::usize d)
         : H(h), W(w), D(d), v(h * w * d, 0.0) {}
-    double &at(keel::usize r, keel::usize c, keel::usize z) {
+    keel::f64 &at(keel::usize r, keel::usize c, keel::usize z) {
         return v[z * H * W + c * H + r];
     }
-    double at(keel::usize r, keel::usize c, keel::usize z) const {
+    keel::f64 at(keel::usize r, keel::usize c, keel::usize z) const {
         return v[z * H * W + c * H + r];
     }
 };
@@ -546,7 +546,7 @@ Vol to_double_vol(const Value &V)
     const ValueType t = V.type();
     const keel::usize N = H * W * D;
     for (keel::usize i = 0; i < N; ++i) {
-        double v = V.elemAsDouble(i);
+        keel::f64 v = V.elemAsDouble(i);
         if (t == ValueType::INT16) v += 32768.0;
         out.v[i] = v;
     }
@@ -559,22 +559,22 @@ Value vol_to_value(const Vol &V, keel::Allocator *mr)
         ? Value::matrix(V.H, V.W, ValueType::DOUBLE, mr)
         : Value::matrix3d(V.H, V.W, V.D, ValueType::DOUBLE, mr);
     std::memcpy(out.doubleDataMut(), V.v.data(),
-                V.v.size() * sizeof(double));
+                V.v.size() * sizeof(keel::f64));
     return out;
 }
 
 // Build a 1-D Gaussian kernel with `filtSize` elements, mean = (filtSize-1)/2.
-keel::Array<double> gauss1d(double sigma, int filtSize)
+keel::Array<keel::f64> gauss1d(keel::f64 sigma, int filtSize)
 {
-    keel::Array<double> k(filtSize);
-    const double half = (filtSize - 1) / 2.0;
-    double s = 0.0;
+    keel::Array<keel::f64> k(filtSize);
+    const keel::f64 half = (filtSize - 1) / 2.0;
+    keel::f64 s = 0.0;
     for (int i = 0; i < filtSize; ++i) {
-        const double x = i - half;
+        const keel::f64 x = i - half;
         k[i] = std::exp(-0.5 * (x / sigma) * (x / sigma));
         s += k[i];
     }
-    for (double &v : k) v /= s;
+    for (keel::f64 &v : k) v /= s;
     return k;
 }
 
@@ -588,7 +588,7 @@ inline keel::usize reflect_clamp(long i, keel::usize n)
 
 // Separable 3-D Gaussian: convolve along rows, then cols, then slices.
 // All passes use replicate boundary.
-Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
+Vol gauss3d_filter(const Vol &In, keel::ArrayRef<keel::f64> k)
 {
     const keel::usize H = In.H;
     const keel::usize W = In.W;
@@ -600,7 +600,7 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int j = -half; j <= half; ++j) {
                     const keel::usize rr = reflect_clamp(
                         keel::as<long>(r) + j, H);
@@ -613,7 +613,7 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int j = -half; j <= half; ++j) {
                     const keel::usize cc = reflect_clamp(
                         keel::as<long>(c) + j, W);
@@ -625,7 +625,7 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
     for (keel::usize z = 0; z < D; ++z)
         for (keel::usize c = 0; c < W; ++c)
             for (keel::usize r = 0; r < H; ++r) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (int j = -half; j <= half; ++j) {
                     const keel::usize zz = reflect_clamp(
                         keel::as<long>(z) + j, D);
@@ -676,13 +676,13 @@ Vol downsample_2x2x2(const Vol &In)
 
 // 3-D SSIM map. Same formula as ssim_map_double but operates on Vol.
 Vol ssim_map_vol(const Vol &A, const Vol &B,
-                 keel::ArrayRef<double> k,
-                 double C1, double C2, bool include_luminance)
+                 keel::ArrayRef<keel::f64> k,
+                 keel::f64 C1, keel::f64 C2, bool include_luminance)
 {
     const keel::usize H = A.H, W = A.W, D = A.D;
     Vol AA(H, W, D), BB(H, W, D), AB(H, W, D);
     for (keel::usize i = 0; i < A.v.size(); ++i) {
-        const double a = A.v[i], b = B.v[i];
+        const keel::f64 a = A.v[i], b = B.v[i];
         AA.v[i] = a * a;
         BB.v[i] = b * b;
         AB.v[i] = a * b;
@@ -694,21 +694,21 @@ Vol ssim_map_vol(const Vol &A, const Vol &B,
     Vol sab  = gauss3d_filter(AB, k);
     Vol out(H, W, D);
     for (keel::usize i = 0; i < A.v.size(); ++i) {
-        const double mua = mu_a.v[i], mub = mu_b.v[i];
-        const double mu_xy = mua * mub;
-        const double mux2 = mua * mua;
-        const double muy2 = mub * mub;
-        double vx = sa2.v[i] - mux2;
-        double vy = sb2.v[i] - muy2;
+        const keel::f64 mua = mu_a.v[i], mub = mu_b.v[i];
+        const keel::f64 mu_xy = mua * mub;
+        const keel::f64 mux2 = mua * mua;
+        const keel::f64 muy2 = mub * mub;
+        keel::f64 vx = sa2.v[i] - mux2;
+        keel::f64 vy = sb2.v[i] - muy2;
         if (vx < 0.0) vx = 0.0;
         if (vy < 0.0) vy = 0.0;
-        const double cov = sab.v[i] - mu_xy;
-        const double num2 = 2.0 * cov + C2;
-        const double den2 = vx + vy + C2;
-        double m;
+        const keel::f64 cov = sab.v[i] - mu_xy;
+        const keel::f64 num2 = 2.0 * cov + C2;
+        const keel::f64 den2 = vx + vy + C2;
+        keel::f64 m;
         if (include_luminance) {
-            const double num1 = 2.0 * mu_xy + C1;
-            const double den1 = mux2 + muy2 + C1;
+            const keel::f64 num1 = 2.0 * mu_xy + C1;
+            const keel::f64 den1 = mux2 + muy2 + C1;
             m = (den1 != 0.0 && den2 != 0.0) ? (num1 * num2) / (den1 * den2) : 1.0;
         } else {
             m = (den2 != 0.0) ? num2 / den2 : 1.0;
@@ -719,7 +719,7 @@ Vol ssim_map_vol(const Vol &A, const Vol &B,
     return out;
 }
 
-void multissim3_argcheck(const Value &V, const Value &Vref, int num_scales, double sigma)
+void multissim3_argcheck(const Value &V, const Value &Vref, int num_scales, keel::f64 sigma)
 {
     internal::requireImageClass(V, "multissim3", "V", 1,
                                 internal::ImgClasses::FloatInt);
@@ -748,8 +748,8 @@ void multissim3_argcheck(const Value &V, const Value &Vref, int num_scales, doub
 
 Value multissim3(const Value &V, const Value &Vref,
                  int num_scales,
-                 keel::ArrayRef<double> scale_weights_in,
-                 double sigma, double dynamic_range_in,
+                 keel::ArrayRef<keel::f64> scale_weights_in,
+                 keel::f64 sigma, keel::f64 dynamic_range_in,
                  keel::Array<Value> *quality_maps_out,
                  keel::Allocator *mr)
 {
@@ -773,20 +773,20 @@ Value multissim3(const Value &V, const Value &Vref,
         }
     }
 
-    const double L = (dynamic_range_in > 0.0)
+    const keel::f64 L = (dynamic_range_in > 0.0)
                    ? dynamic_range_in
                    : class_dynamic_range(origClass);
-    const double C1 = (0.01 * L) * (0.01 * L);
-    const double C2 = (0.03 * L) * (0.03 * L);
+    const keel::f64 C1 = (0.01 * L) * (0.01 * L);
+    const keel::f64 C2 = (0.03 * L) * (0.03 * L);
 
-    keel::Array<double> sw = scale_weights_in.empty()
+    keel::Array<keel::f64> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
-        : keel::Array<double>::from(scale_weights_in);
+        : keel::Array<keel::f64>::from(scale_weights_in);
     if (keel::as<int>(sw.size()) != num_scales)
         throw Error("multissim3: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim3", "", "numkit:multissim3:swLen");
-    double swsum = 0.0;
-    for (double v : sw) {
+    keel::f64 swsum = 0.0;
+    for (keel::f64 v : sw) {
         if (v < 0.0)
             throw Error("multissim3: ScaleWeights must be non-negative",
                         0, 0, "multissim3", "", "numkit:multissim3:swNeg");
@@ -796,18 +796,18 @@ Value multissim3(const Value &V, const Value &Vref,
         throw Error("multissim3: ScaleWeights must have at least one "
                     "positive element",
                     0, 0, "multissim3", "", "numkit:multissim3:swZero");
-    for (double &v : sw) v /= swsum;
+    for (keel::f64 &v : sw) v /= swsum;
 
     const int filtRadius = keel::as<int>(std::ceil(sigma * 3.0));
     const int filtSize = 2 * filtRadius + 1;
-    keel::Array<double> gk = gauss1d(sigma, filtSize);
+    keel::Array<keel::f64> gk = gauss1d(sigma, filtSize);
 
     if (quality_maps_out) quality_maps_out->clear();
 
-    double total_log_score = 0.0;
+    keel::f64 total_log_score = 0.0;
     bool has_log = true;
-    double total_score = 1.0;
-    auto apply_weight = [](double base, double exp) -> double {
+    keel::f64 total_score = 1.0;
+    auto apply_weight = [](keel::f64 base, keel::f64 exp) -> keel::f64 {
         if (exp != std::floor(exp) && base < 0.0) base = 0.0;
         return std::pow(base, exp);
     };
@@ -818,8 +818,8 @@ Value multissim3(const Value &V, const Value &Vref,
                                    /*include_luminance=*/last);
         const keel::usize Nm = ssimmap.v.size();
         long double s = 0.0L;
-        for (double x : ssimmap.v) s += x;
-        const double mean_map = keel::as<double>(
+        for (keel::f64 x : ssimmap.v) s += x;
+        const keel::f64 mean_map = keel::as<keel::f64>(
             s / keel::as<long double>(Nm));
         total_score *= apply_weight(mean_map, sw[i]);
         if (mean_map > 0.0) total_log_score += sw[i] * std::log(mean_map);
@@ -832,7 +832,7 @@ Value multissim3(const Value &V, const Value &Vref,
             Bd = downsample_2x2x2(Bl);
         }
     }
-    double score = has_log ? std::exp(total_log_score) : total_score;
+    keel::f64 score = has_log ? std::exp(total_log_score) : total_score;
     return cast_score_value(score, origClass, mr);
 }
 
@@ -856,9 +856,9 @@ Value corr2(const Value &A, const Value &B, keel::Allocator *mr)
         va  += da * da;
         vb  += db * db;
     }
-    const long double denom = std::sqrt((double)(va * vb));
+    const long double denom = std::sqrt((keel::f64)(va * vb));
     if (denom == 0.0L) return Value::scalar(std::nan(""), mr);
-    return Value::scalar(keel::as<double>(cov / denom), mr);
+    return Value::scalar(keel::as<keel::f64>(cov / denom), mr);
 }
 
 } // namespace numkit::image

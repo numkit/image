@@ -60,7 +60,7 @@ inline keel::usize idx3D(const Shape &s, keel::usize y, keel::usize x, keel::usi
     return c * s.H * s.W + x * s.H + y;
 }
 
-inline double sample(const Value &A, const Shape &s,
+inline keel::f64 sample(const Value &A, const Shape &s,
                      int y, int x, keel::usize c) {
     if (y < 0 || x < 0 ||
         y >= keel::as<int>(s.H) ||
@@ -72,16 +72,16 @@ inline double sample(const Value &A, const Shape &s,
 
 // Bilinear lookup with floating source coordinates (0-based).
 // Out-of-bounds pixels evaluate to 0.
-double bilinear(const Value &A, const Shape &s,
-                double y, double x, keel::usize c) {
+keel::f64 bilinear(const Value &A, const Shape &s,
+                keel::f64 y, keel::f64 x, keel::usize c) {
     const int y0 = keel::as<int>(std::floor(y));
     const int x0 = keel::as<int>(std::floor(x));
-    const double dy = y - y0;
-    const double dx = x - x0;
-    const double v00 = sample(A, s, y0,     x0,     c);
-    const double v01 = sample(A, s, y0,     x0 + 1, c);
-    const double v10 = sample(A, s, y0 + 1, x0,     c);
-    const double v11 = sample(A, s, y0 + 1, x0 + 1, c);
+    const keel::f64 dy = y - y0;
+    const keel::f64 dx = x - x0;
+    const keel::f64 v00 = sample(A, s, y0,     x0,     c);
+    const keel::f64 v01 = sample(A, s, y0,     x0 + 1, c);
+    const keel::f64 v10 = sample(A, s, y0 + 1, x0,     c);
+    const keel::f64 v11 = sample(A, s, y0 + 1, x0 + 1, c);
     return v00 * (1 - dy) * (1 - dx) +
            v01 * (1 - dy) *      dx  +
            v10 *      dy  * (1 - dx) +
@@ -90,7 +90,7 @@ double bilinear(const Value &A, const Shape &s,
 
 void writePixel(Value &out, const Shape &s,
                 keel::usize y, keel::usize x, keel::usize c,
-                double v, ValueType srcType)
+                keel::f64 v, ValueType srcType)
 {
     writeNative(out, idx3D(s, y, x, c), v, srcType);
 }
@@ -110,9 +110,9 @@ bool methodIsNearest(keel::StringRef m) {
 // the same algorithm as imresize3's buildContrib machinery below, kept
 // self-contained here so the (validated) 3-D path is untouched. Matches MATLAB
 // imresize for 'bilinear'/'bicubic', up- and down-scaling. bugs/image/imresize-interp.
-inline double rkTriangle(double x) { x = std::fabs(x); return (x < 1.0) ? (1.0 - x) : 0.0; }
-inline double rkCubic(double x) {
-    const double a = std::fabs(x);
+inline keel::f64 rkTriangle(keel::f64 x) { x = std::fabs(x); return (x < 1.0) ? (1.0 - x) : 0.0; }
+inline keel::f64 rkCubic(keel::f64 x) {
+    const keel::f64 a = std::fabs(x);
     if (a < 1.0) return (1.5 * a - 2.5) * a * a + 1.0;
     if (a < 2.0) return ((-0.5 * a + 2.5) * a - 4.0) * a + 2.0;
     return 0.0;
@@ -124,24 +124,24 @@ inline int rkMirror(int i, int N) {
     if (m >= N) m = c - 1 - m;
     return m;
 }
-struct RkContrib { int first; keel::Array<double> w; };  // first 0-indexed
+struct RkContrib { int first; keel::Array<keel::f64> w; };  // first 0-indexed
 
 // Per-output-pixel taps: pixel-centre map u, kernel `k` (total support `kw`),
 // antialiasing stretch when `aa && scale<1`, normalised weights.
-keel::Array<RkContrib> rkBuild(keel::usize outLen, double scale, double (*k)(double),
-                               double kw, bool aa) {
-    double scl = 1.0;
+keel::Array<RkContrib> rkBuild(keel::usize outLen, keel::f64 scale, keel::f64 (*k)(keel::f64),
+                               keel::f64 kw, bool aa) {
+    keel::f64 scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = kw / scale; }
     const int P = keel::as<int>(std::ceil(kw)) + 2;
     keel::Array<RkContrib> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
-        const double u    = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
+        const keel::f64 u    = (keel::f64(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
         const int    left = keel::as<int>(std::floor(u - kw / 2.0));
         RkContrib &  r    = rows[o];
         r.first = left - 1;
         r.w.assign(P, 0.0);
-        double sum = 0.0;
-        for (int j = 0; j < P; ++j) { const double w = scl * k(scl * (u - double(left + j))); r.w[j] = w; sum += w; }
+        keel::f64 sum = 0.0;
+        for (int j = 0; j < P; ++j) { const keel::f64 w = scl * k(scl * (u - keel::f64(left + j))); r.w[j] = w; sum += w; }
         if (sum != 0.0) for (auto &w : r.w) w /= sum;
     }
     return rows;
@@ -150,7 +150,7 @@ keel::Array<RkContrib> rkBuild(keel::usize outLen, double scale, double (*k)(dou
 // Separable kernel resize of an H×W×C image to outH×outW×C. `scaleY/scaleX` are
 // the per-axis scales (drives the centre mapping + antialias decision).
 Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usize outW,
-                     double scaleY, double scaleX, double (*k)(double), double kw,
+                     keel::f64 scaleY, keel::f64 scaleX, keel::f64 (*k)(keel::f64), keel::f64 kw,
                      bool antialias, ValueType t, keel::Allocator *mr)
 {
     const int  H = keel::as<int>(s.H), W = keel::as<int>(s.W);
@@ -158,12 +158,12 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
     const auto cx = rkBuild(outW, scaleX, k, kw, antialias);
     Value B = makeOut(outH, outW, s.C, t, mr);
     Shape sd{outH, outW, s.C};
-    keel::Array<double> tmp(outH * s.W);   // outH × W intermediate (per channel)
+    keel::Array<keel::f64> tmp(outH * s.W);   // outH × W intermediate (per channel)
     for (keel::usize c = 0; c < s.C; ++c) {
         for (int x = 0; x < W; ++x)            // pass 1: rows  → tmp[outH × W]
             for (keel::usize y = 0; y < outH; ++y) {
                 const RkContrib &r = cy[y];
-                double v = 0.0;
+                keel::f64 v = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j)
                     v += r.w[j] * sample(A, s, rkMirror(r.first + int(j), H), x, c);
                 tmp[y + keel::usize(x) * outH] = v;
@@ -171,7 +171,7 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
         for (keel::usize x = 0; x < outW; ++x) {    // pass 2: cols  → B[outH × outW]
             const RkContrib &r = cx[x];
             for (keel::usize y = 0; y < outH; ++y) {
-                double v = 0.0;
+                keel::f64 v = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j)
                     v += r.w[j] * tmp[y + keel::usize(rkMirror(r.first + int(j), W)) * outH];
                 writePixel(B, sd, y, x, c, v, t);
@@ -182,7 +182,7 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
 }
 
 // Map a method string to (kernel fn, total support). Returns fn=nullptr for nearest.
-bool methodKernel(keel::StringRef m, double (*&k)(double), double &kw) {
+bool methodKernel(keel::StringRef m, keel::f64 (*&k)(keel::f64), keel::f64 &kw) {
     if (m == "bilinear" || m == "Bilinear" || m == "linear" || m == "Linear" ||
         m == "triangle" || m == "Triangle") { k = rkTriangle; kw = 2.0; return true; }
     if (m == "bicubic"  || m == "Bicubic"  || m == "cubic"  || m == "Cubic") {
@@ -196,7 +196,7 @@ Shape geom_shape_argcheck(const Value &A)
     return shapeOf(A);
 }
 
-void imresize_scale_argcheck(double scale)
+void imresize_scale_argcheck(keel::f64 scale)
 {
     if (!(scale > 0.0))
         throw Error("imresize: scale must be > 0",
@@ -244,15 +244,15 @@ Value imresize(const Value &A, keel::usize outH, keel::usize outW, keel::StringR
 
     if (methodIsNearest(method)) {
         // Nearest stays on the centre-aligned map + edge clamp (already correct).
-        const double sx = double(s.W) / double(outW);
-        const double sy = double(s.H) / double(outH);
+        const keel::f64 sx = keel::f64(s.W) / keel::f64(outW);
+        const keel::f64 sy = keel::f64(s.H) / keel::f64(outH);
         Value B = makeOut(outH, outW, s.C, t, mr);
         Shape sd{outH, outW, s.C};
         for (keel::usize c = 0; c < s.C; ++c)
             for (keel::usize yo = 0; yo < outH; ++yo) {
-                const double ys = (yo + 0.5) * sy - 0.5;
+                const keel::f64 ys = (yo + 0.5) * sy - 0.5;
                 for (keel::usize xo = 0; xo < outW; ++xo) {
-                    const double xs = (xo + 0.5) * sx - 0.5;
+                    const keel::f64 xs = (xo + 0.5) * sx - 0.5;
                     int yi = int(std::floor(ys + 0.5)), xi = int(std::floor(xs + 0.5));
                     if (yi < 0) yi = 0; if (xi < 0) xi = 0;
                     if (yi >= int(s.H)) yi = int(s.H) - 1;
@@ -264,29 +264,29 @@ Value imresize(const Value &A, keel::usize outH, keel::usize outW, keel::StringR
     }
     // Interpolating methods: MATLAB's pixel-centre map + antialiasing + mirror
     // boundary (separable). Size form uses per-axis scale outLen/inLen.
-    double (*k)(double); double kw;
+    keel::f64 (*k)(keel::f64); keel::f64 kw;
     methodKernel(method, k, kw);
     return imresizeKernel(A, s, outH, outW,
-                          double(outH) / double(s.H), double(outW) / double(s.W),
+                          keel::f64(outH) / keel::f64(s.H), keel::f64(outW) / keel::f64(s.W),
                           k, kw, /*antialias=*/true, t, mr);
 }
 
-Value imresize(const Value &A, double scale, keel::StringRef method, keel::Allocator *mr)
+Value imresize(const Value &A, keel::f64 scale, keel::StringRef method, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     imresize_scale_argcheck(scale);
-    const keel::usize outH = keel::as<keel::usize>(std::round(scale * double(s.H)));
-    const keel::usize outW = keel::as<keel::usize>(std::round(scale * double(s.W)));
+    const keel::usize outH = keel::as<keel::usize>(std::round(scale * keel::f64(s.H)));
+    const keel::usize outW = keel::as<keel::usize>(std::round(scale * keel::f64(s.W)));
     if (methodIsNearest(method))
         return imresize(A, outH, outW, method, mr);
     // Scale form: the centre map uses the scalar `scale` (MATLAB's convention).
-    double (*k)(double); double kw;
+    keel::f64 (*k)(keel::f64); keel::f64 kw;
     methodKernel(method, k, kw);
     return imresizeKernel(A, s, outH, outW, scale, scale, k, kw, /*antialias=*/true,
                           A.type(), mr);
 }
 
-Value imcrop(const Value &A, double xmin, double ymin, double width, double height, keel::Allocator *mr)
+Value imcrop(const Value &A, keel::f64 xmin, keel::f64 ymin, keel::f64 width, keel::f64 height, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -307,7 +307,7 @@ Value imcrop(const Value &A, double xmin, double ymin, double width, double heig
     for (keel::usize c = 0; c < s.C; ++c)
         for (int y = 0; y < h; ++y)
             for (int x = 0; x < w; ++x) {
-                const double v = A.elemAsDouble(
+                const keel::f64 v = A.elemAsDouble(
                     idx3D(s, keel::usize(y0 + y), keel::usize(x0 + x), c));
                 writePixel(B, sd, keel::usize(y), keel::usize(x), c, v, t);
             }
@@ -422,7 +422,7 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
     return B;
 }
 
-Value imrotate(const Value &A, double angle, keel::StringRef method, keel::StringRef bbox, keel::Allocator *mr)
+Value imrotate(const Value &A, keel::f64 angle, keel::StringRef method, keel::StringRef bbox, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -434,10 +434,10 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
     // half-pixel .5-tie ambiguity that an interpolated rotation hits at
     // these angles. 'crop' then centre-extracts the input-sized window.
     {
-        double a = std::fmod(angle, 360.0);
+        keel::f64 a = std::fmod(angle, 360.0);
         if (a < 0.0) a += 360.0;
         const long kk = std::lround(a / 90.0);
-        if (keel::abs(a - double(kk) * 90.0) < 1e-9) {
+        if (keel::abs(a - keel::f64(kk) * 90.0) < 1e-9) {
             const int k = keel::as<int>(((kk % 4) + 4) % 4);
             const keel::usize Hl = (k % 2 == 0) ? s.H : s.W;  // loose dims
             const keel::usize Wl = (k % 2 == 0) ? s.W : s.H;
@@ -445,8 +445,8 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
             const keel::usize oW = isCrop ? s.W : Wl;
             long rowOff = 0, colOff = 0;
             if (isCrop) {
-                rowOff = keel::as<long>(std::floor((double(Hl) - double(s.H)) / 2.0));
-                colOff = keel::as<long>(std::floor((double(Wl) - double(s.W)) / 2.0));
+                rowOff = keel::as<long>(std::floor((keel::f64(Hl) - keel::f64(s.H)) / 2.0));
+                colOff = keel::as<long>(std::floor((keel::f64(Wl) - keel::f64(s.W)) / 2.0));
                 // For the 270-degree quarter turn (k==3) the leftover half
                 // pixel of an odd size difference falls on the opposite side
                 // vs 90 degrees (k==1) — MATLAB centres the crop accordingly.
@@ -461,7 +461,7 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
                     for (keel::usize j = 0; j < oW; ++j) {
                         const long li = keel::as<long>(i) + rowOff;  // loose coords
                         const long lj = keel::as<long>(j) + colOff;
-                        double v = 0.0;
+                        keel::f64 v = 0.0;
                         if (li >= 0 && li < keel::as<long>(Hl) &&
                             lj >= 0 && lj < keel::as<long>(Wl)) {
                             long sr = 0, sc = 0;  // map loose -> source (inverse rot90^k)
@@ -479,9 +479,9 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
         }
     }
 
-    const double rad = angle * M_PI / 180.0;
-    const double co = std::cos(rad);
-    const double si = std::sin(rad);
+    const keel::f64 rad = angle * M_PI / 180.0;
+    const keel::f64 co = std::cos(rad);
+    const keel::f64 si = std::sin(rad);
 
     // Output dims.
     keel::usize outH = s.H, outW = s.W;
@@ -490,11 +490,11 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
         // centre. Snap near-integer results down before the ceil so a
         // sub-ULP overshoot from sin/cos (e.g. cos(90°) ≈ 6e-17)
         // doesn't bump 2.0 up to 3.
-        const double Hd = double(s.H), Wd = double(s.W);
-        const double rawH = keel::abs(Hd * co) + keel::abs(Wd * si);
-        const double rawW = keel::abs(Wd * co) + keel::abs(Hd * si);
-        auto snap = [](double v) {
-            const double r = std::round(v);
+        const keel::f64 Hd = keel::f64(s.H), Wd = keel::f64(s.W);
+        const keel::f64 rawH = keel::abs(Hd * co) + keel::abs(Wd * si);
+        const keel::f64 rawW = keel::abs(Wd * co) + keel::abs(Hd * si);
+        auto snap = [](keel::f64 v) {
+            const keel::f64 r = std::round(v);
             return (keel::abs(v - r) < 1e-9) ? r : v;
         };
         outH = keel::usize(std::ceil(snap(rawH)));
@@ -504,10 +504,10 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
     }
 
     // Centre coordinates.
-    const double cyOut = (double(outH) - 1.0) / 2.0;
-    const double cxOut = (double(outW) - 1.0) / 2.0;
-    const double cyIn  = (double(s.H)  - 1.0) / 2.0;
-    const double cxIn  = (double(s.W)  - 1.0) / 2.0;
+    const keel::f64 cyOut = (keel::f64(outH) - 1.0) / 2.0;
+    const keel::f64 cxOut = (keel::f64(outW) - 1.0) / 2.0;
+    const keel::f64 cyIn  = (keel::f64(s.H)  - 1.0) / 2.0;
+    const keel::f64 cxIn  = (keel::f64(s.W)  - 1.0) / 2.0;
 
     // Inverse rotation in image coords. The y-axis runs downward, so
     // a "CCW rotation as you look at the image" (MATLAB convention) is
@@ -519,12 +519,12 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
     Shape sd{outH, outW, s.C};
     for (keel::usize c = 0; c < s.C; ++c)
         for (keel::usize y = 0; y < outH; ++y) {
-            const double dy = double(y) - cyOut;
+            const keel::f64 dy = keel::f64(y) - cyOut;
             for (keel::usize x = 0; x < outW; ++x) {
-                const double dx = double(x) - cxOut;
-                const double xs = co * dx - si * dy + cxIn;
-                const double ys = si * dx + co * dy + cyIn;
-                double v;
+                const keel::f64 dx = keel::f64(x) - cxOut;
+                const keel::f64 xs = co * dx - si * dy + cxIn;
+                const keel::f64 ys = si * dx + co * dy + cyIn;
+                keel::f64 v;
                 if (nearest) {
                     // MATLAB's imrotate nearest rounds the source coordinate
                     // half-to-even (std::nearbyint, the default FP rounding):
@@ -542,7 +542,7 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
     return B;
 }
 
-Value imtranslate(const Value &A, double dx, double dy, keel::Allocator *mr)
+Value imtranslate(const Value &A, keel::f64 dx, keel::f64 dy, keel::Allocator *mr)
 {
     const Shape s = geom_shape_argcheck(A);
     const ValueType t = A.type();
@@ -550,15 +550,15 @@ Value imtranslate(const Value &A, double dx, double dy, keel::Allocator *mr)
     for (keel::usize c = 0; c < s.C; ++c)
         for (keel::usize y = 0; y < s.H; ++y)
             for (keel::usize x = 0; x < s.W; ++x) {
-                const double xs = double(x) - dx;
-                const double ys = double(y) - dy;
-                const double v = bilinear(A, s, ys, xs, c);
+                const keel::f64 xs = keel::f64(x) - dx;
+                const keel::f64 ys = keel::f64(y) - dy;
+                const keel::f64 v = bilinear(A, s, ys, xs, c);
                 writePixel(B, s, y, x, c, v, t);
             }
     return B;
 }
 
-Value axes2pix(double n, const Value &extent, const Value &axesCoord, keel::Allocator *mr)
+Value axes2pix(keel::f64 n, const Value &extent, const Value &axesCoord, keel::Allocator *mr)
 {
     Value extentCoerced;
     const Value *extP = &extent;
@@ -594,10 +594,10 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, keel::Allo
         return out;
     }
 
-    const double e0 = ext.elemAsDouble(0);
-    const double e1 = ext.elemAsDouble(ext.numel() - 1);
+    const keel::f64 e0 = ext.elemAsDouble(0);
+    const keel::f64 e1 = ext.elemAsDouble(ext.numel() - 1);
     const bool degenerate = (n == 1.0) || (e0 == e1);
-    const double pixelWidth = degenerate ? 1.0 : (e1 - e0) / (n - 1.0);
+    const keel::f64 pixelWidth = degenerate ? 1.0 : (e1 - e0) / (n - 1.0);
 
     Value out;
     if (d.is3D())
@@ -607,9 +607,9 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, keel::Allo
     if (axesCoord.numel() == 0)
         return internal::castResultToClass(out, ext.type(), mr);
 
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
-        const double a = axesCoord.elemAsDouble(i);
+        const keel::f64 a = axesCoord.elemAsDouble(i);
         od[i] = degenerate ? (a - e0 + 1.0)
                            : ((a - e0) / pixelWidth + 1.0);
     }
@@ -619,7 +619,7 @@ Value axes2pix(double n, const Value &extent, const Value &axesCoord, keel::Allo
 Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
 {
     // Binomial 5-tap kernel [1 4 6 4 1]/16 (MATLAB / Octave default).
-    static constexpr double kBurt[5] = {1.0 / 16, 4.0 / 16, 6.0 / 16,
+    static constexpr keel::f64 kBurt[5] = {1.0 / 16, 4.0 / 16, 6.0 / 16,
                                         4.0 / 16, 1.0 / 16};
     geom_shape_argcheck(A);
     bool reduce = false;
@@ -657,10 +657,10 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
     if (reduce) {
         for (keel::usize c = 0; c < s.C; ++c) {
             // Pass 1: horizontal filter at every (r, cc).
-            keel::Array<double> tmp(s.H * s.W);
+            keel::Array<keel::f64> tmp(s.H * s.W);
             for (keel::usize r = 0; r < s.H; ++r) {
                 for (keel::usize cc = 0; cc < s.W; ++cc) {
-                    double acc = 0;
+                    keel::f64 acc = 0;
                     for (int k = -2; k <= 2; ++k) {
                         const int cs = sym_i((int)cc + k, (int)s.W);
                         acc += kBurt[k + 2] *
@@ -674,7 +674,7 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
                 const keel::usize ys = 2 * yo;
                 for (keel::usize xo = 0; xo < Wout; ++xo) {
                     const keel::usize xs = 2 * xo;
-                    double acc = 0;
+                    keel::f64 acc = 0;
                     for (int k = -2; k <= 2; ++k) {
                         const int rs = sym_i((int)ys + k, (int)s.H);
                         acc += kBurt[k + 2] * tmp[xs * s.H + (keel::usize)rs];
@@ -689,29 +689,29 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
         // ×2 compensation per axis (×4 total).
         for (keel::usize c = 0; c < s.C; ++c) {
             // Zero-stuff into Hout × Wout double buffer.
-            keel::Array<double> stuffed(Hout * Wout, 0.0);
+            keel::Array<keel::f64> stuffed(Hout * Wout, 0.0);
             for (keel::usize r = 0; r < s.H; ++r)
                 for (keel::usize cc = 0; cc < s.W; ++cc)
                     stuffed[(2 * cc) * Hout + 2 * r] =
                         A.elemAsDouble(idx3D(s, r, cc, c));
 
-            auto sample = [&](int r, int cc) -> double {
+            auto sample = [&](int r, int cc) -> keel::f64 {
                 if (r < 0 || cc < 0 ||
                     r >= (int)Hout || cc >= (int)Wout) return 0.0;
                 return stuffed[(keel::usize)cc * Hout + (keel::usize)r];
             };
 
             // Horizontal filter (zero-pad boundary), ×2 compensation.
-            keel::Array<double> tmp(Hout * Wout);
+            keel::Array<keel::f64> tmp(Hout * Wout);
             for (keel::usize r = 0; r < Hout; ++r) {
                 for (keel::usize cc = 0; cc < Wout; ++cc) {
-                    double acc = 0;
+                    keel::f64 acc = 0;
                     for (int k = -2; k <= 2; ++k)
                         acc += kBurt[k + 2] * sample((int)r, (int)cc + k);
                     tmp[cc * Hout + r] = 2.0 * acc;
                 }
             }
-            auto sample_t = [&](int r, int cc) -> double {
+            auto sample_t = [&](int r, int cc) -> keel::f64 {
                 if (r < 0 || cc < 0 ||
                     r >= (int)Hout || cc >= (int)Wout) return 0.0;
                 return tmp[(keel::usize)cc * Hout + (keel::usize)r];
@@ -719,7 +719,7 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
             // Vertical filter (zero-pad boundary), ×2 compensation.
             for (keel::usize cc = 0; cc < Wout; ++cc) {
                 for (keel::usize r = 0; r < Hout; ++r) {
-                    double acc = 0;
+                    keel::f64 acc = 0;
                     for (int k = -2; k <= 2; ++k)
                         acc += kBurt[k + 2] * sample_t((int)r + k, (int)cc);
                     writePixel(B, sd, r, cc, c, 2.0 * acc, t);
@@ -762,32 +762,32 @@ Value impyramid(const Value &A, keel::StringRef type, keel::Allocator *mr)
 //
 namespace {
 
-inline double k_box(double x) {
+inline keel::f64 k_box(keel::f64 x) {
     return (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;
 }
-inline double k_triangle(double x) {
+inline keel::f64 k_triangle(keel::f64 x) {
     x = std::fabs(x);
     return (x < 1.0) ? (1.0 - x) : 0.0;
 }
-inline double k_cubic(double x) {
-    const double a = std::fabs(x);
+inline keel::f64 k_cubic(keel::f64 x) {
+    const keel::f64 a = std::fabs(x);
     if (a < 1.0) return ((1.5 * a - 2.5) * a * a + 1.0);
     if (a < 2.0) return (((-0.5 * a + 2.5) * a - 4.0) * a + 2.0);
     return 0.0;
 }
-inline double sinc_pi(double x) {
+inline keel::f64 sinc_pi(keel::f64 x) {
     if (std::fabs(x) < 1e-12) return 1.0;
-    const double px = M_PI * x;
+    const keel::f64 px = M_PI * x;
     return std::sin(px) / px;
 }
-inline double k_lanczos2(double x) {
+inline keel::f64 k_lanczos2(keel::f64 x) {
     return (std::fabs(x) < 2.0) ? sinc_pi(x) * sinc_pi(x / 2.0) : 0.0;
 }
-inline double k_lanczos3(double x) {
+inline keel::f64 k_lanczos3(keel::f64 x) {
     return (std::fabs(x) < 3.0) ? sinc_pi(x) * sinc_pi(x / 3.0) : 0.0;
 }
 
-struct R3Kernel { double (*fn)(double); double width; bool isNearest; };
+struct R3Kernel { keel::f64 (*fn)(keel::f64); keel::f64 width; bool isNearest; };
 
 R3Kernel parseR3Kernel(keel::StringRef m) {
     auto eq = [&](const char *s) { return m == s; };
@@ -805,32 +805,32 @@ R3Kernel parseR3Kernel(keel::StringRef m) {
                 0, 0, "imresize3", "", "numkit:imresize3:method");
 }
 
-struct ContribRow { int firstIdx; keel::Array<double> w; };  // firstIdx 0-indexed
+struct ContribRow { int firstIdx; keel::Array<keel::f64> w; };  // firstIdx 0-indexed
 
 keel::Array<ContribRow>
-buildContrib(keel::usize /*inLen*/, keel::usize outLen, double scale,
+buildContrib(keel::usize /*inLen*/, keel::usize outLen, keel::f64 scale,
              const R3Kernel &k, bool aa)
 {
     // `scale` is the user-supplied scale (NOT outLen/inLen) — MATLAB
     // distinguishes the two even when round(scale*inLen)==outLen.
     // For the size-vector overload the caller passes outLen/inLen.
-    double kw  = k.width;
-    double scl = 1.0;
+    keel::f64 kw  = k.width;
+    keel::f64 scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = k.width / scale; }
     const int P = keel::as<int>(std::ceil(kw)) + 2;
 
     keel::Array<ContribRow> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
         // MATLAB 1-indexed input center
-        const double u = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
+        const keel::f64 u = (keel::f64(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
         const int left = keel::as<int>(std::floor(u - kw / 2.0));  // 1-indexed
         ContribRow &row = rows[o];
         row.firstIdx = left - 1;            // convert to 0-indexed
         row.w.assign(P, 0.0);
-        double sum = 0.0;
+        keel::f64 sum = 0.0;
         for (int j = 0; j < P; ++j) {
-            const double off = u - double(left + j);
-            const double w   = scl * k.fn(scl * off);
+            const keel::f64 off = u - keel::f64(left + j);
+            const keel::f64 w   = scl * k.fn(scl * off);
             row.w[j] = w;
             sum += w;
         }
@@ -862,7 +862,7 @@ void imresize3_argcheck(const Value &V)
                     0, 0, "imresize3", "", "numkit:imresize3:shape");
 }
 
-void imresize3_scale_argcheck(double scale)
+void imresize3_scale_argcheck(keel::f64 scale)
 {
     if (!(scale > 0.0))
         throw Error("imresize3: scale must be > 0",
@@ -875,7 +875,7 @@ void imresize3_scale_argcheck(double scale)
 // Pass scale=outLen/inLen for the size-vector branch.
 Value imresize3_core(const Value &V,
                      keel::usize outR, keel::usize outC, keel::usize outD,
-                     double scaleY, double scaleX, double scaleZ,
+                     keel::f64 scaleY, keel::f64 scaleX, keel::f64 scaleZ,
                      keel::StringRef method, bool antialias,
                      keel::Allocator *mr)
 {
@@ -895,22 +895,22 @@ Value imresize3_core(const Value &V,
     // coord mapping (same u as the kernel path) then rounds.
     if (k.isNearest) {
         Value B = Value::matrix3d(outR, outC, outD, T, mr);
-        auto uCoord = [](double o1, double sc) {
+        auto uCoord = [](keel::f64 o1, keel::f64 sc) {
             return (o1) / sc + 0.5 * (1.0 - 1.0 / sc);
         };
         for (keel::usize z = 0; z < outD; ++z) {
-            const double uz = uCoord(double(z) + 1.0, scaleZ);
+            const keel::f64 uz = uCoord(keel::f64(z) + 1.0, scaleZ);
             int zi = keel::as<int>(std::floor(uz + 0.5)) - 1;
             zi = mirrorIdx(zi, keel::as<int>(inD));
             for (keel::usize x = 0; x < outC; ++x) {
-                const double ux = uCoord(double(x) + 1.0, scaleX);
+                const keel::f64 ux = uCoord(keel::f64(x) + 1.0, scaleX);
                 int xi = keel::as<int>(std::floor(ux + 0.5)) - 1;
                 xi = mirrorIdx(xi, keel::as<int>(inC));
                 for (keel::usize y = 0; y < outR; ++y) {
-                    const double uy = uCoord(double(y) + 1.0, scaleY);
+                    const keel::f64 uy = uCoord(keel::f64(y) + 1.0, scaleY);
                     int yi = keel::as<int>(std::floor(uy + 0.5)) - 1;
                     yi = mirrorIdx(yi, keel::as<int>(inR));
-                    const double v = V.elemAsDouble(
+                    const keel::f64 v = V.elemAsDouble(
                         keel::usize(yi) + keel::usize(xi) * inR + keel::usize(zi) * inR * inC);
                     writeNative(B, y + x * outR + z * outR * outC, v, T);
                 }
@@ -924,12 +924,12 @@ Value imresize3_core(const Value &V,
     auto cz = buildContrib(inD, outD, scaleZ, k, antialias);
 
     // Pass 1: along rows.   tmp1[outR × inC × inD]
-    keel::Array<double> tmp1(outR * inC * inD);
+    keel::Array<keel::f64> tmp1(outR * inC * inD);
     for (keel::usize z = 0; z < inD; ++z) {
         for (keel::usize x = 0; x < inC; ++x) {
             for (keel::usize y = 0; y < outR; ++y) {
                 const ContribRow &r = cy[y];
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j) {
                     const int yi = mirrorIdx(r.firstIdx + int(j), int(inR));
                     s += r.w[j] *
@@ -941,12 +941,12 @@ Value imresize3_core(const Value &V,
     }
 
     // Pass 2: along cols.   tmp2[outR × outC × inD]
-    keel::Array<double> tmp2(outR * outC * inD);
+    keel::Array<keel::f64> tmp2(outR * outC * inD);
     for (keel::usize z = 0; z < inD; ++z) {
         for (keel::usize x = 0; x < outC; ++x) {
             const ContribRow &r = cx[x];
             for (keel::usize y = 0; y < outR; ++y) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j) {
                     const int xi = mirrorIdx(r.firstIdx + int(j), int(inC));
                     s += r.w[j] * tmp1[y + keel::usize(xi) * outR + z * outR * inC];
@@ -962,7 +962,7 @@ Value imresize3_core(const Value &V,
         const ContribRow &r = cz[z];
         for (keel::usize x = 0; x < outC; ++x) {
             for (keel::usize y = 0; y < outR; ++y) {
-                double s = 0.0;
+                keel::f64 s = 0.0;
                 for (keel::usize j = 0; j < r.w.size(); ++j) {
                     const int zi = mirrorIdx(r.firstIdx + int(j), int(inD));
                     s += r.w[j] *
@@ -986,13 +986,13 @@ Value imresize3(const Value &V,
     const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
     const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     return imresize3_core(V, outR, outC, outD,
-        double(outR) / double(inR ? inR : 1),
-        double(outC) / double(inC ? inC : 1),
-        double(outD) / double(inD ? inD : 1),
+        keel::f64(outR) / keel::f64(inR ? inR : 1),
+        keel::f64(outC) / keel::f64(inC ? inC : 1),
+        keel::f64(outD) / keel::f64(inD ? inD : 1),
         method, antialias, mr);
 }
 
-Value imresize3(const Value &V, double scale,
+Value imresize3(const Value &V, keel::f64 scale,
                 keel::StringRef method, bool antialias,
                 keel::Allocator *mr)
 {
@@ -1002,9 +1002,9 @@ Value imresize3(const Value &V, double scale,
     const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
     const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     return imresize3_core(V,
-        keel::as<keel::usize>(std::round(scale * double(inR))),
-        keel::as<keel::usize>(std::round(scale * double(inC))),
-        keel::as<keel::usize>(std::round(scale * double(inD))),
+        keel::as<keel::usize>(std::round(scale * keel::f64(inR))),
+        keel::as<keel::usize>(std::round(scale * keel::f64(inC))),
+        keel::as<keel::usize>(std::round(scale * keel::f64(inD))),
         scale, scale, scale,
         method, antialias, mr);
 }

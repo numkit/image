@@ -19,7 +19,7 @@ inline Value maskImageByLogical(const Value &I, const Value &mask,
 {
     Value Id = coerceToDoubleImage(I, mr);
     const keel::usize n = Id.numel();
-    double *d = Id.doubleDataMut();
+    keel::f64 *d = Id.doubleDataMut();
     const keel::u8 *m = mask.logicalData();
     for (keel::usize i = 0; i < n; ++i)
         if (!m[i]) d[i] = 0.0;
@@ -91,14 +91,14 @@ Value strel_diamond(int r, keel::Allocator *mr) {
 }
 
 // Build a true Euclidean disk neighbourhood: {(dy,dx) : dy²+dx² ≤ r²}.
-Value strel_disk_euclidean(double r, keel::Allocator *mr) {
+Value strel_disk_euclidean(keel::f64 r, keel::Allocator *mr) {
     const int R = (int)std::ceil(r);
     const int N = 2 * R + 1;
     keel::Array<keel::u8> m((keel::usize)N * (keel::usize)N, 0);
-    const double r2 = r * r;
+    const keel::f64 r2 = r * r;
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j) {
-            const double dy = i - R, dx = j - R;
+            const keel::f64 dy = i - R, dx = j - R;
             if (dy * dy + dx * dx <= r2)
                 m[(keel::usize)i * (keel::usize)N + (keel::usize)j] = 1;
         }
@@ -132,7 +132,7 @@ void minksum_periodic(GridPtSet &P, int vr, int vc, int rp) {
 // Jones & Soille 1996) with N∈{4,6,8} basis directions (default 4), then
 // compensating horizontal/vertical line strels. The final neighbourhood is
 // the Minkowski sum (full dilation) of all decomposition strels.
-Value strel_disk(double r_in, int n, keel::Allocator *mr) {
+Value strel_disk(keel::f64 r_in, int n, keel::Allocator *mr) {
     if (r_in < 1.0) r_in = 1.0;
     const int r = (int)std::lround(r_in);
     if (r < 3 || (n != 4 && n != 6 && n != 8))
@@ -151,15 +151,15 @@ Value strel_disk(double r_in, int n, keel::Allocator *mr) {
     else             { V = B8.data(); nb = 8; }
 
     // Radial extent of the periodic-line strels (Adams, p.328).
-    const double theta = M_PI / (2.0 * n);
-    const double k = 2.0 * (double)r /
+    const keel::f64 theta = M_PI / (2.0 * n);
+    const keel::f64 k = 2.0 * (keel::f64)r /
                      (1.0 / std::tan(theta) + 1.0 / std::sin(theta));
 
     GridPtSet P;
     P.insert(GridPt{0, 0});
     for (int q = 0; q < nb; ++q) {
         const int vr = V[q].first, vc = V[q].second;
-        const double norm = std::hypot((double)vr, (double)vc);
+        const keel::f64 norm = std::hypot((keel::f64)vr, (keel::f64)vc);
         const int rp = (int)std::floor(k / norm);
         minksum_periodic(P, vr, vc, rp);
     }
@@ -185,19 +185,19 @@ Value strel_disk(double r_in, int n, keel::Allocator *mr) {
     return pack_logical(m, H, W, mr);
 }
 
-Value strel_line(double len, double theta_deg, keel::Allocator *mr) {
+Value strel_line(keel::f64 len, keel::f64 theta_deg, keel::Allocator *mr) {
     if (len < 1.0) len = 1.0;
-    const double th = theta_deg * M_PI / 180.0;
-    const double cx = (len - 1) * 0.5 * std::cos(th);
-    const double cy = (len - 1) * 0.5 * std::sin(th);
+    const keel::f64 th = theta_deg * M_PI / 180.0;
+    const keel::f64 cx = (len - 1) * 0.5 * std::cos(th);
+    const keel::f64 cy = (len - 1) * 0.5 * std::sin(th);
     const int W = std::max(1, (int)std::ceil(2.0 * std::fabs(cx) + 1.0));
     const int H = std::max(1, (int)std::ceil(2.0 * std::fabs(cy) + 1.0));
     keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
-    const double r0 = (H - 1) * 0.5;
-    const double c0 = (W - 1) * 0.5;
+    const keel::f64 r0 = (H - 1) * 0.5;
+    const keel::f64 c0 = (W - 1) * 0.5;
     const int Nstep = std::max(1, (int)std::ceil(len));
     for (int k = 0; k < Nstep; ++k) {
-        const double t = (Nstep > 1) ? (double(k) / double(Nstep - 1) - 0.5) * (len - 1) : 0.0;
+        const keel::f64 t = (Nstep > 1) ? (keel::f64(k) / keel::f64(Nstep - 1) - 0.5) * (len - 1) : 0.0;
         const int rr = (int)std::round(r0 + t * std::sin(th));
         const int cc = (int)std::round(c0 + t * std::cos(th));
         if (rr >= 0 && rr < H && cc >= 0 && cc < W)
@@ -221,7 +221,7 @@ void strel_argcheck(keel::StringRef shape, const Value &arbitrary_nhood)
 
 } // anonymous
 
-Value strel(keel::StringRef shape, keel::ArrayRef<double> params, const Value &arbitrary_nhood, keel::Allocator *mr)
+Value strel(keel::StringRef shape, keel::ArrayRef<keel::f64> params, const Value &arbitrary_nhood, keel::Allocator *mr)
 {
     strel_argcheck(shape, arbitrary_nhood);
     // Compute the raw logical neighbourhood, then wrap it in a 1x1
@@ -241,12 +241,12 @@ Value strel(keel::StringRef shape, keel::ArrayRef<double> params, const Value &a
         const int r = params.empty() ? 1 : (int)params[0];
         nhood = strel_diamond(r, mr);
     } else if (shape == "disk") {
-        const double r = params.empty() ? 5.0 : params[0];
+        const keel::f64 r = params.empty() ? 5.0 : params[0];
         const int    n = params.size() >= 2 ? (int)params[1] : 4;
         nhood = strel_disk(r, n, mr);
     } else if (shape == "line") {
-        const double len = params.size() >= 1 ? params[0] : 3.0;
-        const double th  = params.size() >= 2 ? params[1] : 0.0;
+        const keel::f64 len = params.size() >= 1 ? params[0] : 3.0;
+        const keel::f64 th  = params.size() >= 2 ? params[1] : 0.0;
         nhood = strel_line(len, th, mr);
     } else {
         const auto &d = arbitrary_nhood.dims();
@@ -255,7 +255,7 @@ Value strel(keel::StringRef shape, keel::ArrayRef<double> params, const Value &a
         keel::Array<keel::u8> m((keel::usize)H * (keel::usize)W, 0);
         for (int c = 0; c < W; ++c)
             for (int r = 0; r < H; ++r) {
-                const double v = arbitrary_nhood.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
+                const keel::f64 v = arbitrary_nhood.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r);
                 m[(keel::usize)r * (keel::usize)W + (keel::usize)c] = (v != 0.0) ? 1 : 0;
             }
         nhood = pack_logical(m, H, W, mr);
@@ -274,10 +274,10 @@ Value strel(keel::StringRef shape, keel::ArrayRef<double> params, const Value &a
 
 namespace {
 
-inline void store_classed_morph(Value &out, keel::usize i, double v, ValueType t) {
+inline void store_classed_morph(Value &out, keel::usize i, keel::f64 v, ValueType t) {
     switch (t) {
         case ValueType::DOUBLE:  out.doubleDataMut()[i]  = v; break;
-        case ValueType::SINGLE:  out.singleDataMut()[i]  = (float)v; break;
+        case ValueType::SINGLE:  out.singleDataMut()[i]  = (keel::f32)v; break;
         case ValueType::UINT8: {
             if (v < 0) v = 0; if (v > 255) v = 255;
             out.uint8DataMut()[i] = (keel::u8)std::lround(v); break;
@@ -321,7 +321,7 @@ SEInfo unpack_se(const Value &SE) {
     s.mask.assign((keel::usize)s.H * (keel::usize)s.W, 0);
     for (int c = 0; c < s.W; ++c)
         for (int r = 0; r < s.H; ++r) {
-            const double v = nhood->elemAsDouble((keel::usize)c * (keel::usize)s.H + (keel::usize)r);
+            const keel::f64 v = nhood->elemAsDouble((keel::usize)c * (keel::usize)s.H + (keel::usize)r);
             s.mask[(keel::usize)r * (keel::usize)s.W + (keel::usize)c] = (v != 0.0) ? 1 : 0;
         }
     return s;
@@ -558,7 +558,7 @@ Value morph_op(const Value &I, const Value &SE, keel::Allocator *mr)
             // actual ±Inf reduction over real input values (preserve as
             // is — needed by callers like imimposemin which rely on
             // ±Inf propagation through reconstruction).
-            double best = std::numeric_limits<double>::quiet_NaN();
+            keel::f64 best = std::numeric_limits<keel::f64>::quiet_NaN();
             for (int kj = 0; kj < se.W; ++kj) {
                 const int c_in = oc + kj - se.half_c;
                 if (c_in < 0 || c_in >= W) continue;
@@ -566,7 +566,7 @@ Value morph_op(const Value &I, const Value &SE, keel::Allocator *mr)
                     if (!se.mask[(keel::usize)ki * (keel::usize)se.W + (keel::usize)kj]) continue;
                     const int r_in = orow + ki - se.half_r;
                     if (r_in < 0 || r_in >= H) continue;
-                    const double v = I.elemAsDouble((keel::usize)c_in * (keel::usize)H + (keel::usize)r_in);
+                    const keel::f64 v = I.elemAsDouble((keel::usize)c_in * (keel::usize)H + (keel::usize)r_in);
                     if (std::isnan(best)) {
                         best = v;
                     } else if (IsErode) {
@@ -625,7 +625,7 @@ void imregionalmin_argcheck(const Value &I)
                                 internal::ImgClasses::AnyNumericReal);
 }
 
-void imhmax_argcheck(const Value &I, double h)
+void imhmax_argcheck(const Value &I, keel::f64 h)
 {
     internal::requireImageClass(I, "imhmax", "I", 1,
                                 internal::ImgClasses::FloatInt);
@@ -634,7 +634,7 @@ void imhmax_argcheck(const Value &I, double h)
                     0, 0, "imhmax", "", "numkit:imhmax:h");
 }
 
-void imhmin_argcheck(const Value &I, double h)
+void imhmin_argcheck(const Value &I, keel::f64 h)
 {
     internal::requireImageClass(I, "imhmin", "I", 1,
                                 internal::ImgClasses::FloatInt);
@@ -699,10 +699,10 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     const keel::usize N = marker.numel();
     const ValueType srcT = marker.type();
 
-    auto writeNative = [&](Value &dst, keel::usize i, double v) {
+    auto writeNative = [&](Value &dst, keel::usize i, keel::f64 v) {
         switch (srcT) {
             case ValueType::DOUBLE: dst.doubleDataMut()[i] = v; break;
-            case ValueType::SINGLE: dst.singleDataMut()[i] = float(v); break;
+            case ValueType::SINGLE: dst.singleDataMut()[i] = keel::f32(v); break;
             case ValueType::UINT8: {
                 if (v < 0.0) v = 0.0; if (v > 255.0) v = 255.0;
                 dst.uint8DataMut()[i] = keel::u8(std::lround(v)); break;
@@ -724,8 +724,8 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     // traffic) instead of the naive O(N·(H+W)) iterate-dilate-until-stable.
     // Same fixed point: J = max-propagated marker, capped by the mask.
     keel::ArenaTemp arena = keel::get_scratch(mr);
-    keel::Array<double> I(N, arena.allocator());   // mask
-    keel::Array<double> J(N, arena.allocator());   // working reconstruction
+    keel::Array<keel::f64> I(N, arena.allocator());   // mask
+    keel::Array<keel::f64> J(N, arena.allocator());   // working reconstruction
     for (keel::usize i = 0; i < N; ++i) {
         I[i] = mask.elemAsDouble(i);
         J[i] = std::min(marker.elemAsDouble(i), I[i]);
@@ -749,7 +749,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     for (keel::usize i = 0; i < N; ++i) {
         const int r = keel::as<int>(i % H);
         const int c = keel::as<int>(i / H);
-        double m = J[i];
+        keel::f64 m = J[i];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
@@ -768,7 +768,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
         const keel::usize i = ii;
         const int r = keel::as<int>(i % H);
         const int c = keel::as<int>(i / H);
-        double m = J[i];
+        keel::f64 m = J[i];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
@@ -791,7 +791,7 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
         const keel::usize p = fifo[head++];
         const int r = keel::as<int>(p % H);
         const int c = keel::as<int>(p / H);
-        const double Jp = J[p];
+        const keel::f64 Jp = J[p];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
             if (nr < 0 || nr >= Hi || nc < 0 || nc >= Wi) continue;
@@ -832,21 +832,21 @@ Value imfill_holes(const Value &BW, int conn, keel::Allocator *mr)
         //   mask   = T - I
         //   marker = T - I on the image border (rim), -Inf in the interior
         //   J      = T - imreconstruct(marker, mask, conn)
-        double maxI = -std::numeric_limits<double>::infinity();
+        keel::f64 maxI = -std::numeric_limits<keel::f64>::infinity();
         for (keel::usize i = 0; i < N; ++i) {
-            const double v = BW.elemAsDouble(i);
+            const keel::f64 v = BW.elemAsDouble(i);
             if (std::isfinite(v) && v > maxI) maxI = v;
         }
         if (!std::isfinite(maxI)) maxI = 0.0;
-        const double NEG_INF = -std::numeric_limits<double>::infinity();
+        const keel::f64 NEG_INF = -std::numeric_limits<keel::f64>::infinity();
         Value marker = Value::matrix(H, W, ValueType::DOUBLE, mr);
         Value mask   = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *md = marker.doubleDataMut();
-        double *kd = mask.doubleDataMut();
+        keel::f64 *md = marker.doubleDataMut();
+        keel::f64 *kd = mask.doubleDataMut();
         for (keel::usize c = 0; c < W; ++c) {
             for (keel::usize r = 0; r < H; ++r) {
                 const keel::usize idx = c * H + r;
-                const double ic = maxI - BW.elemAsDouble(idx);
+                const keel::f64 ic = maxI - BW.elemAsDouble(idx);
                 kd[idx] = ic;
                 const bool onRim = (r == 0 || c == 0 || r + 1 == H || c + 1 == W);
                 md[idx] = onRim ? ic : NEG_INF;
@@ -854,7 +854,7 @@ Value imfill_holes(const Value &BW, int conn, keel::Allocator *mr)
         }
         Value R = imreconstruct(marker, mask, conn, mr);
         Value J = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *jd = J.doubleDataMut();
+        keel::f64 *jd = J.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i)
             jd[i] = maxI - R.elemAsDouble(i);
         return internal::castResultToClass(J, BW.type(), mr);
@@ -925,17 +925,17 @@ Value imregionalmax(const Value &I, int conn, keel::Allocator *mr)
     // imregionalmax (the formula correctly leaves −Inf as a non-max).
     Value marker = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value mask   = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *md = marker.doubleDataMut();
-    double *kd = mask.doubleDataMut();
-    double maxFin = -std::numeric_limits<double>::infinity();
+    keel::f64 *md = marker.doubleDataMut();
+    keel::f64 *kd = mask.doubleDataMut();
+    keel::f64 maxFin = -std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         if (std::isfinite(v) && v > maxFin) maxFin = v;
     }
     if (!std::isfinite(maxFin)) maxFin = 0.0;
-    const double POS_INF = std::numeric_limits<double>::infinity();
+    const keel::f64 POS_INF = std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         kd[i] = v;
         md[i] = (v == POS_INF) ? maxFin : (v - 1.0);
     }
@@ -944,8 +944,8 @@ Value imregionalmax(const Value &I, int conn, keel::Allocator *mr)
     // Output = (I > R).
     keel::u8 *od = out.logicalDataMut();
     for (keel::usize i = 0; i < N; ++i) {
-        const double iv = I.elemAsDouble(i);
-        const double rv = R.elemAsDouble(i);
+        const keel::f64 iv = I.elemAsDouble(i);
+        const keel::f64 rv = R.elemAsDouble(i);
         od[i] = (iv > rv) ? 1u : 0u;
     }
     return out;
@@ -964,13 +964,13 @@ Value imregionalmin(const Value &I, int conn, keel::Allocator *mr)
     // become troughs. high is chosen large enough that I_inv stays
     // non-negative for unsigned classes (purely cosmetic — only the
     // ordering matters).
-    double high = 0.0;
+    keel::f64 high = 0.0;
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         if (v > high) high = v;
     }
     Value Iinv = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *id = Iinv.doubleDataMut();
+    keel::f64 *id = Iinv.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i)
         id[i] = high - I.elemAsDouble(i);
 
@@ -985,7 +985,7 @@ Value imregionalmin(const Value &I, int conn, keel::Allocator *mr)
 // h-maxima suppresses regional maxima shallower than h. Used as a
 // precursor to imregionalmax to ignore small / noise-like peaks.
 
-Value imhmax(const Value &I, double h, int conn, keel::Allocator *mr)
+Value imhmax(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
 {
     imhmax_argcheck(I, h);
     const keel::usize H = I.dims().rows();
@@ -995,10 +995,10 @@ Value imhmax(const Value &I, double h, int conn, keel::Allocator *mr)
 
     Value marker = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value mask   = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *md = marker.doubleDataMut();
-    double *kd = mask.doubleDataMut();
+    keel::f64 *md = marker.doubleDataMut();
+    keel::f64 *kd = mask.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         kd[i] = v;
         md[i] = v - h;
     }
@@ -1008,7 +1008,7 @@ Value imhmax(const Value &I, double h, int conn, keel::Allocator *mr)
         imreconstruct(marker, mask, conn, mr), I.type(), mr);
 }
 
-Value imhmin(const Value &I, double h, int conn, keel::Allocator *mr)
+Value imhmin(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
 {
     imhmin_argcheck(I, h);
     const keel::usize H = I.dims().rows();
@@ -1018,13 +1018,13 @@ Value imhmin(const Value &I, double h, int conn, keel::Allocator *mr)
 
     // Invert about a high value so peaks ↔ troughs, then reuse imhmax,
     // then invert back.
-    double high = 0.0;
+    keel::f64 high = 0.0;
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         if (v > high) high = v;
     }
     Value Iinv = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *id = Iinv.doubleDataMut();
+    keel::f64 *id = Iinv.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i)
         id[i] = high - I.elemAsDouble(i);
 
@@ -1033,7 +1033,7 @@ Value imhmin(const Value &I, double h, int conn, keel::Allocator *mr)
     // Invert back: J = high - Jinv. Class-preserving result (probed
     // R2025b): single / integer inputs come back in the input class.
     Value J = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *jd = J.doubleDataMut();
+    keel::f64 *jd = J.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i)
         jd[i] = high - Jinv.elemAsDouble(i);
     return internal::castResultToClass(J, I.type(), mr);
@@ -1049,12 +1049,12 @@ Value imhmin(const Value &I, double h, int conn, keel::Allocator *mr)
 // those that belong to a regional maximum at least h units above its
 // surroundings — the "tall enough" peaks.
 
-Value imextendedmax(const Value &I, double h, int conn, keel::Allocator *mr)
+Value imextendedmax(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
 {
     return imregionalmax(imhmax(I, h, conn, mr), conn, mr);
 }
 
-Value imextendedmin(const Value &I, double h, int conn, keel::Allocator *mr)
+Value imextendedmin(const Value &I, keel::f64 h, int conn, keel::Allocator *mr)
 {
     return imregionalmin(imhmin(I, h, conn, mr), conn, mr);
 }
@@ -1089,10 +1089,10 @@ Value imimposemin(const Value &I, const Value &BW, int conn, keel::Allocator *mr
     if (N == 0) return Value::matrix(H, W, I.type(), mr);
 
     // Per-class lift step h.
-    double minI =  std::numeric_limits<double>::infinity();
-    double maxI = -std::numeric_limits<double>::infinity();
+    keel::f64 minI =  std::numeric_limits<keel::f64>::infinity();
+    keel::f64 maxI = -std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         if (v < minI) minI = v;
         if (v > maxI) maxI = v;
     }
@@ -1100,19 +1100,19 @@ Value imimposemin(const Value &I, const Value &BW, int conn, keel::Allocator *mr
     if (!std::isfinite(maxI)) maxI = 0.0;
     const ValueType inT = I.type();
     const bool is_float = (inT == ValueType::DOUBLE || inT == ValueType::SINGLE);
-    const double h = is_float ? ((maxI - minI) / 1000.0) : 1.0;
+    const keel::f64 h = is_float ? ((maxI - minI) / 1000.0) : 1.0;
 
     // marker fm: -Inf at BW, +Inf elsewhere.
     // mask    m: min(I + h, fm)  →  -Inf at BW, (I + h) elsewhere.
     Value mask   = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value marker = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *md = mask.doubleDataMut();
-    double *gd = marker.doubleDataMut();
-    const double NEG_INF = -std::numeric_limits<double>::infinity();
-    const double POS_INF =  std::numeric_limits<double>::infinity();
+    keel::f64 *md = mask.doubleDataMut();
+    keel::f64 *gd = marker.doubleDataMut();
+    const keel::f64 NEG_INF = -std::numeric_limits<keel::f64>::infinity();
+    const keel::f64 POS_INF =  std::numeric_limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
         const bool b = (BW.elemAsDouble(i) != 0.0);
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         if (b) { md[i] = NEG_INF; gd[i] = NEG_INF; }
         else   { md[i] = v + h;   gd[i] = POS_INF; }
     }
@@ -1122,12 +1122,12 @@ Value imimposemin(const Value &I, const Value &BW, int conn, keel::Allocator *mr
     // T must be a strict upper bound on every working value. With ±Inf
     // in fm/m the complement gives ∓Inf, which imreconstruct handles
     // as expected (any finite mask value caps from below).
-    const double T = (std::isfinite(maxI) ? maxI : 0.0) + keel::abs(h) + 1.0;
+    const keel::f64 T = (std::isfinite(maxI) ? maxI : 0.0) + keel::abs(h) + 1.0;
 
     Value m_inv = Value::matrix(H, W, ValueType::DOUBLE, mr);
     Value g_inv = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *mi = m_inv.doubleDataMut();
-    double *gi = g_inv.doubleDataMut();
+    keel::f64 *mi = m_inv.doubleDataMut();
+    keel::f64 *gi = g_inv.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
         mi[i] = T - md[i];   // +Inf at BW, T-(I+h) elsewhere
         gi[i] = T - gd[i];   // +Inf at BW, T-(+Inf)=−Inf? — clamp:
@@ -1138,7 +1138,7 @@ Value imimposemin(const Value &I, const Value &BW, int conn, keel::Allocator *mr
     Value J_inv = imreconstruct(g_inv, m_inv, conn, mr);
 
     Value J = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *jd = J.doubleDataMut();
+    keel::f64 *jd = J.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i)
         jd[i] = T - J_inv.elemAsDouble(i);
     // Class-preserving result (probed R2025b).
@@ -1213,7 +1213,7 @@ Value tophat_subtract(const Value &lhs, const Value &rhs, keel::Allocator *mr)
     const keel::usize N = lhs.numel();
     Value out = Value::matrix(H, W, lhs.type(), mr);
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = lhs.elemAsDouble(i) - rhs.elemAsDouble(i);
+        const keel::f64 v = lhs.elemAsDouble(i) - rhs.elemAsDouble(i);
         store_classed_morph(out, i, v, lhs.type());
     }
     return out;
@@ -1255,7 +1255,7 @@ void applylut_argcheck(const Value &BW, const Value &LUT, keel::usize &lutLen, k
     if ((keel::usize{1} << nq) != lutLen)
         throw Error("applylut: LUT length must be 2^(n*n)",
                     0, 0, "applylut", "", "numkit:applylut:lutsize");
-    n = keel::as<keel::usize>(std::round(std::sqrt((double)nq)));
+    n = keel::as<keel::usize>(std::round(std::sqrt((keel::f64)nq)));
     if (n * n != nq)
         throw Error("applylut: LUT length not 2^(n*n) for any integer n",
                     0, 0, "applylut", "", "numkit:applylut:lutshape");
@@ -1351,11 +1351,11 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, keel::Al
         ? Value::matrix3d(H, W, P, I.type(), mr)
         : Value::matrix(H, W, I.type(), mr);
 
-    auto satStore = [&](keel::usize i, double v) {
+    auto satStore = [&](keel::usize i, keel::f64 v) {
         switch (I.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] =
-                                    keel::as<float>(v); break;
+                                    keel::as<keel::f32>(v); break;
             case ValueType::UINT8: {
                 if (v < 0) v = 0; if (v > 255) v = 255;
                 out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v));
@@ -1376,9 +1376,9 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, keel::Al
     };
 
     for (keel::usize i = 0; i < N; ++i) {
-        double d = dilEmpty ? 0.0 : dilated.elemAsDouble(i);
-        double e = eroEmpty ? 0.0 : eroded.elemAsDouble(i);
-        double v;
+        keel::f64 d = dilEmpty ? 0.0 : dilated.elemAsDouble(i);
+        keel::f64 e = eroEmpty ? 0.0 : eroded.elemAsDouble(i);
+        keel::f64 v;
         if (dilEmpty)       v = -e;     // internal: need careful sign for unsigned
         else if (eroEmpty)  v =  d;
         else                v =  d - e;
@@ -1449,29 +1449,29 @@ Value applylut(const Value &BW, const Value &LUT, keel::Allocator *mr)
     // Weight kernel: reshape(2^[nq-1:-1:0], n, n) col-major.
     Value w = Value::matrix(n, n, ValueType::DOUBLE, mr);
     {
-        double *wd = w.doubleDataMut();
+        keel::f64 *wd = w.doubleDataMut();
         for (keel::usize i = 0; i < n * n; ++i)
-            wd[i] = keel::as<double>(keel::usize{1} << (nq - 1 - i));
+            wd[i] = keel::as<keel::f64>(keel::usize{1} << (nq - 1 - i));
     }
 
     // BW promoted to double for filter2.
     Value bw_d = Value::matrix(H, W, ValueType::DOUBLE, mr);
     {
-        double *bd = bw_d.doubleDataMut();
+        keel::f64 *bd = bw_d.doubleDataMut();
         for (keel::usize i = 0; i < H * W; ++i)
             bd[i] = (BW.elemAsDouble(i) != 0.0) ? 1.0 : 0.0;
     }
 
     // filter2(w, BW, 'same') = index per pixel.
     Value idx = signal::filter2(w, bw_d, "same", mr);
-    const double *id = idx.doubleData();
+    const keel::f64 *id = idx.doubleData();
     const keel::usize N = H * W;
 
-    auto store_lut = [&](keel::usize i, double v) {
+    auto store_lut = [&](keel::usize i, keel::f64 v) {
         switch (LUT.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] =
-                                    keel::as<float>(v); break;
+                                    keel::as<keel::f32>(v); break;
             case ValueType::UINT8:  out.uint8DataMut()[i] =
                                     keel::as<keel::u8>(std::lround(v)); break;
             case ValueType::UINT16: out.uint16DataMut()[i] =
@@ -2316,8 +2316,8 @@ Value bwtraceboundary(const Value &BW, const Value &P,
     const keel::usize Q = br.size();
     Value out = Value::matrix(Q, 2, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < Q; ++i) {
-        out.doubleDataMut()[i]     = keel::as<double>(br[i] + 1);
-        out.doubleDataMut()[Q + i] = keel::as<double>(bc[i] + 1);
+        out.doubleDataMut()[i]     = keel::as<keel::f64>(br[i] + 1);
+        out.doubleDataMut()[Q + i] = keel::as<keel::f64>(bc[i] + 1);
     }
     return out;
 }
@@ -2333,7 +2333,7 @@ Value makelut(FnHandle fun, int n, keel::Allocator *mr)
     const int nq = n * n;
     const keel::usize N = keel::usize{1} << nq;   // 16 or 512
     Value lut = Value::matrix(N, 1, ValueType::DOUBLE, mr);
-    double *ld = lut.doubleDataMut();
+    keel::f64 *ld = lut.doubleDataMut();
 
     // Reusable logical neighbourhood, mutated per table entry.
     Value nh = Value::matrix(keel::as<keel::usize>(n), keel::as<keel::usize>(n),

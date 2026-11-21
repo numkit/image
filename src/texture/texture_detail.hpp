@@ -18,7 +18,7 @@ namespace numkit::image {
 // Default GrayLimits per MATLAB:
 //   uint8 -> [0,255], uint16 -> [0,65535], int16 -> [-32768,32767],
 //   logical -> [0,1], single/double -> [min(I), max(I)].
-inline void default_gray_limits(const Value &I, double &lo, double &hi)
+inline void default_gray_limits(const Value &I, keel::f64 &lo, keel::f64 &hi)
 {
     switch (I.type()) {
         case ValueType::UINT8:   lo = 0.0;     hi = 255.0;    return;
@@ -30,10 +30,10 @@ inline void default_gray_limits(const Value &I, double &lo, double &hi)
     // single / double: scan for min/max.
     const keel::usize N = I.numel();
     if (N == 0) { lo = 0.0; hi = 1.0; return; }
-    double mn = I.elemAsDouble(0);
-    double mx = mn;
+    keel::f64 mn = I.elemAsDouble(0);
+    keel::f64 mx = mn;
     for (keel::usize i = 1; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         if (v < mn) mn = v;
         if (v > mx) mx = v;
     }
@@ -42,14 +42,14 @@ inline void default_gray_limits(const Value &I, double &lo, double &hi)
 
 // Data-range limits = [min(I(:)) max(I(:))] over the ACTUAL pixel values,
 // regardless of class. What MATLAB's graycomatrix uses for 'GrayLimits', [].
-inline void data_gray_limits(const Value &I, double &lo, double &hi)
+inline void data_gray_limits(const Value &I, keel::f64 &lo, keel::f64 &hi)
 {
     const keel::usize N = I.numel();
     if (N == 0) { lo = 0.0; hi = 1.0; return; }
-    double mn = I.elemAsDouble(0);
-    double mx = mn;
+    keel::f64 mn = I.elemAsDouble(0);
+    keel::f64 mx = mn;
     for (keel::usize i = 1; i < N; ++i) {
-        const double v = I.elemAsDouble(i);
+        const keel::f64 v = I.elemAsDouble(i);
         if (v < mn) mn = v;
         if (v > mx) mx = v;
     }

@@ -55,7 +55,7 @@ Value rot90_2(const Value &A, keel::Allocator *mr)
         return out;
     }
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r)
             od[c * H + r] = A.elemAsDouble((W - 1 - c) * H + (H - 1 - r));
@@ -88,7 +88,7 @@ Value rot90_2(const Value &A, keel::Allocator *mr)
         return out;
     }
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize c = 0; c < W; ++c) {
         const keel::usize cs = (c + ww) % W;
         for (keel::usize r = 0; r < H; ++r) {
@@ -129,7 +129,7 @@ Value rot90_2(const Value &A, keel::Allocator *mr)
         return out;
     }
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize c = 0; c < W; ++c) {
         const keel::usize cs = (c + W - ww) % W;
         for (keel::usize r = 0; r < H; ++r) {
@@ -147,7 +147,7 @@ Value as_double(const Value &V, keel::Allocator *mr)
     if (V.type() == ValueType::DOUBLE) return V;
     const auto &d = V.dims();
     Value out = Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     const keel::usize N = V.numel();
     for (keel::usize i = 0; i < N; ++i) od[i] = V.elemAsDouble(i);
     return out;
@@ -159,26 +159,26 @@ Value bilinear_interp_hd(const Value &Hd, keel::usize m_out, keel::usize n_out,
 {
     const keel::usize Hh = Hd.dims().rows();
     const keel::usize Wh = Hd.dims().cols();
-    const double dr_src = 2.0 / keel::as<double>(Hh);
-    const double dc_src = 2.0 / keel::as<double>(Wh);
-    const double dr_dst = 2.0 / keel::as<double>(m_out);
-    const double dc_dst = 2.0 / keel::as<double>(n_out);
+    const keel::f64 dr_src = 2.0 / keel::as<keel::f64>(Hh);
+    const keel::f64 dc_src = 2.0 / keel::as<keel::f64>(Wh);
+    const keel::f64 dr_dst = 2.0 / keel::as<keel::f64>(m_out);
+    const keel::f64 dc_dst = 2.0 / keel::as<keel::f64>(n_out);
     if (Hd.isComplex()) {
         Value out = Value::matrix(m_out, n_out, ValueType::COMPLEX, mr);
         auto *od = out.complexDataMut();
         const auto *cd = Hd.complexData();
         for (keel::usize c = 0; c < n_out; ++c) {
-            const double cx = (keel::as<double>(c) - (n_out - 1) / 2.0) * dc_dst;
-            const double sf_c = (cx + 1.0) / dc_src - 0.5;
+            const keel::f64 cx = (keel::as<keel::f64>(c) - (n_out - 1) / 2.0) * dc_dst;
+            const keel::f64 sf_c = (cx + 1.0) / dc_src - 0.5;
             const long c0 = std::max<long>(0, keel::as<long>(std::floor(sf_c)));
             const long c1 = std::min<long>(keel::as<long>(Wh) - 1, c0 + 1);
-            const double ac = sf_c - c0;
+            const keel::f64 ac = sf_c - c0;
             for (keel::usize r = 0; r < m_out; ++r) {
-                const double cy = (keel::as<double>(r) - (m_out - 1) / 2.0) * dr_dst;
-                const double sf_r = (cy + 1.0) / dr_src - 0.5;
+                const keel::f64 cy = (keel::as<keel::f64>(r) - (m_out - 1) / 2.0) * dr_dst;
+                const keel::f64 sf_r = (cy + 1.0) / dr_src - 0.5;
                 const long r0 = std::max<long>(0, keel::as<long>(std::floor(sf_r)));
                 const long r1 = std::min<long>(keel::as<long>(Hh) - 1, r0 + 1);
-                const double ar = sf_r - r0;
+                const keel::f64 ar = sf_r - r0;
                 const auto v00 = cd[keel::as<keel::usize>(c0) * Hh + r0];
                 const auto v01 = cd[keel::as<keel::usize>(c0) * Hh + r1];
                 const auto v10 = cd[keel::as<keel::usize>(c1) * Hh + r0];
@@ -192,25 +192,25 @@ Value bilinear_interp_hd(const Value &Hd, keel::usize m_out, keel::usize n_out,
     }
     Value Hd_d = as_double(Hd, mr);
     Value out = Value::matrix(m_out, n_out, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize c = 0; c < n_out; ++c) {
-        const double cx = (keel::as<double>(c) - (n_out - 1) / 2.0) * dc_dst;
-        const double sf_c = (cx + 1.0) / dc_src - 0.5;
+        const keel::f64 cx = (keel::as<keel::f64>(c) - (n_out - 1) / 2.0) * dc_dst;
+        const keel::f64 sf_c = (cx + 1.0) / dc_src - 0.5;
         const long c0 = std::max<long>(0, keel::as<long>(std::floor(sf_c)));
         const long c1 = std::min<long>(keel::as<long>(Wh) - 1, c0 + 1);
-        const double ac = sf_c - c0;
+        const keel::f64 ac = sf_c - c0;
         for (keel::usize r = 0; r < m_out; ++r) {
-            const double cy = (keel::as<double>(r) - (m_out - 1) / 2.0) * dr_dst;
-            const double sf_r = (cy + 1.0) / dr_src - 0.5;
+            const keel::f64 cy = (keel::as<keel::f64>(r) - (m_out - 1) / 2.0) * dr_dst;
+            const keel::f64 sf_r = (cy + 1.0) / dr_src - 0.5;
             const long r0 = std::max<long>(0, keel::as<long>(std::floor(sf_r)));
             const long r1 = std::min<long>(keel::as<long>(Hh) - 1, r0 + 1);
-            const double ar = sf_r - r0;
-            const double v00 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r0);
-            const double v01 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r1);
-            const double v10 = Hd_d.elemAsDouble(keel::as<keel::usize>(c1) * Hh + r0);
-            const double v11 = Hd_d.elemAsDouble(keel::as<keel::usize>(c1) * Hh + r1);
-            const double v0 = v00 + ar * (v01 - v00);
-            const double v1 = v10 + ar * (v11 - v10);
+            const keel::f64 ar = sf_r - r0;
+            const keel::f64 v00 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r0);
+            const keel::f64 v01 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r1);
+            const keel::f64 v10 = Hd_d.elemAsDouble(keel::as<keel::usize>(c1) * Hh + r0);
+            const keel::f64 v11 = Hd_d.elemAsDouble(keel::as<keel::usize>(c1) * Hh + r1);
+            const keel::f64 v0 = v00 + ar * (v01 - v00);
+            const keel::f64 v1 = v10 + ar * (v11 - v10);
             od[c * m_out + r] = v0 + ac * (v1 - v0);
         }
     }
@@ -294,8 +294,8 @@ Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
         const keel::usize W = Hd.dims().cols();
         Value Hdr = Value::matrix(H, W, ValueType::DOUBLE, mr);
         Value Hdi = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *rd = Hdr.doubleDataMut();
-        double *id = Hdi.doubleDataMut();
+        keel::f64 *rd = Hdr.doubleDataMut();
+        keel::f64 *id = Hdi.doubleDataMut();
         const auto *cd = Hd.complexData();
         for (keel::usize k = 0; k < H * W; ++k) {
             rd[k] = cd[k].real();
@@ -305,8 +305,8 @@ Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
         Value hi = fsamp2(Hdi, Value::Empty, Value::Empty, {}, mr);
         Value out = Value::matrix(H, W, ValueType::COMPLEX, mr);
         auto *od = out.complexDataMut();
-        const double *hrd = hr.doubleData();
-        const double *hid = hi.doubleData();
+        const keel::f64 *hrd = hr.doubleData();
+        const keel::f64 *hid = hi.doubleData();
         for (keel::usize k = 0; k < H * W; ++k)
             od[k] = keel::c64(hrd[k], hid[k]);
         return out;
@@ -327,7 +327,7 @@ Value fsamp2(const Value &HdIn, const Value &f1, const Value &f2,
         const keel::usize H = h_complex.dims().rows();
         const keel::usize W = h_complex.dims().cols();
         Value real_part = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *rd = real_part.doubleDataMut();
+        keel::f64 *rd = real_part.doubleDataMut();
         const keel::c64 *cd = h_complex.complexData();
         for (keel::usize i = 0; i < H * W; ++i) rd[i] = cd[i].real();
         h_shifted = signal::fftshift(real_part, mr);
@@ -356,10 +356,10 @@ Value ftrans2(const Value &b_in, const Value &t_in,
         throw Error("ftrans2: b must have at least one nonzero element",
                     0, 0, "ftrans2", "", "numkit:ftrans2:bZero");
     // Check symmetry: b == rot90(b, 2) within sqrt(eps).
-    const double sqrt_eps = std::sqrt(std::numeric_limits<double>::epsilon());
+    const keel::f64 sqrt_eps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
     for (keel::usize i = 0; i < L; ++i) {
-        const double a = b.elemAsDouble(i);
-        const double c = b.elemAsDouble(L - 1 - i);
+        const keel::f64 a = b.elemAsDouble(i);
+        const keel::f64 c = b.elemAsDouble(L - 1 - i);
         if (std::fabs(a - c) > sqrt_eps)
             throw Error("ftrans2: b must be symmetric",
                         0, 0, "ftrans2", "", "numkit:ftrans2:bSym");
@@ -369,7 +369,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     if (t_in.isEmpty()) {
         // Default McClellan.
         t = Value::matrix(3, 3, ValueType::DOUBLE, mr);
-        double *td = t.doubleDataMut();
+        keel::f64 *td = t.doubleDataMut();
         // Column-major fill of [1 2 1; 2 -4 2; 1 2 1]/8.
         // MATLAB layout: row-major rows above translate to col-major:
         // (r=0,c=0)=1, (1,0)=2, (2,0)=1, (0,1)=2, (1,1)=-4, (2,1)=2, etc.
@@ -392,14 +392,14 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     //                                         b(0), ..., b(n-1)].
     //   a = [shifted(1), 2*shifted(2:n+1)] (1-based).
     const long n = (keel::as<long>(L) - 1) / 2;
-    keel::Array<double> b_vec(L);
+    keel::Array<keel::f64> b_vec(L);
     for (keel::usize i = 0; i < L; ++i) b_vec[i] = b.elemAsDouble(i);
     // ifftshift on 1-D: roll by floor(L/2).
     const long shift = keel::as<long>(L) / 2;
-    keel::Array<double> bsh(L);
+    keel::Array<keel::f64> bsh(L);
     for (keel::usize i = 0; i < L; ++i)
         bsh[i] = b_vec[(keel::as<long>(i) + shift) % keel::as<long>(L)];
-    keel::Array<double> a(n + 1);
+    keel::Array<keel::f64> a(n + 1);
     a[0] = bsh[0];
     for (long k = 1; k <= n; ++k) a[keel::as<keel::usize>(k)] = 2.0 * bsh[keel::as<keel::usize>(k)];
 
@@ -413,11 +413,11 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     P0.doubleDataMut()[0] = 1.0;
     Value P1 = t;
     // h = a(2) * P1 (a is 0-indexed in C++; a(2) MATLAB = a[1] C++).
-    auto scale_mat = [&](const Value &A, double s) {
+    auto scale_mat = [&](const Value &A, keel::f64 s) {
         const keel::usize H = A.dims().rows();
         const keel::usize W = A.dims().cols();
         Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         for (keel::usize i = 0; i < H * W; ++i)
             od[i] = A.elemAsDouble(i) * s;
         return out;
@@ -429,7 +429,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
         const keel::usize Hs = src.dims().rows();
         const keel::usize Ws = src.dims().cols();
         const keel::usize Hd = dst.dims().rows();
-        double *dd = dst.doubleDataMut();
+        keel::f64 *dd = dst.doubleDataMut();
         for (keel::usize c = 0; c < Ws; ++c)
             for (keel::usize r = 0; r < Hs; ++r)
                 dd[(c0 + c) * Hd + (r0 + r)] += src.elemAsDouble(c * Hs + r);
@@ -448,7 +448,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
         cur_cols_off += insetC;
         // P2(rows, cols) -= P0  (at offset insetR*(i-1), insetC*(i-1) ... etc)
         const keel::usize Hp = P2.dims().rows();
-        double *p2d = P2.doubleDataMut();
+        keel::f64 *p2d = P2.doubleDataMut();
         const keel::usize Hp0 = P0.dims().rows();
         const keel::usize Wp0 = P0.dims().cols();
         for (keel::usize c = 0; c < Wp0; ++c)
@@ -469,15 +469,15 @@ Value ftrans2(const Value &b_in, const Value &t_in,
 // ── fwind1 ───────────────────────────────────────────────────────
 // Linear interpolation utility used by Huang's method.
 template <typename T>
-T linear_interp_t(keel::ArrayRef<double> xs,
-                  keel::ArrayRef<T> ys, double q)
+T linear_interp_t(keel::ArrayRef<keel::f64> xs,
+                  keel::ArrayRef<T> ys, keel::f64 q)
 {
     if (q <= xs[0]) return ys[0];
     if (q >= xs[xs.size() - 1])  return ys[ys.size() - 1];
-    const double dx = xs[1] - xs[0];
-    const double t = (q - xs[0]) / dx;
+    const keel::f64 dx = xs[1] - xs[0];
+    const keel::f64 t = (q - xs[0]) / dx;
     const keel::usize i = keel::as<keel::usize>(std::floor(t));
-    const double a = t - keel::as<double>(i);
+    const keel::f64 a = t - keel::as<keel::f64>(i);
     return (1.0 - a) * ys[i] + a * ys[i + 1];
 }
 
@@ -488,7 +488,7 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
 
     const keel::usize n = win1.numel();
     const bool winComplex = win1.isComplex() || (!win2.isEmpty() && win2.isComplex());
-    const double sqrt_eps = std::sqrt(std::numeric_limits<double>::epsilon());
+    const keel::f64 sqrt_eps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
 
     auto getC = [](const Value &v, keel::usize idx) -> keel::c64 {
         return v.isComplex() ? v.complexData()[idx]
@@ -499,9 +499,9 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
     keel::usize m_out, n_out;
     if (win2.isEmpty()) {
         m_out = n_out = n;
-        keel::Array<double> t(n);
+        keel::Array<keel::f64> t(n);
         for (keel::usize i = 0; i < n; ++i)
-            t[i] = (keel::as<double>(i) - (n - 1) / 2.0) * (2.0 / (n - 1));
+            t[i] = (keel::as<keel::f64>(i) - (n - 1) / 2.0) * (2.0 / (n - 1));
         if (winComplex) {
             keel::Array<keel::c64> w1(n);
             for (keel::usize i = 0; i < n; ++i) w1[i] = getC(win1, i);
@@ -513,26 +513,26 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
             auto *wd = W.complexDataMut();
             for (keel::usize c = 0; c < n; ++c)
                 for (keel::usize r = 0; r < n; ++r) {
-                    const double rr = std::sqrt(t[c] * t[c] + t[r] * t[r]);
+                    const keel::f64 rr = std::sqrt(t[c] * t[c] + t[r] * t[r]);
                     wd[c * n + r] = (rr < t[0] || rr > t[n - 1])
                         ? keel::c64(0.0, 0.0)
                         : linear_interp_t<keel::c64>(t, w1, rr);
                 }
         } else {
-            keel::Array<double> w1(n);
+            keel::Array<keel::f64> w1(n);
             for (keel::usize i = 0; i < n; ++i) w1[i] = win1.elemAsDouble(i);
             for (keel::usize i = 0; i < n; ++i)
                 if (std::fabs(w1[i] - w1[n - 1 - i]) > sqrt_eps)
                     throw Error("fwind1: 1-D window must be symmetric",
                                 0, 0, "fwind1", "", "numkit:fwind1:winSym");
             W = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            double *wd = W.doubleDataMut();
+            keel::f64 *wd = W.doubleDataMut();
             for (keel::usize c = 0; c < n; ++c)
                 for (keel::usize r = 0; r < n; ++r) {
-                    const double rr = std::sqrt(t[c] * t[c] + t[r] * t[r]);
+                    const keel::f64 rr = std::sqrt(t[c] * t[c] + t[r] * t[r]);
                     wd[c * n + r] = (rr < t[0] || rr > t[n - 1])
                         ? 0.0
-                        : linear_interp_t<double>(t, w1, rr);
+                        : linear_interp_t<keel::f64>(t, w1, rr);
                 }
         }
     } else {
@@ -546,7 +546,7 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
                     wd[c * m + r] = getC(win2, r) * getC(win1, c);
         } else {
             W = Value::matrix(m, n, ValueType::DOUBLE, mr);
-            double *wd = W.doubleDataMut();
+            keel::f64 *wd = W.doubleDataMut();
             for (keel::usize c = 0; c < n; ++c)
                 for (keel::usize r = 0; r < m; ++r)
                     wd[c * m + r] = win2.elemAsDouble(r) * win1.elemAsDouble(c);
@@ -570,7 +570,7 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
         return out;
     }
     Value out = Value::matrix(M, N, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < M * N; ++i)
         od[i] = h.elemAsDouble(i) * W.elemAsDouble(i);
     return out;
@@ -600,7 +600,7 @@ Value fwind2(const Value &Hd, const Value &W,
         } else {
             Value Wd = as_double(W, mr);
             Wouter = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            double *od2 = Wouter.doubleDataMut();
+            keel::f64 *od2 = Wouter.doubleDataMut();
             for (keel::usize c = 0; c < n; ++c)
                 for (keel::usize r = 0; r < n; ++r)
                     od2[c * n + r] = Wd.elemAsDouble(r) * Wd.elemAsDouble(c);
@@ -625,7 +625,7 @@ Value fwind2(const Value &Hd, const Value &W,
         return out;
     }
     Value out = Value::matrix(Mw, Nw, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < Mw * Nw; ++i)
         od[i] = h.elemAsDouble(i) * Wref.elemAsDouble(i);
     if (Hd.type() == ValueType::SINGLE || W.type() == ValueType::SINGLE)

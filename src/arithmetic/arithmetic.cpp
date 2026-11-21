@@ -25,16 +25,16 @@ namespace {
 // Integer saturation helper. Cast `v` (double) to T with clipping to
 // T's representable range, rounding to nearest.
 template <typename T>
-inline T satCast(double v) {
+inline T satCast(keel::f64 v) {
     if (std::isnan(v)) return T{};
-    constexpr double lo = keel::as<double>(std::numeric_limits<T>::lowest());
-    constexpr double hi = keel::as<double>(std::numeric_limits<T>::max());
+    constexpr keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::lowest());
+    constexpr keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
     if (v <= lo) return std::numeric_limits<T>::lowest();
     if (v >= hi) return std::numeric_limits<T>::max();
     return static_cast<T>(std::lround(v));
 }
-template <> inline double satCast<double>(double v) { return v; }
-template <> inline float  satCast<float>(double v)  { return keel::as<float>(v); }
+template <> inline keel::f64 satCast<keel::f64>(keel::f64 v) { return v; }
+template <> inline keel::f32  satCast<keel::f32>(keel::f64 v)  { return keel::as<keel::f32>(v); }
 
 // Allocate an output Value matching X's shape and class.
 inline Value makeOutLike(const Value &x, keel::Allocator *mr) {
@@ -64,13 +64,13 @@ Value binop(const Value &x, const Value &y, Op op, keel::Allocator *mr) {
 
     switch (x.type()) {
         case ValueType::DOUBLE: {
-            double *od = out.doubleDataMut();
-            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<double>(op(getX(i), getY(i)));
+            keel::f64 *od = out.doubleDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::f64>(op(getX(i), getY(i)));
             break;
         }
         case ValueType::SINGLE: {
-            float *od = out.singleDataMut();
-            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<float>(op(getX(i), getY(i)));
+            keel::f32 *od = out.singleDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::f32>(op(getX(i), getY(i)));
             break;
         }
         case ValueType::UINT8: {
@@ -109,13 +109,13 @@ Value unop(const Value &x, Op op, keel::Allocator *mr) {
     auto getX = [&](keel::usize i){ return x.elemAsDouble(i); };
     switch (x.type()) {
         case ValueType::DOUBLE: {
-            double *od = out.doubleDataMut();
-            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<double>(op(getX(i)));
+            keel::f64 *od = out.doubleDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::f64>(op(getX(i)));
             break;
         }
         case ValueType::SINGLE: {
-            float *od = out.singleDataMut();
-            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<float>(op(getX(i)));
+            keel::f32 *od = out.singleDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::f32>(op(getX(i)));
             break;
         }
         case ValueType::UINT8: {
@@ -146,7 +146,7 @@ Value unop(const Value &x, Op op, keel::Allocator *mr) {
 }
 
 // Saturated max/min for X's class.
-inline double classMax(ValueType t) {
+inline keel::f64 classMax(ValueType t) {
     switch (t) {
         case ValueType::UINT8:  return 255.0;
         case ValueType::UINT16: return 65535.0;
@@ -174,7 +174,7 @@ void imarith_argcheck(const Value &x)
     }
 }
 
-void imlincomb_argcheck(keel::ArrayRef<double> coefs,
+void imlincomb_argcheck(keel::ArrayRef<keel::f64> coefs,
                         keel::ArrayRef<Value> images,
                         ValueType output_class)
 {
@@ -227,26 +227,26 @@ void imapplymatrix_argcheck(const Value &M, const Value &x, ValueType output_cla
 
 Value imadd(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
-    return binop(x, y, [](double a, double b){ return a + b; }, mr);
+    return binop(x, y, [](keel::f64 a, keel::f64 b){ return a + b; }, mr);
 }
 
 Value imsubtract(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
-    return binop(x, y, [](double a, double b){ return a - b; }, mr);
+    return binop(x, y, [](keel::f64 a, keel::f64 b){ return a - b; }, mr);
 }
 
 Value immultiply(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
-    return binop(x, y, [](double a, double b){ return a * b; }, mr);
+    return binop(x, y, [](keel::f64 a, keel::f64 b){ return a * b; }, mr);
 }
 
 Value imdivide(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
-    return binop(x, y, [](double a, double b){
+    return binop(x, y, [](keel::f64 a, keel::f64 b){
         if (b == 0.0) {
-            if (a > 0.0) return std::numeric_limits<double>::infinity();
-            if (a < 0.0) return -std::numeric_limits<double>::infinity();
-            return std::numeric_limits<double>::quiet_NaN();
+            if (a > 0.0) return std::numeric_limits<keel::f64>::infinity();
+            if (a < 0.0) return -std::numeric_limits<keel::f64>::infinity();
+            return std::numeric_limits<keel::f64>::quiet_NaN();
         }
         return a / b;
     }, mr);
@@ -254,16 +254,16 @@ Value imdivide(const Value &x, const Value &y, keel::Allocator *mr) {
 
 Value imabsdiff(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
-    return binop(x, y, [](double a, double b){ return std::fabs(a - b); }, mr);
+    return binop(x, y, [](keel::f64 a, keel::f64 b){ return std::fabs(a - b); }, mr);
 }
 
 Value imcomplement(const Value &x, keel::Allocator *mr) {
     imarith_argcheck(x);
-    const double cmax = classMax(x.type());
-    return unop(x, [=](double v){ return cmax - v; }, mr);
+    const keel::f64 cmax = classMax(x.type());
+    return unop(x, [=](keel::f64 v){ return cmax - v; }, mr);
 }
 
-Value imlincomb(keel::ArrayRef<double> coefs, keel::ArrayRef<Value> images, ValueType output_class, keel::Allocator *mr)
+Value imlincomb(keel::ArrayRef<keel::f64> coefs, keel::ArrayRef<Value> images, ValueType output_class, keel::Allocator *mr)
 {
     imlincomb_argcheck(coefs, images, output_class);
     if (coefs.size() != images.size() && coefs.size() != images.size() + 1)
@@ -280,11 +280,11 @@ Value imlincomb(keel::ArrayRef<double> coefs, keel::ArrayRef<Value> images, Valu
     else          out = Value::matrix(d.rows(), d.cols(), output_class, mr);
 
     // Accumulate in double, then cast at the end.
-    keel::Array<double> acc(n, 0.0);
-    const double bias = (coefs.size() == images.size() + 1) ? coefs.back() : 0.0;
+    keel::Array<keel::f64> acc(n, 0.0);
+    const keel::f64 bias = (coefs.size() == images.size() + 1) ? coefs.back() : 0.0;
     for (keel::usize k = 0; k < images.size(); ++k) {
         const Value &xk = images[k];
-        const double ck = coefs[k];
+        const keel::f64 ck = coefs[k];
         if (xk.numel() != n)
             throw Error("imlincomb: all images must have the same size",
                         0, 0, "imlincomb", "", "numkit:imlincomb:size");
@@ -297,8 +297,8 @@ Value imlincomb(keel::ArrayRef<double> coefs, keel::ArrayRef<Value> images, Valu
         case ValueType::DOUBLE:
             std::copy(acc.begin(), acc.end(), out.doubleDataMut()); break;
         case ValueType::SINGLE: {
-            float *od = out.singleDataMut();
-            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<float>(acc[i]);
+            keel::f32 *od = out.singleDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::f32>(acc[i]);
             break;
         }
         case ValueType::UINT8: {
@@ -383,10 +383,10 @@ Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, keel
     auto Md = [&](keel::usize r, keel::usize c){ return M.elemAsDouble(c * Mrows + r); };
     auto Xd = [&](keel::usize i, keel::usize p){ return x.elemAsDouble(p * plane + i); };
 
-    auto store = [&](keel::usize outIdx, double v) {
+    auto store = [&](keel::usize outIdx, keel::f64 v) {
         switch (output_class) {
-            case ValueType::DOUBLE:  out.doubleDataMut()[outIdx]  = satCast<double>(v); break;
-            case ValueType::SINGLE:  out.singleDataMut()[outIdx]  = satCast<float>(v); break;
+            case ValueType::DOUBLE:  out.doubleDataMut()[outIdx]  = satCast<keel::f64>(v); break;
+            case ValueType::SINGLE:  out.singleDataMut()[outIdx]  = satCast<keel::f32>(v); break;
             case ValueType::UINT8:   out.uint8DataMut()[outIdx]   = satCast<keel::u8>(v); break;
             case ValueType::UINT16:  out.uint16DataMut()[outIdx]  = satCast<keel::u16>(v); break;
             case ValueType::INT16:   out.int16DataMut()[outIdx]   = satCast<keel::i16>(v); break;
@@ -398,7 +398,7 @@ Value imapplymatrix(const Value &M, const Value &x, ValueType output_class, keel
 
     for (keel::usize r = 0; r < Mrows; ++r) {
         for (keel::usize i = 0; i < plane; ++i) {
-            double acc = 0.0;
+            keel::f64 acc = 0.0;
             for (keel::usize c = 0; c < pages; ++c) acc += Md(r, c) * Xd(i, c);
             store(r * plane + i, acc);
         }

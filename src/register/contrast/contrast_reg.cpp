@@ -60,7 +60,7 @@ void stretchlim_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "stretchlim");
-    double lo = 0.01, hi = 0.99;
+    keel::f64 lo = 0.01, hi = 0.99;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &t = args[1];
         if (t.numel() == 1) {
@@ -78,11 +78,11 @@ void imadjust_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "imadjust");
-    double low_in  = std::numeric_limits<double>::quiet_NaN();
-    double high_in = std::numeric_limits<double>::quiet_NaN();
-    double low_out = 0.0;
-    double high_out = 1.0;
-    double gamma = 1.0;
+    keel::f64 low_in  = std::numeric_limits<keel::f64>::quiet_NaN();
+    keel::f64 high_in = std::numeric_limits<keel::f64>::quiet_NaN();
+    keel::f64 low_out = 0.0;
+    keel::f64 high_out = 1.0;
+    keel::f64 gamma = 1.0;
 
     // In-range endpoints [low_in high_in]:
     //   - absent (1-arg imadjust(I))   -> NaN sentinel -> stretchlim auto
@@ -202,7 +202,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         }
         if (m == "adaptive") {
             // imbinarize(I,'adaptive') = binarize(I, adaptthresh(I, sens, polarity)).
-            double sens = 0.5;
+            keel::f64 sens = 0.5;
             keel::String polarity = keel::String::from("bright");
             for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
                 if (!args[i].isChar() && !args[i].isString())
@@ -262,8 +262,8 @@ void imquantize_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             throw Error("imquantize: values must have numel(levels)+1 elements",
                         0, 0, "imquantize", "", "numkit:imquantize:values");
         Value quant = idx;                 // same shape, DOUBLE
-        double *qd = quant.doubleDataMut();
-        const double *id = idx.doubleData();
+        keel::f64 *qd = quant.doubleDataMut();
+        const keel::f64 *id = idx.doubleData();
         const keel::usize N = idx.numel();
         for (keel::usize i = 0; i < N; ++i)
             qd[i] = args[2].elemAsDouble(keel::as<keel::usize>(id[i]) - 1);
@@ -279,7 +279,7 @@ void adaptthresh_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 8, "adaptthresh");
-    const double sens = (args.size() >= 2 && !args[1].isEmpty())
+    const keel::f64 sens = (args.size() >= 2 && !args[1].isEmpty())
                         ? args[1].toScalar() : 0.5;
     const int nbh     = (args.size() >= 3 && !args[2].isEmpty())
                         ? argcheck::expectedPositiveInteger(
@@ -298,7 +298,7 @@ void imflatfield_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                      keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "imflatfield");
-    const double sigma = args[1].toScalar();
+    const keel::f64 sigma = args[1].toScalar();
     Value mask;
     if (args.size() >= 3 && !args[2].isEmpty()) mask = args[2];
     outs[0] = imflatfield(args[0], sigma, mask, ctx.engine->allocator());
@@ -319,7 +319,7 @@ void wcodemat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
     int absol = 1;
     if (args.size() >= 4 && !args[3].isEmpty()) {
-        const double av = argcheck::expectedReal(args[3], 4, "absol", "wcodemat");
+        const keel::f64 av = argcheck::expectedReal(args[3], 4, "absol", "wcodemat");
         argcheck::expectedFlag01(av, 4, "absol", "wcodemat");
         absol = keel::as<int>(av);
     }
@@ -353,21 +353,21 @@ void grayslice_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
     const Value &n = args[1];
     if (n.numel() == 1) {
-        const double nv = n.toScalar();
+        const keel::f64 nv = n.toScalar();
         if (nv >= 1.0) {
             outs[0] = grayslice(args[0], keel::as<int>(nv), mr);
         } else if (nv > 0.0) {
-            const double levels[1] = { nv };
-            outs[0] = grayslice(args[0], keel::ArrayRef<double>(levels, 1), mr);
+            const keel::f64 levels[1] = { nv };
+            outs[0] = grayslice(args[0], keel::ArrayRef<keel::f64>(levels, 1), mr);
         } else {
             throw Error("grayslice: N must be a positive number",
                         0, 0, "grayslice", "", "numkit:grayslice:n");
         }
     } else if (n.numel() > 1) {
         keel::ArenaTemp scratch = keel::get_scratch(mr);
-        keel::Array<double> buf(n.numel(), scratch.allocator());
+        keel::Array<keel::f64> buf(n.numel(), scratch.allocator());
         for (keel::usize i = 0; i < n.numel(); ++i) buf[i] = n.elemAsDouble(i);
-        outs[0] = grayslice(args[0], keel::ArrayRef<double>(buf.data(), buf.size()),
+        outs[0] = grayslice(args[0], keel::ArrayRef<keel::f64>(buf.data(), buf.size()),
                             mr);
     } else {
         throw Error("grayslice: N must be scalar >= 1 or a vector",

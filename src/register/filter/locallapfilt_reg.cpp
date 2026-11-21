@@ -34,11 +34,11 @@ void locallapfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto *mr = ctx.engine->allocator();
 
     const Value &I = args[0];
-    const double sigma = args[1].toScalar();
-    const double alpha = args[2].toScalar();
+    const keel::f64 sigma = args[1].toScalar();
+    const keel::f64 alpha = args[2].toScalar();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    double beta = 1.0;
+    keel::f64 beta = 1.0;
     int nlevels = -1;          // -1 = auto
     bool processLuminance = true;
 

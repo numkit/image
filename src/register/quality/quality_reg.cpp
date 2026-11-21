@@ -44,7 +44,7 @@ void psnr_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
               keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 3, "psnr");
-    const double peak = (args.size() >= 3 && !args[2].isEmpty())
+    const keel::f64 peak = (args.size() >= 3 && !args[2].isEmpty())
                         ? args[2].toScalar() : std::nan("");
     outs[0] = psnr(args[0], args[1], peak, ctx.engine->allocator());
 }
@@ -87,9 +87,9 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     int num_scales = 5;
-    keel::Array<double> scale_weights;
-    double sigma = 1.5;
-    double dynamic_range = -1.0;
+    keel::Array<keel::f64> scale_weights;
+    keel::f64 sigma = 1.5;
+    keel::f64 dynamic_range = -1.0;
 
     keel::usize i = 2;
     while (i + 1 < args.size()) {
@@ -142,9 +142,9 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     int num_scales = 5;
-    keel::Array<double> scale_weights;
-    double sigma = 1.5;
-    double dynamic_range = -1.0;
+    keel::Array<keel::f64> scale_weights;
+    keel::f64 sigma = 1.5;
+    keel::f64 dynamic_range = -1.0;
 
     keel::usize i = 2;
     while (i + 1 < args.size()) {

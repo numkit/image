@@ -29,7 +29,7 @@ namespace detail {
 // two MATLAB options 'Mask' and 'Norm' (the latter is illumgray-only,
 // caller passes `allow_norm = false` for illumwhite).
 static void parse_nv_pairs(keel::ArrayRef<Value> args, keel::usize start_idx,
-                           bool allow_norm, Value &mask, double &norm_exp,
+                           bool allow_norm, Value &mask, keel::f64 &norm_exp,
                            const char *fn)
 {
     while (start_idx + 1 < args.size()) {
@@ -57,14 +57,14 @@ void illumwhite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, 4, "illumwhite");
     auto *mr = ctx.engine->allocator();
-    double P = 1.0;       // MATLAB default percentile = 1%.
+    keel::f64 P = 1.0;       // MATLAB default percentile = 1%.
     keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
         P = args[1].toScalar();
         i = 2;
     }
     Value mask = Value::Empty;
-    double dummy_norm = 1.0;
+    keel::f64 dummy_norm = 1.0;
     parse_nv_pairs(args, i, /*allow_norm=*/false, mask, dummy_norm,
                    "illumwhite");
     outs[0] = illumwhite(args[0], P, mask, mr);
@@ -77,7 +77,7 @@ void imcolordiff_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto *mr = ctx.engine->allocator();
     keel::String standard = keel::String::from("CIE94");
     bool is_input_lab = false;
-    double kL = 1.0, kC = 1.0, kH = 1.0, K1 = 0.045, K2 = 0.015;
+    keel::f64 kL = 1.0, kC = 1.0, kH = 1.0, K1 = 0.045, K2 = 0.015;
     keel::usize i = 2;
     while (i + 1 < args.size()) {
         if (!args[i].isChar() && !args[i].isString())
@@ -109,14 +109,14 @@ void illumpca_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, 4, "illumpca");
     auto *mr = ctx.engine->allocator();
-    double P = 3.5;       // MATLAB default percentage.
+    keel::f64 P = 3.5;       // MATLAB default percentage.
     keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
         P = args[1].toScalar();
         i = 2;
     }
     Value mask = Value::Empty;
-    double dummy_norm = 1.0;
+    keel::f64 dummy_norm = 1.0;
     parse_nv_pairs(args, i, /*allow_norm=*/false, mask, dummy_norm,
                    "illumpca");
     outs[0] = illumpca(args[0], P, mask, mr);
@@ -127,7 +127,7 @@ void illumgray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, 6, "illumgray");
     auto *mr = ctx.engine->allocator();
-    keel::Array<double> P;
+    keel::Array<keel::f64> P;
     keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
         const keel::usize n = args[1].numel();
@@ -142,7 +142,7 @@ void illumgray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         i = 2;
     }
     Value mask = Value::Empty;
-    double norm_exp = 1.0;
+    keel::f64 norm_exp = 1.0;
     parse_nv_pairs(args, i, /*allow_norm=*/true, mask, norm_exp,
                    "illumgray");
     outs[0] = illumgray_impl(args[0], P, mask, norm_exp, mr);

@@ -68,7 +68,7 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     0, 0, "bwpropfilt", "", "numkit:bwpropfilt:noRange");
     const Value &p = args[i];
     ++i;
-    double p_min = 0, p_max = 0;
+    keel::f64 p_min = 0, p_max = 0;
     keel::usize keep_n = 0;
     bool keep_largest = true;
     if (p.numel() == 1) {

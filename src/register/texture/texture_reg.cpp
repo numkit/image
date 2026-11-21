@@ -48,7 +48,7 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   : (I.type() == ValueType::UINT8)   ? 8
                                                      : 8;
     int offR = 0, offC = 1;
-    double gLow = 0.0, gHigh = 0.0;
+    keel::f64 gLow = 0.0, gHigh = 0.0;
     bool   limitsSet = false;
     bool   symmetric = false;
 

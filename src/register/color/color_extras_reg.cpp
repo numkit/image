@@ -263,8 +263,8 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    double lo = 0.0, hi = 1.0;
-    double saturation = 1.0;
+    keel::f64 lo = 0.0, hi = 1.0;
+    keel::f64 saturation = 1.0;
     int ntilesR = 4, ntilesC = 4;
 
     keel::usize i = 1;
@@ -321,7 +321,7 @@ void labeloverlay_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     Value cmap;             // empty → default 'jet'
     keel::String ca = keel::String::from("auto");
     Value included;         // empty → default 1:maxLabel
-    double transparency = 0.5;
+    keel::f64 transparency = 0.5;
 
     keel::usize i = 2;
     while (i + 1 < args.size()) {
@@ -380,7 +380,7 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     const keel::usize plane = L.numel();
     int maxLabel = 0;
     for (keel::usize i = 0; i < plane; ++i) {
-        const double v = L.elemAsDouble(i);
+        const keel::f64 v = L.elemAsDouble(i);
         if (std::isfinite(v) && v > maxLabel) maxLabel = keel::as<int>(v);
     }
     const int numregion = maxLabel < 1 ? 1 : maxLabel;
@@ -411,14 +411,14 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     Value bg;                                 // empty → core defaults white.
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (args[2].isChar() || args[2].isString()) {
-            double rgb[3];
+            keel::f64 rgb[3];
             keel::String zc = args[2].toString();
             if (!parseColorSpec(zc, rgb))
                 throw Error(keel::format("label2rgb: invalid zerocolor string '{}'", zc),
                             0, 0, "label2rgb", "",
                             "numkit:label2rgb:zerocolor");
             bg = Value::matrix(1, 3, ValueType::DOUBLE, mr);
-            double *bd = bg.doubleDataMut();
+            keel::f64 *bd = bg.doubleDataMut();
             bd[0] = rgb[0]; bd[1] = rgb[1]; bd[2] = rgb[2];
         } else {
             // Probed R2025b: complex triplets are rejected

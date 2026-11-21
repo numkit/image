@@ -36,8 +36,8 @@ void fibermetric_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     const Value &I = args[0];
-    keel::Array<double> thickness;
-    double c = -1.0;
+    keel::Array<keel::f64> thickness;
+    keel::f64 c = -1.0;
     bool bright = true;
 
     keel::usize i = 1;

@@ -81,7 +81,7 @@ void imlincomb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         throw Error("imlincomb: arguments must come in (coef, image) pairs",
                     0, 0, "imlincomb", "", "numkit:imlincomb:nargin");
 
-    keel::Array<double> coefs;
+    keel::Array<keel::f64> coefs;
     keel::Array<Value>  images;
     for (keel::usize i = 0; i + 1 < end; i += 2) {
         coefs.push_back(args[i].toScalar());

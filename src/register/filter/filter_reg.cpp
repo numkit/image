@@ -81,7 +81,7 @@ Value nlfilter(const Value &A,
     };
 
     // Padding: 'indexed' uses 1.0 for single/double, else 0.
-    double padval = 0.0;
+    keel::f64 padval = 0.0;
     if (indexed) {
         padval = (inT == ValueType::DOUBLE || inT == ValueType::SINGLE)
                ? 1.0 : 0.0;
@@ -98,7 +98,7 @@ Value nlfilter(const Value &A,
 
     // Build padded array in DOUBLE (we always read out via
     // elemAsDouble; this saves a class-specific dispatch).
-    keel::Array<double> aa(Hpad * Wpad, padval, mr);
+    keel::Array<keel::f64> aa(Hpad * Wpad, padval, mr);
     for (keel::usize j = 0; j < W; ++j)
         for (keel::usize i = 0; i < H; ++i)
             aa[(j + pad_left) * Hpad + (i + pad_top)] = A.elemAsDouble(j * H + i);
@@ -108,7 +108,7 @@ Value nlfilter(const Value &A,
     // as `A`, but we choose DOUBLE here for simplicity. Tests use
     // class-agnostic kernels like `@(x) mean(x(:))`).
     Value window = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    double *wd = window.doubleDataMut();
+    keel::f64 *wd = window.doubleDataMut();
 
     // First-call invocation determines output class.
     auto fill_window = [&](keel::usize i, keel::usize j) {
@@ -127,10 +127,10 @@ Value nlfilter(const Value &A,
 
     auto store = [&](keel::usize r, keel::usize c, const Value &v) {
         const keel::usize idx = c * H + r;
-        const double d = v.toScalar();
+        const keel::f64 d = v.toScalar();
         switch (outT) {
             case ValueType::DOUBLE:  B.doubleDataMut()[idx]  = d; break;
-            case ValueType::SINGLE:  B.singleDataMut()[idx]  = keel::as<float>(d); break;
+            case ValueType::SINGLE:  B.singleDataMut()[idx]  = keel::as<keel::f32>(d); break;
             case ValueType::UINT8:   B.uint8DataMut()[idx]   = keel::as<keel::u8>(d); break;
             case ValueType::UINT16:  B.uint16DataMut()[idx]  = keel::as<keel::u16>(d); break;
             case ValueType::UINT32:  B.uint32DataMut()[idx]  = keel::as<keel::u32>(d); break;
@@ -224,7 +224,7 @@ Value colfilt(const Value &A,
                     0, 0, "colfilt", "", "numkit:colfilt:blockType");
 
     // Common padval rule.
-    double padval = 0.0;
+    keel::f64 padval = 0.0;
     if (indexed && (inT == ValueType::DOUBLE || inT == ValueType::SINGLE))
         padval = 1.0;
 
@@ -238,10 +238,10 @@ Value colfilt(const Value &A,
 
         // Build X = m*n × Ncol in DOUBLE.
         Value X = Value::matrix(m * n, Ncol, ValueType::DOUBLE, mr);
-        double *xd = X.doubleDataMut();
+        keel::f64 *xd = X.doubleDataMut();
 
         // Pad row-by-col into a temporary scratch.
-        keel::Array<double> aa(Hpad * Wpad, padval, mr);
+        keel::Array<keel::f64> aa(Hpad * Wpad, padval, mr);
         for (keel::usize j = 0; j < W; ++j)
             for (keel::usize i = 0; i < H; ++i)
                 aa[(j + pad_left) * Hpad + (i + pad_top)] =
@@ -272,11 +272,11 @@ Value colfilt(const Value &A,
         Value B = Value::matrix(H, W, result.type(), mr);
         const auto outT = result.type();
         for (keel::usize k = 0; k < Ncol; ++k) {
-            const double v = result.elemAsDouble(k);
+            const keel::f64 v = result.elemAsDouble(k);
             const keel::usize idx = k;
             switch (outT) {
                 case ValueType::DOUBLE: B.doubleDataMut()[idx]  = v; break;
-                case ValueType::SINGLE: B.singleDataMut()[idx]  = keel::as<float>(v); break;
+                case ValueType::SINGLE: B.singleDataMut()[idx]  = keel::as<keel::f32>(v); break;
                 case ValueType::UINT8:  B.uint8DataMut()[idx]   = keel::as<keel::u8>(v); break;
                 case ValueType::UINT16: B.uint16DataMut()[idx]  = keel::as<keel::u16>(v); break;
                 case ValueType::INT16:  B.int16DataMut()[idx]   = keel::as<keel::i16>(v); break;
@@ -300,14 +300,14 @@ Value colfilt(const Value &A,
     const keel::usize Ncol    = mblocks * nblocks;
 
     // Pad to multiple of (m, n).
-    keel::Array<double> aa(Hpad * Wpad, padval, mr);
+    keel::Array<keel::f64> aa(Hpad * Wpad, padval, mr);
     for (keel::usize j = 0; j < W; ++j)
         for (keel::usize i = 0; i < H; ++i)
             aa[j * Hpad + i] = A.elemAsDouble(j * H + i);
 
     // Build X = m*n × Ncol; column index k = bj * mblocks + bi.
     Value X = Value::matrix(m * n, Ncol, ValueType::DOUBLE, mr);
-    double *xd = X.doubleDataMut();
+    keel::f64 *xd = X.doubleDataMut();
     for (keel::usize bj = 0; bj < nblocks; ++bj) {
         for (keel::usize bi = 0; bi < mblocks; ++bi) {
             const keel::usize k = bj * mblocks + bi;
@@ -327,14 +327,14 @@ Value colfilt(const Value &A,
 
     // Reassemble padded image, then crop.
     const auto outT = result.type();
-    keel::Array<double> bb(Hpad * Wpad, 0.0, mr);
+    keel::Array<keel::f64> bb(Hpad * Wpad, 0.0, mr);
     for (keel::usize bj = 0; bj < nblocks; ++bj) {
         for (keel::usize bi = 0; bi < mblocks; ++bi) {
             const keel::usize k = bj * mblocks + bi;
             keel::usize r = 0;
             for (keel::usize wc = 0; wc < n; ++wc)
                 for (keel::usize wr = 0; wr < m; ++wr) {
-                    const double v = result.elemAsDouble(k * (m * n) + (r++));
+                    const keel::f64 v = result.elemAsDouble(k * (m * n) + (r++));
                     bb[(bj * n + wc) * Hpad + (bi * m + wr)] = v;
                 }
         }
@@ -343,11 +343,11 @@ Value colfilt(const Value &A,
     Value B = Value::matrix(H, W, outT, mr);
     for (keel::usize j = 0; j < W; ++j) {
         for (keel::usize i = 0; i < H; ++i) {
-            const double v = bb[j * Hpad + i];
+            const keel::f64 v = bb[j * Hpad + i];
             const keel::usize idx = j * H + i;
             switch (outT) {
                 case ValueType::DOUBLE: B.doubleDataMut()[idx]  = v; break;
-                case ValueType::SINGLE: B.singleDataMut()[idx]  = keel::as<float>(v); break;
+                case ValueType::SINGLE: B.singleDataMut()[idx]  = keel::as<keel::f32>(v); break;
                 case ValueType::UINT8:  B.uint8DataMut()[idx]   = keel::as<keel::u8>(v); break;
                 case ValueType::UINT16: B.uint16DataMut()[idx]  = keel::as<keel::u16>(v); break;
                 case ValueType::INT16:  B.int16DataMut()[idx]   = keel::as<keel::i16>(v); break;
@@ -373,7 +373,7 @@ keel::String to_lower_ascii(keel::StringRef s) {
     return out;
 }
 
-PadMode parse_pad_mode(const Value &v, double &pad_value, bool &is_value) {
+PadMode parse_pad_mode(const Value &v, keel::f64 &pad_value, bool &is_value) {
     is_value = false;
     pad_value = 0.0;
     if (v.isChar() || v.isString()) {
@@ -404,7 +404,7 @@ void padarray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
 
     PadMode mode = PadMode::Constant;
-    double pad_value = 0.0;
+    keel::f64 pad_value = 0.0;
     keel::String direction = keel::String::from("both");
 
     // Parse optional trailing args: pad_value-or-mode (one) and/or direction.
@@ -436,7 +436,7 @@ void fspecial_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (!args.empty() && (args[0].isChar() || args[0].isString()))
         type = args[0].toString();
 
-    keel::Array<double> params;
+    keel::Array<keel::f64> params;
     if (type == "motion") {
         // 'motion' takes two INDEPENDENT scalars [len, theta]; do NOT
         // size-double the 2nd arg the way the size-based filters do.
@@ -474,7 +474,7 @@ void imfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, 5, "imfilter");
     PadMode boundary = PadMode::Constant;
-    double pad_value = 0.0;
+    keel::f64 pad_value = 0.0;
     bool full = false;
     bool flip_kernel = false;  // 'corr' default
     for (keel::usize i = 2; i < args.size(); ++i) {
@@ -501,7 +501,7 @@ void imgaussfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "imgaussfilt");
     // no max: name-value tail in the reference
-    double sigma = (args.size() >= 2 && !args[1].isEmpty()) ? args[1].toScalar() : 0.5;
+    keel::f64 sigma = (args.size() >= 2 && !args[1].isEmpty()) ? args[1].toScalar() : 0.5;
     int fs = 0;  // auto
     // Look for 'FilterSize' name-value pair.
     for (keel::usize i = 2; i + 1 < args.size(); ++i) {
@@ -588,7 +588,7 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     // MATLAB default NormalizationFactor = 1/(fH·fW) (mean); it is a
     // multiplier applied to the box sum, NOT a divisor.
-    double normFactor = 1.0 / (keel::as<double>(fH) * keel::as<double>(fW));
+    keel::f64 normFactor = 1.0 / (keel::as<keel::f64>(fH) * keel::as<keel::f64>(fW));
     // NV-pair: NormalizationFactor.
     for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
@@ -630,8 +630,8 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
 
     // MATLAB default NormalizationFactor = 1/prod(filterSize) (mean).
-    double normFactor = 1.0 / (keel::as<double>(fH) * keel::as<double>(fW)
-                               * keel::as<double>(fP));
+    keel::f64 normFactor = 1.0 / (keel::as<keel::f64>(fH) * keel::as<keel::f64>(fW)
+                               * keel::as<keel::f64>(fP));
     for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter3: name-value name must be a string",
@@ -672,7 +672,7 @@ void imgaussfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, "imgaussfilt3");
     // no max: name-value tail in the reference
-    double sigH = 0.5, sigW = 0.5, sigP = 0.5;
+    keel::f64 sigH = 0.5, sigW = 0.5, sigP = 0.5;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1) {
@@ -802,7 +802,7 @@ void imbilatfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // canonical value is 0.01; for integer classes we scale by the
     // range so the *relative* sensitivity matches.
     const Value &I = args[0];
-    double dos_default;
+    keel::f64 dos_default;
     switch (I.type()) {
         case ValueType::UINT8:
             dos_default = 0.01 * 255.0 * 255.0; break;
@@ -813,9 +813,9 @@ void imbilatfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         default:
             dos_default = 0.01; break;
     }
-    double dos    = (args.size() >= 2 && !args[1].isEmpty())
+    keel::f64 dos    = (args.size() >= 2 && !args[1].isEmpty())
                     ? args[1].toScalar() : dos_default;
-    double sigma  = (args.size() >= 3 && !args[2].isEmpty())
+    keel::f64 sigma  = (args.size() >= 3 && !args[2].isEmpty())
                     ? args[2].toScalar() : 1.0;
     outs[0] = imbilatfilt(I, dos, sigma, ctx.engine->allocator());
 }
@@ -869,7 +869,7 @@ void imsharpen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                    keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 7, "imsharpen");
-    double radius = 1.0, amount = 0.8, threshold = 0.0;
+    keel::f64 radius = 1.0, amount = 0.8, threshold = 0.0;
     // Accept either positional (I, radius, amount, threshold) or
     // name-value pairs ('Radius', r, 'Amount', a, 'Threshold', t).
     keel::usize i = 1;
@@ -881,7 +881,7 @@ void imsharpen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             if (i + 1 >= args.size())
                 throw Error(keel::format("imsharpen: missing value for '{}'", nm),
                             0, 0, "imsharpen", "", "numkit:imsharpen:nv");
-            const double v = args[i + 1].toScalar();
+            const keel::f64 v = args[i + 1].toScalar();
             if (nm == "Radius" || nm == "radius") radius = v;
             else if (nm == "Amount" || nm == "amount") amount = v;
             else if (nm == "Threshold" || nm == "threshold") threshold = v;
@@ -892,7 +892,7 @@ void imsharpen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             if (sawNV)
                 throw Error("imsharpen: positional after name-value",
                             0, 0, "imsharpen", "", "numkit:imsharpen:syntax");
-            const double v = args[i].toScalar();
+            const keel::f64 v = args[i].toScalar();
             if      (i == 1) radius    = v;
             else if (i == 2) amount    = v;
             else if (i == 3) threshold = v;
@@ -927,7 +927,7 @@ void imsmooth_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // no max: absent from the R2025b reference build
     auto *mr = ctx.engine->allocator();
     keel::String name = keel::String::from("Gaussian");
-    double sigma = 0.5;
+    keel::f64 sigma = 0.5;
     // imsmooth(I, scalar) — Octave shorthand: scalar is sigma, name=Gaussian.
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].isChar() || args[1].isString()) {
@@ -968,7 +968,7 @@ void ordfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
     Value S;
     PadMode pad = PadMode::Constant;
-    double pad_value = 0.0;
+    keel::f64 pad_value = 0.0;
     for (keel::usize i = 3; i < args.size(); ++i) {
         const Value &a = args[i];
         if (a.isEmpty()) continue;
@@ -998,7 +998,7 @@ void wiener2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, 4, "wiener2");
     keel::usize nh = 3, nw = 3;
-    double noise = std::nan("");
+    keel::f64 noise = std::nan("");
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].numel() == 1) {
             // Single scalar = noise (Octave convention when no nhood).
@@ -1148,7 +1148,7 @@ void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto *mr = ctx.engine->allocator();
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
-    double dos = -1.0;
+    keel::f64 dos = -1.0;
     int swsize = 21;
     int cwsize = 5;
     keel::usize i = 1;
@@ -1179,7 +1179,7 @@ void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         i += 2;
     }
     Value J;
-    double est;
+    keel::f64 est;
     imnlmfilt(args[0], dos, swsize, cwsize, J, est, mr);
     outs[0] = std::move(J);
     if (nargout >= 2) outs[1] = Value::scalar(est, mr);
@@ -1194,10 +1194,10 @@ void imgaborfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     auto is_string = [](const Value &v) { return v.isChar() || v.isString(); };
 
     const Value &A = args[0];
-    const double wavelength  = args[1].toScalar();
-    const double orientation = args[2].toScalar();
-    double sfb = 1.0;
-    double aspect = 0.5;
+    const keel::f64 wavelength  = args[1].toScalar();
+    const keel::f64 orientation = args[2].toScalar();
+    keel::f64 sfb = 1.0;
+    keel::f64 aspect = 0.5;
 
     keel::usize i = 3;
     while (i + 1 < args.size()) {
@@ -1246,7 +1246,7 @@ void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (nref.equals_ignore_ascii_case("gradientthreshold")) {
             thresh = args[i + 1];
         } else if (nref.equals_ignore_ascii_case("numberofiterations")) {
-            const double v = args[i + 1].toScalar();
+            const keel::f64 v = args[i + 1].toScalar();
             if (!(v > 0) || v != std::floor(v))
                 throw Error("imdiffusefilt: NumberOfIterations must be a "
                             "positive integer",
@@ -1277,7 +1277,7 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     Value A = args[0];
     Value G;  // empty → self-guide
     int nhood = 5;
-    double eps = -1.0;  // sentinel → class-based default
+    keel::f64 eps = -1.0;  // sentinel → class-based default
 
     keel::usize i = 1;
     if (i < args.size() && !is_string(args[i])) {

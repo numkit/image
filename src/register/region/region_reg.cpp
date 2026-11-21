@@ -41,25 +41,25 @@ namespace {
 // dOrth = orthogonal step cost, dDiag = diagonal step cost; allowDiag=false
 // forbids diagonal moves (cityblock). Exact for cityblock (dOrth=1, no
 // diagonal), chessboard (1,1) and quasi-euclidean (1, sqrt2).
-Value bwdistChamfer(const Value &BW, double dOrth, double dDiag,
+Value bwdistChamfer(const Value &BW, keel::f64 dOrth, keel::f64 dDiag,
                     bool allowDiag, keel::Allocator *mr)
 {
     const keel::usize H = BW.dims().rows();
     const keel::usize W = BW.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
-    const double INF = std::numeric_limits<double>::infinity();
+    const keel::f64 INF = std::numeric_limits<keel::f64>::infinity();
 
-    keel::Array<double> d(H * W, INF);          // row-major working buffer
+    keel::Array<keel::f64> d(H * W, INF);          // row-major working buffer
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < W; ++c)
             if (BW.elemAsDouble(c * H + r) != 0.0) d[r * W + c] = 0.0;
 
-    auto at = [&](keel::usize r, keel::usize c) -> double & { return d[r * W + c]; };
+    auto at = [&](keel::usize r, keel::usize c) -> keel::f64 & { return d[r * W + c]; };
 
     for (keel::usize r = 0; r < H; ++r)              // forward raster scan
         for (keel::usize c = 0; c < W; ++c) {
-            double v = at(r, c);
+            keel::f64 v = at(r, c);
             if (r > 0)                            v = std::min(v, at(r - 1, c) + dOrth);
             if (c > 0)                            v = std::min(v, at(r, c - 1) + dOrth);
             if (allowDiag && r > 0 && c > 0)      v = std::min(v, at(r - 1, c - 1) + dDiag);
@@ -68,7 +68,7 @@ Value bwdistChamfer(const Value &BW, double dOrth, double dDiag,
         }
     for (keel::usize r = H; r-- > 0; )                // backward raster scan
         for (keel::usize c = W; c-- > 0; ) {
-            double v = at(r, c);
+            keel::f64 v = at(r, c);
             if (r + 1 < H)                            v = std::min(v, at(r + 1, c) + dOrth);
             if (c + 1 < W)                            v = std::min(v, at(r, c + 1) + dOrth);
             if (allowDiag && r + 1 < H && c + 1 < W)  v = std::min(v, at(r + 1, c + 1) + dDiag);
@@ -76,7 +76,7 @@ Value bwdistChamfer(const Value &BW, double dOrth, double dDiag,
             at(r, c) = v;
         }
 
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize r = 0; r < H; ++r)
         for (keel::usize c = 0; c < W; ++c)
             od[c * H + r] = d[r * W + c];        // back to column-major
@@ -195,7 +195,7 @@ void bwboundaries_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                            nargout > 1 ? &L : nullptr,
                            nargout > 2 ? &N : nullptr, mr);
     if (nargout > 1) outs[1] = std::move(L);
-    if (nargout > 2) outs[2] = Value::scalar(keel::as<double>(N), mr);
+    if (nargout > 2) outs[2] = Value::scalar(keel::as<keel::f64>(N), mr);
 }
 
 void regionprops_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -238,15 +238,15 @@ static Value bwdist_idx(const Value &BW, int metric, keel::Allocator *mr)
             if (BW.elemAsDouble(c * H + r) != 0.0)
                 fg.push_back({(int)r, (int)c, (keel::u32)(c * H + r + 1)});
     keel::u32 *od = out.uint32DataMut();
-    const double q = std::sqrt(2.0) - 1.0;
+    const keel::f64 q = std::sqrt(2.0) - 1.0;
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            double best = std::numeric_limits<double>::infinity();
+            keel::f64 best = std::numeric_limits<keel::f64>::infinity();
             keel::u32 bi = 0;
             for (const auto &p : fg) {
-                const double dr = keel::abs((double)(long)r - p.r);
-                const double dc = keel::abs((double)(long)c - p.c);
-                double dd;
+                const keel::f64 dr = keel::abs((keel::f64)(long)r - p.r);
+                const keel::f64 dc = keel::abs((keel::f64)(long)c - p.c);
+                keel::f64 dd;
                 switch (metric) {
                     case 1:  dd = dr + dc; break;
                     case 2:  dd = std::max(dr, dc); break;
@@ -320,7 +320,7 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, 4, "bwareafilt");
     auto *mr = ctx.engine->allocator();
-    double lo = 0.0, hi = std::numeric_limits<double>::infinity();
+    keel::f64 lo = 0.0, hi = std::numeric_limits<keel::f64>::infinity();
     keel::usize n_keep = 0;
     bool keep_largest = true;
     int conn = 8;
