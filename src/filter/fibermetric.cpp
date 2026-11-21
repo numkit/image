@@ -65,8 +65,8 @@ constexpr double kFrangiAlpha = 0.5;    // 3-D plate-vs-line param
 inline keel::usize clamp_idx(long i, keel::usize n)
 {
     if (i < 0) return 0;
-    if (i >= static_cast<long>(n)) return n - 1;
-    return static_cast<keel::usize>(i);
+    if (i >= keel::as<long>(n)) return n - 1;
+    return keel::as<keel::usize>(i);
 }
 
 double class_range(ValueType t)
@@ -116,9 +116,9 @@ keel::Array<double> gauss1d(double sigma, int radius)
     double s = 0.0;
     for (int i = 0; i < n; ++i) {
         const double x = i - radius;
-        k[static_cast<keel::usize>(i)] =
+        k[keel::as<keel::usize>(i)] =
             std::exp(-0.5 * (x / sigma) * (x / sigma));
-        s += k[static_cast<keel::usize>(i)];
+        s += k[keel::as<keel::usize>(i)];
     }
     for (double &v : k) v /= s;
     return k;
@@ -127,7 +127,7 @@ keel::Array<double> gauss1d(double sigma, int radius)
 // Separable 2-D Gaussian filter, replicate boundary.
 Buf gauss2d(const Buf &In, double sigma)
 {
-    const int rad = static_cast<int>(std::ceil(3.0 * sigma));
+    const int rad = keel::as<int>(std::ceil(3.0 * sigma));
     keel::Array<double> k = gauss1d(sigma, rad);
     const keel::usize H = In.H, W = In.W;
     Buf tmp; tmp.H = H; tmp.W = W; tmp.D = 1; tmp.v.resize(H * W, 0.0);
@@ -138,8 +138,8 @@ Buf gauss2d(const Buf &In, double sigma)
             double s = 0.0;
             for (int j = -rad; j <= rad; ++j) {
                 const keel::usize rr = clamp_idx(
-                    static_cast<long>(r) + j, H);
-                s += k[static_cast<keel::usize>(j + rad)] * In.at(rr, c);
+                    keel::as<long>(r) + j, H);
+                s += k[keel::as<keel::usize>(j + rad)] * In.at(rr, c);
             }
             tmp.at(r, c) = s;
         }
@@ -149,8 +149,8 @@ Buf gauss2d(const Buf &In, double sigma)
             double s = 0.0;
             for (int j = -rad; j <= rad; ++j) {
                 const keel::usize cc = clamp_idx(
-                    static_cast<long>(c) + j, W);
-                s += k[static_cast<keel::usize>(j + rad)] * tmp.at(r, cc);
+                    keel::as<long>(c) + j, W);
+                s += k[keel::as<keel::usize>(j + rad)] * tmp.at(r, cc);
             }
             out.at(r, c) = s;
         }
@@ -160,7 +160,7 @@ Buf gauss2d(const Buf &In, double sigma)
 // Separable 3-D Gaussian filter, replicate boundary.
 Buf gauss3d(const Buf &In, double sigma)
 {
-    const int rad = static_cast<int>(std::ceil(3.0 * sigma));
+    const int rad = keel::as<int>(std::ceil(3.0 * sigma));
     keel::Array<double> k = gauss1d(sigma, rad);
     const keel::usize H = In.H, W = In.W, D = In.D;
     Buf tmp;  tmp.H = H;  tmp.W = W;  tmp.D = D;  tmp.v.resize(H * W * D, 0.0);
@@ -173,8 +173,8 @@ Buf gauss3d(const Buf &In, double sigma)
                 double s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
                     const keel::usize rr = clamp_idx(
-                        static_cast<long>(r) + j, H);
-                    s += k[static_cast<keel::usize>(j + rad)] * In.at(rr, c, z);
+                        keel::as<long>(r) + j, H);
+                    s += k[keel::as<keel::usize>(j + rad)] * In.at(rr, c, z);
                 }
                 tmp.at(r, c, z) = s;
             }
@@ -185,8 +185,8 @@ Buf gauss3d(const Buf &In, double sigma)
                 double s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
                     const keel::usize cc = clamp_idx(
-                        static_cast<long>(c) + j, W);
-                    s += k[static_cast<keel::usize>(j + rad)] * tmp.at(r, cc, z);
+                        keel::as<long>(c) + j, W);
+                    s += k[keel::as<keel::usize>(j + rad)] * tmp.at(r, cc, z);
                 }
                 tmp2.at(r, c, z) = s;
             }
@@ -197,8 +197,8 @@ Buf gauss3d(const Buf &In, double sigma)
                 double s = 0.0;
                 for (int j = -rad; j <= rad; ++j) {
                     const keel::usize zz = clamp_idx(
-                        static_cast<long>(z) + j, D);
-                    s += k[static_cast<keel::usize>(j + rad)] * tmp2.at(r, c, zz);
+                        keel::as<long>(z) + j, D);
+                    s += k[keel::as<keel::usize>(j + rad)] * tmp2.at(r, c, zz);
                 }
                 out.at(r, c, z) = s;
             }
@@ -217,10 +217,10 @@ Buf frangi2d(const Buf &Ig, double c, bool bright, double sigma)
     const double sigma2   = sigma * sigma;
     for (keel::usize cc = 0; cc < W; ++cc) {
         for (keel::usize r = 0; r < H; ++r) {
-            const keel::usize rm = clamp_idx(static_cast<long>(r) - 1, H);
-            const keel::usize rp = clamp_idx(static_cast<long>(r) + 1, H);
-            const keel::usize cm = clamp_idx(static_cast<long>(cc) - 1, W);
-            const keel::usize cp = clamp_idx(static_cast<long>(cc) + 1, W);
+            const keel::usize rm = clamp_idx(keel::as<long>(r) - 1, H);
+            const keel::usize rp = clamp_idx(keel::as<long>(r) + 1, H);
+            const keel::usize cm = clamp_idx(keel::as<long>(cc) - 1, W);
+            const keel::usize cp = clamp_idx(keel::as<long>(cc) + 1, W);
             const double v   = Ig.at(r,  cc);
             const double Ixx = sigma2 * (Ig.at(r,  cp) - 2.0 * v + Ig.at(r,  cm));
             const double Iyy = sigma2 * (Ig.at(rp, cc) - 2.0 * v + Ig.at(rm, cc));
@@ -302,14 +302,14 @@ Buf frangi3d(const Buf &Ig, double c, bool bright, double sigma)
     const double c_sq2     = 2.0 * c * c;
     const double sigma2    = sigma * sigma;
     for (keel::usize z = 0; z < D; ++z) {
-        const keel::usize zm = clamp_idx(static_cast<long>(z) - 1, D);
-        const keel::usize zp = clamp_idx(static_cast<long>(z) + 1, D);
+        const keel::usize zm = clamp_idx(keel::as<long>(z) - 1, D);
+        const keel::usize zp = clamp_idx(keel::as<long>(z) + 1, D);
         for (keel::usize cc = 0; cc < W; ++cc) {
-            const keel::usize cm = clamp_idx(static_cast<long>(cc) - 1, W);
-            const keel::usize cp = clamp_idx(static_cast<long>(cc) + 1, W);
+            const keel::usize cm = clamp_idx(keel::as<long>(cc) - 1, W);
+            const keel::usize cp = clamp_idx(keel::as<long>(cc) + 1, W);
             for (keel::usize r = 0; r < H; ++r) {
-                const keel::usize rm = clamp_idx(static_cast<long>(r) - 1, H);
-                const keel::usize rp = clamp_idx(static_cast<long>(r) + 1, H);
+                const keel::usize rm = clamp_idx(keel::as<long>(r) - 1, H);
+                const keel::usize rp = clamp_idx(keel::as<long>(r) + 1, H);
                 const double v   = Ig.at(r, cc, z);
                 const double Ixx = sigma2 * (Ig.at(r,  cp, z) - 2.0 * v + Ig.at(r,  cm, z));
                 const double Iyy = sigma2 * (Ig.at(rp, cc, z) - 2.0 * v + Ig.at(rm, cc, z));
@@ -364,7 +364,7 @@ Value buf_to_value(const Buf &B, ValueType targetClass,
         // SINGLE
         float *od = out.singleDataMut();
         for (keel::usize i = 0; i < N; ++i)
-            od[i] = static_cast<float>(B.v[i]);
+            od[i] = keel::as<float>(B.v[i]);
     }
     return out;
 }

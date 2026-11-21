@@ -66,35 +66,35 @@ Value graycomatrix(const Value &I, int numLevels, int offR, int offC, double gLo
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<int> q(R * C, scratch.allocator());
     const double span = gHigh - gLow;
-    const double scale = static_cast<double>(numLevels) / span;
+    const double scale = keel::as<double>(numLevels) / span;
     for (keel::usize i = 0; i < R * C; ++i) {
         const double v = elem_as_double(I, i);
         if (std::isnan(v)) {
             q[i] = -1;    // NaN — skip when forming pairs
             continue;
         }
-        int level = static_cast<int>(std::floor((v - gLow) * scale));
+        int level = keel::as<int>(std::floor((v - gLow) * scale));
         if (level < 0)            level = 0;
         if (level >= numLevels)   level = numLevels - 1;
         q[i] = level;
     }
 
     // Allocate output (numLevels × numLevels, column-major).
-    Value G = Value::matrix(static_cast<keel::usize>(numLevels),
-                             static_cast<keel::usize>(numLevels),
+    Value G = Value::matrix(keel::as<keel::usize>(numLevels),
+                             keel::as<keel::usize>(numLevels),
                              ValueType::DOUBLE, mr);
     double *Gd = G.doubleDataMut();
     std::memset(Gd, 0,
-                sizeof(double) * static_cast<keel::usize>(numLevels) *
-                                  static_cast<keel::usize>(numLevels));
+                sizeof(double) * keel::as<keel::usize>(numLevels) *
+                                  keel::as<keel::usize>(numLevels));
 
     // Walk every pair (p, p+offset) that lies inside the image.
     for (keel::usize c = 0; c < C; ++c) {
-        const long long c2 = static_cast<long long>(c) + offC;
-        if (c2 < 0 || c2 >= static_cast<long long>(C)) continue;
+        const long long c2 = keel::as<long long>(c) + offC;
+        if (c2 < 0 || c2 >= keel::as<long long>(C)) continue;
         for (keel::usize r = 0; r < R; ++r) {
-            const long long r2 = static_cast<long long>(r) + offR;
-            if (r2 < 0 || r2 >= static_cast<long long>(R)) continue;
+            const long long r2 = keel::as<long long>(r) + offR;
+            if (r2 < 0 || r2 >= keel::as<long long>(R)) continue;
             const int i_lvl = q[r + c * R];                // first pixel
             const int j_lvl = q[r2 + c2 * R];              // offset pixel
             if (i_lvl < 0 || j_lvl < 0) continue;          // NaN guard
@@ -126,8 +126,8 @@ Value graycoprops(const Value &G, keel::Allocator *mr)
     for (keel::usize j = 0; j < L; ++j)
         for (keel::usize i = 0; i < L; ++i) {
             const double p = G.elemAsDouble(i + j * L) / total;
-            mu_i += static_cast<double>(i + 1) * p;
-            mu_j += static_cast<double>(j + 1) * p;
+            mu_i += keel::as<double>(i + 1) * p;
+            mu_j += keel::as<double>(j + 1) * p;
         }
     double var_i = 0.0, var_j = 0.0;
     for (keel::usize j = 0; j < L; ++j)
@@ -145,7 +145,7 @@ Value graycoprops(const Value &G, keel::Allocator *mr)
     for (keel::usize j = 0; j < L; ++j)
         for (keel::usize i = 0; i < L; ++i) {
             const double p = G.elemAsDouble(i + j * L) / total;
-            const double di = static_cast<double>(i) - static_cast<double>(j);
+            const double di = keel::as<double>(i) - keel::as<double>(j);
             contrast    += di * di * p;
             energy      += p * p;
             homogeneity += p / (1.0 + std::fabs(di));

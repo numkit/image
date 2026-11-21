@@ -290,8 +290,8 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     argcheck::expectedReal(v, int(i) + 2, "NumberOfTiles", "tonemap"),
                     int(i) + 2, "NumberOfTiles", "tonemap");
             } else if (v.numel() == 2) {
-                ntilesR = static_cast<int>(v.elemAsDouble(0));
-                ntilesC = static_cast<int>(v.elemAsDouble(1));
+                ntilesR = keel::as<int>(v.elemAsDouble(0));
+                ntilesC = keel::as<int>(v.elemAsDouble(1));
             } else {
                 throw Error("tonemap: NumberOfTiles must be a scalar or "
                             "2-element vector",
@@ -381,7 +381,7 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     int maxLabel = 0;
     for (keel::usize i = 0; i < plane; ++i) {
         const double v = L.elemAsDouble(i);
-        if (std::isfinite(v) && v > maxLabel) maxLabel = static_cast<int>(v);
+        if (std::isfinite(v) && v > maxLabel) maxLabel = keel::as<int>(v);
     }
     const int numregion = maxLabel < 1 ? 1 : maxLabel;
 

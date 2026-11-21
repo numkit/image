@@ -124,7 +124,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
         if (cnt == 0)
             throw Error("graydiffweight: MASK must contain at least one true",
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:emptyMask");
-        ref_gray_val = static_cast<double>(sum / static_cast<long double>(cnt));
+        ref_gray_val = keel::as<double>(sum / keel::as<long double>(cnt));
         nv_start = 2;
     }
     else if (!a1_str && a[1].numel() == 1 &&
@@ -143,9 +143,9 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
                         0, 0, "graydiffweight", "", "numkit:graydiffweight:crp");
         long double sum = 0.0L; keel::usize cnt = 0;
         for (keel::usize i = 0; i < C.numel(); ++i) {
-            const keel::usize c1 = static_cast<keel::usize>(C.elemAsDouble(i));
-            const keel::usize r1 = static_cast<keel::usize>(R.elemAsDouble(i));
-            const keel::usize p1 = Pi ? static_cast<keel::usize>(Pi->elemAsDouble(i))
+            const keel::usize c1 = keel::as<keel::usize>(C.elemAsDouble(i));
+            const keel::usize r1 = keel::as<keel::usize>(R.elemAsDouble(i));
+            const keel::usize p1 = Pi ? keel::as<keel::usize>(Pi->elemAsDouble(i))
                                        : 1;
             if (c1 < 1 || c1 > W_ || r1 < 1 || r1 > H || p1 < 1 || p1 > P)
                 throw Error("graydiffweight: (C, R [, P]) index out of range",
@@ -157,7 +157,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
             sum += I.elemAsDouble(lin);
             ++cnt;
         }
-        ref_gray_val = static_cast<double>(sum / static_cast<long double>(cnt));
+        ref_gray_val = keel::as<double>(sum / keel::as<long double>(cnt));
         nv_start = has_P ? 4 : 3;
     }
     else {
@@ -318,8 +318,8 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             const Value &A = a[0];
             M = A.dims().rows();
             N = A.dims().cols();
-            xlo = 1.0;  xhi = static_cast<double>(N);
-            ylo = 1.0;  yhi = static_cast<double>(M);
+            xlo = 1.0;  xhi = keel::as<double>(N);
+            ylo = 1.0;  yhi = keel::as<double>(M);
             xi = a[1]; yi = a[2];
             break;
         }
@@ -330,10 +330,10 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
-            M = static_cast<keel::usize>(Md);
-            N = static_cast<keel::usize>(Nd);
-            xlo = 1.0;  xhi = static_cast<double>(N);
-            ylo = 1.0;  yhi = static_cast<double>(M);
+            M = keel::as<keel::usize>(Md);
+            N = keel::as<keel::usize>(Nd);
+            xlo = 1.0;  xhi = keel::as<double>(N);
+            ylo = 1.0;  yhi = keel::as<double>(M);
             xi = a[2]; yi = a[3];
             break;
         }
@@ -342,8 +342,8 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             const Value &A = a[2];
             M = A.dims().rows();
             N = A.dims().cols();
-            extent(a[0], 1.0, static_cast<double>(N), xlo, xhi);
-            extent(a[1], 1.0, static_cast<double>(M), ylo, yhi);
+            extent(a[0], 1.0, keel::as<double>(N), xlo, xhi);
+            extent(a[1], 1.0, keel::as<double>(M), ylo, yhi);
             xi = a[3]; yi = a[4];
             break;
         }
@@ -354,10 +354,10 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
-            M = static_cast<keel::usize>(Md);
-            N = static_cast<keel::usize>(Nd);
-            extent(a[0], 1.0, static_cast<double>(N), xlo, xhi);
-            extent(a[1], 1.0, static_cast<double>(M), ylo, yhi);
+            M = keel::as<keel::usize>(Md);
+            N = keel::as<keel::usize>(Nd);
+            extent(a[0], 1.0, keel::as<double>(N), xlo, xhi);
+            extent(a[1], 1.0, keel::as<double>(M), ylo, yhi);
             xi = a[4]; yi = a[5];
             break;
         }
@@ -448,7 +448,7 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
                             0, 0, "graydist", "", "numkit:graydist:maskSize");
             const keel::u8 *m = arg2.logicalData();
             for (keel::usize i = 0; i < arg2.numel(); ++i)
-                if (m[i]) indices.push_back(static_cast<double>(i + 1));
+                if (m[i]) indices.push_back(keel::as<double>(i + 1));
         } else {
             // Linear indices.
             indices.reserve(arg2.numel());
@@ -464,14 +464,14 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
                         0, 0, "graydist", "", "numkit:graydist:cr");
         indices.reserve(C.numel());
         for (keel::usize i = 0; i < C.numel(); ++i) {
-            const keel::usize cc = static_cast<keel::usize>(C.elemAsDouble(i));
-            const keel::usize rr = static_cast<keel::usize>(R.elemAsDouble(i));
+            const keel::usize cc = keel::as<keel::usize>(C.elemAsDouble(i));
+            const keel::usize rr = keel::as<keel::usize>(R.elemAsDouble(i));
             if (cc < 1 || cc > W || rr < 1 || rr > H)
                 throw Error("graydist: (C, R) out of bounds",
                             0, 0, "graydist", "", "numkit:graydist:crBounds");
             // Column-major 1-based linear index.
             const keel::usize lin = (cc - 1) * H + rr;  // 1-based
-            indices.push_back(static_cast<double>(lin));
+            indices.push_back(keel::as<double>(lin));
         }
     } else {
         throw Error("graydist: too many positional arguments",
@@ -522,7 +522,7 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
                             "numkit:bwdistgeodesic:maskSize");
             const keel::u8 *m = arg2.logicalData();
             for (keel::usize i = 0; i < arg2.numel(); ++i)
-                if (m[i]) indices.push_back(static_cast<double>(i + 1));
+                if (m[i]) indices.push_back(keel::as<double>(i + 1));
         } else {
             indices.reserve(arg2.numel());
             for (keel::usize i = 0; i < arg2.numel(); ++i)
@@ -537,14 +537,14 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
                         "numkit:bwdistgeodesic:cr");
         indices.reserve(C.numel());
         for (keel::usize i = 0; i < C.numel(); ++i) {
-            const keel::usize cc = static_cast<keel::usize>(C.elemAsDouble(i));
-            const keel::usize rr = static_cast<keel::usize>(R.elemAsDouble(i));
+            const keel::usize cc = keel::as<keel::usize>(C.elemAsDouble(i));
+            const keel::usize rr = keel::as<keel::usize>(R.elemAsDouble(i));
             if (cc < 1 || cc > W || rr < 1 || rr > H)
                 throw Error("bwdistgeodesic: (C, R) out of bounds",
                             0, 0, "bwdistgeodesic", "",
                             "numkit:bwdistgeodesic:crBounds");
             const keel::usize lin = (cc - 1) * H + rr;
-            indices.push_back(static_cast<double>(lin));
+            indices.push_back(keel::as<double>(lin));
         }
     } else {
         throw Error("bwdistgeodesic: too many positional arguments",
@@ -571,8 +571,8 @@ void poly2mask_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value
         throw Error("poly2mask: M and N must be non-negative integers",
                     0, 0, "poly2mask", "", "numkit:poly2mask:mn");
     o[0] = poly2mask(a[0], a[1],
-                     static_cast<keel::usize>(Md),
-                     static_cast<keel::usize>(Nd), mr);
+                     keel::as<keel::usize>(Md),
+                     keel::as<keel::usize>(Nd), mr);
 }
 
 void label2idx_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value> o, CallContext &c)

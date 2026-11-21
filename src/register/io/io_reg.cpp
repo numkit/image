@@ -89,7 +89,7 @@ void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayR
     keel::u32 page = 1;
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
-        page = static_cast<keel::u32>(args[1].toScalar());
+        page = keel::as<keel::u32>(args[1].toScalar());
         if (!tiff)
             throw Error("imread: page index only supported for TIFF files",
                         0, 0, "imread", "", "numkit:imread:notTiff");

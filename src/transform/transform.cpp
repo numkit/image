@@ -127,17 +127,17 @@ Value dctmtx(double Nd, keel::Allocator *mr)
     //   w[0]    = sqrt(1/N),  w[k>0] = sqrt(2/N)
     // so D*x is the DCT-II of x.
     dctmtx_argcheck(Nd);
-    const keel::usize N = static_cast<keel::usize>(Nd);
+    const keel::usize N = keel::as<keel::usize>(Nd);
     Value D = Value::matrix(N, N, ValueType::DOUBLE, mr);
     if (N == 0) return D;
     double *d = D.doubleDataMut();
-    const double w0 = std::sqrt(1.0 / static_cast<double>(N));
-    const double wk = std::sqrt(2.0 / static_cast<double>(N));
-    const double piOver2N = M_PI / (2.0 * static_cast<double>(N));
+    const double w0 = std::sqrt(1.0 / keel::as<double>(N));
+    const double wk = std::sqrt(2.0 / keel::as<double>(N));
+    const double piOver2N = M_PI / (2.0 * keel::as<double>(N));
     for (keel::usize n = 0; n < N; ++n) {
         for (keel::usize k = 0; k < N; ++k) {
-            const double phase = piOver2N * static_cast<double>(k)
-                                 * static_cast<double>(2 * n + 1);
+            const double phase = piOver2N * keel::as<double>(k)
+                                 * keel::as<double>(2 * n + 1);
             const double w = (k == 0) ? w0 : wk;
             // Column-major: element (k, n) at offset n*N + k.
             d[n * N + k] = w * std::cos(phase);
@@ -372,8 +372,8 @@ phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
     if (n == 1) xvals[0] = -1.0;
     else
         for (keel::usize i = 0; i < n; ++i)
-            xvals[i] = -1.0 + 2.0 * static_cast<double>(i)
-                              / static_cast<double>(n - 1);
+            xvals[i] = -1.0 + 2.0 * keel::as<double>(i)
+                              / keel::as<double>(n - 1);
 
     const keel::usize nE = E.dims().rows();
     const double *ed = E.doubleData();
@@ -417,25 +417,25 @@ Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
     const Value &IMSu = (IMS.type() == ValueType::CHAR) ? IMSC : IMS;
 
     const keel::usize nd = IMSu.numel();
-    const long long K = static_cast<long long>(std::floor(k));
+    const long long K = keel::as<long long>(std::floor(k));
     Value out = Value::matrix(1, nd, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
 
     for (keel::usize d = 0; d < nd; ++d) {
-        const long long dim = static_cast<long long>(
+        const long long dim = keel::as<long long>(
             std::floor(IMSu.elemAsDouble(d)));
         if (dim < 1)
             throw Error("bestblk: IMS entries must be positive",
                         0, 0, "bestblk", "", "numkit:bestblk:vals");
-        if (dim <= K) { od[d] = static_cast<double>(dim); continue; }
+        if (dim <= K) { od[d] = keel::as<double>(dim); continue; }
 
         // Scan p = K, K-1, ..., ceil(min(dim/10, K/2)). Pick largest p
         // with smallest mod(-dim, p); strict-less on the descending
         // walk keeps the higher p on ties. Octave's : range stops at
         // ceil(lo_double) when the lower bound is non-integer.
-        const double lo_d = std::min(static_cast<double>(dim) / 10.0,
-                                     static_cast<double>(K) / 2.0);
-        long long lo = static_cast<long long>(std::ceil(lo_d));
+        const double lo_d = std::min(keel::as<double>(dim) / 10.0,
+                                     keel::as<double>(K) / 2.0);
+        long long lo = keel::as<long long>(std::ceil(lo_d));
         if (lo < 1) lo = 1;
         long long bestP   = K;
         long long bestPad = ((K - dim % K) % K + K) % K;
@@ -446,7 +446,7 @@ Value bestblk(const Value &IMS, double k, keel::Allocator *mr)
                 bestP   = p;
             }
         }
-        od[d] = static_cast<double>(bestP);
+        od[d] = keel::as<double>(bestP);
     }
     // Class-preserving result (probed R2025b: single / uint8 IMS come
     // back in their class).
@@ -572,8 +572,8 @@ Value psf2otf(const Value &PSF, keel::ArrayRef<keel::usize> outsize, keel::Alloc
     }
 
     // Circular shift by -floor(insize / 2).
-    const keel::i64 shiftR = -static_cast<keel::i64>(inH / 2);
-    const keel::i64 shiftC = -static_cast<keel::i64>(inW / 2);
+    const keel::i64 shiftR = -keel::as<keel::i64>(inH / 2);
+    const keel::i64 shiftC = -keel::as<keel::i64>(inW / 2);
     Value shifted;
     if (is1D) {
         shifted = numkit::builtin::circshift(padded, (inH == 1) ? shiftC : shiftR, mr);
@@ -600,8 +600,8 @@ Value otf2psf(const Value &OTF, keel::ArrayRef<keel::usize> outsize, keel::Alloc
     // otf2psf source (NOT floor(insize/2) — the shift amount depends
     // on the requested output size). With outsize == insize this
     // reduces to the standard "ifftshift" behaviour.
-    const keel::i64 shiftR = static_cast<keel::i64>(outH / 2);
-    const keel::i64 shiftC = static_cast<keel::i64>(outW / 2);
+    const keel::i64 shiftR = keel::as<keel::i64>(outH / 2);
+    const keel::i64 shiftC = keel::as<keel::i64>(outW / 2);
     Value shifted;
     if (is1D) {
         shifted = numkit::builtin::circshift(psf, (inH == 1) ? shiftC : shiftR, mr);
@@ -664,7 +664,7 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
 
     long double sa = 0.0L;
     for (keel::usize i = 0; i < mN; ++i) sa += templ.elemAsDouble(i);
-    const double ma = (mN > 0) ? static_cast<double>(sa / static_cast<long double>(mN)) : 0.0;
+    const double ma = (mN > 0) ? keel::as<double>(sa / keel::as<long double>(mN)) : 0.0;
     for (keel::usize i = 0; i < mN; ++i)     ad[i] = templ.elemAsDouble(i) - ma;
     for (keel::usize i = 0; i < bH * bW; ++i) bd[i] = img.elemAsDouble(i);
 
@@ -700,15 +700,15 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
     const double *sbd  = sum_b.doubleData();
     for (keel::usize i = 0; i < outH * outW; ++i) {
         double v = sbsd[i] - (sbd[i] * sbd[i]) /
-                              static_cast<double>(mN > 0 ? mN : 1);
+                              keel::as<double>(mN > 0 ? mN : 1);
         if (v < 0.0) v = 0.0;
         cdd[i] = v;
     }
 
     // sumsq(a).
     long double sumsq_a = 0.0L;
-    for (keel::usize i = 0; i < mN; ++i) sumsq_a += static_cast<long double>(ad[i]) * ad[i];
-    const double sa2 = static_cast<double>(sumsq_a);
+    for (keel::usize i = 0; i < mN; ++i) sumsq_a += keel::as<long double>(ad[i]) * ad[i];
+    const double sa2 = keel::as<double>(sumsq_a);
 
     // c = c_num / sqrt(c_denom * sumsq_a); inf/nan → 0.
     Value c_out = Value::matrix(outH, outW, ValueType::DOUBLE, mr);
@@ -739,8 +739,8 @@ Value checkerboard(keel::usize side, keel::usize M, keel::usize N, keel::Allocat
     if (S2 == 1) x[0] = -1.0;
     else
         for (keel::usize i = 0; i < S2; ++i)
-            x[i] = -1.0 + 2.0 * static_cast<double>(i)
-                          / static_cast<double>(S2 - 1);
+            x[i] = -1.0 + 2.0 * keel::as<double>(i)
+                          / keel::as<double>(S2 - 1);
 
     // Right half (cols ≥ W/2) is dimmed to 0.7.
     const keel::usize halfW = W / 2;
@@ -811,24 +811,24 @@ Value real_back_to_class(const Value &Jd, ValueType outT,
     auto sat_u8  = [](double v) {
         if (v <= 0.0) return keel::u8{0};
         if (v >= 1.0) return keel::u8{255};
-        return static_cast<keel::u8>(std::lround(v * 255.0));
+        return keel::as<keel::u8>(std::lround(v * 255.0));
     };
     auto sat_u16 = [](double v) {
         if (v <= 0.0) return keel::u16{0};
         if (v >= 1.0) return keel::u16{65535};
-        return static_cast<keel::u16>(std::lround(v * 65535.0));
+        return keel::as<keel::u16>(std::lround(v * 65535.0));
     };
     auto sat_i16 = [](double v) {
         if (v <= 0.0) return keel::i16{-32768};
         if (v >= 1.0) return keel::i16{32767};
-        return static_cast<keel::i16>(std::lround(v * 65535.0 - 32768.0));
+        return keel::as<keel::i16>(std::lround(v * 65535.0 - 32768.0));
     };
     switch (outT) {
         case ValueType::DOUBLE:
             std::memcpy(out.doubleDataMut(), src, N * sizeof(double)); break;
         case ValueType::SINGLE:
             for (keel::usize i = 0; i < N; ++i)
-                out.singleDataMut()[i] = static_cast<float>(src[i]);
+                out.singleDataMut()[i] = keel::as<float>(src[i]);
             break;
         case ValueType::UINT8:
             for (keel::usize i = 0; i < N; ++i)
@@ -1288,7 +1288,7 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
         // SINGLE: cast back.
         Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
         for (keel::usize i = 0; i < plane; ++i)
-            out.singleDataMut()[i] = static_cast<float>(jd[i]);
+            out.singleDataMut()[i] = keel::as<float>(jd[i]);
         return out;
     }
     return real_back_to_class(Jd, inT, mr);
@@ -1528,7 +1528,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
             R4[i]   = R2[i] * R2[i];
             H2R22[i] = 2.0 * H2[i] * R2[i];
         }
-        const double scaled_np = np * static_cast<double>(plane);
+        const double scaled_np = np * keel::as<double>(plane);
         const double seps = std::sqrt(std::numeric_limits<double>::epsilon());
 
         auto ResOffset = [&](double L) -> double {

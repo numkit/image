@@ -241,8 +241,8 @@ Value illumwhite(const Value &A, double P, const Value &mask,
         // ascending, that is element at index (N - K - 1). For K = 0
         // this is the max (index N-1). For K = N this clamps to index 0
         // (lowest), but P < 100 guarantees K < N so we never hit that.
-        keel::usize K = static_cast<keel::usize>(
-            std::floor(P * 0.01 * static_cast<double>(N)));
+        keel::usize K = keel::as<keel::usize>(
+            std::floor(P * 0.01 * keel::as<double>(N)));
         if (K >= N) K = N - 1;
         out[c] = plane[N - K - 1];
     }
@@ -294,10 +294,10 @@ Value illumgray_impl(const Value &A, keel::ArrayRef<double> P,
                         0, 0, "illumgray", "", "numkit:illumgray:emptyMask");
         std::sort(plane.begin(), plane.end());
         const keel::usize N = plane.size();
-        const keel::usize K_lo = static_cast<keel::usize>(
-            std::floor(p_lo * 0.01 * static_cast<double>(N)));
-        const keel::usize K_hi = static_cast<keel::usize>(
-            std::floor(p_hi * 0.01 * static_cast<double>(N)));
+        const keel::usize K_lo = keel::as<keel::usize>(
+            std::floor(p_lo * 0.01 * keel::as<double>(N)));
+        const keel::usize K_hi = keel::as<keel::usize>(
+            std::floor(p_hi * 0.01 * keel::as<double>(N)));
         if (K_lo + K_hi >= N)
             throw Error("illumgray: percentiles trim all pixels",
                         0, 0, "illumgray", "", "numkit:illumgray:emptyTrim");
@@ -315,10 +315,10 @@ Value illumgray_impl(const Value &A, keel::ArrayRef<double> P,
         }
         const keel::usize cnt = hi - lo;
         long double mean;
-        if (norm_exp == 1.0) mean = sum / static_cast<long double>(cnt);
-        else                 mean = std::pow(static_cast<double>(sum), 1.0 / norm_exp)
-                                  / static_cast<long double>(cnt);
-        out[c] = static_cast<double>(mean);
+        if (norm_exp == 1.0) mean = sum / keel::as<long double>(cnt);
+        else                 mean = std::pow(keel::as<double>(sum), 1.0 / norm_exp)
+                                  / keel::as<long double>(cnt);
+        out[c] = keel::as<double>(mean);
     }
     return make_row3(out[0], out[1], out[2], mr);
 }
@@ -467,9 +467,9 @@ Value illumpca(const Value &A, double P, const Value &mask,
         A0[1] += rows[3 * k + 1];
         A0[2] += rows[3 * k + 2];
     }
-    A0[0] /= static_cast<double>(M);
-    A0[1] /= static_cast<double>(M);
-    A0[2] /= static_cast<double>(M);
+    A0[0] /= keel::as<double>(M);
+    A0[1] /= keel::as<double>(M);
+    A0[2] /= keel::as<double>(M);
     const double normA02 = A0[0] * A0[0] + A0[1] * A0[1] + A0[2] * A0[2];
     if (!std::isfinite(normA02))
         throw Error("illumpca: image contains Inf or NaN",
@@ -506,8 +506,8 @@ Value illumpca(const Value &A, double P, const Value &mask,
             selected.push_back(rows[3*r+2]);
         }
     } else {
-        keel::usize lo = static_cast<keel::usize>(
-            std::floor(P * 0.01 * static_cast<double>(M)));
+        keel::usize lo = keel::as<keel::usize>(
+            std::floor(P * 0.01 * keel::as<double>(M)));
         if (lo < 1) lo = 1;
         if (2 * lo > M) lo = M / 2;
         // Bottom `lo` darkest.
@@ -553,7 +553,7 @@ Value illumpca(const Value &A, double P, const Value &mask,
             g += selected[3*k+1];
             b += selected[3*k+2];
         }
-        const double inv = 1.0 / static_cast<double>(Msel);
+        const double inv = 1.0 / keel::as<double>(Msel);
         return make_row3(r * inv, g * inv, b * inv, mr);
     };
 
@@ -803,7 +803,7 @@ Value imcolordiff(const Value &I1, const Value &I2,
         if (is_2000) v = delta_e_2000(p1, p2, kL, kC, kH, K1, K2);
         else         v = delta_e_94  (p1, p2, kL, kC, kH, K1, K2);
         if (to_double) out.doubleDataMut()[k] = v;
-        else           out.singleDataMut()[k] = static_cast<float>(v);
+        else           out.singleDataMut()[k] = keel::as<float>(v);
     }
     return out;
 }

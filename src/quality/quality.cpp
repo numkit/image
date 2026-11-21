@@ -148,7 +148,7 @@ Value mean2(const Value &A, keel::Allocator *mr)
     if (N == 0) return Value::scalar(std::nan(""), mr);
     long double s = 0.0L;
     for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
-    return Value::scalar(static_cast<double>(s / static_cast<long double>(N)),
+    return Value::scalar(keel::as<double>(s / keel::as<long double>(N)),
                          mr);
 }
 
@@ -159,15 +159,15 @@ Value std2(const Value &A, keel::Allocator *mr)
     if (N == 1) return Value::scalar(0.0, mr);
     long double s = 0.0L;
     for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
-    const long double mu = s / static_cast<long double>(N);
+    const long double mu = s / keel::as<long double>(N);
     long double v = 0.0L;
     for (keel::usize i = 0; i < N; ++i) {
         const long double d = A.elemAsDouble(i) - mu;
         v += d * d;
     }
     // std2 wraps std(I(:)) → sample std (normalize by N-1).
-    v /= static_cast<long double>(N - 1);
-    return Value::scalar(static_cast<double>(std::sqrt((double)v)), mr);
+    v /= keel::as<long double>(N - 1);
+    return Value::scalar(keel::as<double>(std::sqrt((double)v)), mr);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -368,7 +368,7 @@ Value cast_score_value(double v, ValueType originalClass,
     if (originalClass == ValueType::DOUBLE)
         return Value::scalar(v, mr);
     Value out = Value::matrix(1, 1, ValueType::SINGLE, mr);
-    out.singleDataMut()[0] = static_cast<float>(v);
+    out.singleDataMut()[0] = keel::as<float>(v);
     return out;
 }
 
@@ -433,7 +433,7 @@ Value multissim(const Value &A, const Value &Iref,
     keel::Array<double> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
         : keel::Array<double>::from(scale_weights_in);
-    if (static_cast<int>(sw.size()) != num_scales)
+    if (keel::as<int>(sw.size()) != num_scales)
         throw Error("multissim: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim", "",
                     "numkit:multissim:swLen");
@@ -453,11 +453,11 @@ Value multissim(const Value &A, const Value &Iref,
     for (double &v : sw) v /= swsum;
 
     // ── Gaussian kernel ────────────────────────────────────────
-    const int filtRadius = static_cast<int>(std::ceil(sigma * 3.0));
+    const int filtRadius = keel::as<int>(std::ceil(sigma * 3.0));
     const int filtSize = 2 * filtRadius + 1;
     Value gK = fspecial("gaussian",
-                        { static_cast<double>(filtSize),
-                          static_cast<double>(filtSize), sigma }, mr);
+                        { keel::as<double>(filtSize),
+                          keel::as<double>(filtSize), sigma }, mr);
 
     // ── Promote to DOUBLE for computation ───────────────────────
     Value Ad = to_double_image(A, mr);
@@ -484,8 +484,8 @@ Value multissim(const Value &A, const Value &Iref,
         long double s = 0.0L;
         const double *sd = ssimmap.doubleData();
         for (keel::usize k = 0; k < Nm; ++k) s += sd[k];
-        const double mean_map = static_cast<double>(
-            s / static_cast<long double>(Nm));
+        const double mean_map = keel::as<double>(
+            s / keel::as<long double>(Nm));
         const double per_scale = apply_weight(mean_map, sw[i]);
         total_score *= per_scale;
         if (mean_map > 0.0) {
@@ -582,8 +582,8 @@ inline keel::usize reflect_clamp(long i, keel::usize n)
 {
     // Replicate boundary: clamp to [0, n-1].
     if (i < 0) return 0;
-    if (i >= static_cast<long>(n)) return n - 1;
-    return static_cast<keel::usize>(i);
+    if (i >= keel::as<long>(n)) return n - 1;
+    return keel::as<keel::usize>(i);
 }
 
 // Separable 3-D Gaussian: convolve along rows, then cols, then slices.
@@ -593,7 +593,7 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
     const keel::usize H = In.H;
     const keel::usize W = In.W;
     const keel::usize D = In.D;
-    const int kn = static_cast<int>(k.size());
+    const int kn = keel::as<int>(k.size());
     const int half = kn / 2;
     Vol tmp(H, W, D), out(H, W, D);
     // Rows pass: for each (c, z), convolve along r.
@@ -603,8 +603,8 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
                 double s = 0.0;
                 for (int j = -half; j <= half; ++j) {
                     const keel::usize rr = reflect_clamp(
-                        static_cast<long>(r) + j, H);
-                    s += k[static_cast<keel::usize>(j + half)] * In.at(rr, c, z);
+                        keel::as<long>(r) + j, H);
+                    s += k[keel::as<keel::usize>(j + half)] * In.at(rr, c, z);
                 }
                 tmp.at(r, c, z) = s;
             }
@@ -616,8 +616,8 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
                 double s = 0.0;
                 for (int j = -half; j <= half; ++j) {
                     const keel::usize cc = reflect_clamp(
-                        static_cast<long>(c) + j, W);
-                    s += k[static_cast<keel::usize>(j + half)] * tmp.at(r, cc, z);
+                        keel::as<long>(c) + j, W);
+                    s += k[keel::as<keel::usize>(j + half)] * tmp.at(r, cc, z);
                 }
                 tmp2.at(r, c, z) = s;
             }
@@ -628,8 +628,8 @@ Vol gauss3d_filter(const Vol &In, keel::ArrayRef<double> k)
                 double s = 0.0;
                 for (int j = -half; j <= half; ++j) {
                     const keel::usize zz = reflect_clamp(
-                        static_cast<long>(z) + j, D);
-                    s += k[static_cast<keel::usize>(j + half)] * tmp2.at(r, c, zz);
+                        keel::as<long>(z) + j, D);
+                    s += k[keel::as<keel::usize>(j + half)] * tmp2.at(r, c, zz);
                 }
                 out.at(r, c, z) = s;
             }
@@ -782,7 +782,7 @@ Value multissim3(const Value &V, const Value &Vref,
     keel::Array<double> sw = scale_weights_in.empty()
         ? default_scale_weights(num_scales)
         : keel::Array<double>::from(scale_weights_in);
-    if (static_cast<int>(sw.size()) != num_scales)
+    if (keel::as<int>(sw.size()) != num_scales)
         throw Error("multissim3: length(ScaleWeights) must equal NumScales",
                     0, 0, "multissim3", "", "numkit:multissim3:swLen");
     double swsum = 0.0;
@@ -798,7 +798,7 @@ Value multissim3(const Value &V, const Value &Vref,
                     0, 0, "multissim3", "", "numkit:multissim3:swZero");
     for (double &v : sw) v /= swsum;
 
-    const int filtRadius = static_cast<int>(std::ceil(sigma * 3.0));
+    const int filtRadius = keel::as<int>(std::ceil(sigma * 3.0));
     const int filtSize = 2 * filtRadius + 1;
     keel::Array<double> gk = gauss1d(sigma, filtSize);
 
@@ -819,8 +819,8 @@ Value multissim3(const Value &V, const Value &Vref,
         const keel::usize Nm = ssimmap.v.size();
         long double s = 0.0L;
         for (double x : ssimmap.v) s += x;
-        const double mean_map = static_cast<double>(
-            s / static_cast<long double>(Nm));
+        const double mean_map = keel::as<double>(
+            s / keel::as<long double>(Nm));
         total_score *= apply_weight(mean_map, sw[i]);
         if (mean_map > 0.0) total_log_score += sw[i] * std::log(mean_map);
         else                has_log = false;
@@ -846,8 +846,8 @@ Value corr2(const Value &A, const Value &B, keel::Allocator *mr)
         sa += A.elemAsDouble(i);
         sb += B.elemAsDouble(i);
     }
-    const long double ma = sa / static_cast<long double>(N);
-    const long double mb = sb / static_cast<long double>(N);
+    const long double ma = sa / keel::as<long double>(N);
+    const long double mb = sb / keel::as<long double>(N);
     long double cov = 0.0L, va = 0.0L, vb = 0.0L;
     for (keel::usize i = 0; i < N; ++i) {
         const long double da = A.elemAsDouble(i) - ma;
@@ -858,7 +858,7 @@ Value corr2(const Value &A, const Value &B, keel::Allocator *mr)
     }
     const long double denom = std::sqrt((double)(va * vb));
     if (denom == 0.0L) return Value::scalar(std::nan(""), mr);
-    return Value::scalar(static_cast<double>(cov / denom), mr);
+    return Value::scalar(keel::as<double>(cov / denom), mr);
 }
 
 } // namespace numkit::image

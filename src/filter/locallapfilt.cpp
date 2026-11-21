@@ -120,7 +120,7 @@ Plane to_single_plane(const Value &I, keel::usize page)
                 case ValueType::INT8:   v = (float(raw) + 128.0f) / 255.0f; break;
                 case ValueType::INT16:  v = (float(raw) + 32768.0f) / 65535.0f; break;
                 case ValueType::LOGICAL: v = raw == 0.0 ? 0.0f : 1.0f; break;
-                default:                v = static_cast<float>(raw);   break;
+                default:                v = keel::as<float>(raw);   break;
             }
             P.at(r, c) = v;
         }
@@ -134,7 +134,7 @@ Plane to_single_plane(const Value &I, keel::usize page)
 inline keel::usize clamp_idx(long i, keel::usize n)
 {
     if (n == 0) return 0;
-    long N = static_cast<long>(n);
+    long N = keel::as<long>(n);
     // Make symmetric extension. The pattern over period 2N is
     //   P[0..N-1, N-1..0, ...].  Mapping: i → reflect(i, N).
     // We use: shift into [0, 2N), then if >= N reflect.
@@ -143,7 +143,7 @@ inline keel::usize clamp_idx(long i, keel::usize n)
     if (m < 0) m = ((-m - 1) % period);          // i=-1 → 0, i=-2 → 1
     else m = m % period;
     if (m >= N) m = period - 1 - m;
-    return static_cast<keel::usize>(m);
+    return keel::as<keel::usize>(m);
 }
 
 // ── Pyramid downsample ────────────────────────────────────────────
@@ -369,26 +369,26 @@ Value plane_to_value(const Plane &P, ValueType target,
         v = std::round(v * 255.0f);
         if (v < 0.0f)   v = 0.0f;
         if (v > 255.0f) v = 255.0f;
-        return static_cast<keel::u8>(v);
+        return keel::as<keel::u8>(v);
     };
     auto sat_uint16 = [](float v) -> keel::u16 {
         v = std::round(v * 65535.0f);
         if (v < 0.0f)     v = 0.0f;
         if (v > 65535.0f) v = 65535.0f;
-        return static_cast<keel::u16>(v);
+        return keel::as<keel::u16>(v);
     };
     auto sat_int8 = [](float v) -> keel::i8 {
         v = std::round(v * 255.0f - 128.0f);
         if (v < -128.0f) v = -128.0f;
         if (v > 127.0f)  v = 127.0f;
-        return static_cast<keel::i8>(v);
+        return keel::as<keel::i8>(v);
     };
     auto sat_int16 = [](float v) -> keel::i16 {
         // im2int16 of single in [0,1]: round(x*65535-32768).
         v = std::round(v * 65535.0f - 32768.0f);
         if (v < -32768.0f) v = -32768.0f;
         if (v >  32767.0f) v =  32767.0f;
-        return static_cast<keel::i16>(v);
+        return keel::as<keel::i16>(v);
     };
     switch (target) {
         case ValueType::UINT8: {
@@ -426,7 +426,7 @@ Value plane_to_value(const Plane &P, ValueType target,
             // doesn't accept but a caller might pass anyway).
             out = Value::matrix(H, W, ValueType::DOUBLE, mr);
             double *od = out.doubleDataMut();
-            for (keel::usize i = 0; i < H * W; ++i) od[i] = static_cast<double>(P.v[i]);
+            for (keel::usize i = 0; i < H * W; ++i) od[i] = keel::as<double>(P.v[i]);
             break;
         }
     }
@@ -441,7 +441,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
     const keel::usize H = R.H, W = R.W;
     Value out = Value::matrix3d(H, W, 3, target, mr);
     auto write = [&](int page, const Plane &P) {
-        const keel::usize off = static_cast<keel::usize>(page) * H * W;
+        const keel::usize off = keel::as<keel::usize>(page) * H * W;
         switch (target) {
             case ValueType::UINT8: {
                 keel::u8 *od = out.uint8DataMut() + off;
@@ -449,7 +449,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
                     float v = std::round(P.v[i] * 255.0f);
                     if (v < 0)    v = 0;
                     if (v > 255)  v = 255;
-                    od[i] = static_cast<keel::u8>(v);
+                    od[i] = keel::as<keel::u8>(v);
                 }
                 break;
             }
@@ -459,7 +459,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
                     float v = std::round(P.v[i] * 65535.0f);
                     if (v < 0)     v = 0;
                     if (v > 65535) v = 65535;
-                    od[i] = static_cast<keel::u16>(v);
+                    od[i] = keel::as<keel::u16>(v);
                 }
                 break;
             }
@@ -469,7 +469,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
                     float v = std::round(P.v[i] * 255.0f - 128.0f);
                     if (v < -128) v = -128;
                     if (v >  127) v =  127;
-                    od[i] = static_cast<keel::i8>(v);
+                    od[i] = keel::as<keel::i8>(v);
                 }
                 break;
             }
@@ -479,7 +479,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
                     float v = std::round(P.v[i] * 65535.0f - 32768.0f);
                     if (v < -32768) v = -32768;
                     if (v >  32767) v =  32767;
-                    od[i] = static_cast<keel::i16>(v);
+                    od[i] = keel::as<keel::i16>(v);
                 }
                 break;
             }
@@ -491,7 +491,7 @@ Value rgb_planes_to_value(const Plane &R, const Plane &G, const Plane &B,
             default: {
                 double *od = out.doubleDataMut() + off;
                 for (keel::usize i = 0; i < H * W; ++i)
-                    od[i] = static_cast<double>(P.v[i]);
+                    od[i] = keel::as<double>(P.v[i]);
                 break;
             }
         }
@@ -508,7 +508,7 @@ int auto_intensity_levels(double alpha)
     if (alpha < 0.9) {
         // round(((50*0.9 - 16*0.1) - (50-16)*alpha) / 0.8)
         const double num = (50.0 * 0.9 - 16.0 * 0.1) - (50.0 - 16.0) * alpha;
-        return static_cast<int>(std::round(num / 0.8));
+        return keel::as<int>(std::round(num / 0.8));
     }
     return 16;
 }
@@ -570,9 +570,9 @@ Value locallapfilt(const Value &I, double sigma, double alpha, double beta,
     }
     if (numPyrLevels < 1) numPyrLevels = 1;
 
-    const float fsigma = static_cast<float>(sigma);
-    const float falpha = static_cast<float>(alpha);
-    const float fbeta  = static_cast<float>(beta);
+    const float fsigma = keel::as<float>(sigma);
+    const float falpha = keel::as<float>(alpha);
+    const float fbeta  = keel::as<float>(beta);
 
     if (isGray) {
         Plane P = to_single_plane(I, 0);

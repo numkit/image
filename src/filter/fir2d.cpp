@@ -159,30 +159,30 @@ Value bilinear_interp_hd(const Value &Hd, keel::usize m_out, keel::usize n_out,
 {
     const keel::usize Hh = Hd.dims().rows();
     const keel::usize Wh = Hd.dims().cols();
-    const double dr_src = 2.0 / static_cast<double>(Hh);
-    const double dc_src = 2.0 / static_cast<double>(Wh);
-    const double dr_dst = 2.0 / static_cast<double>(m_out);
-    const double dc_dst = 2.0 / static_cast<double>(n_out);
+    const double dr_src = 2.0 / keel::as<double>(Hh);
+    const double dc_src = 2.0 / keel::as<double>(Wh);
+    const double dr_dst = 2.0 / keel::as<double>(m_out);
+    const double dc_dst = 2.0 / keel::as<double>(n_out);
     if (Hd.isComplex()) {
         Value out = Value::matrix(m_out, n_out, ValueType::COMPLEX, mr);
         auto *od = out.complexDataMut();
         const auto *cd = Hd.complexData();
         for (keel::usize c = 0; c < n_out; ++c) {
-            const double cx = (static_cast<double>(c) - (n_out - 1) / 2.0) * dc_dst;
+            const double cx = (keel::as<double>(c) - (n_out - 1) / 2.0) * dc_dst;
             const double sf_c = (cx + 1.0) / dc_src - 0.5;
-            const long c0 = std::max<long>(0, static_cast<long>(std::floor(sf_c)));
-            const long c1 = std::min<long>(static_cast<long>(Wh) - 1, c0 + 1);
+            const long c0 = std::max<long>(0, keel::as<long>(std::floor(sf_c)));
+            const long c1 = std::min<long>(keel::as<long>(Wh) - 1, c0 + 1);
             const double ac = sf_c - c0;
             for (keel::usize r = 0; r < m_out; ++r) {
-                const double cy = (static_cast<double>(r) - (m_out - 1) / 2.0) * dr_dst;
+                const double cy = (keel::as<double>(r) - (m_out - 1) / 2.0) * dr_dst;
                 const double sf_r = (cy + 1.0) / dr_src - 0.5;
-                const long r0 = std::max<long>(0, static_cast<long>(std::floor(sf_r)));
-                const long r1 = std::min<long>(static_cast<long>(Hh) - 1, r0 + 1);
+                const long r0 = std::max<long>(0, keel::as<long>(std::floor(sf_r)));
+                const long r1 = std::min<long>(keel::as<long>(Hh) - 1, r0 + 1);
                 const double ar = sf_r - r0;
-                const auto v00 = cd[static_cast<keel::usize>(c0) * Hh + r0];
-                const auto v01 = cd[static_cast<keel::usize>(c0) * Hh + r1];
-                const auto v10 = cd[static_cast<keel::usize>(c1) * Hh + r0];
-                const auto v11 = cd[static_cast<keel::usize>(c1) * Hh + r1];
+                const auto v00 = cd[keel::as<keel::usize>(c0) * Hh + r0];
+                const auto v01 = cd[keel::as<keel::usize>(c0) * Hh + r1];
+                const auto v10 = cd[keel::as<keel::usize>(c1) * Hh + r0];
+                const auto v11 = cd[keel::as<keel::usize>(c1) * Hh + r1];
                 const auto v0 = v00 + ar * (v01 - v00);
                 const auto v1 = v10 + ar * (v11 - v10);
                 od[c * m_out + r] = v0 + ac * (v1 - v0);
@@ -194,21 +194,21 @@ Value bilinear_interp_hd(const Value &Hd, keel::usize m_out, keel::usize n_out,
     Value out = Value::matrix(m_out, n_out, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     for (keel::usize c = 0; c < n_out; ++c) {
-        const double cx = (static_cast<double>(c) - (n_out - 1) / 2.0) * dc_dst;
+        const double cx = (keel::as<double>(c) - (n_out - 1) / 2.0) * dc_dst;
         const double sf_c = (cx + 1.0) / dc_src - 0.5;
-        const long c0 = std::max<long>(0, static_cast<long>(std::floor(sf_c)));
-        const long c1 = std::min<long>(static_cast<long>(Wh) - 1, c0 + 1);
+        const long c0 = std::max<long>(0, keel::as<long>(std::floor(sf_c)));
+        const long c1 = std::min<long>(keel::as<long>(Wh) - 1, c0 + 1);
         const double ac = sf_c - c0;
         for (keel::usize r = 0; r < m_out; ++r) {
-            const double cy = (static_cast<double>(r) - (m_out - 1) / 2.0) * dr_dst;
+            const double cy = (keel::as<double>(r) - (m_out - 1) / 2.0) * dr_dst;
             const double sf_r = (cy + 1.0) / dr_src - 0.5;
-            const long r0 = std::max<long>(0, static_cast<long>(std::floor(sf_r)));
-            const long r1 = std::min<long>(static_cast<long>(Hh) - 1, r0 + 1);
+            const long r0 = std::max<long>(0, keel::as<long>(std::floor(sf_r)));
+            const long r1 = std::min<long>(keel::as<long>(Hh) - 1, r0 + 1);
             const double ar = sf_r - r0;
-            const double v00 = Hd_d.elemAsDouble(static_cast<keel::usize>(c0) * Hh + r0);
-            const double v01 = Hd_d.elemAsDouble(static_cast<keel::usize>(c0) * Hh + r1);
-            const double v10 = Hd_d.elemAsDouble(static_cast<keel::usize>(c1) * Hh + r0);
-            const double v11 = Hd_d.elemAsDouble(static_cast<keel::usize>(c1) * Hh + r1);
+            const double v00 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r0);
+            const double v01 = Hd_d.elemAsDouble(keel::as<keel::usize>(c0) * Hh + r1);
+            const double v10 = Hd_d.elemAsDouble(keel::as<keel::usize>(c1) * Hh + r0);
+            const double v11 = Hd_d.elemAsDouble(keel::as<keel::usize>(c1) * Hh + r1);
             const double v0 = v00 + ar * (v01 - v00);
             const double v1 = v10 + ar * (v11 - v10);
             od[c * m_out + r] = v0 + ac * (v1 - v0);
@@ -391,17 +391,17 @@ Value ftrans2(const Value &b_in, const Value &t_in,
     //   shifted = ifftshift(b) so b becomes [b(n), b(n+1), ..., b(2n),
     //                                         b(0), ..., b(n-1)].
     //   a = [shifted(1), 2*shifted(2:n+1)] (1-based).
-    const long n = (static_cast<long>(L) - 1) / 2;
+    const long n = (keel::as<long>(L) - 1) / 2;
     keel::Array<double> b_vec(L);
     for (keel::usize i = 0; i < L; ++i) b_vec[i] = b.elemAsDouble(i);
     // ifftshift on 1-D: roll by floor(L/2).
-    const long shift = static_cast<long>(L) / 2;
+    const long shift = keel::as<long>(L) / 2;
     keel::Array<double> bsh(L);
     for (keel::usize i = 0; i < L; ++i)
-        bsh[i] = b_vec[(static_cast<long>(i) + shift) % static_cast<long>(L)];
+        bsh[i] = b_vec[(keel::as<long>(i) + shift) % keel::as<long>(L)];
     keel::Array<double> a(n + 1);
     a[0] = bsh[0];
-    for (long k = 1; k <= n; ++k) a[static_cast<keel::usize>(k)] = 2.0 * bsh[static_cast<keel::usize>(k)];
+    for (long k = 1; k <= n; ++k) a[keel::as<keel::usize>(k)] = 2.0 * bsh[keel::as<keel::usize>(k)];
 
     // Chebyshev recursion.
     const keel::usize Mt = t.dims().rows();
@@ -456,7 +456,7 @@ Value ftrans2(const Value &b_in, const Value &t_in,
                 p2d[(cur_cols_off + c) * Hp + (cur_rows_off + r)]
                     -= P0.elemAsDouble(c * Hp0 + r);
         // Wrap insertion: h_new = a[i] * P2; then add h (old) at offset (insetR, insetC).
-        Value h_new = scale_mat(P2, a[static_cast<keel::usize>(i)]);
+        Value h_new = scale_mat(P2, a[keel::as<keel::usize>(i)]);
         add_at(h_new, h, insetR, insetC);
         h = std::move(h_new);
         P0 = P1;
@@ -476,8 +476,8 @@ T linear_interp_t(keel::ArrayRef<double> xs,
     if (q >= xs[xs.size() - 1])  return ys[ys.size() - 1];
     const double dx = xs[1] - xs[0];
     const double t = (q - xs[0]) / dx;
-    const keel::usize i = static_cast<keel::usize>(std::floor(t));
-    const double a = t - static_cast<double>(i);
+    const keel::usize i = keel::as<keel::usize>(std::floor(t));
+    const double a = t - keel::as<double>(i);
     return (1.0 - a) * ys[i] + a * ys[i + 1];
 }
 
@@ -501,7 +501,7 @@ Value fwind1(const Value &Hd, const Value &win1, const Value &win2,
         m_out = n_out = n;
         keel::Array<double> t(n);
         for (keel::usize i = 0; i < n; ++i)
-            t[i] = (static_cast<double>(i) - (n - 1) / 2.0) * (2.0 / (n - 1));
+            t[i] = (keel::as<double>(i) - (n - 1) / 2.0) * (2.0 / (n - 1));
         if (winComplex) {
             keel::Array<keel::c64> w1(n);
             for (keel::usize i = 0; i < n; ++i) w1[i] = getC(win1, i);

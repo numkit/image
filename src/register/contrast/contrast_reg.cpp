@@ -266,7 +266,7 @@ void imquantize_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         const double *id = idx.doubleData();
         const keel::usize N = idx.numel();
         for (keel::usize i = 0; i < N; ++i)
-            qd[i] = args[2].elemAsDouble(static_cast<keel::usize>(id[i]) - 1);
+            qd[i] = args[2].elemAsDouble(keel::as<keel::usize>(id[i]) - 1);
         outs[0] = std::move(quant);
         if (nargout >= 2) outs[1] = std::move(idx);
     } else {
@@ -309,7 +309,7 @@ void wcodemat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, 4, "wcodemat");
     int nb = (args.size() >= 2 && !args[1].isEmpty())
-             ? static_cast<int>(argcheck::roundLength(args[1], 2, "nb", "wcodemat")) : 16;
+             ? keel::as<int>(argcheck::roundLength(args[1], 2, "nb", "wcodemat")) : 16;
     keel::String opt = keel::String::from("mat");
     if (args.size() >= 3 && !args[2].isEmpty()) {
         if (!args[2].isChar() && !args[2].isString())
@@ -321,7 +321,7 @@ void wcodemat_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (args.size() >= 4 && !args[3].isEmpty()) {
         const double av = argcheck::expectedReal(args[3], 4, "absol", "wcodemat");
         argcheck::expectedFlag01(av, 4, "absol", "wcodemat");
-        absol = static_cast<int>(av);
+        absol = keel::as<int>(av);
     }
     outs[0] = wcodemat(args[0], nb, opt, absol, ctx.engine->allocator());
 }
@@ -355,7 +355,7 @@ void grayslice_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (n.numel() == 1) {
         const double nv = n.toScalar();
         if (nv >= 1.0) {
-            outs[0] = grayslice(args[0], static_cast<int>(nv), mr);
+            outs[0] = grayslice(args[0], keel::as<int>(nv), mr);
         } else if (nv > 0.0) {
             const double levels[1] = { nv };
             outs[0] = grayslice(args[0], keel::ArrayRef<double>(levels, 1), mr);

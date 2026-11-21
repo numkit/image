@@ -201,18 +201,18 @@ inline double getV3(const Value &V, keel::usize H, keel::usize W, keel::usize D,
 double samp_nearest3(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      double xs, double ys, double zs, double fill)
 {
-    const int xi = static_cast<int>(std::floor(xs + 0.5));
-    const int yi = static_cast<int>(std::floor(ys + 0.5));
-    const int zi = static_cast<int>(std::floor(zs + 0.5));
+    const int xi = keel::as<int>(std::floor(xs + 0.5));
+    const int yi = keel::as<int>(std::floor(ys + 0.5));
+    const int zi = keel::as<int>(std::floor(zs + 0.5));
     return getV3(V, H, W, D, xi, yi, zi, fill);
 }
 
 double samp_trilinear(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                       double xs, double ys, double zs, double fill)
 {
-    const int x0 = static_cast<int>(std::floor(xs));
-    const int y0 = static_cast<int>(std::floor(ys));
-    const int z0 = static_cast<int>(std::floor(zs));
+    const int x0 = keel::as<int>(std::floor(xs));
+    const int y0 = keel::as<int>(std::floor(ys));
+    const int z0 = keel::as<int>(std::floor(zs));
     const double fx = xs - double(x0);
     const double fy = ys - double(y0);
     const double fz = zs - double(z0);
@@ -236,9 +236,9 @@ double samp_trilinear(const Value &V, keel::usize H, keel::usize W, keel::usize 
 double samp_tricubic(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      double xs, double ys, double zs, double fill)
 {
-    const int x0 = static_cast<int>(std::floor(xs));
-    const int y0 = static_cast<int>(std::floor(ys));
-    const int z0 = static_cast<int>(std::floor(zs));
+    const int x0 = keel::as<int>(std::floor(xs));
+    const int y0 = keel::as<int>(std::floor(ys));
+    const int z0 = keel::as<int>(std::floor(zs));
     const double fx = xs - double(x0);
     const double fy = ys - double(y0);
     const double fz = zs - double(z0);
@@ -380,9 +380,9 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
             haveScaleNum = true; scaleScalar = s.toScalar();
         } else if (s.numel() == 3) {
             haveSize3 = true;
-            outRows = static_cast<keel::usize>(s.elemAsDouble(0));
-            outCols = static_cast<keel::usize>(s.elemAsDouble(1));
-            outDeps = static_cast<keel::usize>(s.elemAsDouble(2));
+            outRows = keel::as<keel::usize>(s.elemAsDouble(0));
+            outCols = keel::as<keel::usize>(s.elemAsDouble(1));
+            outDeps = keel::as<keel::usize>(s.elemAsDouble(2));
         } else {
             throw Error("imresize3: 2nd arg must be scalar scale or "
                         "[numrows numcols numplanes]",
@@ -417,9 +417,9 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
                 throw Error("imresize3: OutputSize must be a 3-element vector",
                             0, 0, "imresize3", "", "numkit:imresize3:size");
             haveSize3 = true;
-            outRows = static_cast<keel::usize>(val.elemAsDouble(0));
-            outCols = static_cast<keel::usize>(val.elemAsDouble(1));
-            outDeps = static_cast<keel::usize>(val.elemAsDouble(2));
+            outRows = keel::as<keel::usize>(val.elemAsDouble(0));
+            outCols = keel::as<keel::usize>(val.elemAsDouble(1));
+            outDeps = keel::as<keel::usize>(val.elemAsDouble(2));
         } else if (name == "Scale" || name == "scale") {
             if (val.numel() == 1) {
                 haveScaleNum = true; scaleScalar = val.toScalar();
@@ -459,9 +459,9 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
         if (!(sR > 0 && sC > 0 && sD > 0))
             throw Error("imresize3: scale factors must be > 0",
                         0, 0, "imresize3", "", "numkit:imresize3:scale");
-        outRows = static_cast<keel::usize>(std::round(sR * double(inR)));
-        outCols = static_cast<keel::usize>(std::round(sC * double(inC)));
-        outDeps = static_cast<keel::usize>(std::round(sD * double(inD)));
+        outRows = keel::as<keel::usize>(std::round(sR * double(inR)));
+        outCols = keel::as<keel::usize>(std::round(sC * double(inC)));
+        outDeps = keel::as<keel::usize>(std::round(sD * double(inD)));
     }
 
     // Per-axis scale that drives the u formula. MATLAB uses the

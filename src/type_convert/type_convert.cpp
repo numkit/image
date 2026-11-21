@@ -25,8 +25,8 @@ namespace {
 template <typename T>
 inline T satCast(double v) {
     if (std::isnan(v)) return T{};
-    constexpr double lo = static_cast<double>(std::numeric_limits<T>::lowest());
-    constexpr double hi = static_cast<double>(std::numeric_limits<T>::max());
+    constexpr double lo = keel::as<double>(std::numeric_limits<T>::lowest());
+    constexpr double hi = keel::as<double>(std::numeric_limits<T>::max());
     if (v <= lo) return std::numeric_limits<T>::lowest();
     if (v >= hi) return std::numeric_limits<T>::max();
     return static_cast<T>(std::lround(v));
@@ -145,9 +145,9 @@ Value to_int_impl(const Value &x, ValueType target, double scale, double bias_af
     const double sc = scale, bi = bias_after;
     auto convert = [sc, bi](double v) -> Int {
         constexpr double clamp_lo =
-            static_cast<double>(std::numeric_limits<Int>::lowest());
+            keel::as<double>(std::numeric_limits<Int>::lowest());
         constexpr double clamp_hi =
-            static_cast<double>(std::numeric_limits<Int>::max());
+            keel::as<double>(std::numeric_limits<Int>::max());
         const bool nan = !(v == v);
         double u = nan ? 0.0 : v;
         if (u < 0.0) u = 0.0;
@@ -167,7 +167,7 @@ Value to_int_impl(const Value &x, ValueType target, double scale, double bias_af
             } else if (x.type() == ValueType::SINGLE && !x.isComplex()) {
                 const float *s = x.singleData();
                 for (keel::usize i = 0; i < n; ++i)
-                    od[i] = convert(static_cast<double>(s[i]));
+                    od[i] = convert(keel::as<double>(s[i]));
             } else if (x.type() == ValueType::LOGICAL) {
                 const keel::u8 *s = x.logicalData();
                 for (keel::usize i = 0; i < n; ++i) od[i] = convert(s[i] ? 1.0 : 0.0);
@@ -441,7 +441,7 @@ Value iptnum2ordinal(double n, keel::Allocator *mr)
         "twentieth"
     };
 
-    const long long ll = static_cast<long long>(n);
+    const long long ll = keel::as<long long>(n);
     keel::String s;
     if (ll >= 1 && ll <= 20) {
         s.assign(kWords[ll]);
@@ -503,7 +503,7 @@ namespace {
 
 Value gray_colormap(int n, keel::Allocator *mr)
 {
-    Value map = Value::matrix(static_cast<keel::usize>(n), 3,
+    Value map = Value::matrix(keel::as<keel::usize>(n), 3,
                               ValueType::DOUBLE, mr);
     double *md = map.doubleDataMut();
     if (n <= 0) return map;
@@ -512,7 +512,7 @@ Value gray_colormap(int n, keel::Allocator *mr)
         return map;
     }
     for (int i = 0; i < n; ++i) {
-        const double v = static_cast<double>(i) / static_cast<double>(n - 1);
+        const double v = keel::as<double>(i) / keel::as<double>(n - 1);
         md[0 * n + i] = v;
         md[1 * n + i] = v;
         md[2 * n + i] = v;
@@ -640,7 +640,7 @@ gray2ind(const Value &I, int n, keel::Allocator *mr)
                             0, 0, "gray2ind", "", "numkit:gray2ind:range");
         }
     }
-    const double k = static_cast<double>(n - 1) / scale;
+    const double k = keel::as<double>(n - 1) / scale;
     // MATLAB / Octave's integer cast rounds half-away-from-zero, not
     // truncates toward zero.
     if (outT == ValueType::UINT8) {
@@ -649,7 +649,7 @@ gray2ind(const Value &I, int n, keel::Allocator *mr)
             double v = std::lround((I.elemAsDouble(i) - low) * k);
             if (v < 0)   v = 0;
             if (v > 255) v = 255;
-            od[i] = static_cast<keel::u8>(v);
+            od[i] = keel::as<keel::u8>(v);
         }
     } else {
         keel::u16 *od = out.uint16DataMut();
@@ -657,7 +657,7 @@ gray2ind(const Value &I, int n, keel::Allocator *mr)
             double v = std::lround((I.elemAsDouble(i) - low) * k);
             if (v < 0)     v = 0;
             if (v > 65535) v = 65535;
-            od[i] = static_cast<keel::u16>(v);
+            od[i] = keel::as<keel::u16>(v);
         }
     }
     return {std::move(out), std::move(map)};
@@ -670,7 +670,7 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
     // grayscale image — probed).
     Value idxUsed = (idx.type() == ValueType::LOGICAL)
         ? internal::coerceToDoubleImage(idx, mr) : Value(idx);
-    const int M = static_cast<int>(map.dims().rows());
+    const int M = keel::as<int>(map.dims().rows());
 
     // Build the grey colormap (length M, DOUBLE in [0, 1]).
     constexpr double Cr = 0.298936021293775;
@@ -701,28 +701,28 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
     //   * integer X is 0-based, LUT padded to vs = 256 / 65536 with the
     //     last grey value beyond `M - 1`.
     auto float_lookup = [&](double v) -> double {
-        long long k = static_cast<long long>(v);
+        long long k = keel::as<long long>(v);
         if (k < 1)  k = 1;
         if (k > M)  k = M;
-        return graycm[static_cast<keel::usize>(k - 1)];
+        return graycm[keel::as<keel::usize>(k - 1)];
     };
     auto int_lookup_u8 = [&](unsigned v) -> keel::u8 {
         keel::usize k = v;
-        if (k >= static_cast<keel::usize>(M))
-            k = static_cast<keel::usize>(M - 1);
+        if (k >= keel::as<keel::usize>(M))
+            k = keel::as<keel::usize>(M - 1);
         double scaled = graycm[k] * 255.0;
         if (scaled < 0.0)   scaled = 0.0;
         if (scaled > 255.0) scaled = 255.0;
-        return static_cast<keel::u8>(std::lround(scaled));
+        return keel::as<keel::u8>(std::lround(scaled));
     };
     auto int_lookup_u16 = [&](unsigned v) -> keel::u16 {
         keel::usize k = v;
-        if (k >= static_cast<keel::usize>(M))
-            k = static_cast<keel::usize>(M - 1);
+        if (k >= keel::as<keel::usize>(M))
+            k = keel::as<keel::usize>(M - 1);
         double scaled = graycm[k] * 65535.0;
         if (scaled < 0.0)     scaled = 0.0;
         if (scaled > 65535.0) scaled = 65535.0;
-        return static_cast<keel::u16>(std::lround(scaled));
+        return keel::as<keel::u16>(std::lround(scaled));
     };
 
     switch (outT) {
@@ -735,7 +735,7 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
         case ValueType::SINGLE: {
             float *od = out.singleDataMut();
             for (keel::usize i = 0; i < N; ++i)
-                od[i] = static_cast<float>(float_lookup(idxUsed.elemAsDouble(i)));
+                od[i] = keel::as<float>(float_lookup(idxUsed.elemAsDouble(i)));
             break;
         }
         case ValueType::UINT8: {
@@ -783,7 +783,7 @@ Value ind2rgb(const Value &idx, const Value &map, keel::Allocator *mr)
     const keel::usize H = d.rows();
     const keel::usize W = d.cols();
     const keel::usize N = rgbIdxC.numel();
-    const int M = static_cast<int>(rgbMapC.dims().rows());
+    const int M = keel::as<int>(rgbMapC.dims().rows());
 
     Value out = Value::matrix3d(H, W, 3, ValueType::DOUBLE, mr);
     if (N == 0) return out;
@@ -799,7 +799,7 @@ Value ind2rgb(const Value &idx, const Value &map, keel::Allocator *mr)
             // NaN / Inf clip to last colormap row.
             k = M - 1;
         } else {
-            k = static_cast<long long>(v);
+            k = keel::as<long long>(v);
             if (isFloatIdx) k -= 1;
         }
         if (k < 0)  k = 0;
@@ -900,7 +900,7 @@ Value intlut(const Value &A, const Value &LUT, keel::Allocator *mr)
     const int shift = (atype == ValueType::INT16) ? 32768 : 0;
 
     auto idx_at = [&](keel::usize i) -> keel::usize {
-        return static_cast<keel::usize>(static_cast<keel::i64>(A.elemAsDouble(i))
+        return keel::as<keel::usize>(keel::as<keel::i64>(A.elemAsDouble(i))
                                    + shift);
     };
 

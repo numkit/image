@@ -195,7 +195,7 @@ void bwboundaries_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                            nargout > 1 ? &L : nullptr,
                            nargout > 2 ? &N : nullptr, mr);
     if (nargout > 1) outs[1] = std::move(L);
-    if (nargout > 2) outs[2] = Value::scalar(static_cast<double>(N), mr);
+    if (nargout > 2) outs[2] = Value::scalar(keel::as<double>(N), mr);
 }
 
 void regionprops_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -331,7 +331,7 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         lo = v.elemAsDouble(0);
         hi = v.elemAsDouble(1);
     } else {
-        n_keep = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
+        n_keep = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(v, 2, "N", "bwareafilt"), 2, "N", "bwareafilt"));
     }
 

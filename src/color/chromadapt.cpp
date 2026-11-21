@@ -339,7 +339,7 @@ Value rgb_to_value(const RGBPlane &P, ValueType outClass,
             double v = std::round(P.v[i] * 255.0);
             if (v < 0.0)   v = 0.0;
             if (v > 255.0) v = 255.0;
-            od[i] = static_cast<keel::u8>(v);
+            od[i] = keel::as<keel::u8>(v);
         }
     };
     auto write_uint16 = [&]() {
@@ -348,13 +348,13 @@ Value rgb_to_value(const RGBPlane &P, ValueType outClass,
             double v = std::round(P.v[i] * 65535.0);
             if (v < 0.0)     v = 0.0;
             if (v > 65535.0) v = 65535.0;
-            od[i] = static_cast<keel::u16>(v);
+            od[i] = keel::as<keel::u16>(v);
         }
     };
     auto write_single = [&]() {
         float *od = out.singleDataMut();
         for (keel::usize i = 0; i < H * W * 3; ++i)
-            od[i] = static_cast<float>(P.v[i]);
+            od[i] = keel::as<float>(P.v[i]);
     };
     auto write_double = [&]() {
         double *od = out.doubleDataMut();

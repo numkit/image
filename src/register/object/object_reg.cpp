@@ -259,7 +259,7 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         } else if (nlo.starts_with("thetar")) {
             // 'ThetaResolution' (legacy): build theta = -90:tr:89.
             const double tr = args[i + 1].toScalar();
-            const int n = static_cast<int>(std::ceil(90.0 / tr));
+            const int n = keel::as<int>(std::ceil(90.0 / tr));
             const double step = 90.0 / n;
             keel::Array<double> tv(mr);
             for (int k = -n; k < n; ++k) tv.push_back(k * step);
@@ -329,7 +329,7 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (!(npd > 0) || npd != std::floor(npd))
             throw Error("houghpeaks: NUMPEAKS must be a positive integer",
                         0, 0, "houghpeaks", "", "numkit:houghpeaks:numpeaks");
-        numpeaks = static_cast<keel::usize>(npd);
+        numpeaks = keel::as<keel::usize>(npd);
         ++i;
     }
     while (i + 1 < args.size()) {
@@ -356,14 +356,14 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             const double b = v.elemAsDouble(1);
             if (!(a > 0) || !(b > 0)
              || a != std::floor(a) || b != std::floor(b)
-             || static_cast<int>(a) % 2 == 0
-             || static_cast<int>(b) % 2 == 0)
+             || keel::as<int>(a) % 2 == 0
+             || keel::as<int>(b) % 2 == 0)
                 throw Error("houghpeaks: NHoodSize elements must be "
                             "positive odd integers",
                             0, 0, "houghpeaks", "",
                             "numkit:houghpeaks:nhoodOdd");
-            nhoodRho   = static_cast<keel::usize>(a);
-            nhoodTheta = static_cast<keel::usize>(b);
+            nhoodRho   = keel::as<keel::usize>(a);
+            nhoodTheta = keel::as<keel::usize>(b);
         } else if (nlo == "theta") {
             theta_deg = args[i + 1];
         } else {

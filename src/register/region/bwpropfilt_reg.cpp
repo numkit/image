@@ -72,7 +72,7 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::usize keep_n = 0;
     bool keep_largest = true;
     if (p.numel() == 1) {
-        keep_n = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
+        keep_n = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(p, 2, "n", "bwpropfilt"), 2, "n", "bwpropfilt"));
     } else if (p.numel() == 2) {
         p_min = p.elemAsDouble(0);

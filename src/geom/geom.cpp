@@ -63,19 +63,19 @@ inline keel::usize idx3D(const Shape &s, keel::usize y, keel::usize x, keel::usi
 inline double sample(const Value &A, const Shape &s,
                      int y, int x, keel::usize c) {
     if (y < 0 || x < 0 ||
-        y >= static_cast<int>(s.H) ||
-        x >= static_cast<int>(s.W))
+        y >= keel::as<int>(s.H) ||
+        x >= keel::as<int>(s.W))
         return 0.0;
-    return A.elemAsDouble(idx3D(s, static_cast<keel::usize>(y),
-                                static_cast<keel::usize>(x), c));
+    return A.elemAsDouble(idx3D(s, keel::as<keel::usize>(y),
+                                keel::as<keel::usize>(x), c));
 }
 
 // Bilinear lookup with floating source coordinates (0-based).
 // Out-of-bounds pixels evaluate to 0.
 double bilinear(const Value &A, const Shape &s,
                 double y, double x, keel::usize c) {
-    const int y0 = static_cast<int>(std::floor(y));
-    const int x0 = static_cast<int>(std::floor(x));
+    const int y0 = keel::as<int>(std::floor(y));
+    const int x0 = keel::as<int>(std::floor(x));
     const double dy = y - y0;
     const double dx = x - x0;
     const double v00 = sample(A, s, y0,     x0,     c);
@@ -132,11 +132,11 @@ keel::Array<RkContrib> rkBuild(keel::usize outLen, double scale, double (*k)(dou
                                double kw, bool aa) {
     double scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = kw / scale; }
-    const int P = static_cast<int>(std::ceil(kw)) + 2;
+    const int P = keel::as<int>(std::ceil(kw)) + 2;
     keel::Array<RkContrib> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
         const double u    = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
-        const int    left = static_cast<int>(std::floor(u - kw / 2.0));
+        const int    left = keel::as<int>(std::floor(u - kw / 2.0));
         RkContrib &  r    = rows[o];
         r.first = left - 1;
         r.w.assign(P, 0.0);
@@ -153,7 +153,7 @@ Value imresizeKernel(const Value &A, const Shape &s, keel::usize outH, keel::usi
                      double scaleY, double scaleX, double (*k)(double), double kw,
                      bool antialias, ValueType t, keel::Allocator *mr)
 {
-    const int  H = static_cast<int>(s.H), W = static_cast<int>(s.W);
+    const int  H = keel::as<int>(s.H), W = keel::as<int>(s.W);
     const auto cy = rkBuild(outH, scaleY, k, kw, antialias);
     const auto cx = rkBuild(outW, scaleX, k, kw, antialias);
     Value B = makeOut(outH, outW, s.C, t, mr);
@@ -275,8 +275,8 @@ Value imresize(const Value &A, double scale, keel::StringRef method, keel::Alloc
 {
     const Shape s = geom_shape_argcheck(A);
     imresize_scale_argcheck(scale);
-    const keel::usize outH = static_cast<keel::usize>(std::round(scale * double(s.H)));
-    const keel::usize outW = static_cast<keel::usize>(std::round(scale * double(s.W)));
+    const keel::usize outH = keel::as<keel::usize>(std::round(scale * double(s.H)));
+    const keel::usize outW = keel::as<keel::usize>(std::round(scale * double(s.W)));
     if (methodIsNearest(method))
         return imresize(A, outH, outW, method, mr);
     // Scale form: the centre map uses the scalar `scale` (MATLAB's convention).
@@ -337,21 +337,21 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
 
     // Round limits per MATLAB source.
     auto rd = [&](keel::usize k) {
-        return static_cast<long long>(std::lround(cuboid.elemAsDouble(k)));
+        return keel::as<long long>(std::lround(cuboid.elemAsDouble(k)));
     };
     const long long xmin = rd(0);
     const long long ymin = rd(1);
     const long long zmin = rd(2);
-    const long long xmax = static_cast<long long>(std::lround(
+    const long long xmax = keel::as<long long>(std::lround(
         cuboid.elemAsDouble(0) + cuboid.elemAsDouble(3)));
-    const long long ymax = static_cast<long long>(std::lround(
+    const long long ymax = keel::as<long long>(std::lround(
         cuboid.elemAsDouble(1) + cuboid.elemAsDouble(4)));
-    const long long zmax = static_cast<long long>(std::lround(
+    const long long zmax = keel::as<long long>(std::lround(
         cuboid.elemAsDouble(2) + cuboid.elemAsDouble(5)));
 
     auto in_range = [](long long lo, long long hi, keel::usize N) {
-        return lo >= 1 && lo <= static_cast<long long>(N)
-            && hi >= 1 && hi <= static_cast<long long>(N) && lo <= hi;
+        return lo >= 1 && lo <= keel::as<long long>(N)
+            && hi >= 1 && hi <= keel::as<long long>(N) && lo <= hi;
     };
     if (!in_range(xmin, xmax, W)
         || !in_range(ymin, ymax, H)
@@ -361,9 +361,9 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
                     "bound must not exceed the image size",
                     0, 0, "imcrop3", "", "numkit:imcrop3:cropCuboidOutofBounds");
 
-    const keel::usize outH = static_cast<keel::usize>(ymax - ymin + 1);
-    const keel::usize outW = static_cast<keel::usize>(xmax - xmin + 1);
-    const keel::usize outD = static_cast<keel::usize>(zmax - zmin + 1);
+    const keel::usize outH = keel::as<keel::usize>(ymax - ymin + 1);
+    const keel::usize outW = keel::as<keel::usize>(xmax - xmin + 1);
+    const keel::usize outD = keel::as<keel::usize>(zmax - zmin + 1);
 
     // Allocate the output with class preserved. For 3-D inputs we
     // return a 3-D Value; for 4-D inputs we keep the 4th dim.
@@ -409,9 +409,9 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
         }
     };
 
-    const keel::usize y0 = static_cast<keel::usize>(ymin - 1);
-    const keel::usize x0 = static_cast<keel::usize>(xmin - 1);
-    const keel::usize z0 = static_cast<keel::usize>(zmin - 1);
+    const keel::usize y0 = keel::as<keel::usize>(ymin - 1);
+    const keel::usize x0 = keel::as<keel::usize>(xmin - 1);
+    const keel::usize z0 = keel::as<keel::usize>(zmin - 1);
 
     for (keel::usize tt = 0; tt < T; ++tt)
         for (keel::usize p = 0; p < outD; ++p)
@@ -438,32 +438,32 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
         if (a < 0.0) a += 360.0;
         const long kk = std::lround(a / 90.0);
         if (keel::abs(a - double(kk) * 90.0) < 1e-9) {
-            const int k = static_cast<int>(((kk % 4) + 4) % 4);
+            const int k = keel::as<int>(((kk % 4) + 4) % 4);
             const keel::usize Hl = (k % 2 == 0) ? s.H : s.W;  // loose dims
             const keel::usize Wl = (k % 2 == 0) ? s.W : s.H;
             const keel::usize oH = isCrop ? s.H : Hl;
             const keel::usize oW = isCrop ? s.W : Wl;
             long rowOff = 0, colOff = 0;
             if (isCrop) {
-                rowOff = static_cast<long>(std::floor((double(Hl) - double(s.H)) / 2.0));
-                colOff = static_cast<long>(std::floor((double(Wl) - double(s.W)) / 2.0));
+                rowOff = keel::as<long>(std::floor((double(Hl) - double(s.H)) / 2.0));
+                colOff = keel::as<long>(std::floor((double(Wl) - double(s.W)) / 2.0));
                 // For the 270-degree quarter turn (k==3) the leftover half
                 // pixel of an odd size difference falls on the opposite side
                 // vs 90 degrees (k==1) — MATLAB centres the crop accordingly.
-                if (k == 3 && ((static_cast<long>(Hl) - static_cast<long>(s.H)) & 1L))
+                if (k == 3 && ((keel::as<long>(Hl) - keel::as<long>(s.H)) & 1L))
                     rowOff += 1;
             }
             Value B = makeOut(oH, oW, s.C, t, mr);
             Shape sd{oH, oW, s.C};
-            const long H = static_cast<long>(s.H), W = static_cast<long>(s.W);
+            const long H = keel::as<long>(s.H), W = keel::as<long>(s.W);
             for (keel::usize c = 0; c < s.C; ++c)
                 for (keel::usize i = 0; i < oH; ++i)
                     for (keel::usize j = 0; j < oW; ++j) {
-                        const long li = static_cast<long>(i) + rowOff;  // loose coords
-                        const long lj = static_cast<long>(j) + colOff;
+                        const long li = keel::as<long>(i) + rowOff;  // loose coords
+                        const long lj = keel::as<long>(j) + colOff;
                         double v = 0.0;
-                        if (li >= 0 && li < static_cast<long>(Hl) &&
-                            lj >= 0 && lj < static_cast<long>(Wl)) {
+                        if (li >= 0 && li < keel::as<long>(Hl) &&
+                            lj >= 0 && lj < keel::as<long>(Wl)) {
                             long sr = 0, sc = 0;  // map loose -> source (inverse rot90^k)
                             switch (k) {
                                 case 0: sr = li;        sc = lj;        break;
@@ -471,7 +471,7 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
                                 case 2: sr = H - 1 - li; sc = W - 1 - lj; break;
                                 default:sr = H - 1 - lj; sc = li;        break;  // k==3
                             }
-                            v = sample(A, s, static_cast<int>(sr), static_cast<int>(sc), c);
+                            v = sample(A, s, keel::as<int>(sr), keel::as<int>(sc), c);
                         }
                         writePixel(B, sd, i, j, c, v, t);
                     }
@@ -530,8 +530,8 @@ Value imrotate(const Value &A, double angle, keel::StringRef method, keel::Strin
                     // half-to-even (std::nearbyint, the default FP rounding):
                     // an exact .5 tie goes to the even integer (e.g. 0.5->0),
                     // unlike floor(x+0.5) (half-up) or lround (half-away).
-                    int yi = static_cast<int>(std::nearbyint(ys));
-                    int xi = static_cast<int>(std::nearbyint(xs));
+                    int yi = keel::as<int>(std::nearbyint(ys));
+                    int xi = keel::as<int>(std::nearbyint(xs));
                     v = sample(A, s, yi, xi, c);
                 } else {
                     v = bilinear(A, s, ys, xs, c);
@@ -817,13 +817,13 @@ buildContrib(keel::usize /*inLen*/, keel::usize outLen, double scale,
     double kw  = k.width;
     double scl = 1.0;
     if (aa && scale < 1.0) { scl = scale; kw = k.width / scale; }
-    const int P = static_cast<int>(std::ceil(kw)) + 2;
+    const int P = keel::as<int>(std::ceil(kw)) + 2;
 
     keel::Array<ContribRow> rows(outLen);
     for (keel::usize o = 0; o < outLen; ++o) {
         // MATLAB 1-indexed input center
         const double u = (double(o) + 1.0) / scale + 0.5 * (1.0 - 1.0 / scale);
-        const int left = static_cast<int>(std::floor(u - kw / 2.0));  // 1-indexed
+        const int left = keel::as<int>(std::floor(u - kw / 2.0));  // 1-indexed
         ContribRow &row = rows[o];
         row.firstIdx = left - 1;            // convert to 0-indexed
         row.w.assign(P, 0.0);
@@ -900,16 +900,16 @@ Value imresize3_core(const Value &V,
         };
         for (keel::usize z = 0; z < outD; ++z) {
             const double uz = uCoord(double(z) + 1.0, scaleZ);
-            int zi = static_cast<int>(std::floor(uz + 0.5)) - 1;
-            zi = mirrorIdx(zi, static_cast<int>(inD));
+            int zi = keel::as<int>(std::floor(uz + 0.5)) - 1;
+            zi = mirrorIdx(zi, keel::as<int>(inD));
             for (keel::usize x = 0; x < outC; ++x) {
                 const double ux = uCoord(double(x) + 1.0, scaleX);
-                int xi = static_cast<int>(std::floor(ux + 0.5)) - 1;
-                xi = mirrorIdx(xi, static_cast<int>(inC));
+                int xi = keel::as<int>(std::floor(ux + 0.5)) - 1;
+                xi = mirrorIdx(xi, keel::as<int>(inC));
                 for (keel::usize y = 0; y < outR; ++y) {
                     const double uy = uCoord(double(y) + 1.0, scaleY);
-                    int yi = static_cast<int>(std::floor(uy + 0.5)) - 1;
-                    yi = mirrorIdx(yi, static_cast<int>(inR));
+                    int yi = keel::as<int>(std::floor(uy + 0.5)) - 1;
+                    yi = mirrorIdx(yi, keel::as<int>(inR));
                     const double v = V.elemAsDouble(
                         keel::usize(yi) + keel::usize(xi) * inR + keel::usize(zi) * inR * inC);
                     writeNative(B, y + x * outR + z * outR * outC, v, T);
@@ -1002,9 +1002,9 @@ Value imresize3(const Value &V, double scale,
     const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
     const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     return imresize3_core(V,
-        static_cast<keel::usize>(std::round(scale * double(inR))),
-        static_cast<keel::usize>(std::round(scale * double(inC))),
-        static_cast<keel::usize>(std::round(scale * double(inD))),
+        keel::as<keel::usize>(std::round(scale * double(inR))),
+        keel::as<keel::usize>(std::round(scale * double(inC))),
+        keel::as<keel::usize>(std::round(scale * double(inD))),
         scale, scale, scale,
         method, antialias, mr);
 }

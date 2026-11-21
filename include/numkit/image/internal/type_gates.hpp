@@ -314,7 +314,7 @@ inline Value castResultToClass(const Value &result, ValueType target,
         case ValueType::SINGLE: {
             keel::f32 *od = out.singleDataMut();
             for (keel::usize i = 0; i < n; ++i)
-                od[i] = static_cast<keel::f32>(result.elemAsDouble(i));
+                od[i] = keel::as<keel::f32>(result.elemAsDouble(i));
             break;
         }
         case ValueType::LOGICAL: {
@@ -327,7 +327,7 @@ inline Value castResultToClass(const Value &result, ValueType target,
             keel::u8 *od = out.uint8DataMut();
             for (keel::usize i = 0; i < n; ++i) {
                 const keel::f64 x = result.elemAsDouble(i);
-                od[i] = static_cast<keel::u8>(x < 0.0 ? 0.0 : (x > 255.0 ? 255.0 : x));
+                od[i] = keel::as<keel::u8>(x < 0.0 ? 0.0 : (x > 255.0 ? 255.0 : x));
             }
             break;
         }
@@ -335,7 +335,7 @@ inline Value castResultToClass(const Value &result, ValueType target,
             keel::u16 *od = out.uint16DataMut();
             for (keel::usize i = 0; i < n; ++i) {
                 const keel::f64 x = result.elemAsDouble(i);
-                od[i] = static_cast<keel::u16>(x < 0.0 ? 0.0 : (x > 65535.0 ? 65535.0 : x));
+                od[i] = keel::as<keel::u16>(x < 0.0 ? 0.0 : (x > 65535.0 ? 65535.0 : x));
             }
             break;
         }
@@ -343,7 +343,7 @@ inline Value castResultToClass(const Value &result, ValueType target,
             keel::i16 *od = out.int16DataMut();
             for (keel::usize i = 0; i < n; ++i) {
                 const keel::f64 x = result.elemAsDouble(i);
-                od[i] = static_cast<keel::i16>(x < -32768.0 ? -32768.0 : (x > 32767.0 ? 32767.0 : x));
+                od[i] = keel::as<keel::i16>(x < -32768.0 ? -32768.0 : (x > 32767.0 ? 32767.0 : x));
             }
             break;
         }

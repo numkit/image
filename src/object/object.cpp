@@ -140,8 +140,8 @@ Value conv3d_replicate(const Value &V, const double K[27],
 
     auto clamp = [](long long x, keel::usize n) -> keel::usize {
         if (x < 0) return 0;
-        if (x >= static_cast<long long>(n)) return n - 1;
-        return static_cast<keel::usize>(x);
+        if (x >= keel::as<long long>(n)) return n - 1;
+        return keel::as<keel::usize>(x);
     };
 
     for (keel::usize p = 0; p < D; ++p) {
@@ -150,13 +150,13 @@ Value conv3d_replicate(const Value &V, const double K[27],
                 double sum = 0.0;
                 for (int dp = -1; dp <= 1; ++dp) {
                     const keel::usize pp = clamp(
-                        static_cast<long long>(p) + dp, D);
+                        keel::as<long long>(p) + dp, D);
                     for (int dc = -1; dc <= 1; ++dc) {
                         const keel::usize cc = clamp(
-                            static_cast<long long>(c) + dc, W);
+                            keel::as<long long>(c) + dc, W);
                         for (int dr = -1; dr <= 1; ++dr) {
                             const keel::usize rr = clamp(
-                                static_cast<long long>(r) + dr, H);
+                                keel::as<long long>(r) + dr, H);
                             const int ki = (dr + 1)
                                          + 3 * (dc + 1)
                                          + 9 * (dp + 1);
@@ -355,7 +355,7 @@ imgradientxyz(const Value &V, keel::StringRef method, keel::Allocator *mr)
             const keel::usize N = G.numel();
             Value gs = zeros_like(G, ValueType::SINGLE, mr);
             for (keel::usize i = 0; i < N; ++i)
-                gs.singleDataMut()[i] = static_cast<float>(G.doubleData()[i]);
+                gs.singleDataMut()[i] = keel::as<float>(G.doubleData()[i]);
             G = std::move(gs);
         };
         cast_single(Gx); cast_single(Gy); cast_single(Gz);
@@ -397,9 +397,9 @@ imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
             Gaz.doubleDataMut()[i]   = az;
             Gelev.doubleDataMut()[i] = el;
         } else {
-            Gmag.singleDataMut()[i]  = static_cast<float>(mag);
-            Gaz.singleDataMut()[i]   = static_cast<float>(az);
-            Gelev.singleDataMut()[i] = static_cast<float>(el);
+            Gmag.singleDataMut()[i]  = keel::as<float>(mag);
+            Gaz.singleDataMut()[i]   = keel::as<float>(az);
+            Gelev.singleDataMut()[i] = keel::as<float>(el);
         }
     }
     return std::make_tuple(std::move(Gmag), std::move(Gaz), std::move(Gelev));
@@ -479,9 +479,9 @@ double auto_threshold(const Value &G, double frac) {
 // of the peak gradient magnitude (low = 0.4·high); NaN → an auto fraction.
 Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
 {
-    const int H = static_cast<int>(Iin.dims().rows());
-    const int W = static_cast<int>(Iin.dims().cols());
-    const keel::usize N = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
+    const int H = keel::as<int>(Iin.dims().rows());
+    const int W = keel::as<int>(Iin.dims().cols());
+    const keel::usize N = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
 
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     keel::u8 *od = out.logicalDataMut();
@@ -494,9 +494,9 @@ Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
     // This avoids the extra smoothing that a Gaussian-blur-then-Sobel chain
     // would add (which weakens weak edges below threshold).
     const double sigma = std::sqrt(2.0);
-    const int hw = std::max(1, static_cast<int>(std::ceil(3.0 * sigma)));
+    const int hw = std::max(1, keel::as<int>(std::ceil(3.0 * sigma)));
     const int L = 2 * hw + 1;
-    keel::Array<double> g(L), dg(static_cast<keel::usize>(L));
+    keel::Array<double> g(L), dg(keel::as<keel::usize>(L));
     double gsum = 0.0;
     for (int i = 0; i < L; ++i) {
         const double x = i - hw;
@@ -538,7 +538,7 @@ Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
     if (maxMag <= 0.0) return out;
 
     auto at = [&](int r, int c) -> double {
-        return mag[static_cast<keel::usize>(c) * static_cast<keel::usize>(H) + static_cast<keel::usize>(r)];
+        return mag[keel::as<keel::usize>(c) * keel::as<keel::usize>(H) + keel::as<keel::usize>(r)];
     };
 
     // 3. Non-maximum suppression with sub-pixel interpolation along the
@@ -550,7 +550,7 @@ Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
     std::fill(nms.begin(), nms.end(), 0.0);
     for (int c = 1; c < W - 1; ++c)
         for (int r = 1; r < H - 1; ++r) {
-            const keel::usize i = static_cast<keel::usize>(c) * static_cast<keel::usize>(H) + static_cast<keel::usize>(r);
+            const keel::usize i = keel::as<keel::usize>(c) * keel::as<keel::usize>(H) + keel::as<keel::usize>(r);
             const double m = mag[i];
             if (m <= 0.0) continue;
             const double gx = Gx[i], gy = Gy[i];
@@ -593,12 +593,12 @@ Value canny_edge(const Value &Iin, double userHigh, keel::Allocator *mr)
     static constexpr int dc8[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
     while (!stack.empty()) {
         const keel::usize p = stack.back(); stack.pop_back();
-        const int r = static_cast<int>(p % static_cast<keel::usize>(H));
-        const int c = static_cast<int>(p / static_cast<keel::usize>(H));
+        const int r = keel::as<int>(p % keel::as<keel::usize>(H));
+        const int c = keel::as<int>(p / keel::as<keel::usize>(H));
         for (int k = 0; k < 8; ++k) {
             const int nr = r + dr8[k], nc = c + dc8[k];
             if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
-            const keel::usize q = static_cast<keel::usize>(nc) * static_cast<keel::usize>(H) + static_cast<keel::usize>(nr);
+            const keel::usize q = keel::as<keel::usize>(nc) * keel::as<keel::usize>(H) + keel::as<keel::usize>(nr);
             if (!od[q] && nms[q] >= lowT) { od[q] = 1; stack.push_back(q); }
         }
     }
@@ -794,7 +794,7 @@ Value cornermetric(const Value &I, keel::StringRef method,
     // uses zero-padding regardless of PadMode, so we pre-pad by
     // (Lc-1)/2 with `padarray` and run a 'same' convolution.
     auto full_replicate = [&](Value X) {
-        X = padarray(X, {static_cast<int>(halfLc), static_cast<int>(halfLc)}, PadMode::Replicate, 0.0, "both", mr);
+        X = padarray(X, {keel::as<int>(halfLc), keel::as<int>(halfLc)}, PadMode::Replicate, 0.0, "both", mr);
         return imfilter(X, Wk, PadMode::Replicate, 0.0,
                         /*full=*/false, /*flip_kernel=*/true, mr);
     };
@@ -995,7 +995,7 @@ void hough(const Value &BW, double rho_res,
     if (theta_deg.numel() == 0) {
         theta.reserve(180);
         for (int k = -90; k <= 89; ++k)
-            theta.push_back(static_cast<double>(k));
+            theta.push_back(keel::as<double>(k));
     } else {
         theta.reserve(theta_deg.numel());
         for (keel::usize i = 0; i < theta_deg.numel(); ++i) {
@@ -1010,20 +1010,20 @@ void hough(const Value &BW, double rho_res,
 
     // ρ grid.
     const double D = std::sqrt(
-        static_cast<double>(M - 1) * (M - 1)
-      + static_cast<double>(N - 1) * (N - 1));
+        keel::as<double>(M - 1) * (M - 1)
+      + keel::as<double>(N - 1) * (N - 1));
     const keel::usize q = (D == 0.0)
         ? 0
-        : static_cast<keel::usize>(std::ceil(D / rho_res));
+        : keel::as<keel::usize>(std::ceil(D / rho_res));
     const keel::usize nrho = 2 * q + 1;
     Value R = Value::matrix(1, nrho, ValueType::DOUBLE, mr);
     if (nrho == 1) {
         R.doubleDataMut()[0] = 0.0;
     } else {
-        const double lo = -static_cast<double>(q) * rho_res;
+        const double lo = -keel::as<double>(q) * rho_res;
         const double step = rho_res;
         for (keel::usize i = 0; i < nrho; ++i)
-            R.doubleDataMut()[i] = lo + step * static_cast<double>(i);
+            R.doubleDataMut()[i] = lo + step * keel::as<double>(i);
     }
 
     // T echo.
@@ -1053,14 +1053,14 @@ void hough(const Value &BW, double rho_res,
                 ? (BW.logicalData()[k] != 0)
                 : (BW.elemAsDouble(k) != 0.0);
             if (!on) continue;
-            const double x = static_cast<double>(c);  // 0-indexed
-            const double y = static_cast<double>(r);
+            const double x = keel::as<double>(c);  // 0-indexed
+            const double y = keel::as<double>(r);
             for (keel::usize tk = 0; tk < ntheta; ++tk) {
                 const double rho_val = x * cosT[tk] + y * sinT[tk];
                 // bin = round(rho_val / rho_res) + q + 1 (1-indexed)
-                long bin = static_cast<long>(std::lround(rho_val / rho_res))
-                         + static_cast<long>(q);  // 0-indexed
-                if (bin < 0 || static_cast<keel::usize>(bin) >= nrho) continue;
+                long bin = keel::as<long>(std::lround(rho_val / rho_res))
+                         + keel::as<long>(q);  // 0-indexed
+                if (bin < 0 || keel::as<keel::usize>(bin) >= nrho) continue;
                 hp[tk * nrho + bin] += 1.0;
             }
         }
@@ -1120,7 +1120,7 @@ Value houghpeaks(const Value &H, keel::usize numpeaks,
             if (v > maxT) maxT = v;
         }
         const double thetaRes
-            = std::fabs(maxT - minT) / static_cast<double>(nT - 1);
+            = std::fabs(maxT - minT) / keel::as<double>(nT - 1);
         isThetaAntisym
             = std::fabs(minT + thetaRes * nhoodTheta) <= maxT;
     } else if (theta_deg.numel() == 0) {
@@ -1153,33 +1153,33 @@ Value houghpeaks(const Value &H, keel::usize numpeaks,
         peak_c.push_back(q);
 
         // Suppress nhood.
-        const long p1 = static_cast<long>(p) - static_cast<long>(halfR);
-        const long p2 = static_cast<long>(p) + static_cast<long>(halfR);
-        const long q1 = static_cast<long>(q) - static_cast<long>(halfT);
-        const long q2 = static_cast<long>(q) + static_cast<long>(halfT);
+        const long p1 = keel::as<long>(p) - keel::as<long>(halfR);
+        const long p2 = keel::as<long>(p) + keel::as<long>(halfR);
+        const long q1 = keel::as<long>(q) - keel::as<long>(halfT);
+        const long q2 = keel::as<long>(q) + keel::as<long>(halfT);
         for (long qq = q1; qq <= q2; ++qq) {
             for (long pp = p1; pp <= p2; ++pp) {
                 // Out-of-bounds in rho: drop.
-                if (pp < 0 || pp >= static_cast<long>(nrho)) continue;
+                if (pp < 0 || pp >= keel::as<long>(nrho)) continue;
                 long qWrap = qq;
                 long pWrap = pp;
-                if (qWrap < 0 || qWrap >= static_cast<long>(ntheta)) {
+                if (qWrap < 0 || qWrap >= keel::as<long>(ntheta)) {
                     if (isThetaAntisym) {
                         if (qWrap < 0) {
-                            qWrap += static_cast<long>(ntheta);
-                            pWrap = static_cast<long>(nrho) - 1 - pp;
+                            qWrap += keel::as<long>(ntheta);
+                            pWrap = keel::as<long>(nrho) - 1 - pp;
                         } else {
-                            qWrap -= static_cast<long>(ntheta);
-                            pWrap = static_cast<long>(nrho) - 1 - pp;
+                            qWrap -= keel::as<long>(ntheta);
+                            pWrap = keel::as<long>(nrho) - 1 - pp;
                         }
-                        if (pWrap < 0 || pWrap >= static_cast<long>(nrho))
+                        if (pWrap < 0 || pWrap >= keel::as<long>(nrho))
                             continue;
                     } else {
                         continue;
                     }
                 }
-                Hwork[static_cast<keel::usize>(qWrap) * nrho
-                    + static_cast<keel::usize>(pWrap)] = 0.0;
+                Hwork[keel::as<keel::usize>(qWrap) * nrho
+                    + keel::as<keel::usize>(pWrap)] = 0.0;
             }
         }
     }
@@ -1188,8 +1188,8 @@ Value houghpeaks(const Value &H, keel::usize numpeaks,
     const keel::usize nP = peak_r.size();
     Value P = Value::matrix(nP, 2, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < nP; ++i) {
-        P.doubleDataMut()[i]      = static_cast<double>(peak_r[i] + 1);
-        P.doubleDataMut()[nP + i] = static_cast<double>(peak_c[i] + 1);
+        P.doubleDataMut()[i]      = keel::as<double>(peak_r[i] + 1);
+        P.doubleDataMut()[nP + i] = keel::as<double>(peak_c[i] + 1);
     }
     return P;
 }
@@ -1257,8 +1257,8 @@ Value houghlines(const Value &BW, const Value &theta_deg,
                 ? (BW.logicalData()[k] != 0)
                 : (BW.elemAsDouble(k) != 0.0);
             if (!on) continue;
-            px.push_back(static_cast<double>(c));
-            py.push_back(static_cast<double>(r));
+            px.push_back(keel::as<double>(c));
+            py.push_back(keel::as<double>(r));
         }
     }
     const keel::usize nP = px.size();
@@ -1266,7 +1266,7 @@ Value houghlines(const Value &BW, const Value &theta_deg,
     constexpr double DEG2RAD = M_PI / 180.0;
     const double rho_first = rho.elemAsDouble(0);
     const double rho_last  = rho.elemAsDouble(nrho - 1);
-    const double slope     = static_cast<double>(nrho - 1)
+    const double slope     = keel::as<double>(nrho - 1)
                            / (rho_last - rho_first);
     const double fillgap_sq   = fillgap   * fillgap;
     const double minlength_sq = minlength * minlength;
@@ -1285,9 +1285,9 @@ Value houghlines(const Value &BW, const Value &theta_deg,
     cseg.reserve(nP / 4);
 
     for (keel::usize k = 0; k < nPeaks; ++k) {
-        const long rbin = static_cast<long>(peaks.elemAsDouble(k));
-        const long cbin = static_cast<long>(peaks.elemAsDouble(nPeaks + k));
-        if (cbin < 1 || cbin > static_cast<long>(ntheta)) continue;
+        const long rbin = keel::as<long>(peaks.elemAsDouble(k));
+        const long cbin = keel::as<long>(peaks.elemAsDouble(nPeaks + k));
+        if (cbin < 1 || cbin > keel::as<long>(ntheta)) continue;
         const double theta_c = theta_deg.elemAsDouble(cbin - 1) * DEG2RAD;
         const double cosT = std::cos(theta_c);
         const double sinT = std::sin(theta_c);
@@ -1296,7 +1296,7 @@ Value houghlines(const Value &BW, const Value &theta_deg,
         idx.clear();
         for (keel::usize i = 0; i < nP; ++i) {
             const double rho_xy = px[i] * cosT + py[i] * sinT;
-            const long bin = static_cast<long>(std::lround(
+            const long bin = keel::as<long>(std::lround(
                 slope * (rho_xy - rho_first) + 1.0));
             if (bin == rbin) idx.push_back(i);
         }
@@ -1305,8 +1305,8 @@ Value houghlines(const Value &BW, const Value &theta_deg,
         // Convert back to 1-based (r, c).
         rseg.clear(); cseg.clear();
         for (keel::usize i : idx) {
-            rseg.push_back(static_cast<keel::usize>(py[i]) + 1);
-            cseg.push_back(static_cast<keel::usize>(px[i]) + 1);
+            rseg.push_back(keel::as<keel::usize>(py[i]) + 1);
+            cseg.push_back(keel::as<keel::usize>(px[i]) + 1);
         }
 
         // Determine sort key: r_range vs c_range.
@@ -1344,8 +1344,8 @@ Value houghlines(const Value &BW, const Value &theta_deg,
         xs.reserve(rseg.size());
         ys.reserve(rseg.size());
         for (keel::usize i : order) {
-            xs.push_back(static_cast<long>(cseg[i]));
-            ys.push_back(static_cast<long>(rseg[i]));
+            xs.push_back(keel::as<long>(cseg[i]));
+            ys.push_back(keel::as<long>(rseg[i]));
         }
 
         // diff_sq = (xs[i+1]-xs[i])^2 + (ys[i+1]-ys[i])^2.
@@ -1354,8 +1354,8 @@ Value houghlines(const Value &BW, const Value &theta_deg,
         for (keel::usize i = 0; i + 1 < xs.size(); ++i) {
             const long dx = xs[i + 1] - xs[i];
             const long dy = ys[i + 1] - ys[i];
-            const double d2 = static_cast<double>(dx) * dx
-                            + static_cast<double>(dy) * dy;
+            const double d2 = keel::as<double>(dx) * dx
+                            + keel::as<double>(dy) * dy;
             if (d2 > fillgap_sq) gap_at.push_back(i + 1);  // 1-based start
         }
         // Segments split by gap_at indices: idx = [0; gap_at; size].
@@ -1375,14 +1375,14 @@ Value houghlines(const Value &BW, const Value &theta_deg,
             const long p2x = xs[hi - 1];
             const long p2y = ys[hi - 1];
             const double linelen_sq
-                = static_cast<double>(p2x - p1x) * (p2x - p1x)
-                + static_cast<double>(p2y - p1y) * (p2y - p1y);
+                = keel::as<double>(p2x - p1x) * (p2x - p1x)
+                + keel::as<double>(p2y - p1y) * (p2y - p1y);
             if (linelen_sq >= minlength_sq) {
                 Seg s;
-                s.p1x = static_cast<double>(p1x);
-                s.p1y = static_cast<double>(p1y);
-                s.p2x = static_cast<double>(p2x);
-                s.p2y = static_cast<double>(p2y);
+                s.p1x = keel::as<double>(p1x);
+                s.p1y = keel::as<double>(p1y);
+                s.p2x = keel::as<double>(p2x);
+                s.p2y = keel::as<double>(p2y);
                 s.theta = theta_deg.elemAsDouble(cbin - 1);
                 s.rho   = rho.elemAsDouble(rbin - 1);
                 segs.push_back(s);
@@ -1558,7 +1558,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
         Gx[i] = gx;
         Gy[i] = gy;
         const double gm = useSingle
-            ? static_cast<double>(std::hypot(static_cast<float>(gx), static_cast<float>(gy)))
+            ? keel::as<double>(std::hypot(keel::as<float>(gx), keel::as<float>(gy)))
             : std::hypot(gx, gy);
         gradMag[i] = gm;
         if (gm > Gmax) Gmax = gm;
@@ -1570,9 +1570,9 @@ imfindcircles(const Value &A, double rmin, double rmax,
         Value Gnorm = Value::matrix(M, N, useSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
         if (useSingle) {
             float *p = Gnorm.singleDataMut();
-            const float gmaxF = static_cast<float>(Gmax);
+            const float gmaxF = keel::as<float>(Gmax);
             for (keel::usize i = 0; i < MN; ++i) {
-                p[i] = static_cast<float>(gradMag[i]) / gmaxF;
+                p[i] = keel::as<float>(gradMag[i]) / gmaxF;
             }
         } else {
             double *p = Gnorm.doubleDataMut();
@@ -1585,7 +1585,7 @@ imfindcircles(const Value &A, double rmin, double rmax,
     }
 
     const double t = useSingle
-        ? static_cast<double>(static_cast<float>(Gmax) * static_cast<float>(edgeThresh))
+        ? keel::as<double>(keel::as<float>(Gmax) * keel::as<float>(edgeThresh))
         : (Gmax * edgeThresh);
 
     struct EdgePix {
@@ -1601,14 +1601,14 @@ imfindcircles(const Value &A, double rmin, double rmax,
             const keel::usize idx = c * M + r;
             if (gradMag[idx] > t) {
                 const double ux = useSingle
-                    ? static_cast<double>(static_cast<float>(Gx[idx]) / static_cast<float>(gradMag[idx]))
+                    ? keel::as<double>(keel::as<float>(Gx[idx]) / keel::as<float>(gradMag[idx]))
                     : (Gx[idx] / gradMag[idx]);
                 const double uy = useSingle
-                    ? static_cast<double>(static_cast<float>(Gy[idx]) / static_cast<float>(gradMag[idx]))
+                    ? keel::as<double>(keel::as<float>(Gy[idx]) / keel::as<float>(gradMag[idx]))
                     : (Gy[idx] / gradMag[idx]);
                 edges.push_back({
-                    static_cast<double>(c + 1),
-                    static_cast<double>(r + 1),
+                    keel::as<double>(c + 1),
+                    keel::as<double>(r + 1),
                     ux,
                     uy
                 });
@@ -1648,15 +1648,15 @@ imfindcircles(const Value &A, double rmin, double rmax,
     }
 
     keel::Array<double> accumRe(MN, 0.0), accumIm(MN, 0.0);
-    const long Ml = static_cast<long>(M);
-    const long Nl = static_cast<long>(N);
+    const long Ml = keel::as<long>(M);
+    const long Nl = keel::as<long>(N);
     for (const auto &ep : edges) {
         for (keel::usize k = 0; k < nR; ++k) {
             const long xc = std::lround(ep.ex + (-RR[k]) * ep.ux);
             const long yc = std::lround(ep.ey + (-RR[k]) * ep.uy);
             if (xc >= 1 && xc <= Nl && yc >= 1 && yc <= Ml) {
-                const keel::usize aidx = static_cast<keel::usize>(xc - 1) * M
-                                       + static_cast<keel::usize>(yc - 1);
+                const keel::usize aidx = keel::as<keel::usize>(xc - 1) * M
+                                       + keel::as<keel::usize>(yc - 1);
                 accumRe[aidx] += w0_re[k];
                 accumIm[aidx] += w0_im[k];
             }
@@ -1689,14 +1689,14 @@ imfindcircles(const Value &A, double rmin, double rmax,
             for (keel::usize r = 0; r < M; ++r) {
                 keel::usize k = 0;
                 for (int dc = -2; dc <= 2; ++dc) {
-                    const long nc = static_cast<long>(c) + dc;
+                    const long nc = keel::as<long>(c) + dc;
                     for (int dr = -2; dr <= 2; ++dr) {
-                        const long nr = static_cast<long>(r) + dr;
+                        const long nr = keel::as<long>(r) + dr;
                         if (nr < 0 || nr >= Ml || nc < 0 || nc >= Nl) {
                             win[k++] = 0.0;
                         } else {
-                            win[k++] = accumAbs[static_cast<keel::usize>(nc) * M
-                                              + static_cast<keel::usize>(nr)];
+                            win[k++] = accumAbs[keel::as<keel::usize>(nc) * M
+                                              + keel::as<keel::usize>(nr)];
                         }
                     }
                 }
@@ -1745,14 +1745,14 @@ imfindcircles(const Value &A, double rmin, double rmax,
         keel::usize head = 0;
         while (head < q.size()) {
             const keel::usize curr = q[head++];
-            const long r = static_cast<long>(curr % M);
-            const long c = static_cast<long>(curr / M);
+            const long r = keel::as<long>(curr % M);
+            const long c = keel::as<long>(curr / M);
             for (int k = 0; k < 8; ++k) {
                 const long nr = r + dr8[k];
                 const long nc = c + dc8[k];
                 if (nr < 0 || nr >= Ml || nc < 0 || nc >= Nl) continue;
-                const keel::usize nb = static_cast<keel::usize>(nc) * M
-                                     + static_cast<keel::usize>(nr);
+                const keel::usize nb = keel::as<keel::usize>(nc) * M
+                                     + keel::as<keel::usize>(nr);
                 if (hd[nb] > v0) {
                     hasHigher = true;
                 } else if (hd[nb] == v0 && !visited[nb]) {
@@ -1766,8 +1766,8 @@ imfindcircles(const Value &A, double rmin, double rmax,
             double wsum = 0.0, xsum = 0.0, ysum = 0.0;
             for (keel::usize idx : comp) {
                 const double w = accumAbs[idx];
-                const double r1 = static_cast<double>(idx % M) + 1.0;
-                const double c1 = static_cast<double>(idx / M) + 1.0;
+                const double r1 = keel::as<double>(idx % M) + 1.0;
+                const double c1 = keel::as<double>(idx / M) + 1.0;
                 wsum += w;
                 xsum += c1 * w;
                 ysum += r1 * w;
@@ -1777,8 +1777,8 @@ imfindcircles(const Value &A, double rmin, double rmax,
                 const double yc = ysum / wsum;
                 const long r_idx = std::clamp<long>(std::lround(yc) - 1, 0, Ml - 1);
                 const long c_idx = std::clamp<long>(std::lround(xc) - 1, 0, Nl - 1);
-                const double met = hd[static_cast<keel::usize>(c_idx) * M
-                                    + static_cast<keel::usize>(r_idx)];
+                const double met = hd[keel::as<keel::usize>(c_idx) * M
+                                    + keel::as<keel::usize>(r_idx)];
                 if (met >= accumThresh) {
                     cands.push_back({xc, yc, met});
                 }
@@ -1811,43 +1811,43 @@ imfindcircles(const Value &A, double rmin, double rmax,
         } else if (methodLower == "phasecode") {
             const long r_idx = std::clamp<long>(std::lround(cands[k].yc) - 1, 0, Ml - 1);
             const long c_idx = std::clamp<long>(std::lround(cands[k].xc) - 1, 0, Nl - 1);
-            const keel::usize aidx = static_cast<keel::usize>(c_idx) * M
-                                   + static_cast<keel::usize>(r_idx);
+            const keel::usize aidx = keel::as<keel::usize>(c_idx) * M
+                                   + keel::as<keel::usize>(r_idx);
             const double cenPhase = std::atan2(accumIm[aidx], accumRe[aidx]);
             rp[k] = std::exp(((cenPhase + M_PI) / (2.0 * M_PI) * (lnRend - lnR1)) + lnR1);
         } else {
             // Two-stage radial histogram around (xc, yc).
-            const long left   = std::max<long>(static_cast<long>(std::floor(cands[k].xc - rmax)), 1);
-            const long right  = std::min<long>(static_cast<long>(std::ceil(cands[k].xc + rmax)), Nl);
-            const long top    = std::max<long>(static_cast<long>(std::floor(cands[k].yc - rmax)), 1);
-            const long bottom = std::min<long>(static_cast<long>(std::ceil(cands[k].yc + rmax)), Ml);
-            const long r1_int = static_cast<long>(std::lround(rmin));
-            const long r2_int = static_cast<long>(std::lround(rmax));
-            const keel::usize nBins = static_cast<keel::usize>(r2_int - r1_int + 1);
+            const long left   = std::max<long>(keel::as<long>(std::floor(cands[k].xc - rmax)), 1);
+            const long right  = std::min<long>(keel::as<long>(std::ceil(cands[k].xc + rmax)), Nl);
+            const long top    = std::max<long>(keel::as<long>(std::floor(cands[k].yc - rmax)), 1);
+            const long bottom = std::min<long>(keel::as<long>(std::ceil(cands[k].yc + rmax)), Ml);
+            const long r1_int = keel::as<long>(std::lround(rmin));
+            const long r2_int = keel::as<long>(std::lround(rmax));
+            const keel::usize nBins = keel::as<keel::usize>(r2_int - r1_int + 1);
             keel::Array<double> hbin(nBins, 0.0);
             for (long cc = left; cc <= right; ++cc) {
                 for (long rr = top; rr <= bottom; ++rr) {
                     const long rbin = std::lround(std::hypot(
-                        static_cast<double>(cc) - cands[k].xc,
-                        static_cast<double>(rr) - cands[k].yc));
+                        keel::as<double>(cc) - cands[k].xc,
+                        keel::as<double>(rr) - cands[k].yc));
                     if (rbin >= r1_int && rbin <= r2_int) {
-                        hbin[static_cast<keel::usize>(rbin - r1_int)] +=
-                            gradMag[static_cast<keel::usize>(cc - 1) * M
-                                  + static_cast<keel::usize>(rr - 1)];
+                        hbin[keel::as<keel::usize>(rbin - r1_int)] +=
+                            gradMag[keel::as<keel::usize>(cc - 1) * M
+                                  + keel::as<keel::usize>(rr - 1)];
                     }
                 }
             }
             double bestH = -1.0;
             long bestR = r1_int;
             for (keel::usize b = 0; b < nBins; ++b) {
-                const double rcur = static_cast<double>(r1_int + static_cast<long>(b));
+                const double rcur = keel::as<double>(r1_int + keel::as<long>(b));
                 const double hnorm = hbin[b] / (2.0 * M_PI * rcur);
                 if (hnorm > bestH) {
                     bestH = hnorm;
-                    bestR = r1_int + static_cast<long>(b);
+                    bestR = r1_int + keel::as<long>(b);
                 }
             }
-            rp[k] = static_cast<double>(bestR);
+            rp[k] = keel::as<double>(bestR);
         }
     }
 

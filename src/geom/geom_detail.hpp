@@ -30,23 +30,23 @@ inline void writeNative(Value &out, keel::usize i, double v, ValueType t) {
         case ValueType::DOUBLE:
             out.doubleDataMut()[i] = v; break;
         case ValueType::SINGLE:
-            out.singleDataMut()[i] = static_cast<float>(v); break;
+            out.singleDataMut()[i] = keel::as<float>(v); break;
         case ValueType::UINT8: {
             if (v < 0.0) v = 0.0;
             if (v > 255.0) v = 255.0;
-            out.uint8DataMut()[i] = static_cast<keel::u8>(std::lround(v));
+            out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v));
             break;
         }
         case ValueType::UINT16: {
             if (v < 0.0) v = 0.0;
             if (v > 65535.0) v = 65535.0;
-            out.uint16DataMut()[i] = static_cast<keel::u16>(std::lround(v));
+            out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v));
             break;
         }
         case ValueType::INT16: {
             if (v < -32768.0) v = -32768.0;
             if (v > 32767.0)  v = 32767.0;
-            out.int16DataMut()[i] = static_cast<keel::i16>(std::lround(v));
+            out.int16DataMut()[i] = keel::as<keel::i16>(std::lround(v));
             break;
         }
         case ValueType::LOGICAL:

@@ -62,13 +62,13 @@ Size3 parseHsize(const Value &hsize)
 {
     if (hsize.isEmpty() || hsize.isUnset()) return {5, 5, 5};
     if (hsize.isScalar()) {
-        const keel::usize n = static_cast<keel::usize>(hsize.toScalar());
+        const keel::usize n = keel::as<keel::usize>(hsize.toScalar());
         return {n, n, n};
     }
     if (hsize.numel() == 3) {
-        return {static_cast<keel::usize>(hsize.elemAsDouble(0)),
-                static_cast<keel::usize>(hsize.elemAsDouble(1)),
-                static_cast<keel::usize>(hsize.elemAsDouble(2))};
+        return {keel::as<keel::usize>(hsize.elemAsDouble(0)),
+                keel::as<keel::usize>(hsize.elemAsDouble(1)),
+                keel::as<keel::usize>(hsize.elemAsDouble(2))};
     }
     throw Error("fspecial3: hsize must be scalar or 3-element vector",
                 0, 0, "fspecial3", "", "numkit:fspecial3:BadHsize");
@@ -196,7 +196,7 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
     fspecial3_argcheck(type, a1, a2);
     if (type == "average") {
         Size3 s = parseHsize(a1);
-        const double v = 1.0 / static_cast<double>(s.H * s.W * s.P);
+        const double v = 1.0 / keel::as<double>(s.H * s.W * s.P);
         return makeKernel3(mr, s, [v](keel::usize, keel::usize, keel::usize) { return v; });
     }
 
@@ -205,13 +205,13 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         // sigma element 0 → rows, 1 → cols, 2 → pages (MATLAB convention).
         Sig3 sg = parseSigma3(a2, 1.0);
         const double sr = sg.sx, sc = sg.sy, sp = sg.sz;
-        const double cy = (static_cast<double>(s.H) - 1.0) / 2.0;
-        const double cx = (static_cast<double>(s.W) - 1.0) / 2.0;
-        const double cz = (static_cast<double>(s.P) - 1.0) / 2.0;
+        const double cy = (keel::as<double>(s.H) - 1.0) / 2.0;
+        const double cx = (keel::as<double>(s.W) - 1.0) / 2.0;
+        const double cz = (keel::as<double>(s.P) - 1.0) / 2.0;
         Value out = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = (static_cast<double>(r) - cy) / sr;
-            const double dc = (static_cast<double>(c) - cx) / sc;
-            const double dp = (static_cast<double>(p) - cz) / sp;
+            const double dr = (keel::as<double>(r) - cy) / sr;
+            const double dc = (keel::as<double>(c) - cx) / sc;
+            const double dp = (keel::as<double>(p) - cz) / sp;
             return std::exp(-0.5 * (dr*dr + dc*dc + dp*dp));
         });
         double sum = 0.0;
@@ -233,16 +233,16 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
             throw Error("fspecial3: ellipsoid semiaxes must be positive",
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadSemiaxes");
         // Grid half-extent = ceil(semiaxis); size = 2·half + 1.
-        Size3 s{ static_cast<keel::usize>(2.0 * std::ceil(ar) + 1.0),
-                 static_cast<keel::usize>(2.0 * std::ceil(ac) + 1.0),
-                 static_cast<keel::usize>(2.0 * std::ceil(ap) + 1.0) };
-        const double cy = (static_cast<double>(s.H) - 1.0) / 2.0;
-        const double cx = (static_cast<double>(s.W) - 1.0) / 2.0;
-        const double cz = (static_cast<double>(s.P) - 1.0) / 2.0;
+        Size3 s{ keel::as<keel::usize>(2.0 * std::ceil(ar) + 1.0),
+                 keel::as<keel::usize>(2.0 * std::ceil(ac) + 1.0),
+                 keel::as<keel::usize>(2.0 * std::ceil(ap) + 1.0) };
+        const double cy = (keel::as<double>(s.H) - 1.0) / 2.0;
+        const double cx = (keel::as<double>(s.W) - 1.0) / 2.0;
+        const double cz = (keel::as<double>(s.P) - 1.0) / 2.0;
         Value out = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = (static_cast<double>(r) - cy) / ar;
-            const double dc = (static_cast<double>(c) - cx) / ac;
-            const double dp = (static_cast<double>(p) - cz) / ap;
+            const double dr = (keel::as<double>(r) - cy) / ar;
+            const double dc = (keel::as<double>(c) - cx) / ac;
+            const double dp = (keel::as<double>(p) - cz) / ap;
             return (dr*dr + dc*dc + dp*dp <= 1.0) ? 1.0 : 0.0;
         });
         double sum = 0.0;
@@ -279,9 +279,9 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         const double center = -6.0 + 3.0 * g1 + 4.0 * g2;
         Size3 ks{3, 3, 3};
         return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> double {
-            const int dr = static_cast<int>(r) - 1;
-            const int dc = static_cast<int>(c) - 1;
-            const int dp = static_cast<int>(p) - 1;
+            const int dr = keel::as<int>(r) - 1;
+            const int dc = keel::as<int>(c) - 1;
+            const int dp = keel::as<int>(p) - 1;
             const int d2 = dr*dr + dc*dc + dp*dp;
             if (d2 == 0) return center;
             if (d2 == 1) return face;
@@ -297,15 +297,15 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         Size3 s = parseHsize(a1);
         Sig3 sg = parseSigma3(a2, 1.0);
         const double sr = sg.sx, sc = sg.sy, sp = sg.sz;
-        const double cy = (static_cast<double>(s.H) - 1.0) / 2.0;
-        const double cx = (static_cast<double>(s.W) - 1.0) / 2.0;
-        const double cz = (static_cast<double>(s.P) - 1.0) / 2.0;
+        const double cy = (keel::as<double>(s.H) - 1.0) / 2.0;
+        const double cx = (keel::as<double>(s.W) - 1.0) / 2.0;
+        const double cz = (keel::as<double>(s.P) - 1.0) / 2.0;
         const keel::usize N = s.H * s.W * s.P;
         // Step 1: normalised Gaussian.
         Value gK = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = (static_cast<double>(r) - cy) / sr;
-            const double dc = (static_cast<double>(c) - cx) / sc;
-            const double dp = (static_cast<double>(p) - cz) / sp;
+            const double dr = (keel::as<double>(r) - cy) / sr;
+            const double dc = (keel::as<double>(c) - cx) / sc;
+            const double dp = (keel::as<double>(p) - cz) / sp;
             return std::exp(-0.5 * (dr*dr + dc*dc + dp*dp));
         });
         double gsum = 0.0;
@@ -315,9 +315,9 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         const double *gd = gK.doubleData();
         // Step 2: multiply normalised G by the Laplacian factor.
         Value out = makeKernel3(mr, s, [&](keel::usize r, keel::usize c, keel::usize p) {
-            const double dr = static_cast<double>(r) - cy;
-            const double dc = static_cast<double>(c) - cx;
-            const double dp = static_cast<double>(p) - cz;
+            const double dr = keel::as<double>(r) - cy;
+            const double dc = keel::as<double>(c) - cx;
+            const double dp = keel::as<double>(p) - cz;
             const double Gn = gd[lin3(r, c, p, s.H, s.W)] * inv;  // normalised Gaussian
             const double lap = (dr*dr - sr2) / (sr2*sr2)
                              + (dc*dc - sc2) / (sc2*sc2)
@@ -328,7 +328,7 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         double mean = 0.0;
         const double *od = out.doubleData();
         for (keel::usize i = 0; i < N; ++i) mean += od[i];
-        mean /= static_cast<double>(N);
+        mean /= keel::as<double>(N);
         double *odm = out.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i) odm[i] -= mean;
         return out;
@@ -346,13 +346,13 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2,
         const double w1 = isSobel ? 2.0 : 1.0;
         Size3 ks{3, 3, 3};
         return makeKernel3(mr, ks, [&](keel::usize r, keel::usize c, keel::usize p) -> double {
-            const int dr = static_cast<int>(r) - 1;
-            const int dc = static_cast<int>(c) - 1;
-            const int dp = static_cast<int>(p) - 1;
+            const int dr = keel::as<int>(r) - 1;
+            const int dc = keel::as<int>(c) - 1;
+            const int dp = keel::as<int>(p) - 1;
             auto sm = [&](int x) -> double { return (x == 0) ? w1 : w0; };
-            if (dir == "X" || dir == "x") return static_cast<double>(-dc) * sm(dr) * sm(dp);
-            if (dir == "Y" || dir == "y") return static_cast<double>(-dr) * sm(dc) * sm(dp);
-            if (dir == "Z" || dir == "z") return static_cast<double>(-dp) * sm(dr) * sm(dc);
+            if (dir == "X" || dir == "x") return keel::as<double>(-dc) * sm(dr) * sm(dp);
+            if (dir == "Y" || dir == "y") return keel::as<double>(-dr) * sm(dc) * sm(dp);
+            if (dir == "Z" || dir == "z") return keel::as<double>(-dp) * sm(dr) * sm(dc);
             throw Error("fspecial3: direction must be 'X', 'Y', or 'Z'",
                         0, 0, "fspecial3", "", "numkit:fspecial3:BadDir");
         });
@@ -387,21 +387,21 @@ Value fwind2(keel::Allocator *mr, const Value &Hd, const Value &w)
     // Compute h(m,n) = (1/(MN)) Σ_p Σ_q Hd(p,q) * exp(j 2π (mp/M + nq/N))
     // Hd is assumed real-symmetric so the imaginary part cancels out.
     // Output centered: m = -(H-1)/2 .. (H-1)/2, similarly n.
-    const double cM = (static_cast<double>(H) - 1.0) / 2.0;
-    const double cN = (static_cast<double>(W) - 1.0) / 2.0;
-    const double inv = 1.0 / static_cast<double>(H * W);
+    const double cM = (keel::as<double>(H) - 1.0) / 2.0;
+    const double cN = (keel::as<double>(W) - 1.0) / 2.0;
+    const double inv = 1.0 / keel::as<double>(H * W);
     for (keel::usize mi = 0; mi < H; ++mi) {
-        const double m = static_cast<double>(mi) - cM;
+        const double m = keel::as<double>(mi) - cM;
         for (keel::usize ni = 0; ni < W; ++ni) {
-            const double n = static_cast<double>(ni) - cN;
+            const double n = keel::as<double>(ni) - cN;
             double acc_re = 0.0;
             for (keel::usize p = 0; p < H; ++p) {
-                const double fp = static_cast<double>(p) - cM;  // freq index centered
+                const double fp = keel::as<double>(p) - cM;  // freq index centered
                 for (keel::usize q = 0; q < W; ++q) {
-                    const double fq = static_cast<double>(q) - cN;
+                    const double fq = keel::as<double>(q) - cN;
                     const double Hdv = Hd.elemAsDouble(p + q * H);
-                    const double phase = 2.0 * M_PI * (m * fp / static_cast<double>(H)
-                                                     + n * fq / static_cast<double>(W));
+                    const double phase = 2.0 * M_PI * (m * fp / keel::as<double>(H)
+                                                     + n * fq / keel::as<double>(W));
                     acc_re += Hdv * std::cos(phase);
                 }
             }

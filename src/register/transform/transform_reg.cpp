@@ -113,7 +113,7 @@ void psf2otf_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         const keel::usize n = args[1].numel();
         outsizeBuf.reserve(n);
         for (keel::usize i = 0; i < n; ++i)
-            outsizeBuf.push_back(static_cast<keel::usize>(args[1].elemAsDouble(i)));
+            outsizeBuf.push_back(keel::as<keel::usize>(args[1].elemAsDouble(i)));
     }
     outs[0] = psf2otf(args[0], keel::ArrayRef<keel::usize>(outsizeBuf.data(), outsizeBuf.size()), mr);
 }
@@ -223,7 +223,7 @@ void otf2psf_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         const keel::usize n = args[1].numel();
         outsizeBuf.reserve(n);
         for (keel::usize i = 0; i < n; ++i)
-            outsizeBuf.push_back(static_cast<keel::usize>(args[1].elemAsDouble(i)));
+            outsizeBuf.push_back(keel::as<keel::usize>(args[1].elemAsDouble(i)));
     }
     outs[0] = otf2psf(args[0], keel::ArrayRef<keel::usize>(outsizeBuf.data(), outsizeBuf.size()), mr);
 }
@@ -238,20 +238,20 @@ void checkerboard_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (s < 0.0 || s != std::floor(s))
             throw Error("checkerboard: SIDE must be a non-negative integer",
                         0, 0, "checkerboard", "", "numkit:checkerboard:side");
-        side = static_cast<keel::usize>(s);
+        side = keel::as<keel::usize>(s);
     }
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1)
-            M = N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
+            M = N = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(v, 2, "M", "checkerboard"), 2, "M", "checkerboard"));
         else if (v.numel() >= 2) {
-            M = static_cast<keel::usize>(v.elemAsDouble(0));
-            N = static_cast<keel::usize>(v.elemAsDouble(1));
+            M = keel::as<keel::usize>(v.elemAsDouble(0));
+            N = keel::as<keel::usize>(v.elemAsDouble(1));
         }
     }
     if (args.size() >= 3 && !args[2].isEmpty())
-        N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
+        N = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[2], 3, "N", "checkerboard"), 3, "N", "checkerboard"));
     outs[0] = checkerboard(side, M, N, ctx.engine->allocator());
 }

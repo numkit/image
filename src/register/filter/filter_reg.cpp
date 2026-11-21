@@ -130,15 +130,15 @@ Value nlfilter(const Value &A,
         const double d = v.toScalar();
         switch (outT) {
             case ValueType::DOUBLE:  B.doubleDataMut()[idx]  = d; break;
-            case ValueType::SINGLE:  B.singleDataMut()[idx]  = static_cast<float>(d); break;
-            case ValueType::UINT8:   B.uint8DataMut()[idx]   = static_cast<keel::u8>(d); break;
-            case ValueType::UINT16:  B.uint16DataMut()[idx]  = static_cast<keel::u16>(d); break;
-            case ValueType::UINT32:  B.uint32DataMut()[idx]  = static_cast<keel::u32>(d); break;
-            case ValueType::UINT64:  B.uint64DataMut()[idx]  = static_cast<keel::u64>(d); break;
-            case ValueType::INT8:    B.int8DataMut()[idx]    = static_cast<keel::i8>(d); break;
-            case ValueType::INT16:   B.int16DataMut()[idx]   = static_cast<keel::i16>(d); break;
-            case ValueType::INT32:   B.int32DataMut()[idx]   = static_cast<keel::i32>(d); break;
-            case ValueType::INT64:   B.int64DataMut()[idx]   = static_cast<keel::i64>(d); break;
+            case ValueType::SINGLE:  B.singleDataMut()[idx]  = keel::as<float>(d); break;
+            case ValueType::UINT8:   B.uint8DataMut()[idx]   = keel::as<keel::u8>(d); break;
+            case ValueType::UINT16:  B.uint16DataMut()[idx]  = keel::as<keel::u16>(d); break;
+            case ValueType::UINT32:  B.uint32DataMut()[idx]  = keel::as<keel::u32>(d); break;
+            case ValueType::UINT64:  B.uint64DataMut()[idx]  = keel::as<keel::u64>(d); break;
+            case ValueType::INT8:    B.int8DataMut()[idx]    = keel::as<keel::i8>(d); break;
+            case ValueType::INT16:   B.int16DataMut()[idx]   = keel::as<keel::i16>(d); break;
+            case ValueType::INT32:   B.int32DataMut()[idx]   = keel::as<keel::i32>(d); break;
+            case ValueType::INT64:   B.int64DataMut()[idx]   = keel::as<keel::i64>(d); break;
             case ValueType::LOGICAL: B.logicalDataMut()[idx] = d != 0.0 ? 1 : 0; break;
             default:
                 throw Error("nlfilter: unsupported fun output class",
@@ -276,11 +276,11 @@ Value colfilt(const Value &A,
             const keel::usize idx = k;
             switch (outT) {
                 case ValueType::DOUBLE: B.doubleDataMut()[idx]  = v; break;
-                case ValueType::SINGLE: B.singleDataMut()[idx]  = static_cast<float>(v); break;
-                case ValueType::UINT8:  B.uint8DataMut()[idx]   = static_cast<keel::u8>(v); break;
-                case ValueType::UINT16: B.uint16DataMut()[idx]  = static_cast<keel::u16>(v); break;
-                case ValueType::INT16:  B.int16DataMut()[idx]   = static_cast<keel::i16>(v); break;
-                case ValueType::INT32:  B.int32DataMut()[idx]   = static_cast<keel::i32>(v); break;
+                case ValueType::SINGLE: B.singleDataMut()[idx]  = keel::as<float>(v); break;
+                case ValueType::UINT8:  B.uint8DataMut()[idx]   = keel::as<keel::u8>(v); break;
+                case ValueType::UINT16: B.uint16DataMut()[idx]  = keel::as<keel::u16>(v); break;
+                case ValueType::INT16:  B.int16DataMut()[idx]   = keel::as<keel::i16>(v); break;
+                case ValueType::INT32:  B.int32DataMut()[idx]   = keel::as<keel::i32>(v); break;
                 case ValueType::LOGICAL: B.logicalDataMut()[idx] = v != 0 ? 1 : 0; break;
                 default:
                     throw Error("colfilt: unsupported fun output class",
@@ -347,11 +347,11 @@ Value colfilt(const Value &A,
             const keel::usize idx = j * H + i;
             switch (outT) {
                 case ValueType::DOUBLE: B.doubleDataMut()[idx]  = v; break;
-                case ValueType::SINGLE: B.singleDataMut()[idx]  = static_cast<float>(v); break;
-                case ValueType::UINT8:  B.uint8DataMut()[idx]   = static_cast<keel::u8>(v); break;
-                case ValueType::UINT16: B.uint16DataMut()[idx]  = static_cast<keel::u16>(v); break;
-                case ValueType::INT16:  B.int16DataMut()[idx]   = static_cast<keel::i16>(v); break;
-                case ValueType::INT32:  B.int32DataMut()[idx]   = static_cast<keel::i32>(v); break;
+                case ValueType::SINGLE: B.singleDataMut()[idx]  = keel::as<float>(v); break;
+                case ValueType::UINT8:  B.uint8DataMut()[idx]   = keel::as<keel::u8>(v); break;
+                case ValueType::UINT16: B.uint16DataMut()[idx]  = keel::as<keel::u16>(v); break;
+                case ValueType::INT16:  B.int16DataMut()[idx]   = keel::as<keel::i16>(v); break;
+                case ValueType::INT32:  B.int32DataMut()[idx]   = keel::as<keel::i32>(v); break;
                 case ValueType::LOGICAL: B.logicalDataMut()[idx] = v != 0 ? 1 : 0; break;
                 default:
                     throw Error("colfilt: unsupported fun output class",
@@ -540,13 +540,13 @@ void modefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             argcheck::expectedReal(args[1], 2, "window", "modefilt"), 2, "window", "modefilt");
                 if (input3D) fD = fH;
             } else if (args[1].numel() == 2) {
-                fH = static_cast<int>(args[1].elemAsDouble(0));
-                fW = static_cast<int>(args[1].elemAsDouble(1));
+                fH = keel::as<int>(args[1].elemAsDouble(0));
+                fW = keel::as<int>(args[1].elemAsDouble(1));
                 if (input3D) fD = 1;  // no 3rd dim filter specified
             } else if (args[1].numel() >= 3) {
-                fH = static_cast<int>(args[1].elemAsDouble(0));
-                fW = static_cast<int>(args[1].elemAsDouble(1));
-                fD = static_cast<int>(args[1].elemAsDouble(2));
+                fH = keel::as<int>(args[1].elemAsDouble(0));
+                fW = keel::as<int>(args[1].elemAsDouble(1));
+                fD = keel::as<int>(args[1].elemAsDouble(2));
             }
         }
     }
@@ -577,8 +577,8 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             fH = fW = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(fsArg, 2, "window", "integralBoxFilter"), 2, "window", "integralBoxFilter");
         } else if (fsArg.numel() == 2) {
-            fH = static_cast<int>(fsArg.elemAsDouble(0));
-            fW = static_cast<int>(fsArg.elemAsDouble(1));
+            fH = keel::as<int>(fsArg.elemAsDouble(0));
+            fW = keel::as<int>(fsArg.elemAsDouble(1));
         } else {
             throw Error("integralBoxFilter: filterSize must be a scalar or 2-element vector",
                         0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badSize");
@@ -588,7 +588,7 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 
     // MATLAB default NormalizationFactor = 1/(fH·fW) (mean); it is a
     // multiplier applied to the box sum, NOT a divisor.
-    double normFactor = 1.0 / (static_cast<double>(fH) * static_cast<double>(fW));
+    double normFactor = 1.0 / (keel::as<double>(fH) * keel::as<double>(fW));
     // NV-pair: NormalizationFactor.
     for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
@@ -619,9 +619,9 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             fH = fW = fP = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(fsArg, 2, "window", "integralBoxFilter3"), 2, "window", "integralBoxFilter3");
         } else if (fsArg.numel() == 3) {
-            fH = static_cast<int>(fsArg.elemAsDouble(0));
-            fW = static_cast<int>(fsArg.elemAsDouble(1));
-            fP = static_cast<int>(fsArg.elemAsDouble(2));
+            fH = keel::as<int>(fsArg.elemAsDouble(0));
+            fW = keel::as<int>(fsArg.elemAsDouble(1));
+            fP = keel::as<int>(fsArg.elemAsDouble(2));
         } else {
             throw Error("integralBoxFilter3: filterSize must be a scalar or 3-element vector",
                         0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badSize");
@@ -630,8 +630,8 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
 
     // MATLAB default NormalizationFactor = 1/prod(filterSize) (mean).
-    double normFactor = 1.0 / (static_cast<double>(fH) * static_cast<double>(fW)
-                               * static_cast<double>(fP));
+    double normFactor = 1.0 / (keel::as<double>(fH) * keel::as<double>(fW)
+                               * keel::as<double>(fP));
     for (keel::usize i = nvStart; i + 1 < args.size(); i += 2) {
         if (!args[i].isChar() && !args[i].isString())
             throw Error("integralBoxFilter3: name-value name must be a string",
@@ -659,9 +659,9 @@ void medfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             M = N = P = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(v, 2, "window", "medfilt3"), 2, "window", "medfilt3");
         } else if (v.numel() >= 3) {
-            M = static_cast<int>(v.elemAsDouble(0));
-            N = static_cast<int>(v.elemAsDouble(1));
-            P = static_cast<int>(v.elemAsDouble(2));
+            M = keel::as<int>(v.elemAsDouble(0));
+            N = keel::as<int>(v.elemAsDouble(1));
+            P = keel::as<int>(v.elemAsDouble(2));
         }
     }
     outs[0] = medfilt3(args[0], M, N, P, ctx.engine->allocator());
@@ -701,8 +701,8 @@ void convmtx2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.numel() != 2)
             throw Error("convmtx2: 2nd arg must be a 2-element vector or pair (m, n)",
                         0, 0, "convmtx2", "", "numkit:convmtx2:size");
-        m = static_cast<int>(v.elemAsDouble(0));
-        n = static_cast<int>(v.elemAsDouble(1));
+        m = keel::as<int>(v.elemAsDouble(0));
+        n = keel::as<int>(v.elemAsDouble(1));
     }
     outs[0] = convmtx2(args[0], m, n, ctx.engine->allocator());
 }
@@ -734,15 +734,15 @@ void freqz2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
         if (v.numel() == 1) {
-            M = N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
+            M = N = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(v, 2, "n", "freqz2"), 2, "n", "freqz2"));
         } else if (v.numel() >= 2) {
-            M = static_cast<keel::usize>(v.elemAsDouble(0));
-            N = static_cast<keel::usize>(v.elemAsDouble(1));
+            M = keel::as<keel::usize>(v.elemAsDouble(0));
+            N = keel::as<keel::usize>(v.elemAsDouble(1));
         }
     }
     if (args.size() >= 3 && !args[2].isEmpty())
-        N = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
+        N = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[2], 3, "n", "freqz2"), 3, "n", "freqz2"));
     auto [H, f1, f2] = freqz2(args[0], M, N, ctx.engine->allocator());
     outs[0] = std::move(H);
@@ -1004,8 +1004,8 @@ void wiener2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             // Single scalar = noise (Octave convention when no nhood).
             noise = args[1].toScalar();
         } else if (args[1].numel() >= 2) {
-            nh = static_cast<keel::usize>(args[1].elemAsDouble(0));
-            nw = static_cast<keel::usize>(args[1].elemAsDouble(1));
+            nh = keel::as<keel::usize>(args[1].elemAsDouble(0));
+            nw = keel::as<keel::usize>(args[1].elemAsDouble(1));
         }
     }
     if (args.size() >= 3 && !args[2].isEmpty())
@@ -1068,8 +1068,8 @@ void nlfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (nh.numel() != 2)
         throw Error("nlfilter: neighbourhood must be a 2-element vector",
                     0, 0, "nlfilter", "", "numkit:nlfilter:nhood");
-    const keel::usize m = static_cast<keel::usize>(nh.elemAsDouble(0));
-    const keel::usize n = static_cast<keel::usize>(nh.elemAsDouble(1));
+    const keel::usize m = keel::as<keel::usize>(nh.elemAsDouble(0));
+    const keel::usize n = keel::as<keel::usize>(nh.elemAsDouble(1));
     if (!fn.isFuncHandle())
         throw Error("nlfilter: 3rd argument must be a function handle",
                     0, 0, "nlfilter", "", "numkit:nlfilter:fun");
@@ -1106,8 +1106,8 @@ void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (nh.numel() != 2)
         throw Error("colfilt: neighbourhood must be a 2-element vector",
                     0, 0, "colfilt", "", "numkit:colfilt:nhood");
-    const keel::usize m = static_cast<keel::usize>(nh.elemAsDouble(0));
-    const keel::usize n = static_cast<keel::usize>(nh.elemAsDouble(1));
+    const keel::usize m = keel::as<keel::usize>(nh.elemAsDouble(0));
+    const keel::usize n = keel::as<keel::usize>(nh.elemAsDouble(1));
 
     // Detect optional [mblock nblock] — present iff arg[k+1] is a
     // 2-element numeric vector AND arg[k+2] is a string AND arg[k+3]
@@ -1252,7 +1252,7 @@ void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                             "positive integer",
                             0, 0, "imdiffusefilt", "",
                             "numkit:imdiffusefilt:n");
-            N = static_cast<keel::usize>(v);
+            N = keel::as<keel::usize>(v);
         } else if (nref.equals_ignore_ascii_case("connectivity")) {
             connectivity = to_lower_ascii(args[i + 1].toString());
         } else if (nref.equals_ignore_ascii_case("conductionmethod")) {
@@ -1298,8 +1298,8 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     argcheck::expectedReal(v, int(i) + 2, "Neighborhood", "imguidedfilter"),
                     int(i) + 2, "Neighborhood", "imguidedfilter");
             } else if (v.numel() == 2) {
-                const int n0 = static_cast<int>(v.elemAsDouble(0));
-                const int n1 = static_cast<int>(v.elemAsDouble(1));
+                const int n0 = keel::as<int>(v.elemAsDouble(0));
+                const int n1 = keel::as<int>(v.elemAsDouble(1));
                 if (n0 != n1)
                     throw Error("imguidedfilter: non-square NeighborhoodSize "
                                 "not yet supported",

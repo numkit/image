@@ -270,9 +270,9 @@ void bwunpack_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "bwunpack");
-    keel::usize M = static_cast<keel::usize>(-1);
+    keel::usize M = keel::as<keel::usize>(-1);
     if (args.size() >= 2 && !args[1].isEmpty())
-        M = static_cast<keel::usize>(argcheck::expectedPositiveInteger(
+        M = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "M", "bwunpack"), 2, "M", "bwunpack"));
     outs[0] = bwunpack(args[0], M, ctx.engine->allocator());
 }
@@ -372,7 +372,7 @@ void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (args.size() >= 3 && !args[2].isEmpty()) {
         const double v = args[2].toScalar();
         if (std::isinf(v)) n = -1;
-        else               n = static_cast<int>(v);
+        else               n = keel::as<int>(v);
     }
     outs[0] = bwmorph(args[0], op, n, ctx.engine->allocator());
 }
@@ -405,7 +405,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 throw Error("bwtraceboundary: N must be positive or Inf",
                             0, 0, "bwtraceboundary", "",
                             "numkit:bwtraceboundary:n");
-            m_max = static_cast<keel::usize>(v);
+            m_max = keel::as<keel::usize>(v);
         }
     }
     if (args.size() >= 6 && !args[5].isEmpty()) {

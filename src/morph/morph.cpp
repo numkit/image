@@ -111,8 +111,8 @@ struct GridPt {
 };
 struct GridPtHash {
     keel::u64 operator()(const GridPt &p) const noexcept {
-        const keel::u64 k = (static_cast<keel::u64>(static_cast<keel::u32>(p.r)) << 32)
-                          | static_cast<keel::u64>(static_cast<keel::u32>(p.c));
+        const keel::u64 k = (keel::as<keel::u64>(keel::as<keel::u32>(p.r)) << 32)
+                          | keel::as<keel::u64>(keel::as<keel::u32>(p.c));
         return keel::Hash<keel::u64>{}(k);
     }
 };
@@ -397,7 +397,7 @@ Value morph_flat_u8(const Value &I, const SEInfo &se, keel::Allocator *mr)
                 else { if (v > best) best = v; }
             }
             dst[(keel::usize)oc * (keel::usize)H + (keel::usize)orow] =
-                static_cast<keel::u8>(covered ? best : 0);
+                keel::as<keel::u8>(covered ? best : 0);
         }
     }
     return out;
@@ -738,17 +738,17 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     const Off *nbr = (conn == 8) ? kOff8 : kOff4;
     const int nnb  = (conn == 8) ? 8 : 4;
 
-    const int Hi = static_cast<int>(H);
-    const int Wi = static_cast<int>(W);
+    const int Hi = keel::as<int>(H);
+    const int Wi = keel::as<int>(W);
     auto idxOf = [Hi](int r, int c) -> keel::usize {
-        return static_cast<keel::usize>(c) * static_cast<keel::usize>(Hi) + static_cast<keel::usize>(r);
+        return keel::as<keel::usize>(c) * keel::as<keel::usize>(Hi) + keel::as<keel::usize>(r);
     };
 
     // Raster scan (increasing linear index): pull from already-processed
     // (causal) neighbours — those with a smaller linear index.
     for (keel::usize i = 0; i < N; ++i) {
-        const int r = static_cast<int>(i % H);
-        const int c = static_cast<int>(i / H);
+        const int r = keel::as<int>(i % H);
+        const int c = keel::as<int>(i / H);
         double m = J[i];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
@@ -766,8 +766,8 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     fifo.reserve(N);
     for (keel::usize ii = N; ii-- > 0; ) {
         const keel::usize i = ii;
-        const int r = static_cast<int>(i % H);
-        const int c = static_cast<int>(i / H);
+        const int r = keel::as<int>(i % H);
+        const int c = keel::as<int>(i / H);
         double m = J[i];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
@@ -789,8 +789,8 @@ Value imreconstruct(const Value &marker, const Value &mask, int conn, keel::Allo
     keel::usize head = 0;
     while (head < fifo.size()) {
         const keel::usize p = fifo[head++];
-        const int r = static_cast<int>(p % H);
-        const int c = static_cast<int>(p / H);
+        const int r = keel::as<int>(p % H);
+        const int c = keel::as<int>(p / H);
         const double Jp = J[p];
         for (int k = 0; k < nnb; ++k) {
             const int nr = r + nbr[k].dr, nc = c + nbr[k].dc;
@@ -1236,7 +1236,7 @@ void bwunpack_argcheck(const Value &BWP, keel::usize &M)
     internal::requireUint32Packed(BWP, "bwunpack");
     constexpr keel::usize CLASS_BITS = 32;
     const keel::usize pH = BWP.dims().rows();
-    if (M == static_cast<keel::usize>(-1)) M = pH * CLASS_BITS;
+    if (M == keel::as<keel::usize>(-1)) M = pH * CLASS_BITS;
     if (M > pH * CLASS_BITS)
         throw Error("bwunpack: M exceeds packed-row capacity",
                     0, 0, "bwunpack", "", "numkit:bwunpack:M");
@@ -1255,7 +1255,7 @@ void applylut_argcheck(const Value &BW, const Value &LUT, keel::usize &lutLen, k
     if ((keel::usize{1} << nq) != lutLen)
         throw Error("applylut: LUT length must be 2^(n*n)",
                     0, 0, "applylut", "", "numkit:applylut:lutsize");
-    n = static_cast<keel::usize>(std::round(std::sqrt((double)nq)));
+    n = keel::as<keel::usize>(std::round(std::sqrt((double)nq)));
     if (n * n != nq)
         throw Error("applylut: LUT length not 2^(n*n) for any integer n",
                     0, 0, "applylut", "", "numkit:applylut:lutshape");
@@ -1355,20 +1355,20 @@ Value mmgradm(const Value &I, const Value &se_dil, const Value &se_ero, keel::Al
         switch (I.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] =
-                                    static_cast<float>(v); break;
+                                    keel::as<float>(v); break;
             case ValueType::UINT8: {
                 if (v < 0) v = 0; if (v > 255) v = 255;
-                out.uint8DataMut()[i] = static_cast<keel::u8>(std::lround(v));
+                out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v));
                 break;
             }
             case ValueType::UINT16: {
                 if (v < 0) v = 0; if (v > 65535) v = 65535;
-                out.uint16DataMut()[i] = static_cast<keel::u16>(std::lround(v));
+                out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v));
                 break;
             }
             case ValueType::INT16: {
                 if (v < -32768) v = -32768; if (v > 32767) v = 32767;
-                out.int16DataMut()[i] = static_cast<keel::i16>(std::lround(v));
+                out.int16DataMut()[i] = keel::as<keel::i16>(std::lround(v));
                 break;
             }
             default: out.doubleDataMut()[i] = v; break;
@@ -1430,7 +1430,7 @@ Value bwunpack(const Value &BWP, keel::usize M, keel::Allocator *mr)
             const keel::usize orow = r / CLASS_BITS;
             const keel::usize b    = r % CLASS_BITS;
             const keel::u32 bit = (pd[c * pH + orow] >> b) & 1u;
-            od[c * M + r] = static_cast<keel::u8>(bit);
+            od[c * M + r] = keel::as<keel::u8>(bit);
         }
     }
     return out;
@@ -1451,7 +1451,7 @@ Value applylut(const Value &BW, const Value &LUT, keel::Allocator *mr)
     {
         double *wd = w.doubleDataMut();
         for (keel::usize i = 0; i < n * n; ++i)
-            wd[i] = static_cast<double>(keel::usize{1} << (nq - 1 - i));
+            wd[i] = keel::as<double>(keel::usize{1} << (nq - 1 - i));
     }
 
     // BW promoted to double for filter2.
@@ -1471,13 +1471,13 @@ Value applylut(const Value &BW, const Value &LUT, keel::Allocator *mr)
         switch (LUT.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] =
-                                    static_cast<float>(v); break;
+                                    keel::as<float>(v); break;
             case ValueType::UINT8:  out.uint8DataMut()[i] =
-                                    static_cast<keel::u8>(std::lround(v)); break;
+                                    keel::as<keel::u8>(std::lround(v)); break;
             case ValueType::UINT16: out.uint16DataMut()[i] =
-                                    static_cast<keel::u16>(std::lround(v)); break;
+                                    keel::as<keel::u16>(std::lround(v)); break;
             case ValueType::INT16:  out.int16DataMut()[i] =
-                                    static_cast<keel::i16>(std::lround(v)); break;
+                                    keel::as<keel::i16>(std::lround(v)); break;
             case ValueType::LOGICAL: out.logicalDataMut()[i] =
                                     (v != 0.0) ? 1u : 0u; break;
             default: out.doubleDataMut()[i] = v; break;
@@ -1485,7 +1485,7 @@ Value applylut(const Value &BW, const Value &LUT, keel::Allocator *mr)
     };
 
     for (keel::usize i = 0; i < N; ++i) {
-        keel::usize k = static_cast<keel::usize>(std::lround(id[i]));
+        keel::usize k = keel::as<keel::usize>(std::lround(id[i]));
         if (k >= lutLen) k = lutLen - 1;
         store_lut(i, LUT.elemAsDouble(k));
     }
@@ -1521,21 +1521,21 @@ Value bwmorph3(const Value &V, keel::StringRef op, keel::Allocator *mr)
     const Op o = static_cast<Op>(opIdx);
 
     const auto &d = V.dims();
-    const int H = static_cast<int>(d.rows());
-    const int W = static_cast<int>(d.cols());
-    const int P = d.is3D() ? static_cast<int>(d.pages()) : 1;
+    const int H = keel::as<int>(d.rows());
+    const int W = keel::as<int>(d.cols());
+    const int P = d.is3D() ? keel::as<int>(d.pages()) : 1;
 
     Value out = (P > 1) ? Value::matrix3d(H, W, P, ValueType::LOGICAL, mr)
                         : Value::matrix(H, W, ValueType::LOGICAL, mr);
     if (H == 0 || W == 0 || P == 0) return out;
     keel::u8 *od = out.logicalDataMut();
 
-    const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
+    const keel::usize plane = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
     auto at = [&](int r, int c, int p) -> int {
         if (r < 0 || r >= H || c < 0 || c >= W || p < 0 || p >= P) return 0;
-        return V.elemAsDouble(static_cast<keel::usize>(p) * plane
-                              + static_cast<keel::usize>(c) * static_cast<keel::usize>(H)
-                              + static_cast<keel::usize>(r)) != 0.0 ? 1 : 0;
+        return V.elemAsDouble(keel::as<keel::usize>(p) * plane
+                              + keel::as<keel::usize>(c) * keel::as<keel::usize>(H)
+                              + keel::as<keel::usize>(r)) != 0.0 ? 1 : 0;
     };
 
     for (int p = 0; p < P; ++p) {
@@ -1560,10 +1560,10 @@ Value bwmorph3(const Value &V, keel::StringRef op, keel::Allocator *mr)
                     case MAJORITY: v = (count > 13); break;
                     case REMOVE:   v = (centre && faces6 != 6); break;
                 }
-                const keel::usize idx = static_cast<keel::usize>(p) * plane
-                                 + static_cast<keel::usize>(c) * static_cast<keel::usize>(H)
-                                 + static_cast<keel::usize>(r);
-                od[idx] = static_cast<keel::u8>(v ? 1 : 0);
+                const keel::usize idx = keel::as<keel::usize>(p) * plane
+                                 + keel::as<keel::usize>(c) * keel::as<keel::usize>(H)
+                                 + keel::as<keel::usize>(r);
+                od[idx] = keel::as<keel::u8>(v ? 1 : 0);
             }
         }
     }
@@ -1667,8 +1667,8 @@ void bwlookup3x3(const keel::u8 *src, keel::u8 *dst,
     if (R == 0 || C == 0)
         return;
 
-    const keel::isize Rs = static_cast<keel::isize>(R);
-    const keel::isize Cs = static_cast<keel::isize>(C);
+    const keel::isize Rs = keel::as<keel::isize>(R);
+    const keel::isize Cs = keel::as<keel::isize>(C);
 
     for (keel::isize c = 0; c < Cs; ++c) {
         for (keel::isize r = 0; r < Rs; ++r) {
@@ -1685,7 +1685,7 @@ void bwlookup3x3(const keel::u8 *src, keel::u8 *dst,
                         continue;
                     if (src[colBase + rr]) {
                         const unsigned k =
-                            static_cast<unsigned>((dr + 1) + (dc + 1) * 3);
+                            keel::as<unsigned>((dr + 1) + (dc + 1) * 3);
                         idx |= (1u << k);
                     }
                 }
@@ -1773,8 +1773,8 @@ void opShrink(keel::u8 *bw, keel::usize R, keel::usize C,
         bwlookup3x3(bw, m, R, C, lutshrink);
         boolAndNot(bw, m, cand, R * C);
 
-        const keel::usize rOff = static_cast<keel::usize>(rOffTab[s]);
-        const keel::usize cOff = static_cast<keel::usize>(cOffTab[s]);
+        const keel::usize rOff = keel::as<keel::usize>(rOffTab[s]);
+        const keel::usize cOff = keel::as<keel::usize>(cOffTab[s]);
         for (keel::usize c = cOff; c < C; c += 2) {
             const keel::usize colBase = c * R;
             for (keel::usize r = rOff; r < R; r += 2)
@@ -1815,8 +1815,8 @@ void opSpur(keel::u8 *bw, keel::usize R, keel::usize C,
             fieldSrc = t;
         }
 
-        const keel::usize rOff = static_cast<keel::usize>(rOffTab[s]);
-        const keel::usize cOff = static_cast<keel::usize>(cOffTab[s]);
+        const keel::usize rOff = keel::as<keel::usize>(rOffTab[s]);
+        const keel::usize cOff = keel::as<keel::usize>(cOffTab[s]);
         for (keel::usize c = cOff; c < C; c += 2) {
             const keel::usize colBase = c * R;
             for (keel::usize r = rOff; r < R; r += 2) {
@@ -2211,17 +2211,17 @@ void bwtraceboundary_argcheck(const Value &BW, const Value &P,
 
     const keel::usize M = BW.dims().rows();
     const keel::usize N = BW.dims().cols();
-    pr = static_cast<long>(P.elemAsDouble(0)) - 1;
-    pc = static_cast<long>(P.elemAsDouble(1)) - 1;
+    pr = keel::as<long>(P.elemAsDouble(0)) - 1;
+    pc = keel::as<long>(P.elemAsDouble(1)) - 1;
     if (pr < 0 || pc < 0
-     || static_cast<keel::usize>(pr) >= M
-     || static_cast<keel::usize>(pc) >= N)
+     || keel::as<keel::usize>(pr) >= M
+     || keel::as<keel::usize>(pc) >= N)
         throw Error("bwtraceboundary: P out of bounds",
                     0, 0, "bwtraceboundary", "",
                     "numkit:bwtraceboundary:pbounds");
 
-    const keel::usize k = static_cast<keel::usize>(pc) * M
-                        + static_cast<keel::usize>(pr);
+    const keel::usize k = keel::as<keel::usize>(pc) * M
+                        + keel::as<keel::usize>(pr);
     const bool is_fg = BW.isLogical() ? (BW.logicalData()[k] != 0)
                                       : (BW.elemAsDouble(k) != 0.0);
     if (!is_fg)
@@ -2259,10 +2259,10 @@ Value bwtraceboundary(const Value &BW, const Value &P,
 
     auto fg_at = [&](long r, long c) -> bool {
         if (r < 0 || c < 0
-         || static_cast<keel::usize>(r) >= M
-         || static_cast<keel::usize>(c) >= N) return false;
-        const keel::usize k = static_cast<keel::usize>(c) * M
-                            + static_cast<keel::usize>(r);
+         || keel::as<keel::usize>(r) >= M
+         || keel::as<keel::usize>(c) >= N) return false;
+        const keel::usize k = keel::as<keel::usize>(c) * M
+                            + keel::as<keel::usize>(r);
         if (BW.isLogical()) return BW.logicalData()[k] != 0;
         return BW.elemAsDouble(k) != 0.0;
     };
@@ -2316,8 +2316,8 @@ Value bwtraceboundary(const Value &BW, const Value &P,
     const keel::usize Q = br.size();
     Value out = Value::matrix(Q, 2, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < Q; ++i) {
-        out.doubleDataMut()[i]     = static_cast<double>(br[i] + 1);
-        out.doubleDataMut()[Q + i] = static_cast<double>(bc[i] + 1);
+        out.doubleDataMut()[i]     = keel::as<double>(br[i] + 1);
+        out.doubleDataMut()[Q + i] = keel::as<double>(bc[i] + 1);
     }
     return out;
 }
@@ -2336,12 +2336,12 @@ Value makelut(FnHandle fun, int n, keel::Allocator *mr)
     double *ld = lut.doubleDataMut();
 
     // Reusable logical neighbourhood, mutated per table entry.
-    Value nh = Value::matrix(static_cast<keel::usize>(n), static_cast<keel::usize>(n),
+    Value nh = Value::matrix(keel::as<keel::usize>(n), keel::as<keel::usize>(n),
                              ValueType::LOGICAL, mr);
     keel::u8 *nd = nh.logicalDataMut();
     for (keel::usize k = 0; k < N; ++k) {
         for (int i = 0; i < nq; ++i)
-            nd[i] = static_cast<keel::u8>((k >> (nq - 1 - i)) & keel::usize{1});
+            nd[i] = keel::as<keel::u8>((k >> (nq - 1 - i)) & keel::usize{1});
         keel::StaticArray<Value, 1> o;
         fun(keel::ArrayRef<Value>(&nh, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
         const Value &r = o[0];

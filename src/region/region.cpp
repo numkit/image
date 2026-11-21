@@ -242,7 +242,7 @@ Value bwconncomp(const Value &BW, int conn, keel::Allocator *mr)
     el.put(keel::String::from("NumObjects"), Value::scalar(double(K), mr));
 
     // Build PixelIdxList: 1xK cell of column-vector indices.
-    Value pixList = Value::cell(1, static_cast<keel::usize>(K), mr);
+    Value pixList = Value::cell(1, keel::as<keel::usize>(K), mr);
     if (K > 0) {
         keel::Array<keel::Array<int>> lists((keel::usize)K);
         for (int c = 0; c < W; ++c)
@@ -302,10 +302,10 @@ CCInfo parse_cc(const Value &CC, const char *fn)
         throw Error(keel::format("{}: CC.ImageSize must have >= 2 dims", fn),
                     0, 0, fn, "",
                     keel::format("numkit:{}:sizeDim", fn));
-    info.H = static_cast<keel::usize>(sz.elemAsDouble(0));
-    info.W = static_cast<keel::usize>(sz.elemAsDouble(1));
+    info.H = keel::as<keel::usize>(sz.elemAsDouble(0));
+    info.W = keel::as<keel::usize>(sz.elemAsDouble(1));
     const Value &nob = need("NumObjects");
-    info.K = static_cast<keel::usize>(nob.toScalar());
+    info.K = keel::as<keel::usize>(nob.toScalar());
     const Value &pl = need("PixelIdxList");
     info.pixList = &pl;
     return info;
@@ -322,7 +322,7 @@ CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, keel::Array
     const keel::usize K = info.K;
     keep.assign(K, 0);
     if (objects_to_keep.isEmpty()) {
-        std::fill(keep.begin(), keep.end(), static_cast<char>(1));
+        std::fill(keep.begin(), keep.end(), keel::as<char>(1));
     } else {
         const keel::usize N = objects_to_keep.numel();
         if (objects_to_keep.type() == ValueType::LOGICAL) {
@@ -341,7 +341,7 @@ CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, keel::Array
                                 "integers or a logical vector",
                                 0, 0, "cc2bw", "",
                                 "numkit:cc2bw:badIdx");
-                const keel::usize idx = static_cast<keel::usize>(v);
+                const keel::usize idx = keel::as<keel::usize>(v);
                 if (idx > K)
                     throw Error("cc2bw: ObjectsToKeep index exceeds "
                                 "NumObjects",
@@ -378,20 +378,20 @@ Value labelmatrix(const Value &CC, keel::Allocator *mr)
         if (idx0 >= H * W) return;
         switch (ot) {
             case ValueType::UINT8:  L.uint8DataMut()[idx0]
-                = static_cast<keel::u8>(lab);  break;
+                = keel::as<keel::u8>(lab);  break;
             case ValueType::UINT16: L.uint16DataMut()[idx0]
-                = static_cast<keel::u16>(lab); break;
+                = keel::as<keel::u16>(lab); break;
             case ValueType::UINT32: L.uint32DataMut()[idx0]
-                = static_cast<keel::u32>(lab); break;
+                = keel::as<keel::u32>(lab); break;
             default:                L.doubleDataMut()[idx0]
-                = static_cast<double>(lab);   break;
+                = keel::as<double>(lab);   break;
         }
     };
     for (keel::usize k = 0; k < K; ++k) {
         const Value &cell = info.pixList->cellAt(k);
         const keel::usize N = cell.numel();
         for (keel::usize i = 0; i < N; ++i) {
-            const keel::usize idx1 = static_cast<keel::usize>(
+            const keel::usize idx1 = keel::as<keel::usize>(
                 cell.elemAsDouble(i));   // 1-based
             if (idx1 == 0) continue;
             write_label(idx1 - 1, k + 1);
@@ -409,13 +409,13 @@ Value cc2bw(const Value &CC, const Value &objects_to_keep,
 
     Value BW = Value::matrix(H, W, ValueType::LOGICAL, mr);
     keel::u8 *bd = BW.logicalDataMut();
-    std::fill(bd, bd + H * W, static_cast<keel::u8>(0));
+    std::fill(bd, bd + H * W, keel::as<keel::u8>(0));
     for (keel::usize k = 0; k < K; ++k) {
         if (!keep[k]) continue;
         const Value &cell = info.pixList->cellAt(k);
         const keel::usize N = cell.numel();
         for (keel::usize i = 0; i < N; ++i) {
-            const keel::usize idx1 = static_cast<keel::usize>(
+            const keel::usize idx1 = keel::as<keel::usize>(
                 cell.elemAsDouble(i));
             if (idx1 == 0 || idx1 > H * W) continue;
             bd[idx1 - 1] = 1;
@@ -515,17 +515,17 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
     // object count. The internal L is row-major; the Value is column-major.
     if (Nout) *Nout = K;
     if (Lout) {
-        Value lab = Value::matrix(static_cast<keel::usize>(H),
-                                  static_cast<keel::usize>(W), ValueType::DOUBLE, mr);
+        Value lab = Value::matrix(keel::as<keel::usize>(H),
+                                  keel::as<keel::usize>(W), ValueType::DOUBLE, mr);
         double *ld = lab.doubleDataMut();
         for (int r = 0; r < H; ++r)
             for (int c = 0; c < W; ++c)
                 ld[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
-                    static_cast<double>(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
+                    keel::as<double>(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
         *Lout = std::move(lab);
     }
 
-    Value cellCol = Value::cell(static_cast<keel::usize>(K), 1, mr);
+    Value cellCol = Value::cell(keel::as<keel::usize>(K), 1, mr);
     if (K == 0) return cellCol;
 
     // 8-direction CW deltas starting at "right" (dir=0):
@@ -574,7 +574,7 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
             double *mb = m.doubleDataMut();
             mb[0] = double(r0 + 1);
             mb[1] = double(c0 + 1);
-            cellCol.cellAt(static_cast<keel::usize>(lab - 1)) = m;
+            cellCol.cellAt(keel::as<keel::usize>(lab - 1)) = m;
             continue;
         }
 
@@ -584,7 +584,7 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
         int curR = r0, curC = c0;
 
         // Cap iteration at perimeter ≤ 8·numComponentPixels (very loose).
-        const keel::usize cap = static_cast<keel::usize>(H) * static_cast<keel::usize>(W) * 4;
+        const keel::usize cap = keel::as<keel::usize>(H) * keel::as<keel::usize>(W) * 4;
         keel::usize iter = 0;
 
         while (iter++ < cap) {
@@ -625,7 +625,7 @@ Value bwboundaries(const Value &BW, int conn, Value *Lout, int *Nout, keel::Allo
             mb[i]         = double(rows[i] + 1);
             mb[P + i]     = double(cols[i] + 1);
         }
-        cellCol.cellAt(static_cast<keel::usize>(lab - 1)) = m;
+        cellCol.cellAt(keel::as<keel::usize>(lab - 1)) = m;
     }
     return cellCol;
 }
@@ -805,23 +805,23 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
     const bool needIntensity = wMeanI || wMaxI || wMinI || wWCent || wPixVal;
     const bool needPixels = wPixIdx || wPixList || needIntensity;
 
-    Value sa = Value::structArray(static_cast<keel::usize>(K), 1, mr);
+    Value sa = Value::structArray(keel::as<keel::usize>(K), 1, mr);
     if (K == 0) return sa;
 
     // Accumulators per label.
     const bool needMoments = wEllipse;
     keel::Array<long long> area(K + 1, 0);
-    keel::Array<double> sumX(K + 1, 0.0), sumY(static_cast<keel::usize>(K + 1), 0.0);
+    keel::Array<double> sumX(K + 1, 0.0), sumY(keel::as<keel::usize>(K + 1), 0.0);
     // First pixel (row-major scan order = top-left-most) per label, the
     // boundary-trace start for Perimeter.
-    keel::Array<int> firstR(K + 1, -1), firstC(static_cast<keel::usize>(K + 1), -1);
-    keel::Array<double> sumXX(K + 1, 0.0), sumYY(static_cast<keel::usize>(K + 1), 0.0), sumXY(static_cast<keel::usize>(K + 1), 0.0);
-    keel::Array<int> minX(K + 1, INT_MAX), minY(static_cast<keel::usize>(K + 1), INT_MAX);
-    keel::Array<int> maxX(K + 1, INT_MIN), maxY(static_cast<keel::usize>(K + 1), INT_MIN);
+    keel::Array<int> firstR(K + 1, -1), firstC(keel::as<keel::usize>(K + 1), -1);
+    keel::Array<double> sumXX(K + 1, 0.0), sumYY(keel::as<keel::usize>(K + 1), 0.0), sumXY(keel::as<keel::usize>(K + 1), 0.0);
+    keel::Array<int> minX(K + 1, INT_MAX), minY(keel::as<keel::usize>(K + 1), INT_MAX);
+    keel::Array<int> maxX(K + 1, INT_MIN), maxY(keel::as<keel::usize>(K + 1), INT_MIN);
     // Column-major 1-based linear indices per label (for PixelIdxList /
     // PixelList). Collected in row-major visit order then sorted ascending
     // to match MATLAB's column-major ordering.
-    keel::Array<keel::Array<long long>> pixIdx(needPixels ? static_cast<keel::usize>(K + 1) : 0);
+    keel::Array<keel::Array<long long>> pixIdx(needPixels ? keel::as<keel::usize>(K + 1) : 0);
     for (int r = 0; r < H; ++r)
         for (int c = 0; c < W; ++c) {
             const int lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
@@ -832,7 +832,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             sumY[(keel::usize)lab] += double(r);
             if (needPixels)
                 pixIdx[(keel::usize)lab].push_back(
-                    static_cast<long long>(c) * H + r + 1);   // col-major 1-based
+                    keel::as<long long>(c) * H + r + 1);   // col-major 1-based
             if (needMoments) {
                 sumXX[(keel::usize)lab] += double(c) * double(c);
                 sumYY[(keel::usize)lab] += double(r) * double(r);
@@ -845,7 +845,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
         }
 
     for (int lab = 1; lab <= K; ++lab) {
-        auto &el = sa.structArrayElem(static_cast<keel::usize>(lab - 1));
+        auto &el = sa.structArrayElem(keel::as<keel::usize>(lab - 1));
         if (wArea) {
             el.put(keel::String::from("Area"), Value::scalar(double(area[(keel::usize)lab]), mr));
         }
@@ -944,7 +944,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                 Value pil = Value::matrix(P, 1, ValueType::DOUBLE, mr);
                 double *pd = pil.doubleDataMut();
                 for (keel::usize i = 0; i < P; ++i)
-                    pd[i] = static_cast<double>(idxList[i]);
+                    pd[i] = keel::as<double>(idxList[i]);
                 el.put(keel::String::from("PixelIdxList"), std::move(pil));
             }
             if (wPixList) {
@@ -955,8 +955,8 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                     const long long z = idxList[i] - 1;     // 0-based col-major
                     const long long row0 = z % H;
                     const long long col0 = z / H;
-                    pl[i]     = static_cast<double>(col0 + 1);   // x = col
-                    pl[P + i] = static_cast<double>(row0 + 1);   // y = row
+                    pl[i]     = keel::as<double>(col0 + 1);   // x = col
+                    pl[P + i] = keel::as<double>(row0 + 1);   // y = row
                 }
                 el.put(keel::String::from("PixelList"), std::move(plv));
             }
@@ -973,14 +973,14 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                 }
                 for (keel::usize i = 0; i < P; ++i) {
                     const long long z = idxList[i] - 1;     // col-major 0-based
-                    const double iv = intensity.elemAsDouble(static_cast<keel::usize>(z));
+                    const double iv = intensity.elemAsDouble(keel::as<keel::usize>(z));
                     sumI += iv;
                     if (iv > maxI) maxI = iv;
                     if (iv < minI) minI = iv;
                     if (wWCent) {
                         const long long row0 = z % H, col0 = z / H;
-                        sumIx += iv * static_cast<double>(col0 + 1);
-                        sumIy += iv * static_cast<double>(row0 + 1);
+                        sumIx += iv * keel::as<double>(col0 + 1);
+                        sumIy += iv * keel::as<double>(row0 + 1);
                     }
                     if (pv) pv[i] = iv;
                 }
@@ -1027,16 +1027,16 @@ void dt1D(keel::ArrayRef<double> f, keel::Array<double> &d, keel::usize n)
     v[0] = 0;
     z[0] = -std::numeric_limits<double>::infinity();
     z[1] =  std::numeric_limits<double>::infinity();
-    for (long long q = 1; q < static_cast<long long>(n); ++q) {
+    for (long long q = 1; q < keel::as<long long>(n); ++q) {
         // Skip background pixels in f (they contribute Inf — no parabola).
         // Keep them anyway: their +Inf value pushes any candidate boundary
         // away to +Inf. That's fine.
         double s;
         for (;;) {
-            const double fq = f[static_cast<keel::usize>(q)];
-            const double fv = f[static_cast<keel::usize>(v[k])];
-            const double dq = static_cast<double>(q);
-            const double dv = static_cast<double>(v[k]);
+            const double fq = f[keel::as<keel::usize>(q)];
+            const double fv = f[keel::as<keel::usize>(v[k])];
+            const double dq = keel::as<double>(q);
+            const double dv = keel::as<double>(v[k]);
             if (std::isinf(fq) && std::isinf(fv)) {
                 // Both background — boundary is at -Inf, parabola q
                 // dominates from k onward.
@@ -1044,22 +1044,22 @@ void dt1D(keel::ArrayRef<double> f, keel::Array<double> &d, keel::usize n)
             } else {
                 s = ((fq + dq * dq) - (fv + dv * dv)) / (2.0 * (dq - dv));
             }
-            if (s <= z[static_cast<keel::usize>(k)]) {
+            if (s <= z[keel::as<keel::usize>(k)]) {
                 --k;
                 if (k < 0) break;
             } else break;
         }
         ++k;
-        v[static_cast<keel::usize>(k)] = q;
-        z[static_cast<keel::usize>(k)] = s;
-        z[static_cast<keel::usize>(k) + 1] = std::numeric_limits<double>::infinity();
+        v[keel::as<keel::usize>(k)] = q;
+        z[keel::as<keel::usize>(k)] = s;
+        z[keel::as<keel::usize>(k) + 1] = std::numeric_limits<double>::infinity();
     }
     long long kk = 0;
-    for (long long q = 0; q < static_cast<long long>(n); ++q) {
-        while (z[static_cast<keel::usize>(kk) + 1] < static_cast<double>(q)) ++kk;
-        const double dx = static_cast<double>(q - v[static_cast<keel::usize>(kk)]);
-        d[static_cast<keel::usize>(q)] = dx * dx +
-            f[static_cast<keel::usize>(v[static_cast<keel::usize>(kk)])];
+    for (long long q = 0; q < keel::as<long long>(n); ++q) {
+        while (z[keel::as<keel::usize>(kk) + 1] < keel::as<double>(q)) ++kk;
+        const double dx = keel::as<double>(q - v[keel::as<keel::usize>(kk)]);
+        d[keel::as<keel::usize>(q)] = dx * dx +
+            f[keel::as<keel::usize>(v[keel::as<keel::usize>(kk)])];
     }
 }
 
@@ -1134,7 +1134,7 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
             const double sq = colOut[r];
             // Take sqrt to get true Euclidean distance; +Inf survives.
             const double d = std::isinf(sq) ? INF : std::sqrt(sq);
-            out.singleDataMut()[c * H + r] = static_cast<float>(d);
+            out.singleDataMut()[c * H + r] = keel::as<float>(d);
         }
     }
     return out;
@@ -1227,8 +1227,8 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
     Value fcc = Value::matrix(1, nCodes, ValueType::DOUBLE, mr);
     double *fd = fcc.doubleDataMut();
     for (keel::usize k = 0; k < nCodes; ++k) {
-        const int dr = static_cast<int>(rs[k + 1] - rs[k]);
-        const int dc = static_cast<int>(cs[k + 1] - cs[k]);
+        const int dr = keel::as<int>(rs[k + 1] - rs[k]);
+        const int dc = keel::as<int>(cs[k + 1] - cs[k]);
         fd[k] = dirCode(dr, dc);
     }
     out.field("fcc") = fcc;
@@ -1254,11 +1254,11 @@ Value bwareafilt(const Value &BW, double lo, double hi, keel::usize n_keep, bool
 {
     bwareafilt_argcheck(BW);
     if (conn != 4) conn = 8;
-    const int H = static_cast<int>(BW.dims().rows());
-    const int W = static_cast<int>(BW.dims().cols());
+    const int H = keel::as<int>(BW.dims().rows());
+    const int W = keel::as<int>(BW.dims().cols());
 
-    Value out = Value::matrix(static_cast<keel::usize>(H),
-                              static_cast<keel::usize>(W),
+    Value out = Value::matrix(keel::as<keel::usize>(H),
+                              keel::as<keel::usize>(W),
                               ValueType::LOGICAL, mr);
     if (H == 0 || W == 0) return out;
 
@@ -1266,14 +1266,14 @@ Value bwareafilt(const Value &BW, double lo, double hi, keel::usize n_keep, bool
     if (K == 0) return out;
 
     // Compute area per label (1-based labels in L).
-    keel::Array<keel::usize> area(static_cast<keel::usize>(K) + 1, 0);
+    keel::Array<keel::usize> area(keel::as<keel::usize>(K) + 1, 0);
     for (keel::usize i = 0; i < L.size(); ++i) {
         const int k = L[i];
-        if (k > 0) ++area[static_cast<keel::usize>(k)];
+        if (k > 0) ++area[keel::as<keel::usize>(k)];
     }
 
     // Decide kept labels.
-    keel::Array<keel::u8> keep(static_cast<keel::usize>(K) + 1, 0);
+    keel::Array<keel::u8> keep(keel::as<keel::usize>(K) + 1, 0);
     if (n_keep > 0) {
         // Top-N form. Sort labels [1..K] by area, ties by lower index.
         keel::Array<int> idx;
@@ -1294,11 +1294,11 @@ Value bwareafilt(const Value &BW, double lo, double hi, keel::usize n_keep, bool
         }
         const keel::usize take = std::min(n_keep, idx.size());
         for (keel::usize i = 0; i < take; ++i)
-            keep[static_cast<keel::usize>(idx[i])] = 1;
+            keep[keel::as<keel::usize>(idx[i])] = 1;
     } else {
         // Range form.
         for (int k = 1; k <= K; ++k) {
-            const double a = static_cast<double>(area[(keel::usize)k]);
+            const double a = keel::as<double>(area[(keel::usize)k]);
             keep[(keel::usize)k] = (a >= lo && a <= hi) ? 1u : 0u;
         }
     }
@@ -1318,11 +1318,11 @@ std::tuple<Value, Value>
 bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::Allocator *mr)
 {
     if (conn != 4) conn = 8;
-    const int H = static_cast<int>(BW.dims().rows());
-    const int W = static_cast<int>(BW.dims().cols());
+    const int H = keel::as<int>(BW.dims().rows());
+    const int W = keel::as<int>(BW.dims().cols());
 
-    Value out = Value::matrix(static_cast<keel::usize>(H),
-                              static_cast<keel::usize>(W),
+    Value out = Value::matrix(keel::as<keel::usize>(H),
+                              keel::as<keel::usize>(W),
                               ValueType::LOGICAL, mr);
     Value idx_out = Value::matrix(0, 1, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0)
@@ -1332,10 +1332,10 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, int conn, keel::
     if (K == 0) return std::make_tuple(std::move(out), std::move(idx_out));
 
     const keel::usize Nseed = std::min(cols.numel(), rows.numel());
-    keel::Array<keel::u8> keep(static_cast<keel::usize>(K) + 1, 0);
+    keel::Array<keel::u8> keep(keel::as<keel::usize>(K) + 1, 0);
     for (keel::usize s = 0; s < Nseed; ++s) {
-        const int c = static_cast<int>(cols.elemAsDouble(s)) - 1;
-        const int r = static_cast<int>(rows.elemAsDouble(s)) - 1;
+        const int c = keel::as<int>(cols.elemAsDouble(s)) - 1;
+        const int r = keel::as<int>(rows.elemAsDouble(s)) - 1;
         if (r < 0 || r >= H || c < 0 || c >= W) continue;
         const int k = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
         if (k > 0) keep[(keel::usize)k] = 1;
@@ -1368,14 +1368,14 @@ Value bweuler(const Value &BW, int conn, keel::Allocator *mr)
 
     const auto &d = BW.dims();
 
-    const int M = static_cast<int>(d.rows());
-    const int N = static_cast<int>(d.cols());
+    const int M = keel::as<int>(d.rows());
+    const int N = keel::as<int>(d.cols());
 
     auto get = [&](int r, int c) -> int {
         if (r < 0 || c < 0 || r >= M || c >= N) return 0;
-        return BW.elemAsDouble(static_cast<keel::usize>(c) *
-                               static_cast<keel::usize>(M) +
-                               static_cast<keel::usize>(r)) != 0.0 ? 1 : 0;
+        return BW.elemAsDouble(keel::as<keel::usize>(c) *
+                               keel::as<keel::usize>(M) +
+                               keel::as<keel::usize>(r)) != 0.0 ? 1 : 0;
     };
 
     int sum = 0;
@@ -1393,7 +1393,7 @@ Value bweuler(const Value &BW, int conn, keel::Allocator *mr)
             sum += lut[idx];
         }
     }
-    return Value::scalar(static_cast<double>(sum) / 4.0, mr);
+    return Value::scalar(keel::as<double>(sum) / 4.0, mr);
 }
 
 } // namespace numkit::image

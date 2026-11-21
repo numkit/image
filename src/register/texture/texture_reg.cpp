@@ -68,8 +68,8 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 throw Error("graycomatrix: Offset must be 2-element",
                              0, 0, "graycomatrix", "",
                              "numkit:graycomatrix:badOffset");
-            offR = static_cast<int>(v.elemAsDouble(0));
-            offC = static_cast<int>(v.elemAsDouble(1));
+            offR = keel::as<int>(v.elemAsDouble(0));
+            offC = keel::as<int>(v.elemAsDouble(1));
         }
         else if (eqIgnoreCase(key, "GrayLimits")) {
             if (v.isEmpty()) {

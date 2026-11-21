@@ -126,11 +126,11 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
         throw Error(keel::format("{}: CC.ImageSize too short", fn),
                     0, 0, fn, "",
                     keel::format("numkit:{}:sizeDim", fn));
-    info.H = static_cast<int>(sz.elemAsDouble(0));
-    info.W = static_cast<int>(sz.elemAsDouble(1));
-    if (const Value *vConn = el.get("Connectivity")) info.conn = static_cast<int>(vConn->toScalar());
+    info.H = keel::as<int>(sz.elemAsDouble(0));
+    info.W = keel::as<int>(sz.elemAsDouble(1));
+    if (const Value *vConn = el.get("Connectivity")) info.conn = keel::as<int>(vConn->toScalar());
     const Value &nob = need("NumObjects");
-    const keel::usize K = static_cast<keel::usize>(nob.toScalar());
+    const keel::usize K = keel::as<keel::usize>(nob.toScalar());
     const Value &pl = need("PixelIdxList");
     info.comps.resize(K);
     for (keel::usize k = 0; k < K; ++k) {
@@ -141,10 +141,10 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
         c.cs.resize(N);
         int rmin = INT_MAX, rmax = -1, cmin = INT_MAX, cmax = -1;
         for (keel::usize i = 0; i < N; ++i) {
-            const keel::usize idx1 = static_cast<keel::usize>(
+            const keel::usize idx1 = keel::as<keel::usize>(
                 cell.elemAsDouble(i));
             if (idx1 == 0) continue;
-            const int idx0 = static_cast<int>(idx1 - 1);
+            const int idx0 = keel::as<int>(idx1 - 1);
             const int col = idx0 / info.H;     // column-major
             const int row = idx0 - col * info.H;
             c.rs[i] = row;
@@ -161,7 +161,7 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
 
 // ── Per-component attribute computations ──────────────────────────
 
-double attr_area(const Comp &c) { return static_cast<double>(c.rs.size()); }
+double attr_area(const Comp &c) { return keel::as<double>(c.rs.size()); }
 
 double attr_equiv_diameter(const Comp &c)
 {
@@ -174,7 +174,7 @@ double attr_extent(const Comp &c)
     const int bw = c.cmax - c.cmin + 1;
     const int bh = c.rmax - c.rmin + 1;
     if (bw <= 0 || bh <= 0) return 0.0;
-    return attr_area(c) / (static_cast<double>(bw) * bh);
+    return attr_area(c) / (keel::as<double>(bw) * bh);
 }
 
 // Central moments with pixel-centroid correction (+1/12 on diagonal).
@@ -192,8 +192,8 @@ Moments central_moments(const Comp &c)
         sr += c.rs[i];
         sc += c.cs[i];
     }
-    const double mr = sr / static_cast<double>(N);
-    const double mc = sc / static_cast<double>(N);
+    const double mr = sr / keel::as<double>(N);
+    const double mc = sc / keel::as<double>(N);
     M.cx = mc + 1.0;        // 1-based column
     M.cy = mr + 1.0;        // 1-based row
     double m20 = 0, m02 = 0, m11 = 0;
@@ -285,7 +285,7 @@ double attr_perimeter(const Comp &c, int H, int W)
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         const int r = c.rs[i] - c.rmin + 1;
         const int cc_ = c.cs[i] - c.cmin + 1;
-        mask[static_cast<keel::usize>(r * wp + cc_)] = 1;
+        mask[keel::as<keel::usize>(r * wp + cc_)] = 1;
     }
     double sum = 0.0;
     // Walk every 2×2 corner in the padded mask, accumulating the
@@ -316,7 +316,7 @@ double attr_perimeter_old(const Comp &c, int H, int W)
     const int hp = h + 2, wp = w + 2;
     keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
-        mask[static_cast<keel::usize>(
+        mask[keel::as<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
     }
     int per = 0;
@@ -328,7 +328,7 @@ double attr_perimeter_old(const Comp &c, int H, int W)
             if (!mask[(r - 1) * wp + cc_]) ++per;
             if (!mask[(r + 1) * wp + cc_]) ++per;
         }
-    return static_cast<double>(per);
+    return keel::as<double>(per);
     (void)H; (void)W;
 }
 
@@ -351,7 +351,7 @@ double attr_euler_number(const Comp &c, int conn)
     const int hp = h + 2, wp = w + 2;
     keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
-        mask[static_cast<keel::usize>(
+        mask[keel::as<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
     }
     // 2x2 corner-pattern counts (Pratt 1991, "Digital Image
@@ -370,9 +370,9 @@ double attr_euler_number(const Comp &c, int conn)
             else if (p == 0b1001 || p == 0b0110) ++n_qd;
         }
     if (conn == 4)
-        return static_cast<double>(n_q1 - n_q3 + 2 * n_qd) / 4.0;
+        return keel::as<double>(n_q1 - n_q3 + 2 * n_qd) / 4.0;
     // 8-conn
-    return static_cast<double>(n_q1 - n_q3 - 2 * n_qd) / 4.0;
+    return keel::as<double>(n_q1 - n_q3 - 2 * n_qd) / 4.0;
 }
 
 // FilledArea: area + holes (the per-component imfill of the mask).
@@ -386,7 +386,7 @@ double attr_filled_area(const Comp &c)
     const int hp = h + 2, wp = w + 2;
     keel::Array<keel::u8> mask(hp * wp, 0);
     for (keel::usize i = 0; i < c.rs.size(); ++i)
-        mask[static_cast<keel::usize>(
+        mask[keel::as<keel::usize>(
             (c.rs[i] - c.rmin + 1) * wp + (c.cs[i] - c.cmin + 1))] = 1;
     keel::Array<keel::u8> visited(mask.size(), 0);
     // BFS from every border-cell that is background.
@@ -394,10 +394,10 @@ double attr_filled_area(const Comp &c)
     queue.reserve(hp * wp);
     auto push_if = [&](int r, int cc_) {
         if (r < 0 || cc_ < 0 || r >= hp || cc_ >= wp) return;
-        const keel::usize idx = static_cast<keel::usize>(r * wp + cc_);
+        const keel::usize idx = keel::as<keel::usize>(r * wp + cc_);
         if (mask[idx] || visited[idx]) return;
         visited[idx] = 1;
-        queue.push_back(static_cast<int>(idx));
+        queue.push_back(keel::as<int>(idx));
     };
     for (int r = 0; r < hp; ++r) {
         push_if(r, 0);
@@ -424,8 +424,8 @@ double attr_filled_area(const Comp &c)
     // Subtract the border padding rectangle (which is always
     // background-reached). The padded mask was hp×wp; the original
     // pixel area is h×w. Border padding = hp·wp - h·w.
-    return static_cast<double>(filled) -
-        static_cast<double>(hp * wp - h * w);
+    return keel::as<double>(filled) -
+        keel::as<double>(hp * wp - h * w);
 }
 
 // ── Convex hull (Andrew's monotone chain) on pixel CORNERS ──────
@@ -511,21 +511,21 @@ double attr_mean_intensity(const Comp &c, const Value &marker)
 {
     const keel::usize N = c.rs.size();
     if (N == 0) return std::nan("");
-    const int H = static_cast<int>(marker.dims().rows());
+    const int H = keel::as<int>(marker.dims().rows());
     long double s = 0.0L;
     for (keel::usize i = 0; i < N; ++i)
-        s += marker.elemAsDouble(static_cast<keel::usize>(
+        s += marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
-    return static_cast<double>(s / static_cast<long double>(N));
+    return keel::as<double>(s / keel::as<long double>(N));
 }
 
 double attr_min_intensity(const Comp &c, const Value &marker)
 {
     if (c.rs.empty()) return std::nan("");
-    const int H = static_cast<int>(marker.dims().rows());
+    const int H = keel::as<int>(marker.dims().rows());
     double m = std::numeric_limits<double>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
-        const double v = marker.elemAsDouble(static_cast<keel::usize>(
+        const double v = marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
         if (v < m) m = v;
     }
@@ -535,10 +535,10 @@ double attr_min_intensity(const Comp &c, const Value &marker)
 double attr_max_intensity(const Comp &c, const Value &marker)
 {
     if (c.rs.empty()) return std::nan("");
-    const int H = static_cast<int>(marker.dims().rows());
+    const int H = keel::as<int>(marker.dims().rows());
     double m = -std::numeric_limits<double>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
-        const double v = marker.elemAsDouble(static_cast<keel::usize>(
+        const double v = marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
         if (v > m) m = v;
     }
@@ -670,8 +670,8 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
     // If CC has no objects, short-circuit.
     if (info.comps.empty()) {
         if (from_cc) return CC;        // empty CC unchanged
-        return Value::matrix(static_cast<keel::usize>(info.H),
-                             static_cast<keel::usize>(info.W),
+        return Value::matrix(keel::as<keel::usize>(info.H),
+                             keel::as<keel::usize>(info.W),
                              ValueType::LOGICAL, mr);
     }
 
@@ -728,7 +728,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
         // Build filtered PixelIdxList.
         keel::usize Kkept = 0;
         for (keel::usize k = 0; k < K; ++k) if (keep[k]) ++Kkept;
-        el.put(keel::String::from("NumObjects"), Value::scalar(static_cast<double>(Kkept), mr));
+        el.put(keel::String::from("NumObjects"), Value::scalar(keel::as<double>(Kkept), mr));
         Value cell = Value::cell(1, Kkept, mr);
         const Value &orig = *src.get("PixelIdxList");
         keel::usize w = 0;
@@ -738,16 +738,16 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
         return out;
     }
     // BW input → return logical mask.
-    Value outBW = Value::matrix(static_cast<keel::usize>(info.H),
-                                 static_cast<keel::usize>(info.W),
+    Value outBW = Value::matrix(keel::as<keel::usize>(info.H),
+                                 keel::as<keel::usize>(info.W),
                                  ValueType::LOGICAL, mr);
     keel::u8 *od = outBW.logicalDataMut();
-    std::fill(od, od + static_cast<keel::usize>(info.H * info.W), static_cast<keel::u8>(0));
+    std::fill(od, od + keel::as<keel::usize>(info.H * info.W), keel::as<keel::u8>(0));
     for (keel::usize k = 0; k < K; ++k) {
         if (!keep[k]) continue;
         const Comp &c = info.comps[k];
         for (keel::usize i = 0; i < c.rs.size(); ++i)
-            od[static_cast<keel::usize>(c.cs[i] * info.H + c.rs[i])] = 1;
+            od[keel::as<keel::usize>(c.cs[i] * info.H + c.rs[i])] = 1;
     }
     return outBW;
     (void)marker; (void)keep_largest;

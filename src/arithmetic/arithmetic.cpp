@@ -27,14 +27,14 @@ namespace {
 template <typename T>
 inline T satCast(double v) {
     if (std::isnan(v)) return T{};
-    constexpr double lo = static_cast<double>(std::numeric_limits<T>::lowest());
-    constexpr double hi = static_cast<double>(std::numeric_limits<T>::max());
+    constexpr double lo = keel::as<double>(std::numeric_limits<T>::lowest());
+    constexpr double hi = keel::as<double>(std::numeric_limits<T>::max());
     if (v <= lo) return std::numeric_limits<T>::lowest();
     if (v >= hi) return std::numeric_limits<T>::max();
     return static_cast<T>(std::lround(v));
 }
 template <> inline double satCast<double>(double v) { return v; }
-template <> inline float  satCast<float>(double v)  { return static_cast<float>(v); }
+template <> inline float  satCast<float>(double v)  { return keel::as<float>(v); }
 
 // Allocate an output Value matching X's shape and class.
 inline Value makeOutLike(const Value &x, keel::Allocator *mr) {

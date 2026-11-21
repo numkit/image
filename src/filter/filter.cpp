@@ -97,9 +97,9 @@ Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, double
 {
     padarray_argcheck(x);
     const auto &d = x.dims();
-    int H = static_cast<int>(d.rows());
-    int W = static_cast<int>(d.cols());
-    int P = d.is3D() ? static_cast<int>(d.pages()) : 1;
+    int H = keel::as<int>(d.rows());
+    int W = keel::as<int>(d.cols());
+    int P = d.is3D() ? keel::as<int>(d.pages()) : 1;
 
     int padR = padsize.size() >= 1 ? padsize[0] : 0;
     int padC = padsize.size() >= 2 ? padsize[1] : 0;
@@ -130,14 +130,14 @@ Value padarray(const Value &x, keel::ArrayRef<int> padsize, PadMode mode, double
     auto src = [&](int r, int c, int p) -> double {
         if (mode == PadMode::Constant) {
             if (r < 0 || r >= H || c < 0 || c >= W || p < 0 || p >= P) return pad_value;
-            const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
+            const keel::usize plane = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
             const keel::usize idx = (keel::usize)p * plane + (keel::usize)c * H + (keel::usize)r;
             return x.elemAsDouble(idx);
         }
         const int rs = fold_index(r, H, mode);
         const int cs = fold_index(c, W, mode);
         const int ps = (P == 1) ? 0 : fold_index(p, P, mode);
-        const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
+        const keel::usize plane = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
         const keel::usize idx = (keel::usize)ps * plane + (keel::usize)cs * H + (keel::usize)rs;
         return x.elemAsDouble(idx);
     };
@@ -545,7 +545,7 @@ void integralBoxFilter_argcheck(const Value &I, int fH, int fW)
                     0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tiny");
     const keel::usize H = H1 - 1;
     const keel::usize W = W1 - 1;
-    if (static_cast<keel::usize>(fH) > H || static_cast<keel::usize>(fW) > W)
+    if (keel::as<keel::usize>(fH) > H || keel::as<keel::usize>(fW) > W)
         throw Error("integralBoxFilter: filter size too large for integral image",
                     0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:tooLarge");
 }
@@ -570,8 +570,8 @@ void integralBoxFilter3_argcheck(const Value &I, int fH, int fW, int fP)
         throw Error("integralBoxFilter3: integral volume must be at least (1+1)^3",
                     0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tiny");
     const keel::usize H = H1 - 1, W = W1 - 1, D = D1 - 1;
-    if (static_cast<keel::usize>(fH) > H || static_cast<keel::usize>(fW) > W
-        || static_cast<keel::usize>(fP) > D)
+    if (keel::as<keel::usize>(fH) > H || keel::as<keel::usize>(fW) > W
+        || keel::as<keel::usize>(fP) > D)
         throw Error("integralBoxFilter3: Filter size is too large for integral image.",
                     0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:tooLarge");
 }
@@ -962,8 +962,8 @@ Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
     const keel::usize W = W1 - 1;
 
     const keel::usize C = (d.ndim() == 3) ? d.pages() : 1;
-    const keel::usize outH = H - static_cast<keel::usize>(fH) + 1;
-    const keel::usize outW = W - static_cast<keel::usize>(fW) + 1;
+    const keel::usize outH = H - keel::as<keel::usize>(fH) + 1;
+    const keel::usize outW = W - keel::as<keel::usize>(fW) + 1;
 
     Value out = (C == 1)
         ? Value::matrix(outH, outW, ValueType::DOUBLE, mr)
@@ -977,10 +977,10 @@ Value integralBoxFilter(const Value &I, int fH, int fW, double normFactor,
     for (keel::usize c = 0; c < C; ++c) {
         for (keel::usize oj = 0; oj < outW; ++oj) {
             const keel::usize c0 = oj;
-            const keel::usize c1 = oj + static_cast<keel::usize>(fW);
+            const keel::usize c1 = oj + keel::as<keel::usize>(fW);
             for (keel::usize oi = 0; oi < outH; ++oi) {
                 const keel::usize r0 = oi;
-                const keel::usize r1 = oi + static_cast<keel::usize>(fH);
+                const keel::usize r1 = oi + keel::as<keel::usize>(fH);
                 // Column-major indexing for I: idx = c·inPlane + col·H1 + row.
                 const keel::usize base = c * inPlane;
                 const double s =
@@ -1017,9 +1017,9 @@ Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
     const keel::usize D1 = d.is3D() ? d.pages() : 1;
     const keel::usize H = H1 - 1, W = W1 - 1, D = D1 - 1;
 
-    const keel::usize outH = H - static_cast<keel::usize>(fH) + 1;
-    const keel::usize outW = W - static_cast<keel::usize>(fW) + 1;
-    const keel::usize outD = D - static_cast<keel::usize>(fP) + 1;
+    const keel::usize outH = H - keel::as<keel::usize>(fH) + 1;
+    const keel::usize outW = W - keel::as<keel::usize>(fW) + 1;
+    const keel::usize outD = D - keel::as<keel::usize>(fP) + 1;
 
     Value out = (outD > 1)
         ? Value::matrix3d(outH, outW, outD, ValueType::DOUBLE, mr)
@@ -1033,11 +1033,11 @@ Value integralBoxFilter3(const Value &I, int fH, int fW, int fP,
     };
 
     for (keel::usize ok = 0; ok < outD; ++ok) {
-        const keel::usize p0 = ok, p1 = ok + static_cast<keel::usize>(fP);
+        const keel::usize p0 = ok, p1 = ok + keel::as<keel::usize>(fP);
         for (keel::usize oj = 0; oj < outW; ++oj) {
-            const keel::usize c0 = oj, c1 = oj + static_cast<keel::usize>(fW);
+            const keel::usize c0 = oj, c1 = oj + keel::as<keel::usize>(fW);
             for (keel::usize oi = 0; oi < outH; ++oi) {
-                const keel::usize r0 = oi, r1 = oi + static_cast<keel::usize>(fH);
+                const keel::usize r0 = oi, r1 = oi + keel::as<keel::usize>(fH);
                 const double s =
                       Iat(r1, c1, p1)
                     - Iat(r0, c1, p1) - Iat(r1, c0, p1) - Iat(r1, c1, p0)
@@ -1073,9 +1073,9 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
     modefilt_argcheck(A, fH, fW, fD, padopt, padMode);
     const bool is3D = (fD > 0);
     const auto &d = A.dims();
-    const int H = static_cast<int>(d.rows());
-    const int W = static_cast<int>(d.cols());
-    const int D = is3D ? static_cast<int>(d.is3D() ? d.pages() : 1) : 1;
+    const int H = keel::as<int>(d.rows());
+    const int W = keel::as<int>(d.cols());
+    const int D = is3D ? keel::as<int>(d.is3D() ? d.pages() : 1) : 1;
     const int hh = fH / 2;
     const int hw = fW / 2;
     const int hd = is3D ? (fD / 2) : 0;
@@ -1106,25 +1106,25 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
         int c = reflect(cc, W);
         int p = is3D ? reflect(pp, D) : 0;
         if (r < 0 || c < 0 || (is3D && p < 0)) return -1;
-        const long long plane = static_cast<long long>(H) * W;
-        return static_cast<long long>(p) * plane
-             + static_cast<long long>(c) * H + r;
+        const long long plane = keel::as<long long>(H) * W;
+        return keel::as<long long>(p) * plane
+             + keel::as<long long>(c) * H + r;
     };
 
     auto getDouble = [&](long long idx) -> double {
-        return idx < 0 ? 0.0 : A.elemAsDouble(static_cast<keel::usize>(idx));
+        return idx < 0 ? 0.0 : A.elemAsDouble(keel::as<keel::usize>(idx));
     };
 
     // Fast UINT8 / LOGICAL path with 256-bucket histogram.
     const ValueType vt = A.type();
     const bool fastByte = (vt == ValueType::UINT8 || vt == ValueType::LOGICAL);
 
-    const long long plane = static_cast<long long>(H) * W;
+    const long long plane = keel::as<long long>(H) * W;
     const int pMax = is3D ? D : 1;
     keel::Array<double> vals;
     if (!fastByte)
-        vals.reserve(static_cast<keel::usize>(fH) * static_cast<keel::usize>(fW) *
-                     static_cast<keel::usize>(is3D ? fD : 1));
+        vals.reserve(keel::as<keel::usize>(fH) * keel::as<keel::usize>(fW) *
+                     keel::as<keel::usize>(is3D ? fD : 1));
     for (int p = 0; p < pMax; ++p) {
         for (int c = 0; c < W; ++c) {
             for (int r = 0; r < H; ++r) {
@@ -1134,7 +1134,7 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                 for (int dc = -hw; dc <= hw; ++dc)
                     for (int dr = -hh; dr <= hh; ++dr) {
                         const long long idx = padIdx(r + dr, c + dc, p + dp);
-                        const int v = static_cast<int>(getDouble(idx));
+                        const int v = keel::as<int>(getDouble(idx));
                         if (v >= 0 && v < 256) ++hist[v];
                     }
                 // Ties → smallest value wins (matches MATLAB's documented
@@ -1148,14 +1148,14 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                         bestVal = v;
                     }
                 }
-                const long long dstIdx = static_cast<long long>(p) * plane
-                                          + static_cast<long long>(c) * H + r;
+                const long long dstIdx = keel::as<long long>(p) * plane
+                                          + keel::as<long long>(c) * H + r;
                 if (vt == ValueType::UINT8)
                     out.uint8DataMut()[dstIdx] =
-                        static_cast<keel::u8>(bestVal);
+                        keel::as<keel::u8>(bestVal);
                 else
                     out.logicalDataMut()[dstIdx] =
-                        static_cast<keel::u8>(bestVal != 0);
+                        keel::as<keel::u8>(bestVal != 0);
                 continue;
             }
             // Generic path: sort window values and pick highest-frequency run.
@@ -1174,7 +1174,7 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
             for (keel::usize vi = 0; vi < vals.size(); ) {
                 keel::usize vj = vi + 1;
                 while (vj < vals.size() && vals[vj] == vals[vi]) ++vj;
-                const int cnt = static_cast<int>(vj - vi);
+                const int cnt = keel::as<int>(vj - vi);
                 if (cnt > bestCnt) {
                     bestCnt = cnt;
                     bestVal = vals[vi];
@@ -1182,16 +1182,16 @@ static Value modefilt_impl(const Value &A, int fH, int fW, int fD,
                 vi = vj;
             }
             // Store into output of matching dtype.
-            const keel::usize dst = static_cast<keel::usize>(p) * static_cast<keel::usize>(plane)
-                              + static_cast<keel::usize>(c) * H + static_cast<keel::usize>(r);
+            const keel::usize dst = keel::as<keel::usize>(p) * keel::as<keel::usize>(plane)
+                              + keel::as<keel::usize>(c) * H + keel::as<keel::usize>(r);
             switch (vt) {
                 case ValueType::DOUBLE: out.doubleDataMut()[dst] = bestVal; break;
-                case ValueType::SINGLE: out.singleDataMut()[dst] = static_cast<float>(bestVal); break;
-                case ValueType::UINT16: out.uint16DataMut()[dst] = static_cast<keel::u16>(bestVal); break;
-                case ValueType::UINT32: out.uint32DataMut()[dst] = static_cast<keel::u32>(bestVal); break;
-                case ValueType::INT8:   out.int8DataMut()[dst]   = static_cast<keel::i8>(bestVal); break;
-                case ValueType::INT16:  out.int16DataMut()[dst]  = static_cast<keel::i16>(bestVal); break;
-                case ValueType::INT32:  out.int32DataMut()[dst]  = static_cast<keel::i32>(bestVal); break;
+                case ValueType::SINGLE: out.singleDataMut()[dst] = keel::as<float>(bestVal); break;
+                case ValueType::UINT16: out.uint16DataMut()[dst] = keel::as<keel::u16>(bestVal); break;
+                case ValueType::UINT32: out.uint32DataMut()[dst] = keel::as<keel::u32>(bestVal); break;
+                case ValueType::INT8:   out.int8DataMut()[dst]   = keel::as<keel::i8>(bestVal); break;
+                case ValueType::INT16:  out.int16DataMut()[dst]  = keel::as<keel::i16>(bestVal); break;
+                case ValueType::INT32:  out.int32DataMut()[dst]  = keel::as<keel::i32>(bestVal); break;
                 default:                out.doubleDataMut()[dst] = bestVal; break;
             }
             }
@@ -1335,7 +1335,7 @@ Value medfilt2(const Value &I, int rows, int cols, keel::Allocator *mr)
     const keel::u8 *su = (I.type() == ValueType::UINT8)  ? I.uint8Data()  : nullptr;
     auto getv = [&](keel::usize idx) -> double {
         if (sd) return sd[idx];
-        if (su) return static_cast<double>(su[idx]);
+        if (su) return keel::as<double>(su[idx]);
         return I.elemAsDouble(idx);
     };
 
@@ -1987,7 +1987,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
             const double x = toUnit(I.elemAsDouble(i));
             const double mean = std::max(x * scale, 0.0);
             const keel::u64 k = keel::random::poisson_u64(rng, mean);
-            fromUnit(out, i, static_cast<double>(k) / scale);
+            fromUnit(out, i, keel::as<double>(k) / scale);
         }
     }
     else if (mode == "localvar") {
@@ -2020,23 +2020,23 @@ DomainOffsets domain_offsets(const Value &domain) {
     DomainOffsets r;
     const keel::usize kH = domain.dims().rows();
     const keel::usize kW = domain.dims().cols();
-    r.rh = static_cast<int>(kH) / 2;
-    r.ch = static_cast<int>(kW) / 2;
+    r.rh = keel::as<int>(kH) / 2;
+    r.ch = keel::as<int>(kW) / 2;
     r.offs.reserve(kH * kW);
     for (keel::usize c = 0; c < kW; ++c)
         for (keel::usize row = 0; row < kH; ++row)
             if (domain.elemAsDouble(c * kH + row) != 0.0)
-                r.offs.push_back({static_cast<int>(row) - r.rh,
-                                  static_cast<int>(c)   - r.ch});
+                r.offs.push_back({keel::as<int>(row) - r.rh,
+                                  keel::as<int>(c)   - r.ch});
     return r;
 }
 
 inline double sample_sym(const Value &I, int r, int c, int H, int W) {
     r = fold_index(r, H, PadMode::Symmetric);
     c = fold_index(c, W, PadMode::Symmetric);
-    return I.elemAsDouble(static_cast<keel::usize>(c) *
-                          static_cast<keel::usize>(H) +
-                          static_cast<keel::usize>(r));
+    return I.elemAsDouble(keel::as<keel::usize>(c) *
+                          keel::as<keel::usize>(H) +
+                          keel::as<keel::usize>(r));
 }
 
 void stdfilt_argcheck(const Value &I)
@@ -2199,8 +2199,8 @@ void imgaborfilt_argcheck(const Value &A_in, double wavelength, double sfb, doub
 Value stdfilt(const Value &I, const Value &domain, keel::Allocator *mr)
 {
     stdfilt_argcheck(I);
-    const int H = static_cast<int>(I.dims().rows());
-    const int W = static_cast<int>(I.dims().cols());
+    const int H = keel::as<int>(I.dims().rows());
+    const int W = keel::as<int>(I.dims().cols());
     Value out = Value::matrix((keel::usize)H, (keel::usize)W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
 
@@ -2274,7 +2274,7 @@ Value stdfilt(const Value &I, const Value &domain, keel::Allocator *mr)
             for (keel::usize k = 0; k < M; ++k)
                 sum += sample_sym(I, r + dom_offs.offs[k].first,
                                      c + dom_offs.offs[k].second, H, W);
-            const double mu = sum / static_cast<double>(M);
+            const double mu = sum / keel::as<double>(M);
             double v = 0.0;
             for (keel::usize k = 0; k < M; ++k) {
                 const double d = sample_sym(I,
@@ -2284,7 +2284,7 @@ Value stdfilt(const Value &I, const Value &domain, keel::Allocator *mr)
                 v += d * d;
             }
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
-                (M > 1) ? std::sqrt(v / static_cast<double>(M - 1)) : 0.0;
+                (M > 1) ? std::sqrt(v / keel::as<double>(M - 1)) : 0.0;
         }
     }
     return out;
@@ -2300,15 +2300,15 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
             ordfilt2(internal::coerceToDoubleImage(A, mr), nth, domain, S,
                      boundary, pad_value, mr),
             ValueType::LOGICAL, mr);
-    const int H = static_cast<int>(A.dims().rows());
-    const int W = static_cast<int>(A.dims().cols());
+    const int H = keel::as<int>(A.dims().rows());
+    const int W = keel::as<int>(A.dims().cols());
     Value out = Value::matrix((keel::usize)H, (keel::usize)W, A.type(), mr);
     if (H == 0 || W == 0) return out;
 
     const keel::usize kH = domain.dims().rows();
     const keel::usize kW = domain.dims().cols();
-    const int rh = static_cast<int>(kH) / 2;
-    const int ch = static_cast<int>(kW) / 2;
+    const int rh = keel::as<int>(kH) / 2;
+    const int ch = keel::as<int>(kW) / 2;
     const bool has_S = (S.numel() == domain.numel());
 
     struct Off { int dr; int dc; double s; };
@@ -2318,10 +2318,10 @@ Value ordfilt2(const Value &A, int nth, const Value &domain, const Value &S, Pad
         for (keel::usize r = 0; r < kH; ++r)
             if (domain.elemAsDouble(c * kH + r) != 0.0) {
                 const double s = has_S ? S.elemAsDouble(c * kH + r) : 0.0;
-                offs.push_back({static_cast<int>(r) - rh,
-                                static_cast<int>(c) - ch, s});
+                offs.push_back({keel::as<int>(r) - rh,
+                                keel::as<int>(c) - ch, s});
             }
-    const int M = static_cast<int>(offs.size());
+    const int M = keel::as<int>(offs.size());
     if (M == 0) return out;
     if (nth < 1 || nth > M)
         throw Error("ordfilt2: nth-order index out of range",
@@ -2381,7 +2381,7 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
     // Build h×w box kernel.
     Value k = Value::matrix(nh, nw, ValueType::DOUBLE, mr);
     {
-        const double a = 1.0 / static_cast<double>(nh * nw);
+        const double a = 1.0 / keel::as<double>(nh * nw);
         double *kd = k.doubleDataMut();
         for (keel::usize i = 0; i < nh * nw; ++i) kd[i] = a;
     }
@@ -2413,7 +2413,7 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
         long double s = 0.0L;
         for (keel::usize i = 0; i < H * W; ++i)
             s += var_im.doubleData()[i];
-        noise = static_cast<double>(s / static_cast<long double>(H * W));
+        noise = keel::as<double>(s / keel::as<long double>(H * W));
     }
 
     // var_orig = max(0, var_im - noise).
@@ -2440,7 +2440,7 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, double noise, keel::Allo
         out = Value::matrix(H, W, ValueType::SINGLE, mr);
         const double *o = out_d.doubleData();
         float *of = out.singleDataMut();
-        for (keel::usize i = 0; i < H * W; ++i) of[i] = static_cast<float>(o[i]);
+        for (keel::usize i = 0; i < H * W; ++i) of[i] = keel::as<float>(o[i]);
     } else if (cls == ValueType::UINT8) out = im2uint8(out_d, mr);
     else if (cls == ValueType::UINT16) out = im2uint16(out_d, mr);
     else if (cls == ValueType::INT16)  out = im2int16(out_d, mr);
@@ -2454,10 +2454,10 @@ Value imsmooth(const Value &I, keel::StringRef name, double sigma, keel::Allocat
     imsmooth_argcheck(I, name, sigma);
 
     const ValueType cls = I.type();
-    const int H = static_cast<int>(I.dims().rows());
-    const int W = static_cast<int>(I.dims().cols());
-    const int P = I.dims().is3D() ? static_cast<int>(I.dims().pages()) : 1;
-    const int h = static_cast<int>(std::ceil(3.0 * sigma));
+    const int H = keel::as<int>(I.dims().rows());
+    const int W = keel::as<int>(I.dims().cols());
+    const int P = I.dims().is3D() ? keel::as<int>(I.dims().pages()) : 1;
+    const int h = keel::as<int>(std::ceil(3.0 * sigma));
     const int K = 2 * h + 1;
 
     keel::Array<double> f((keel::usize)K);
@@ -2519,9 +2519,9 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
     if (fP % 2 == 0) fP += 1;
 
     const ValueType cls = V.type();
-    const int H = static_cast<int>(V.dims().rows());
-    const int W = static_cast<int>(V.dims().cols());
-    const int P = V.dims().is3D() ? static_cast<int>(V.dims().pages()) : 1;
+    const int H = keel::as<int>(V.dims().rows());
+    const int W = keel::as<int>(V.dims().cols());
+    const int P = V.dims().is3D() ? keel::as<int>(V.dims().pages()) : 1;
     const int hh = fH / 2;
     const int hw = fW / 2;
     const int hp = fP / 2;
@@ -2588,15 +2588,15 @@ Value imboxfilt3(const Value &V, int fH, int fW, int fP, keel::Allocator *mr)
 // 1-D Gaussian kernel of length 2*ceil(2σ)+1, normalised.
 static keel::Array<double> gauss1d_kernel(double sigma) {
     if (!(sigma > 0.0)) sigma = 0.5;
-    int half = static_cast<int>(std::ceil(2.0 * sigma));
+    int half = keel::as<int>(std::ceil(2.0 * sigma));
     if (half < 1) half = 1;
     const int K = 2 * half + 1;
     keel::Array<double> k(K);
     double sum = 0.0;
     const double inv2s2 = 0.5 / (sigma * sigma);
     for (int i = -half; i <= half; ++i) {
-        const double w = std::exp(-static_cast<double>(i * i) * inv2s2);
-        k[static_cast<keel::usize>(i + half)] = w;
+        const double w = std::exp(-keel::as<double>(i * i) * inv2s2);
+        k[keel::as<keel::usize>(i + half)] = w;
         sum += w;
     }
     const double inv = 1.0 / sum;
@@ -2608,9 +2608,9 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
 {
     imgaussfilt3_argcheck(V);
     const ValueType cls = V.type();
-    const int H = static_cast<int>(V.dims().rows());
-    const int W = static_cast<int>(V.dims().cols());
-    const int P = V.dims().is3D() ? static_cast<int>(V.dims().pages()) : 1;
+    const int H = keel::as<int>(V.dims().rows());
+    const int W = keel::as<int>(V.dims().cols());
+    const int P = V.dims().is3D() ? keel::as<int>(V.dims().pages()) : 1;
     Value out = (P > 1) ? Value::matrix3d(H, W, P, cls, mr)
                         : Value::matrix(H, W, cls, mr);
     if (H == 0 || W == 0 || P == 0) return out;
@@ -2618,13 +2618,13 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
     const auto kH = gauss1d_kernel(sigH);
     const auto kW = gauss1d_kernel(sigW);
     const auto kP = gauss1d_kernel(sigP);
-    const int hH = static_cast<int>(kH.size()) / 2;
-    const int hW = static_cast<int>(kW.size()) / 2;
-    const int hP = static_cast<int>(kP.size()) / 2;
+    const int hH = keel::as<int>(kH.size()) / 2;
+    const int hW = keel::as<int>(kW.size()) / 2;
+    const int hP = keel::as<int>(kP.size()) / 2;
 
-    const keel::usize total = static_cast<keel::usize>(H)
-                       * static_cast<keel::usize>(W)
-                       * static_cast<keel::usize>(P);
+    const keel::usize total = keel::as<keel::usize>(H)
+                       * keel::as<keel::usize>(W)
+                       * keel::as<keel::usize>(P);
     keel::Array<double> a(total), b(total);
     for (keel::usize i = 0; i < total; ++i) a[i] = V.elemAsDouble(i);
 
@@ -2635,7 +2635,7 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
                 double acc = 0.0;
                 for (int k = -hH; k <= hH; ++k) {
                     const int rs = fold_index(r + k, H, PadMode::Replicate);
-                    acc += kH[static_cast<keel::usize>(k + hH)] *
+                    acc += kH[keel::as<keel::usize>(k + hH)] *
                            a[(keel::usize)p * H * W + (keel::usize)c * H + (keel::usize)rs];
                 }
                 b[(keel::usize)p * H * W + (keel::usize)c * H + (keel::usize)r] = acc;
@@ -2649,7 +2649,7 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
                 double acc = 0.0;
                 for (int k = -hW; k <= hW; ++k) {
                     const int cs = fold_index(c + k, W, PadMode::Replicate);
-                    acc += kW[static_cast<keel::usize>(k + hW)] *
+                    acc += kW[keel::as<keel::usize>(k + hW)] *
                            b[(keel::usize)p * H * W + (keel::usize)cs * H + (keel::usize)r];
                 }
                 a[(keel::usize)p * H * W + (keel::usize)c * H + (keel::usize)r] = acc;
@@ -2663,7 +2663,7 @@ Value imgaussfilt3(const Value &V, double sigH, double sigW, double sigP, keel::
                 double acc = 0.0;
                 for (int k = -hP; k <= hP; ++k) {
                     const int ps = fold_index(p + k, P, PadMode::Replicate);
-                    acc += kP[static_cast<keel::usize>(k + hP)] *
+                    acc += kP[keel::as<keel::usize>(k + hP)] *
                            a[(keel::usize)ps * H * W + (keel::usize)c * H + (keel::usize)r];
                 }
                 store_classed(out,
@@ -2687,9 +2687,9 @@ Value medfilt3(const Value &V, int M, int N, int P, keel::Allocator *mr)
     if (P <= 0) P = 3;
 
     const ValueType cls = V.type();
-    const int H = static_cast<int>(V.dims().rows());
-    const int W = static_cast<int>(V.dims().cols());
-    const int D = V.dims().is3D() ? static_cast<int>(V.dims().pages()) : 1;
+    const int H = keel::as<int>(V.dims().rows());
+    const int W = keel::as<int>(V.dims().cols());
+    const int D = V.dims().is3D() ? keel::as<int>(V.dims().pages()) : 1;
 
     Value out = (D > 1) ? Value::matrix3d(H, W, D, cls, mr)
                         : Value::matrix(H, W, cls, mr);
@@ -2698,9 +2698,9 @@ Value medfilt3(const Value &V, int M, int N, int P, keel::Allocator *mr)
     const int hM = M / 2;
     const int hN = N / 2;
     const int hP = P / 2;
-    const keel::usize plane = static_cast<keel::usize>(H) * static_cast<keel::usize>(W);
-    const keel::usize nbhd = static_cast<keel::usize>(M) * static_cast<keel::usize>(N)
-                      * static_cast<keel::usize>(P);
+    const keel::usize plane = keel::as<keel::usize>(H) * keel::as<keel::usize>(W);
+    const keel::usize nbhd = keel::as<keel::usize>(M) * keel::as<keel::usize>(N)
+                      * keel::as<keel::usize>(P);
 
     keel::Array<double> window;
     window.reserve(nbhd);
@@ -2714,9 +2714,9 @@ Value medfilt3(const Value &V, int M, int N, int P, keel::Allocator *mr)
                         const int cs = fold_index(c + kc, W, PadMode::Symmetric);
                         for (int kr = -hM; kr <= hM; ++kr) {
                             const int rs = fold_index(r + kr, H, PadMode::Symmetric);
-                            const keel::usize idx = static_cast<keel::usize>(ps) * plane
-                                             + static_cast<keel::usize>(cs) * H
-                                             + static_cast<keel::usize>(rs);
+                            const keel::usize idx = keel::as<keel::usize>(ps) * plane
+                                             + keel::as<keel::usize>(cs) * H
+                                             + keel::as<keel::usize>(rs);
                             window.push_back(V.elemAsDouble(idx));
                         }
                     }
@@ -2733,9 +2733,9 @@ Value medfilt3(const Value &V, int M, int N, int P, keel::Allocator *mr)
                     med = 0.5 * (left_max + med);
                 }
                 store_classed(out,
-                              static_cast<keel::usize>(p) * plane
-                                + static_cast<keel::usize>(c) * H
-                                + static_cast<keel::usize>(r),
+                              keel::as<keel::usize>(p) * plane
+                                + keel::as<keel::usize>(c) * H
+                                + keel::as<keel::usize>(r),
                               med, cls);
             }
         }
@@ -2747,12 +2747,12 @@ Value convmtx2(const Value &h, int m, int n, keel::Allocator *mr)
 {
     convmtx2_argcheck(h, m, n);
     const auto &dh = h.dims();
-    const int M = static_cast<int>(dh.rows());
-    const int N = static_cast<int>(dh.cols());
-    const keel::usize out_rows = static_cast<keel::usize>(m + M - 1);
-    const keel::usize out_cols = static_cast<keel::usize>(n + N - 1);
+    const int M = keel::as<int>(dh.rows());
+    const int N = keel::as<int>(dh.cols());
+    const keel::usize out_rows = keel::as<keel::usize>(m + M - 1);
+    const keel::usize out_cols = keel::as<keel::usize>(n + N - 1);
     const keel::usize P = out_rows * out_cols;
-    const keel::usize Q = static_cast<keel::usize>(m) * static_cast<keel::usize>(n);
+    const keel::usize Q = keel::as<keel::usize>(m) * keel::as<keel::usize>(n);
 
     Value T = Value::matrix(P, Q, ValueType::DOUBLE, mr);
     if (P == 0 || Q == 0) return T;
@@ -2763,16 +2763,16 @@ Value convmtx2(const Value &h, int m, int n, keel::Allocator *mr)
     // where out_r = r_in + i - 1, out_c = c_in + j - 1.
     for (int c_in = 0; c_in < n; ++c_in) {
         for (int r_in = 0; r_in < m; ++r_in) {
-            const keel::usize k = static_cast<keel::usize>(c_in) * static_cast<keel::usize>(m)
-                           + static_cast<keel::usize>(r_in);
+            const keel::usize k = keel::as<keel::usize>(c_in) * keel::as<keel::usize>(m)
+                           + keel::as<keel::usize>(r_in);
             for (int j = 0; j < N; ++j) {
                 for (int i = 0; i < M; ++i) {
                     const double hv = h.elemAsDouble(
-                        static_cast<keel::usize>(j) * static_cast<keel::usize>(M)
-                        + static_cast<keel::usize>(i));
+                        keel::as<keel::usize>(j) * keel::as<keel::usize>(M)
+                        + keel::as<keel::usize>(i));
                     if (hv == 0.0) continue;
-                    const keel::usize out_r = static_cast<keel::usize>(r_in + i);
-                    const keel::usize out_c = static_cast<keel::usize>(c_in + j);
+                    const keel::usize out_r = keel::as<keel::usize>(r_in + i);
+                    const keel::usize out_c = keel::as<keel::usize>(c_in + j);
                     const keel::usize p = out_c * out_rows + out_r;
                     Td[k * P + p] = hv;
                 }
@@ -2792,8 +2792,8 @@ Value entropyfilt(const Value &I, const Value &domain, keel::Allocator *mr)
     Value Iu = (isLogical || I.type() == ValueType::UINT8)
         ? I : im2uint8(I, mr);
 
-    const int H = static_cast<int>(Iu.dims().rows());
-    const int W = static_cast<int>(Iu.dims().cols());
+    const int H = keel::as<int>(Iu.dims().rows());
+    const int W = keel::as<int>(Iu.dims().cols());
     Value out = Value::matrix((keel::usize)H, (keel::usize)W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
 
@@ -2819,17 +2819,17 @@ Value entropyfilt(const Value &I, const Value &domain, keel::Allocator *mr)
                                             r + dom_offs.offs[k].first,
                                             c + dom_offs.offs[k].second,
                                             H, W);
-                int b = static_cast<int>(v);
+                int b = keel::as<int>(v);
                 if (b < 0)        b = 0;
                 if (b >= nbins)   b = nbins - 1;
                 ++hist[(keel::usize)b];
             }
-            const double total = static_cast<double>(M);
+            const double total = keel::as<double>(M);
             double H_bits = 0.0;
             for (int b = 0; b < nbins; ++b) {
                 const int n = hist[(keel::usize)b];
                 if (n <= 0) continue;
-                const double p = static_cast<double>(n) / total;
+                const double p = keel::as<double>(n) / total;
                 H_bits -= p * std::log2(p);
             }
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r] = H_bits;
@@ -2846,8 +2846,8 @@ Value rangefilt(const Value &I, const Value &domain, keel::Allocator *mr)
         return internal::castResultToClass(
             rangefilt(internal::coerceToDoubleImage(I, mr), domain, mr),
             ValueType::LOGICAL, mr);
-    const int H = static_cast<int>(I.dims().rows());
-    const int W = static_cast<int>(I.dims().cols());
+    const int H = keel::as<int>(I.dims().rows());
+    const int W = keel::as<int>(I.dims().cols());
     // int16 input → uint16 range (probed R2025b: the reference computes
     // the range in the unsigned domain for signed inputs).
     const ValueType outT = (I.type() == ValueType::INT16)
@@ -2900,8 +2900,8 @@ freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
     Value f2V = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     double *f1 = f1V.doubleDataMut();
     double *f2 = f2V.doubleDataMut();
-    for (keel::usize i = 0; i < M; ++i) f1[i] = -1.0 + 2.0 * static_cast<double>(i) / static_cast<double>(M);
-    for (keel::usize j = 0; j < N; ++j) f2[j] = -1.0 + 2.0 * static_cast<double>(j) / static_cast<double>(N);
+    for (keel::usize i = 0; i < M; ++i) f1[i] = -1.0 + 2.0 * keel::as<double>(i) / keel::as<double>(M);
+    for (keel::usize j = 0; j < N; ++j) f2[j] = -1.0 + 2.0 * keel::as<double>(j) / keel::as<double>(N);
 
     Value HV = Value::matrix(M, N, ValueType::COMPLEX, mr);
     if (P == 0 || Q == 0) return {std::move(HV), std::move(f1V), std::move(f2V)};
@@ -2910,17 +2910,17 @@ freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
     // H[i, j] = Σ_p Σ_q h[p,q] · exp(+iπ·(f1[i]·(p - cp) + f2[j]·(q - cq)))
     // where (cp, cq) = (⌊(P-1)/2⌋, ⌊(Q-1)/2⌋) are the kernel centre
     // offsets. Matches MATLAB: real for symmetric h, complex otherwise.
-    const double cp = static_cast<double>((P > 0 ? (P - 1) / 2 : 0));
-    const double cq = static_cast<double>((Q > 0 ? (Q - 1) / 2 : 0));
+    const double cp = keel::as<double>((P > 0 ? (P - 1) / 2 : 0));
+    const double cq = keel::as<double>((Q > 0 ? (Q - 1) / 2 : 0));
     keel::Array<keel::c64> phase_p_i(M * P), phase_q_j(N * Q);
     for (keel::usize i = 0; i < M; ++i)
         for (keel::usize p = 0; p < P; ++p) {
-            const double a = M_PI * f1[i] * (static_cast<double>(p) - cp);
+            const double a = M_PI * f1[i] * (keel::as<double>(p) - cp);
             phase_p_i[p + i * P] = {std::cos(a), std::sin(a)};
         }
     for (keel::usize j = 0; j < N; ++j)
         for (keel::usize q = 0; q < Q; ++q) {
-            const double a = M_PI * f2[j] * (static_cast<double>(q) - cq);
+            const double a = M_PI * f2[j] * (keel::as<double>(q) - cq);
             phase_q_j[q + j * Q] = {std::cos(a), std::sin(a)};
         }
     for (keel::usize j = 0; j < N; ++j) {
@@ -2979,14 +2979,14 @@ Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
     Value out = Value::matrix(H, W, cls, mr);
     auto store = [&](keel::usize i, double v) {
         switch (cls) {
-            case ValueType::SINGLE: out.singleDataMut()[i] = static_cast<float>(v); break;
-            case ValueType::UINT8:  out.uint8DataMut()[i]  = static_cast<keel::u8>(std::lround(v)); break;
-            case ValueType::UINT16: out.uint16DataMut()[i] = static_cast<keel::u16>(std::lround(v)); break;
-            case ValueType::UINT32: out.uint32DataMut()[i] = static_cast<keel::u32>(std::lround(v)); break;
-            case ValueType::INT8:   out.int8DataMut()[i]   = static_cast<keel::i8>(std::lround(v)); break;
-            case ValueType::INT16:  out.int16DataMut()[i]  = static_cast<keel::i16>(std::lround(v)); break;
-            case ValueType::INT32:  out.int32DataMut()[i]  = static_cast<keel::i32>(std::lround(v)); break;
-            case ValueType::INT64:  out.int64DataMut()[i]  = static_cast<keel::i64>(std::llround(v)); break;
+            case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<float>(v); break;
+            case ValueType::UINT8:  out.uint8DataMut()[i]  = keel::as<keel::u8>(std::lround(v)); break;
+            case ValueType::UINT16: out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v)); break;
+            case ValueType::UINT32: out.uint32DataMut()[i] = keel::as<keel::u32>(std::lround(v)); break;
+            case ValueType::INT8:   out.int8DataMut()[i]   = keel::as<keel::i8>(std::lround(v)); break;
+            case ValueType::INT16:  out.int16DataMut()[i]  = keel::as<keel::i16>(std::lround(v)); break;
+            case ValueType::INT32:  out.int32DataMut()[i]  = keel::as<keel::i32>(std::lround(v)); break;
+            case ValueType::INT64:  out.int64DataMut()[i]  = keel::as<keel::i64>(std::llround(v)); break;
             case ValueType::LOGICAL:out.logicalDataMut()[i]= (v != 0.0) ? 1u : 0u; break;
             default:                out.doubleDataMut()[i] = v; break;
         }
@@ -3116,13 +3116,13 @@ Value imguidedfilter(const Value &A, const Value &G_in, int nhood,
     for (keel::usize i = 0; i < N; ++i) {
         const double v = Bd.doubleData()[i];
         switch (outT) {
-            case ValueType::SINGLE:  Bout.singleDataMut()[i] = static_cast<float>(v); break;
-            case ValueType::UINT8:   Bout.uint8DataMut()[i]  = static_cast<keel::u8>(saturate(v, 0.0, 255.0)); break;
-            case ValueType::UINT16:  Bout.uint16DataMut()[i] = static_cast<keel::u16>(saturate(v, 0.0, 65535.0)); break;
-            case ValueType::INT8:    Bout.int8DataMut()[i]   = static_cast<keel::i8>(saturate(v, -128.0, 127.0)); break;
-            case ValueType::INT16:   Bout.int16DataMut()[i]  = static_cast<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
-            case ValueType::INT32:   Bout.int32DataMut()[i]  = static_cast<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
-            case ValueType::UINT32:  Bout.uint32DataMut()[i] = static_cast<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
+            case ValueType::SINGLE:  Bout.singleDataMut()[i] = keel::as<float>(v); break;
+            case ValueType::UINT8:   Bout.uint8DataMut()[i]  = keel::as<keel::u8>(saturate(v, 0.0, 255.0)); break;
+            case ValueType::UINT16:  Bout.uint16DataMut()[i] = keel::as<keel::u16>(saturate(v, 0.0, 65535.0)); break;
+            case ValueType::INT8:    Bout.int8DataMut()[i]   = keel::as<keel::i8>(saturate(v, -128.0, 127.0)); break;
+            case ValueType::INT16:   Bout.int16DataMut()[i]  = keel::as<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
+            case ValueType::INT32:   Bout.int32DataMut()[i]  = keel::as<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
+            case ValueType::UINT32:  Bout.uint32DataMut()[i] = keel::as<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
             case ValueType::LOGICAL: Bout.logicalDataMut()[i] = v >= 0.5 ? 1 : 0; break;
             default: Bout.doubleDataMut()[i] = v; break;
         }
@@ -3295,13 +3295,13 @@ Value imdiffusefilt(const Value &I,
     for (keel::usize i = 0; i < Npix; ++i) {
         const double v = img[i];
         switch (inT) {
-            case ValueType::SINGLE:  out.singleDataMut()[i] = static_cast<float>(v); break;
-            case ValueType::UINT8:   out.uint8DataMut()[i]  = static_cast<keel::u8>(saturate(v, 0.0, 255.0)); break;
-            case ValueType::UINT16:  out.uint16DataMut()[i] = static_cast<keel::u16>(saturate(v, 0.0, 65535.0)); break;
-            case ValueType::UINT32:  out.uint32DataMut()[i] = static_cast<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
-            case ValueType::INT8:    out.int8DataMut()[i]   = static_cast<keel::i8>(saturate(v, -128.0, 127.0)); break;
-            case ValueType::INT16:   out.int16DataMut()[i]  = static_cast<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
-            case ValueType::INT32:   out.int32DataMut()[i]  = static_cast<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
+            case ValueType::SINGLE:  out.singleDataMut()[i] = keel::as<float>(v); break;
+            case ValueType::UINT8:   out.uint8DataMut()[i]  = keel::as<keel::u8>(saturate(v, 0.0, 255.0)); break;
+            case ValueType::UINT16:  out.uint16DataMut()[i] = keel::as<keel::u16>(saturate(v, 0.0, 65535.0)); break;
+            case ValueType::UINT32:  out.uint32DataMut()[i] = keel::as<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
+            case ValueType::INT8:    out.int8DataMut()[i]   = keel::as<keel::i8>(saturate(v, -128.0, 127.0)); break;
+            case ValueType::INT16:   out.int16DataMut()[i]  = keel::as<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
+            case ValueType::INT32:   out.int32DataMut()[i]  = keel::as<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
             default: out.doubleDataMut()[i] = v; break;
         }
     }
@@ -3345,8 +3345,8 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
                         * (std::pow(2.0, sfb) + 1.0)
                         / (std::pow(2.0, sfb) - 1.0);
     const double sigmaY = sigmaX / aspect;
-    const long Rx = static_cast<long>(std::ceil(7.0 * sigmaX));
-    const long Ry = static_cast<long>(std::ceil(7.0 * sigmaY));
+    const long Rx = keel::as<long>(std::ceil(7.0 * sigmaX));
+    const long Ry = keel::as<long>(std::ceil(7.0 * sigmaY));
     const long r = std::max(Rx, Ry);
 
     // Pad A to (M + 2r) x (N + 2r) with replicate.
@@ -3355,7 +3355,7 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
     // Use existing padarray (filter.cpp) if available; fall back to manual.
     Value Ad = Value::matrix(M, N, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < M * N; ++i) Ad.doubleDataMut()[i] = A_in.elemAsDouble(i);
-    Value Apad = padarray(Ad, {static_cast<int>(r), static_cast<int>(r)},
+    Value Apad = padarray(Ad, {keel::as<int>(r), keel::as<int>(r)},
                           PadMode::Replicate, 0.0, "both", mr);
 
     // FFT-2D of padded image.
@@ -3471,8 +3471,8 @@ void imgaborfilt(const Value &A_in, double wavelength, double orientation,
                 mag_out.doubleDataMut()[dst]   = m;
                 phase_out.doubleDataMut()[dst] = p;
             } else {
-                mag_out.singleDataMut()[dst]   = static_cast<float>(m);
-                phase_out.singleDataMut()[dst] = static_cast<float>(p);
+                mag_out.singleDataMut()[dst]   = keel::as<float>(m);
+                phase_out.singleDataMut()[dst] = keel::as<float>(p);
             }
         }
     }
@@ -3513,7 +3513,7 @@ double immerkaer_dos(const Value &I, keel::Allocator * /*mr*/) {
     const keel::usize Mp = H + 2;
     const keel::usize Wp = W + 2;
     auto Ival = [&](keel::usize r, keel::usize c) -> float {
-        return static_cast<float>(I.elemAsDouble(c * H + r));
+        return keel::as<float>(I.elemAsDouble(c * H + r));
     };
     float sum_abs = 0.0f;
     for (keel::usize oc = 0; oc < Wp; ++oc) {
@@ -3521,22 +3521,22 @@ double immerkaer_dos(const Value &I, keel::Allocator * /*mr*/) {
             float s = 0.0f;
             for (int i = 0; i < 3; ++i) {
                 for (int j = 0; j < 3; ++j) {
-                    const long ir = static_cast<long>(orr) - i;
-                    const long ic = static_cast<long>(oc) - j;
+                    const long ir = keel::as<long>(orr) - i;
+                    const long ic = keel::as<long>(oc) - j;
                     if (ir < 0 || ic < 0
-                     || static_cast<keel::usize>(ir) >= H
-                     || static_cast<keel::usize>(ic) >= W) continue;
+                     || keel::as<keel::usize>(ir) >= H
+                     || keel::as<keel::usize>(ic) >= W) continue;
                     s += K[i][j] * Ival(ir, ic);
                 }
             }
             sum_abs += std::fabs(s);
         }
     }
-    const float dos = sum_abs * std::sqrt(static_cast<float>(M_PI) * 0.5f)
+    const float dos = sum_abs * std::sqrt(keel::as<float>(M_PI) * 0.5f)
                     / (6.0f * (W - 2) * (H - 2));
     return (dos == 0.0f)
-            ? static_cast<double>(std::numeric_limits<float>::epsilon())
-            : static_cast<double>(dos);
+            ? keel::as<double>(std::numeric_limits<float>::epsilon())
+            : keel::as<double>(dos);
 }
 
 void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
@@ -3561,7 +3561,7 @@ void imnlmfilt_argcheck(const Value &I, int swsize, int cwsize)
         throw Error("imnlmfilt: ComparisonWindowSize must be <= "
                     "SearchWindowSize",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:cwsTooLarge");
-    if (static_cast<keel::usize>(swsize) > std::min(H, W))
+    if (keel::as<keel::usize>(swsize) > std::min(H, W))
         throw Error("imnlmfilt: SearchWindowSize must be <= min(H, W)",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:swsTooLarge");
 }
@@ -3603,17 +3603,17 @@ void imnlmfilt(const Value &I, double dos,
     keel::Array<double> P(Mp * Wp, 0.0, mr);
     for (keel::usize c = 0; c < Wp; ++c) {
         for (keel::usize r = 0; r < Mp; ++r) {
-            const long ir = static_cast<long>(r) - pad;
-            const long ic = static_cast<long>(c) - pad;
-            const long irc = std::clamp(ir, 0L, static_cast<long>(H - 1));
-            const long icc = std::clamp(ic, 0L, static_cast<long>(W - 1));
-            P[c * Mp + r] = Iv[static_cast<keel::usize>(icc) * H
-                              + static_cast<keel::usize>(irc)];
+            const long ir = keel::as<long>(r) - pad;
+            const long ic = keel::as<long>(c) - pad;
+            const long irc = std::clamp(ir, 0L, keel::as<long>(H - 1));
+            const long icc = std::clamp(ic, 0L, keel::as<long>(W - 1));
+            P[c * Mp + r] = Iv[keel::as<keel::usize>(icc) * H
+                              + keel::as<keel::usize>(irc)];
         }
     }
 
     const double inv_h2 = 1.0 / (h * h);
-    const double inv_cwsq = 1.0 / static_cast<double>(cwsize * cwsize);
+    const double inv_cwsq = 1.0 / keel::as<double>(cwsize * cwsize);
 
     // Build output.
     keel::Array<double> Out(N, 0.0, mr);
@@ -3664,7 +3664,7 @@ void imnlmfilt(const Value &I, double dos,
         for (keel::usize i = 0; i < N; ++i) p[i] = Out[i];
     } else if (outT == ValueType::SINGLE) {
         float *p = J_out.singleDataMut();
-        for (keel::usize i = 0; i < N; ++i) p[i] = static_cast<float>(Out[i]);
+        for (keel::usize i = 0; i < N; ++i) p[i] = keel::as<float>(Out[i]);
     } else {
         auto saturate = [&](double v, double lo, double hi) {
             v = std::round(v);
@@ -3675,12 +3675,12 @@ void imnlmfilt(const Value &I, double dos,
         for (keel::usize i = 0; i < N; ++i) {
             const double v = Out[i];
             switch (outT) {
-                case ValueType::UINT8:  J_out.uint8DataMut()[i]  = static_cast<keel::u8>(saturate(v, 0.0, 255.0)); break;
-                case ValueType::UINT16: J_out.uint16DataMut()[i] = static_cast<keel::u16>(saturate(v, 0.0, 65535.0)); break;
-                case ValueType::INT8:   J_out.int8DataMut()[i]   = static_cast<keel::i8>(saturate(v, -128.0, 127.0)); break;
-                case ValueType::INT16:  J_out.int16DataMut()[i]  = static_cast<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
-                case ValueType::INT32:  J_out.int32DataMut()[i]  = static_cast<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
-                case ValueType::UINT32: J_out.uint32DataMut()[i] = static_cast<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
+                case ValueType::UINT8:  J_out.uint8DataMut()[i]  = keel::as<keel::u8>(saturate(v, 0.0, 255.0)); break;
+                case ValueType::UINT16: J_out.uint16DataMut()[i] = keel::as<keel::u16>(saturate(v, 0.0, 65535.0)); break;
+                case ValueType::INT8:   J_out.int8DataMut()[i]   = keel::as<keel::i8>(saturate(v, -128.0, 127.0)); break;
+                case ValueType::INT16:  J_out.int16DataMut()[i]  = keel::as<keel::i16>(saturate(v, -32768.0, 32767.0)); break;
+                case ValueType::INT32:  J_out.int32DataMut()[i]  = keel::as<keel::i32>(saturate(v, -2147483648.0, 2147483647.0)); break;
+                case ValueType::UINT32: J_out.uint32DataMut()[i] = keel::as<keel::u32>(saturate(v, 0.0, 4294967295.0)); break;
                 default: J_out.doubleDataMut()[i] = v; break;
             }
         }

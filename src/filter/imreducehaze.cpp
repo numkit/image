@@ -97,13 +97,13 @@ Value to_single01(const Value &A, keel::Allocator *mr)
         const double raw = A.elemAsDouble(i);
         float v;
         switch (t) {
-            case ValueType::UINT8:  v = static_cast<float>(raw) / 255.0f;   break;
-            case ValueType::UINT16: v = static_cast<float>(raw) / 65535.0f; break;
-            case ValueType::INT8:   v = (static_cast<float>(raw) + 128.0f) / 255.0f;   break;
-            case ValueType::INT16:  v = (static_cast<float>(raw) + 32768.0f) / 65535.0f; break;
+            case ValueType::UINT8:  v = keel::as<float>(raw) / 255.0f;   break;
+            case ValueType::UINT16: v = keel::as<float>(raw) / 65535.0f; break;
+            case ValueType::INT8:   v = (keel::as<float>(raw) + 128.0f) / 255.0f;   break;
+            case ValueType::INT16:  v = (keel::as<float>(raw) + 32768.0f) / 65535.0f; break;
             case ValueType::LOGICAL: v = raw == 0.0 ? 0.0f : 1.0f; break;
             default: {
-                v = static_cast<float>(raw);
+                v = keel::as<float>(raw);
                 if (v < 0.0f) v = 0.0f;
                 if (v > 1.0f) v = 1.0f;
                 break;
@@ -139,8 +139,8 @@ Value min_across_pages(const Value &A, keel::Allocator *mr)
 // ── square strel of size n as a logical n×n matrix ──
 Value make_square_strel(int n, keel::Allocator *mr)
 {
-    Value se = Value::matrix(static_cast<keel::usize>(n),
-                              static_cast<keel::usize>(n),
+    Value se = Value::matrix(keel::as<keel::usize>(n),
+                              keel::as<keel::usize>(n),
                               ValueType::LOGICAL, mr);
     keel::u8 *d = se.logicalDataMut();
     for (int i = 0; i < n * n; ++i) d[i] = 1;
@@ -188,7 +188,7 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
         for (keel::usize c = q.c0; c <= q.c1; ++c)
             for (keel::usize r = q.r0; r <= q.r1; ++r)
                 s += dd[c * H + r];
-        return s / static_cast<double>(n);
+        return s / keel::as<double>(n);
     };
     for (int lvl = 0; lvl < numLevels; ++lvl) {
         // MATLAB's quadrant indexing (1-based, all integer):
@@ -197,24 +197,24 @@ Rect quadtree_decomp(const Value &dark, Rect Q, int numLevels)
         //                                  source uses `round`)
         //   col mid = (Q.c0 + Q.c1) / 2
         // R2025b uses `round(...)` so we match that.
-        const long rmid = static_cast<long>(std::round(
-            (static_cast<double>(Q.r0) + static_cast<double>(Q.r1)) / 2.0));
-        const long cmid = static_cast<long>(std::round(
-            (static_cast<double>(Q.c0) + static_cast<double>(Q.c1)) / 2.0));
+        const long rmid = keel::as<long>(std::round(
+            (keel::as<double>(Q.r0) + keel::as<double>(Q.r1)) / 2.0));
+        const long cmid = keel::as<long>(std::round(
+            (keel::as<double>(Q.c0) + keel::as<double>(Q.c1)) / 2.0));
         const Rect q1{Q.r0,
                        Q.c0,
-                       static_cast<keel::usize>(rmid),
-                       static_cast<keel::usize>(cmid)};
+                       keel::as<keel::usize>(rmid),
+                       keel::as<keel::usize>(cmid)};
         const Rect q2{Q.r0,
-                       static_cast<keel::usize>(cmid + 1),
-                       static_cast<keel::usize>(rmid),
+                       keel::as<keel::usize>(cmid + 1),
+                       keel::as<keel::usize>(rmid),
                        Q.c1};
-        const Rect q3{static_cast<keel::usize>(rmid + 1),
+        const Rect q3{keel::as<keel::usize>(rmid + 1),
                        Q.c0,
                        Q.r1,
-                       static_cast<keel::usize>(cmid)};
-        const Rect q4{static_cast<keel::usize>(rmid + 1),
-                       static_cast<keel::usize>(cmid + 1),
+                       keel::as<keel::usize>(cmid)};
+        const Rect q4{keel::as<keel::usize>(rmid + 1),
+                       keel::as<keel::usize>(cmid + 1),
                        Q.r1,
                        Q.c1};
         const double m[4] = {mean_of(q1), mean_of(q2), mean_of(q3), mean_of(q4)};
@@ -237,8 +237,8 @@ keel::Array<float> simpledcp_atm_light(const Value &A,
     const keel::usize P = d.is3D() ? d.pages() : 1;
     Rect Q{0, 0, H - 1, W - 1};
     if (H >= 64 && W >= 64) {
-        const int winSize = static_cast<int>(std::ceil(
-            static_cast<double>(std::min(H, W)) / 400.0 * 15.0));
+        const int winSize = keel::as<int>(std::ceil(
+            keel::as<double>(std::min(H, W)) / 400.0 * 15.0));
         Value se = make_square_strel(winSize, mr);
         Value darkChannel = min_across_pages(A, mr);
         Value dcEroded = imerode(darkChannel, se, mr);
@@ -286,21 +286,21 @@ keel::Array<float> approxdcp_atm_light(const Value &A,
     constexpr int NBINS = 256;
     keel::Array<keel::usize> hist(NBINS, 0);
     for (keel::usize i = 0; i < H * W; ++i) {
-        int b = static_cast<int>(std::floor(dc[i] * (NBINS - 1) + 0.5f));
+        int b = keel::as<int>(std::floor(dc[i] * (NBINS - 1) + 0.5f));
         if (b < 0) b = 0;
         if (b >= NBINS) b = NBINS - 1;
         hist[b]++;
     }
     // Cumulative; find threshold for top 0.1% (1 - 0.001 = 0.999).
-    const double total = static_cast<double>(H * W);
+    const double total = keel::as<double>(H * W);
     double cum = 0;
     int binIdx = NBINS - 1;
     for (int b = 0; b < NBINS; ++b) {
         cum += hist[b];
         if (cum / total >= 0.999) { binIdx = b; break; }
     }
-    const float binWidth = 1.0f / static_cast<float>(NBINS - 1);
-    const float cutoff = static_cast<float>(binIdx) / static_cast<float>(NBINS - 1)
+    const float binWidth = 1.0f / keel::as<float>(NBINS - 1);
+    const float cutoff = keel::as<float>(binIdx) / keel::as<float>(NBINS - 1)
                        - binWidth * 0.5f;
 
     // Build mask of pixels >= cutoff.
@@ -320,7 +320,7 @@ keel::Array<float> approxdcp_atm_light(const Value &A,
             const float gval = gv[i];
             if (gval > bestGray) {
                 bestGray = gval;
-                bestIdx = static_cast<long>(i);
+                bestIdx = keel::as<long>(i);
             }
         }
     }
@@ -368,8 +368,8 @@ Value recover_radiance(const Value &A, const Value &transmissionMap,
     else
         out = Value::matrix(H, W, ValueType::SINGLE, mr);
     float *dst = out.singleDataMut();
-    const float famount = static_cast<float>(amount);
-    const float fomega = static_cast<float>(omega);
+    const float famount = keel::as<float>(amount);
+    const float fomega = keel::as<float>(omega);
     for (keel::usize i = 0; i < H * W; ++i) {
         const float t = tm[i];
         const float tb = 1.0f - fomega * (1.0f - t);
@@ -400,7 +400,7 @@ Value one_minus(const Value &T, keel::Allocator *mr)
     if (T.type() == ValueType::SINGLE) {
         const float *td = T.singleData();
         for (keel::usize i = 0; i < H * W; ++i)
-            od[i] = 1.0 - static_cast<double>(td[i]);
+            od[i] = 1.0 - keel::as<double>(td[i]);
     } else {
         for (keel::usize i = 0; i < H * W; ++i)
             od[i] = 1.0 - T.elemAsDouble(i);
@@ -470,7 +470,7 @@ Value global_stretching(const Value &A, keel::Allocator *mr)
         float *nd = N.singleDataMut();
         const double *dd_ = Nd.doubleData();
         for (keel::usize i = 0; i < H * W * P; ++i)
-            nd[i] = static_cast<float>(dd_[i]);
+            nd[i] = keel::as<float>(dd_[i]);
     }
     constexpr double alpha = 0.8;
     // MATLAB: clipLimit = stretchlim(N, [0.001 0.999]);          % 2×P
@@ -491,8 +491,8 @@ Value global_stretching(const Value &A, keel::Allocator *mr)
         sum_lo += lo_per[p];
         sum_hi += hi_per[p];
     }
-    const double mean_lo = sum_lo / static_cast<double>(P);
-    const double mean_hi = sum_hi / static_cast<double>(P);
+    const double mean_lo = sum_lo / keel::as<double>(P);
+    const double mean_hi = sum_hi / keel::as<double>(P);
     keel::Array<Value> outPlanes;
     outPlanes.reserve(P);
     for (keel::usize p = 0; p < P; ++p) {
@@ -529,11 +529,11 @@ Value boost_postproc(const Value &dehazed, double amount, double boost,
                           : Value::matrix(H, W, ValueType::SINGLE, mr);
     const float *src = dehazed.singleData();
     float *dst = out.singleDataMut();
-    const float famount = static_cast<float>(amount);
-    const float fboost  = static_cast<float>(boost);
+    const float famount = keel::as<float>(amount);
+    const float fboost  = keel::as<float>(boost);
     // T_thick is DOUBLE H×W.
     for (keel::usize i = 0; i < H * W; ++i) {
-        const float Tv = static_cast<float>(T_thick.elemAsDouble(i));
+        const float Tv = keel::as<float>(T_thick.elemAsDouble(i));
         const float g = 1.0f + famount * fboost * Tv;
         for (keel::usize p = 0; p < P; ++p) {
             float v = src[p * H * W + i] * g;
@@ -581,7 +581,7 @@ Value cast_back(const Value &B, ValueType origClass,
         if (B.type() == ValueType::SINGLE) {
             const float *src = B.singleData();
             for (keel::usize i = 0; i < N; ++i) {
-                double v = static_cast<double>(src[i]);
+                double v = keel::as<double>(src[i]);
                 if (v < 0.0) v = 0.0;
                 if (v > 1.0) v = 1.0;
                 dst[i] = v;
@@ -693,15 +693,15 @@ Value imreducehaze(const Value &I, double amount,
                         "numkit:imreducehaze:atmGray");
         atm.resize(P);
         for (keel::usize p = 0; p < P; ++p)
-            atm[p] = static_cast<float>(atmospheric_light.elemAsDouble(
+            atm[p] = keel::as<float>(atmospheric_light.elemAsDouble(
                 p >= N ? N - 1 : p));
     }
 
     // ── Dispatch on Method ───────────────────────────────────────
     double omega;
     Value transmissionMap;
-    int patchSize = static_cast<int>(std::ceil(
-        static_cast<double>(std::min(H, W)) / 400.0 * 15.0));
+    int patchSize = keel::as<int>(std::ceil(
+        keel::as<double>(std::min(H, W)) / 400.0 * 15.0));
     if (patchSize < 1) patchSize = 1;
     Value se = make_square_strel(patchSize, mr);
 
@@ -743,8 +743,8 @@ Value imreducehaze(const Value &I, double amount,
         // Guided-Filter subsample factor of min(4, radius); nk's
         // imguidedfilter does not yet expose subsample, so we run
         // the full-resolution variant (slower but higher quality).
-        int radius = static_cast<int>(std::ceil(
-            static_cast<double>(std::min(H, W)) / 50.0));
+        int radius = keel::as<int>(std::ceil(
+            keel::as<double>(std::min(H, W)) / 50.0));
         if (radius < 1) radius = 1;
         const int nhood = 2 * radius + 1;
         Value guide = (P == 3) ? rgb2gray(A, mr) : A;

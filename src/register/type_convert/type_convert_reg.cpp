@@ -102,7 +102,7 @@ void gray2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         const double nv = argcheck::expectedReal(args[1], 2, "n", "gray2ind");
         argcheck::expectedInteger(nv, 2, "n", "gray2ind");
         argcheck::expectedBetween(nv, 1, 65536, 2, "n", "gray2ind");
-        n = static_cast<int>(nv);
+        n = keel::as<int>(nv);
     }
     auto [ind, map] = gray2ind(args[0], n, ctx.engine->allocator());
     outs[0] = std::move(ind);

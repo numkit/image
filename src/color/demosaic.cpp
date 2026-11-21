@@ -108,15 +108,15 @@ inline void writeNativeInt(Value &out, keel::usize idx, double v, ValueType T)
     switch (T) {
         case ValueType::UINT8:
             if (v > 255.0) v = 255.0;
-            out.uint8DataMut()[idx] = static_cast<keel::u8>(std::lround(v));
+            out.uint8DataMut()[idx] = keel::as<keel::u8>(std::lround(v));
             break;
         case ValueType::UINT16:
             if (v > 65535.0) v = 65535.0;
-            out.uint16DataMut()[idx] = static_cast<keel::u16>(std::lround(v));
+            out.uint16DataMut()[idx] = keel::as<keel::u16>(std::lround(v));
             break;
         case ValueType::UINT32:
             if (v > 4294967295.0) v = 4294967295.0;
-            out.uint32DataMut()[idx] = static_cast<keel::u32>(std::llround(v));
+            out.uint32DataMut()[idx] = keel::as<keel::u32>(std::llround(v));
             break;
         default:
             // Unreachable — adapter validates type.
