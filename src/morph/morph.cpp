@@ -1518,7 +1518,7 @@ Value bwmorph3(const Value &V, keel::StringRef op, keel::Allocator *mr)
     keel::i32 opIdx = 0;
     bwmorph3_argcheck(V, op, opIdx);
     enum Op { BRANCH = 0, CLEAN = 1, ENDP = 2, FILL = 3, MAJORITY = 4, REMOVE = 5 };
-    const Op o = static_cast<Op>(opIdx);
+    const Op o = keel::from_underlying<Op>(opIdx);
 
     const auto &d = V.dims();
     const keel::i32 H = keel::as<keel::i32>(d.rows());
