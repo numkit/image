@@ -150,7 +150,7 @@ if(NOT TARGET keel::image)
     FetchContent_Declare(
         keel_image
         GIT_REPOSITORY https://github.com/keelcpp/image.git
-        GIT_TAG        5843c47ac9a757f03a805295c499e02e86caaf44
+        GIT_TAG        fbfd1db2de527e787a95f707bd0c8c9248a52499
     )
     FetchContent_MakeAvailable(keel_image)
 endif()
