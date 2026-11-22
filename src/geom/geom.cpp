@@ -307,11 +307,96 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
     return B;
 }
 
+namespace {
+
+bool methodIsBicubic(keel::StringRef m)
+{
+    return m == "bicubic" || m == "Bicubic" || m == "BICUBIC" ||
+           m == "cubic"   || m == "Cubic"   || m == "CUBIC";
+}
+
+inline keel::f64 keysCubicWeight(keel::f64 t)
+{
+    const keel::f64 x = std::abs(t);
+    if (x <= 1.0)
+        return (1.5 * x - 2.5) * x * x + 1.0;
+    if (x < 2.0)
+        return ((-0.5 * x + 2.5) * x - 4.0) * x + 2.0;
+    return 0.0;
+}
+
+void rotate2dBicubic(keel::ArrayRef<keel::f64> in,
+                     keel::usize inH, keel::usize inW, keel::usize C,
+                     keel::f64 angleDeg,
+                     keel::MutArrayRef<keel::f64> out,
+                     keel::usize outH, keel::usize outW)
+{
+    constexpr keel::f64 kPi = 3.14159265358979323846;
+    const keel::f64 rad = angleDeg * (kPi / 180.0);
+    const keel::f64 ca = std::cos(rad);
+    const keel::f64 sa = std::sin(rad);
+    const keel::f64 cyIn  = 0.5 * keel::as<keel::f64>(inH - 1);
+    const keel::f64 cxIn  = 0.5 * keel::as<keel::f64>(inW - 1);
+    const keel::f64 cyOut = 0.5 * keel::as<keel::f64>(outH - 1);
+    const keel::f64 cxOut = 0.5 * keel::as<keel::f64>(outW - 1);
+    const keel::usize inPlane  = inH * inW;
+    const keel::usize outPlane = outH * outW;
+    const keel::i64 iH = keel::as<keel::i64>(inH);
+    const keel::i64 iW = keel::as<keel::i64>(inW);
+
+    for (keel::usize ox = 0; ox < outW; ++ox) {
+        const keel::f64 dx = keel::as<keel::f64>(ox) - cxOut;
+        for (keel::usize oy = 0; oy < outH; ++oy) {
+            const keel::f64 dy = keel::as<keel::f64>(oy) - cyOut;
+            const keel::f64 sx = ca * dx - sa * dy + cxIn;
+            const keel::f64 sy = sa * dx + ca * dy + cyIn;
+            const keel::i64 ix = keel::as<keel::i64>(std::floor(sx));
+            const keel::i64 iy = keel::as<keel::i64>(std::floor(sy));
+            const keel::f64 fx = sx - keel::as<keel::f64>(ix);
+            const keel::f64 fy = sy - keel::as<keel::f64>(iy);
+
+            // Skip completely out-of-support samples (zero-padded outside image).
+            if (ix + 2 < 0 || ix - 1 >= iW || iy + 2 < 0 || iy - 1 >= iH) {
+                for (keel::usize c = 0; c < C; ++c)
+                    out[c * outPlane + ox * outH + oy] = 0.0;
+                continue;
+            }
+
+            keel::f64 wx[4], wy[4];
+            for (keel::i32 k = 0; k < 4; ++k) {
+                wx[k] = keysCubicWeight(fx - keel::as<keel::f64>(k - 1));
+                wy[k] = keysCubicWeight(fy - keel::as<keel::f64>(k - 1));
+            }
+
+            for (keel::usize c = 0; c < C; ++c) {
+                const keel::f64 *src = in.data() + c * inPlane;
+                keel::f64 sum = 0.0;
+                for (keel::i32 kx = 0; kx < 4; ++kx) {
+                    const keel::i64 xx = ix + kx - 1;
+                    if (xx < 0 || xx >= iW) continue;
+                    const keel::f64 *col = src + keel::as<keel::usize>(xx) * inH;
+                    keel::f64 colSum = 0.0;
+                    for (keel::i32 ky = 0; ky < 4; ++ky) {
+                        const keel::i64 yy = iy + ky - 1;
+                        if (yy < 0 || yy >= iH) continue;
+                        colSum += wy[ky] * col[keel::as<keel::usize>(yy)];
+                    }
+                    sum += wx[kx] * colSum;
+                }
+                out[c * outPlane + ox * outH + oy] = sum;
+            }
+        }
+    }
+}
+
+} // anonymous
+
 Value imrotate(const Value &A, keel::f64 angle, keel::StringRef method, keel::StringRef bbox, keel::Allocator *mr)
 {
     const Shape s = shapeOf(A);
     const ValueType t = A.type();
     const bool nearest = methodIsNearest(method);
+    const bool bicubic = methodIsBicubic(method);
     const bool isCrop = (bbox == "crop" || bbox == "Crop");
 
     keel::usize outH = 0, outW = 0;
@@ -321,8 +406,13 @@ Value imrotate(const Value &A, keel::f64 angle, keel::StringRef method, keel::St
     keel::Array<keel::f64> in_buf(scratch.allocator());
     copyInToF64(A, in_buf);
     keel::Array<keel::f64> out_buf(outH * outW * s.C, 0.0, scratch.allocator());
-    (void)keel::image::rotate_2d(in_buf.as_ref(), s.H, s.W, s.C, angle, nearest, isCrop,
-                                 out_buf.as_mut_ref(), outH, outW);
+    if (bicubic && s.H > 0 && s.W > 0 && outH > 0 && outW > 0) {
+        rotate2dBicubic(in_buf.as_ref(), s.H, s.W, s.C, angle,
+                        out_buf.as_mut_ref(), outH, outW);
+    } else {
+        (void)keel::image::rotate_2d(in_buf.as_ref(), s.H, s.W, s.C, angle, nearest, isCrop,
+                                     out_buf.as_mut_ref(), outH, outW);
+    }
     Value B = makeOut(outH, outW, s.C, t, mr);
     writeF64ToOut(out_buf.as_ref(), B, t);
     return B;

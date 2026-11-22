@@ -326,3 +326,21 @@ TEST_F(ImageBatch4Test, MultithreshUint8)
     EXPECT_DOUBLE_EQ(evalScalar("double(ts(1))"),  70.0);
     EXPECT_DOUBLE_EQ(evalScalar("double(ts(2))"), 170.0);
 }
+
+TEST_F(ImageBatch4Test, ImrotateBicubicExactKeysKernel)
+{
+    eval("A = zeros(10, 12); A(3:7, 4:9) = 1; "
+         "Y1 = imrotate(A, 10, 'bicubic'); "
+         "Y2 = imrotate(A, 10, 'bicubic', 'crop');");
+    EXPECT_DOUBLE_EQ(evalScalar("size(Y1, 1)"), 12.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(Y1, 2)"), 14.0);
+    EXPECT_NEAR(evalScalar("sum(Y1(:))"), 30.000512049392, 1e-9);
+    EXPECT_NEAR(evalScalar("min(Y1(:))"), -0.076976761449, 1e-9);
+    EXPECT_NEAR(evalScalar("max(Y1(:))"), 1.126901600816, 1e-9);
+    EXPECT_NEAR(evalScalar("Y1(4, 5)"), 0.670062299259, 1e-9);
+    EXPECT_NEAR(evalScalar("Y1(5, 6)"), 1.021533003648, 1e-9);
+    EXPECT_DOUBLE_EQ(evalScalar("size(Y2, 1)"), 10.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(Y2, 2)"), 12.0);
+    EXPECT_NEAR(evalScalar("Y2(4, 5)"), 1.021533003648, 1e-9);
+    EXPECT_NEAR(evalScalar("Y2(5, 6)"), 1.0, 1e-12);
+}
