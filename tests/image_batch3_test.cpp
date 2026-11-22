@@ -16,6 +16,7 @@
 // output dims).
 
 #include <numkit/core/standard_engine.hpp>
+#include <numkit/value/error.hpp>
 #include <numkit/core/standard_engine.hpp>
 #include <gtest/gtest.h>
 
@@ -211,7 +212,7 @@ TEST_F(ImageBatch3Test, RegionpropsShapeDescriptors)
     // An unknown / unimplemented property now errors loudly instead of being
     // silently dropped (which surfaced later as a confusing field-access error).
     EXPECT_THROW(eval("regionprops(logical(ones(3,3)), 'Solidity');"),
-                 std::runtime_error);
+                 numkit::Error);
 
     // Diagonal '\' blob: negative orientation (image rows increase down).
     eval("BW2 = false(7,7); BW2(2,2)=true; BW2(3,2)=true; BW2(3,3)=true; "

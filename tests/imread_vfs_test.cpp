@@ -18,6 +18,7 @@
 // explicit `mem:` scheme.
 
 #include <numkit/core/standard_engine.hpp>
+#include <keel/exception.h>
 #include <numkit/sys/vfs.hpp>
 #include <gtest/gtest.h>
 
@@ -37,7 +38,7 @@ public:
     // Text read must never be used for an image — fail loudly if it is.
     keel::String readFile(keel::StringRef p) override
     {
-        throw std::runtime_error("MemFS::readFile must not be used for imread (" +
+        throw keel::Exception("MemFS::readFile must not be used for imread (" +
                                  std::string(p.data(), p.size()) + ")");
     }
     void writeFile(keel::StringRef p, keel::StringRef c) override
@@ -56,7 +57,7 @@ public:
         std::string key(p.data(), p.size());
         auto it = files.find(key);
         if (it == files.end())
-            throw std::runtime_error("MemFS: no such file " + key);
+            throw keel::Exception("MemFS: no such file " + key);
         return keel::String::from(keel::StringRef(it->second.data(), it->second.size()));
     }
     // The binary surface imwrite actually uses.

@@ -430,7 +430,7 @@ Value bestblk(const Value &IMS, keel::f64 k, keel::Allocator *mr)
         // with smallest mod(-dim, p); strict-less on the descending
         // walk keeps the higher p on ties. Octave's : range stops at
         // ceil(lo_double) when the lower bound is non-integer.
-        const keel::f64 lo_d = std::min(keel::as<keel::f64>(dim) / 10.0,
+        const keel::f64 lo_d = keel::min(keel::as<keel::f64>(dim) / 10.0,
                                      keel::as<keel::f64>(K) / 2.0);
         keel::i64 lo = keel::as<keel::i64>(keel::ceil(lo_d));
         if (lo < 1) lo = 1;
