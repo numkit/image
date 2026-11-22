@@ -131,9 +131,9 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2, keel::Al
         if (!a1.isEmpty() && !a1.isUnset() && (a1.isChar() || a1.isString()))
             dir = a1.toString();
         keel::image::Axis3D axis = keel::image::Axis3D::kX;
-        if (dir == "X" || dir == "x") axis = keel::image::Axis3D::kX;
-        else if (dir == "Y" || dir == "y") axis = keel::image::Axis3D::kY;
-        else if (dir == "Z" || dir == "z") axis = keel::image::Axis3D::kZ;
+        if (dir.equals_ignore_ascii_case("x")) axis = keel::image::Axis3D::kX;
+        else if (dir.equals_ignore_ascii_case("y")) axis = keel::image::Axis3D::kY;
+        else if (dir.equals_ignore_ascii_case("z")) axis = keel::image::Axis3D::kZ;
         else throw Error("fspecial3: direction must be 'X', 'Y', or 'Z'",
                          0, 0, "fspecial3", "", "numkit:fspecial3:BadDir");
         Value out = Value::matrix3d(3, 3, 3, ValueType::DOUBLE, mr);

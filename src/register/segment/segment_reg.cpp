@@ -177,9 +177,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
                         "numkit:graydiffweight:badNvArg");
         keel::String name = a[i].toString();
         keel::String nlo = name.clone();
-        for (auto &ch : nlo)
-            ch = keel::to_ascii_lower(ch);
-        // Allow MATLAB-style abbreviation.
+        nlo.to_ascii_lower_in_place();// Allow MATLAB-style abbreviation.
         if (nlo.starts_with("roll"))
             rolloff = a[i + 1].toScalar();
         else if (nlo.starts_with("gray"))
@@ -243,9 +241,7 @@ void gradientweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
                         "numkit:gradientweight:badNvArg");
         keel::String name = a[i].toString();
         keel::String nlo = name.clone();
-        for (auto &ch : nlo)
-            ch = keel::to_ascii_lower(ch);
-        // MATLAB-style abbreviation: "RolloffFactor" / "WeightCutoff".
+        nlo.to_ascii_lower_in_place();// MATLAB-style abbreviation: "RolloffFactor" / "WeightCutoff".
         if (nlo.starts_with("roll"))
             rolloff = a[i + 1].toScalar();
         else if (nlo.starts_with("weight") || nlo.starts_with("cut"))
@@ -422,8 +418,7 @@ void graydist_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value>
     keel::usize nargs = a.size();
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
-        for (char &ch : method)
-            ch = keel::to_ascii_lower(ch);
+        method.to_ascii_lower_in_place();
         --nargs;
     }
 
@@ -503,8 +498,7 @@ void bwdistgeodesic_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
     keel::usize nargs = a.size();
     if (is_string(a[nargs - 1])) {
         method = a[nargs - 1].toString();
-        for (char &ch : method)
-            ch = keel::to_ascii_lower(ch);
+        method.to_ascii_lower_in_place();
         --nargs;
     }
 

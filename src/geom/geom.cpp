@@ -68,30 +68,25 @@ void writeF64ToOut(keel::ArrayRef<keel::f64> src, Value &out, ValueType t)
 
 bool methodIsNearest(keel::StringRef m)
 {
-    return m == "nearest" || m == "Nearest" || m == "NEAREST" ||
-           m == "near"    || m == "n";
+    return m.is_one_of_ignore_ascii_case({"nearest", "near", "n"});
 }
 
 keel::image::ResizeKernel parseResize2Kernel(keel::StringRef m)
 {
     if (methodIsNearest(m)) return keel::image::ResizeKernel::kNearest;
-    if (m == "bilinear" || m == "Bilinear" || m == "linear" || m == "Linear" ||
-        m == "triangle" || m == "Triangle")
+    if (m.is_one_of_ignore_ascii_case({"bilinear", "linear", "triangle"}))
         return keel::image::ResizeKernel::kTriangle;
     return keel::image::ResizeKernel::kCubic;
 }
 
 keel::image::ResizeKernel parseResize3Kernel(keel::StringRef m)
 {
-    if (m == "nearest" || m == "Nearest")   return keel::image::ResizeKernel::kNearest;
-    if (m == "box" || m == "Box")           return keel::image::ResizeKernel::kBox;
-    if (m == "triangle" || m == "Triangle" ||
-        m == "linear"   || m == "Linear"   ||
-        m == "bilinear" || m == "Bilinear") return keel::image::ResizeKernel::kTriangle;
-    if (m == "cubic" || m == "Cubic" ||
-        m == "bicubic" || m == "Bicubic")   return keel::image::ResizeKernel::kCubic;
-    if (m == "lanczos2" || m == "Lanczos2") return keel::image::ResizeKernel::kLanczos2;
-    if (m == "lanczos3" || m == "Lanczos3") return keel::image::ResizeKernel::kLanczos3;
+    if (m.equals_ignore_ascii_case("nearest"))                                  return keel::image::ResizeKernel::kNearest;
+    if (m.equals_ignore_ascii_case("box"))                                      return keel::image::ResizeKernel::kBox;
+    if (m.is_one_of_ignore_ascii_case({"triangle", "linear", "bilinear"}))      return keel::image::ResizeKernel::kTriangle;
+    if (m.is_one_of_ignore_ascii_case({"cubic", "bicubic"}))                    return keel::image::ResizeKernel::kCubic;
+    if (m.equals_ignore_ascii_case("lanczos2"))                                 return keel::image::ResizeKernel::kLanczos2;
+    if (m.equals_ignore_ascii_case("lanczos3"))                                 return keel::image::ResizeKernel::kLanczos3;
     throw Error(keel::format("imresize3: unknown method '{}'", m),
                 0, 0, "imresize3", "", "numkit:imresize3:method");
 }
@@ -125,8 +120,8 @@ void axes2pix_argcheck(const Value &ext)
 
 void impyramid_argcheck(keel::StringRef type, bool &reduce_out)
 {
-    if      (type == "reduce" || type == "Reduce") reduce_out = true;
-    else if (type == "expand" || type == "Expand") reduce_out = false;
+    if      (type.equals_ignore_ascii_case("reduce")) reduce_out = true;
+    else if (type.equals_ignore_ascii_case("expand")) reduce_out = false;
     else throw Error("impyramid: type must be 'reduce' or 'expand'",
                      0, 0, "impyramid", "", "numkit:impyramid:type");
 }
@@ -312,8 +307,7 @@ namespace {
 keel::image::RotateInterp parseRotateInterp(keel::StringRef m)
 {
     if (methodIsNearest(m)) return keel::image::RotateInterp::kNearest;
-    if (m == "bicubic" || m == "Bicubic" || m == "BICUBIC" ||
-        m == "cubic"   || m == "Cubic"   || m == "CUBIC")
+    if (m.is_one_of_ignore_ascii_case({"bicubic", "cubic"}))
         return keel::image::RotateInterp::kBicubic;
     return keel::image::RotateInterp::kBilinear;
 }
@@ -325,7 +319,7 @@ Value imrotate(const Value &A, keel::f64 angle, keel::StringRef method, keel::St
     const Shape s = shapeOf(A);
     const ValueType t = A.type();
     const auto interp = parseRotateInterp(method);
-    const bool isCrop = (bbox == "crop" || bbox == "Crop");
+    const bool isCrop = bbox.equals_ignore_ascii_case("crop");
 
     keel::usize outH = 0, outW = 0;
     keel::image::rotate_2d_dims(s.H, s.W, angle, isCrop, outH, outW);

@@ -882,9 +882,9 @@ void imsharpen_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 throw Error(keel::format("imsharpen: missing value for '{}'", nm),
                             0, 0, "imsharpen", "", "numkit:imsharpen:nv");
             const keel::f64 v = args[i + 1].toScalar();
-            if (nm == "Radius" || nm == "radius") radius = v;
-            else if (nm == "Amount" || nm == "amount") amount = v;
-            else if (nm == "Threshold" || nm == "threshold") threshold = v;
+            if (nm.equals_ignore_ascii_case("radius")) radius = v;
+            else if (nm.equals_ignore_ascii_case("amount")) amount = v;
+            else if (nm.equals_ignore_ascii_case("threshold")) threshold = v;
             else throw Error(keel::format("imsharpen: unknown option '{}'", nm),
                              0, 0, "imsharpen", "", "numkit:imsharpen:opt");
             i += 2;

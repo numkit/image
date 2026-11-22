@@ -67,6 +67,7 @@
 #include <keel/format.h>
 #include <keel/string.h>
 #include <keel/utf8.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <algorithm>
@@ -76,9 +77,6 @@
 #include <cstring>
 #include <limits>
 
-#ifndef M_PI
-#  define M_PI 3.14159265358979323846
-#endif
 
 namespace numkit::image {
 namespace {
@@ -166,7 +164,7 @@ keel::f64 attr_area(const Comp &c) { return keel::as<keel::f64>(c.rs.size()); }
 keel::f64 attr_equiv_diameter(const Comp &c)
 {
     const keel::f64 a = attr_area(c);
-    return 2.0 * std::sqrt(a / M_PI);
+    return 2.0 * std::sqrt(a / keel::kPi);
 }
 
 keel::f64 attr_extent(const Comp &c)
@@ -237,12 +235,12 @@ AxisInfo axis_info(const Comp &c)
     // in degrees. Sign flip on μ11 because image y-axis runs downward.
     keel::f64 orient_rad;
     if (cc == 0.0 && a == b) orient_rad = 0.0;
-    else if (cc == 0.0)      orient_rad = (a < b) ? M_PI / 2.0 : 0.0;
+    else if (cc == 0.0)      orient_rad = (a < b) ? keel::kPi / 2.0 : 0.0;
     else                     orient_rad = -0.5 * std::atan2(2.0 * cc, a - b);
     // Clamp to (-π/2, π/2].
-    while (orient_rad >  M_PI / 2.0) orient_rad -= M_PI;
-    while (orient_rad <= -M_PI / 2.0) orient_rad += M_PI;
-    ai.orientation_deg = orient_rad * 180.0 / M_PI;
+    while (orient_rad >  keel::kPi / 2.0) orient_rad -= keel::kPi;
+    while (orient_rad <= -keel::kPi / 2.0) orient_rad += keel::kPi;
+    ai.orientation_deg = orient_rad * 180.0 / keel::kPi;
     return ai;
 }
 
@@ -336,7 +334,7 @@ keel::f64 attr_circularity(const Comp &c, keel::i32 H, keel::i32 W)
 {
     const keel::f64 per = attr_perimeter(c, H, W);
     if (per <= 0.0) return std::nan("");
-    return 4.0 * M_PI * attr_area(c) / (per * per);
+    return 4.0 * keel::kPi * attr_area(c) / (per * per);
 }
 
 // EulerNumber per component: components - holes. For a single

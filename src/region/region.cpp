@@ -871,7 +871,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
         }
 
         // ── Moment / area / bbox based scalar shape descriptors ──
-        constexpr keel::f64 kPi = 3.14159265358979323846;
+        constexpr keel::f64 kPi = keel::kPi;
         const keel::f64 N = keel::f64(area[(keel::usize)lab]);
         if (wEquivD)
             el.put(keel::String::from("EquivDiameter"),

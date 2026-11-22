@@ -270,8 +270,7 @@ void bwdist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     keel::String method = keel::String::from("euclidean");
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
         method = args[1].toString();
-        for (char &c : method)
-            c = keel::to_ascii_lower(c);
+        method.to_ascii_lower_in_place();
     }
 
     keel::i32 metric;

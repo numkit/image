@@ -35,7 +35,7 @@ inline keel::String lowerExt(keel::StringRef path) {
     auto dot = path.rfind('.');
     if (dot == keel::kInvalidIndex) return {};
     keel::String e = keel::String::from(path.substr(dot + 1));
-    for (char &c : e) c = keel::to_ascii_lower(c);
+    e.to_ascii_lower_in_place();
     return e;
 }
 
@@ -162,8 +162,7 @@ void imwrite_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutA
             const Value &v = args[i + 1];
             if (lkey == "compression") {
                 compression = v.toString();
-                for (auto &c : compression)
-                    c = keel::to_ascii_lower(c);
+                compression.to_ascii_lower_in_place();
             } else if (lkey == "writemode") {
                 keel::String m = v.toString();
                 keel::String lo;

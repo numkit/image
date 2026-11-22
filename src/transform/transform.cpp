@@ -26,13 +26,11 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <keel/static_array.h>
+#include <keel/math.h>
 #include <cstring>
 #include <tuple>
 #include <cmath>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 namespace numkit::image {
 
@@ -133,7 +131,7 @@ Value dctmtx(keel::f64 Nd, keel::Allocator *mr)
     keel::f64 *d = D.doubleDataMut();
     const keel::f64 w0 = std::sqrt(1.0 / keel::as<keel::f64>(N));
     const keel::f64 wk = std::sqrt(2.0 / keel::as<keel::f64>(N));
-    const keel::f64 piOver2N = M_PI / (2.0 * keel::as<keel::f64>(N));
+    const keel::f64 piOver2N = keel::kPi / (2.0 * keel::as<keel::f64>(N));
     for (keel::usize n = 0; n < N; ++n) {
         for (keel::usize k = 0; k < N; ++k) {
             const keel::f64 phase = piOver2N * keel::as<keel::f64>(k)
@@ -387,7 +385,7 @@ phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
         const keel::f64 b  = Eat(k, 2);
         const keel::f64 x0 = Eat(k, 3);
         const keel::f64 y0 = Eat(k, 4);
-        const keel::f64 phi = Eat(k, 5) * M_PI / 180.0;
+        const keel::f64 phi = Eat(k, 5) * keel::kPi / 180.0;
         const keel::f64 a2  = a * a;
         const keel::f64 b2  = b * b;
         const keel::f64 cos_p = std::cos(phi);

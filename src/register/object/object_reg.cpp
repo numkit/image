@@ -38,7 +38,7 @@ keel::String parse_method(keel::ArrayRef<Value> args, keel::usize i, keel::Strin
         // MATLAB method names ('Canny', 'Sobel', 'Roberts', …) are
         // case-insensitive; downstream comparisons are all lowercase.
         keel::String s = args[i].toString();
-        for (char &ch : s) ch = keel::to_ascii_lower(ch);
+        s.to_ascii_lower_in_place();
         return s;
     }
     return keel::String::from(def);
@@ -410,9 +410,7 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         }
         keel::String name = args[i].toString();
         keel::String nlo = name.clone();
-        for (char &ch : nlo) {
-            ch = keel::to_ascii_lower(ch);
-        }
+        nlo.to_ascii_lower_in_place();
         if (!nlo.empty() && keel::StringRef("objectpolarity").starts_with(nlo)) {
             if (!is_string(args[i + 1])) {
                 throw Error("imfindcircles: ObjectPolarity must be a string.",

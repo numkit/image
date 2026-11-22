@@ -6,19 +6,14 @@
 //
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
-#ifndef _USE_MATH_DEFINES
-#define _USE_MATH_DEFINES
-#endif
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/string.h>
+#include <keel/math.h>
 #include <cmath>
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 #include <numkit/image/geom/geom.hpp>
 
@@ -96,12 +91,9 @@ void imrotate_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mut
     //   imrotate(A, angle, method [, bbox])   or   imrotate(A, angle, bbox)
     keel::String method = keel::String::from("nearest");
     keel::String bbox   = keel::String::from("loose");
-    auto isBboxKw = [](keel::StringRef s) {
-        return s == "loose" || s == "Loose" || s == "crop" || s == "Crop";
-    };
     if (args.size() >= 3 && !args[2].isEmpty()) {
         keel::String s3 = argString(args[2]);
-        if (isBboxKw(s3)) {
+        if (s3.is_one_of_ignore_ascii_case({"loose", "crop"})) {
             bbox = keel::move(s3);           // imrotate(A, angle, bbox)
         } else {
             method = keel::move(s3);         // imrotate(A, angle, method [, bbox])
@@ -279,7 +271,7 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
                     0, 0, "imrotate3", "", "numkit:imrotate3:shape");
 
     const ValueType T = V.type();
-    const keel::f64 theta = angle_deg * M_PI / 180.0;
+    const keel::f64 theta = angle_deg * keel::kPi / 180.0;
     const Rot3 R = rodrigues(Wx, Wy, Wz, theta);
 
     auto snap = [](keel::f64 v) {
@@ -288,9 +280,9 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
     };
 
     keel::usize outH, outW, outD;
-    if (bbox == "crop" || bbox == "Crop") {
+    if (bbox.equals_ignore_ascii_case("crop")) {
         outH = H; outW = W; outD = D;
-    } else if (bbox == "loose" || bbox == "Loose" || bbox.empty()) {
+    } else if (bbox.empty() || bbox.equals_ignore_ascii_case("loose")) {
         const keel::f64 Wd = keel::f64(W), Hd = keel::f64(H), Dd = keel::f64(D);
         // outDim[axis] = sum_k inDim[k] * |R[axis][k]|
         const keel::f64 xe = Wd*std::fabs(R.r[0]) + Hd*std::fabs(R.r[1]) + Dd*std::fabs(R.r[2]);
@@ -315,10 +307,9 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
     const keel::f64 czIn  = (keel::f64(D) + 1.0) * 0.5;
 
     keel::i32 code = 1;  // 0 = nearest, 1 = linear, 2 = cubic
-    if      (method == "nearest" || method == "Nearest") code = 0;
-    else if (method == "linear"  || method == "Linear" ||
-             method == "bilinear")                       code = 1;
-    else if (method == "cubic"   || method == "Cubic")   code = 2;
+    if      (method.equals_ignore_ascii_case("nearest"))                    code = 0;
+    else if (method.is_one_of_ignore_ascii_case({"linear", "bilinear"}))    code = 1;
+    else if (method.equals_ignore_ascii_case("cubic"))                      code = 2;
     else
         throw Error("imrotate3: method must be 'nearest', 'linear', or 'cubic'",
                     0, 0, "imrotate3", "", "numkit:imrotate3:method");
@@ -396,10 +387,8 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
         // strings are NV-pair names handled in the loop below.
         // Heuristic: only treat as positional method if it's NOT a
         // known NV-pair name.
-        const bool isNV = (s == "Antialiasing" || s == "antialiasing" ||
-                           s == "Method"       || s == "method" ||
-                           s == "OutputSize"   || s == "outputsize" ||
-                           s == "Scale"        || s == "scale");
+        const bool isNV = s.is_one_of_ignore_ascii_case(
+            {"antialiasing", "method", "outputsize", "scale"});
         if (!isNV) { method = keel::move(s); ++i; }
     }
 
@@ -407,12 +396,12 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
     while (i + 1 < args.size()) {
         const keel::String name = argString(args[i]);
         const Value &val = args[i + 1];
-        if (name == "Antialiasing" || name == "antialiasing") {
+        if (name.equals_ignore_ascii_case("antialiasing")) {
             antialiasSet = true;
             antialias = (val.toScalar() != 0.0);
-        } else if (name == "Method" || name == "method") {
+        } else if (name.equals_ignore_ascii_case("method")) {
             method = argString(val);
-        } else if (name == "OutputSize" || name == "outputsize") {
+        } else if (name.equals_ignore_ascii_case("outputsize")) {
             if (val.numel() != 3)
                 throw Error("imresize3: OutputSize must be a 3-element vector",
                             0, 0, "imresize3", "", "numkit:imresize3:size");
@@ -420,7 +409,7 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
             outRows = keel::as<keel::usize>(val.elemAsDouble(0));
             outCols = keel::as<keel::usize>(val.elemAsDouble(1));
             outDeps = keel::as<keel::usize>(val.elemAsDouble(2));
-        } else if (name == "Scale" || name == "scale") {
+        } else if (name.equals_ignore_ascii_case("scale")) {
             if (val.numel() == 1) {
                 haveScaleNum = true; scaleScalar = val.toScalar();
             } else if (val.numel() == 3) {
@@ -521,7 +510,7 @@ void imrotate3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     while (i + 1 < args.size()) {
         const keel::String name = argString(args[i]);
         const Value &val = args[i + 1];
-        if (name == "FillValues" || name == "fillvalues") {
+        if (name.equals_ignore_ascii_case("fillvalues")) {
             fill = val.toScalar();
         } else {
             throw Error(keel::format("imrotate3: unknown name-value parameter '{}'", name),

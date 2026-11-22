@@ -26,13 +26,11 @@
 #include <algorithm>
 #include <tuple>
 #include <keel/static_array.h>
+#include <keel/math.h>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 namespace numkit::image {
 
@@ -384,7 +382,7 @@ imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
         return zeros_like(Gx, outT, mr);
     };
     Value Gmag = alloc(), Gaz = alloc(), Gelev = alloc();
-    constexpr keel::f64 D2R = 180.0 / 3.14159265358979323846;
+    constexpr keel::f64 D2R = 180.0 / keel::kPi;
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 gx = Gx.elemAsDouble(i);
         const keel::f64 gy = Gy.elemAsDouble(i);
@@ -427,7 +425,7 @@ imgradient(const Value &I, keel::StringRef method, keel::Allocator *mr)
         const keel::f64 gxv = Gx.elemAsDouble(i);
         const keel::f64 gyv = Gy.elemAsDouble(i);
         gm[i] = std::sqrt(gxv * gxv + gyv * gyv);
-        gd[i] = std::atan2(-gyv, gxv) * 180.0 / M_PI;
+        gd[i] = std::atan2(-gyv, gxv) * 180.0 / keel::kPi;
     }
     return std::make_tuple(std::move(Gmag), std::move(Gdir));
 }
@@ -611,9 +609,7 @@ Value edge(const Value &I, keel::StringRef methodRaw, keel::f64 thresh_lo, keel:
 {
     // Method names are case-insensitive (MATLAB-compatible).
     keel::String method = keel::String::from(methodRaw);
-    for (char &ch : method) ch = keel::to_ascii_lower(ch);
-
-    // Sobel / Prewitt / Roberts threshold the gradient magnitude; Canny does
+    method.to_ascii_lower_in_place();// Sobel / Prewitt / Roberts threshold the gradient magnitude; Canny does
     // full non-max suppression + hysteresis; log / zerocross mark zero
     // crossings.
     if (method == "roberts") {
@@ -1032,7 +1028,7 @@ void hough(const Value &BW, keel::f64 rho_res,
         T.doubleDataMut()[i] = theta[i];
 
     // Pre-compute cos/sin of theta (in radians).
-    constexpr keel::f64 DEG2RAD = M_PI / 180.0;
+    constexpr keel::f64 DEG2RAD = keel::kPi / 180.0;
     keel::Array<keel::f64> cosT(ntheta, 0.0, mr);
     keel::Array<keel::f64> sinT(ntheta, 0.0, mr);
     for (keel::usize k = 0; k < ntheta; ++k) {
@@ -1263,7 +1259,7 @@ Value houghlines(const Value &BW, const Value &theta_deg,
     }
     const keel::usize nP = px.size();
 
-    constexpr keel::f64 DEG2RAD = M_PI / 180.0;
+    constexpr keel::f64 DEG2RAD = keel::kPi / 180.0;
     const keel::f64 rho_first = rho.elemAsDouble(0);
     const keel::f64 rho_last  = rho.elemAsDouble(nrho - 1);
     const keel::f64 slope     = keel::as<keel::f64>(nrho - 1)
@@ -1418,9 +1414,7 @@ namespace {
 keel::String toLowerAscii(keel::StringRef s)
 {
     keel::String out = keel::String::from(s);
-    for (char &ch : out) {
-        ch = keel::to_ascii_lower(ch);
-    }
+    out.to_ascii_lower_in_place();
     return out;
 }
 
@@ -1636,9 +1630,9 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
     const keel::f64 lnRend = std::log(radVec.back());
     for (keel::usize k = 0; k < nR; ++k) {
         RR[k] = polSign * radVec[k];
-        const keel::f64 invCirc = 1.0 / (2.0 * M_PI * radVec[k]);
+        const keel::f64 invCirc = 1.0 / (2.0 * keel::kPi * radVec[k]);
         if (methodLower == "phasecode" && nR > 1) {
-            const keel::f64 phi = ((std::log(radVec[k]) - lnR1) / (lnRend - lnR1) * 2.0 * M_PI) - M_PI;
+            const keel::f64 phi = ((std::log(radVec[k]) - lnR1) / (lnRend - lnR1) * 2.0 * keel::kPi) - keel::kPi;
             w0_re[k] = std::cos(phi) * invCirc;
             w0_im[k] = std::sin(phi) * invCirc;
         } else {
@@ -1814,7 +1808,7 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
             const keel::usize aidx = keel::as<keel::usize>(c_idx) * M
                                    + keel::as<keel::usize>(r_idx);
             const keel::f64 cenPhase = std::atan2(accumIm[aidx], accumRe[aidx]);
-            rp[k] = std::exp(((cenPhase + M_PI) / (2.0 * M_PI) * (lnRend - lnR1)) + lnR1);
+            rp[k] = std::exp(((cenPhase + keel::kPi) / (2.0 * keel::kPi) * (lnRend - lnR1)) + lnR1);
         } else {
             // Two-stage radial histogram around (xc, yc).
             const keel::i64 left   = std::max<keel::i64>(keel::as<keel::i64>(std::floor(cands[k].xc - rmax)), 1);
@@ -1841,7 +1835,7 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
             keel::i64 bestR = r1_int;
             for (keel::usize b = 0; b < nBins; ++b) {
                 const keel::f64 rcur = keel::as<keel::f64>(r1_int + keel::as<keel::i64>(b));
-                const keel::f64 hnorm = hbin[b] / (2.0 * M_PI * rcur);
+                const keel::f64 hnorm = hbin[b] / (2.0 * keel::kPi * rcur);
                 if (hnorm > bestH) {
                     bestH = hnorm;
                     bestR = r1_int + keel::as<keel::i64>(b);

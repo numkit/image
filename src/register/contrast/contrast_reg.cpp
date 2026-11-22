@@ -193,7 +193,7 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // Method-string form: imbinarize(I, 'global') | imbinarize(I, 'adaptive', ...).
     if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
         keel::String m = args[1].toString();
-        for (char &c : m) c = keel::to_ascii_lower(c);
+        m.to_ascii_lower_in_place();
         if (m == "global") {
             auto [t, em] = graythresh(args[0], mr);
             (void)em;
@@ -210,13 +210,12 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                                 0, 0, "imbinarize", "", "numkit:imbinarize:nv");
                 keel::String raw = args[i].toString();
                 keel::String nm = raw.clone();
-                for (char &c : nm) c = keel::to_ascii_lower(c);
+                nm.to_ascii_lower_in_place();
                 if (nm == "sensitivity")
                     sens = args[i + 1].toScalar();
                 else if (nm == "foregroundpolarity") {
                     polarity = args[i + 1].toString();
-                    for (char &c : polarity)
-                        c = keel::to_ascii_lower(c);
+                    polarity.to_ascii_lower_in_place();
                 } else
                     throw Error(keel::format("imbinarize: unknown option '{}'", raw),
                                 0, 0, "imbinarize", "", "numkit:imbinarize:opt");

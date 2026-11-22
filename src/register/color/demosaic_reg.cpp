@@ -39,7 +39,7 @@ void demosaic_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 bps = 0;
     for (keel::usize i = 2; i + 1 < args.size(); i += 2) {
         const keel::String name = asString(args[i]);
-        if (name == "BitsPerSample" || name == "bitspersample")
+        if (name.equals_ignore_ascii_case("bitspersample"))
             bps = argcheck::expectedOneOf(
                 argcheck::expectedReal(args[i + 1], keel::i32(i) + 2, "BitsPerSample", "demosaic"),
                 {8, 10, 12, 16}, keel::i32(i) + 2, "BitsPerSample", "demosaic");

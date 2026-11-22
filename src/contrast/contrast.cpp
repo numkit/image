@@ -467,8 +467,8 @@ Value adaptthresh(const Value &I, keel::f64 sensitivity, keel::i32 neighborhood,
 
     const keel::StringRef s = statistic.empty() ? keel::StringRef("mean") : statistic;
     bool is_gauss = false;
-    if (s == "mean" || s == "Mean" || s == "MEAN")             is_gauss = false;
-    else if (s == "gaussian" || s == "Gaussian" || s == "GAUSSIAN") is_gauss = true;
+    if (s.equals_ignore_ascii_case("mean") || s == "MEAN")             is_gauss = false;
+    else if (s.equals_ignore_ascii_case("gaussian") || s == "GAUSSIAN") is_gauss = true;
     else
         throw Error("adaptthresh: statistic must be 'mean' or 'gaussian'",
                     0, 0, "adaptthresh", "", "numkit:adaptthresh:stat");

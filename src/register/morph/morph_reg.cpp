@@ -364,8 +364,7 @@ void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     0, 0, "bwmorph", "", "numkit:bwmorph:badOp");
     keel::String op = args[1].toString();
     // Normalise to lowercase.
-    for (auto &ch : op) ch = keel::to_ascii_lower(ch);
-    // MATLAB accepts "skel" as a prefix-match for "skeleton".
+    op.to_ascii_lower_in_place();// MATLAB accepts "skel" as a prefix-match for "skeleton".
     if (op == "skel") op.assign("skeleton");
 
     keel::i32 n = 1;
@@ -388,9 +387,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     "numkit:bwtraceboundary:fstep");
     keel::String fstep = args[2].toString();
     // Upper-case fstep.
-    for (auto &ch : fstep)
-        ch = keel::to_ascii_upper(ch);
-
+    fstep.to_ascii_upper_in_place();
     keel::i32 conn = 8;
     keel::usize m_max = std::numeric_limits<keel::usize>::max();
     keel::String dir = keel::String::from("clockwise");
@@ -414,8 +411,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                         0, 0, "bwtraceboundary", "",
                         "numkit:bwtraceboundary:dirArg");
         dir = args[5].toString();
-        for (char &ch : dir)
-            ch = keel::to_ascii_lower(ch);
+        dir.to_ascii_lower_in_place();
     }
     outs[0] = bwtraceboundary(args[0], args[1], fstep, conn,
                               m_max, dir, mr);

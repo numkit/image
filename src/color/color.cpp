@@ -20,9 +20,6 @@
 #include <algorithm>
 #include <keel/static_array.h>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -918,7 +915,7 @@ Value colorangle(const Value &rgb1, const Value &rgb2, keel::Allocator *mr)
             keel::f64 c = dot / (na * nb);
             if (c >  1.0) c =  1.0;
             if (c < -1.0) c = -1.0;
-            angle = std::acos(c) * 180.0 / M_PI;
+            angle = std::acos(c) * 180.0 / keel::kPi;
         }
         od[i] = angle;
     }
