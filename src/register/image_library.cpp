@@ -177,6 +177,7 @@ void graythresh_reg  (keel::ArrayRef<Value>, keel::usize, keel::MutArrayRef<Valu
 void otsuthresh_reg  (keel::ArrayRef<Value>, keel::usize, keel::MutArrayRef<Value>, CallContext &);
 void multithresh_reg (keel::ArrayRef<Value>, keel::usize, keel::MutArrayRef<Value>, CallContext &);
 void imbinarize_reg  (keel::ArrayRef<Value>, keel::usize, keel::MutArrayRef<Value>, CallContext &);
+void im2bw_reg       (keel::ArrayRef<Value>, keel::usize, keel::MutArrayRef<Value>, CallContext &);
 void imquantize_reg  (keel::ArrayRef<Value>, keel::usize, keel::MutArrayRef<Value>, CallContext &);
 
 // morph/morph.cpp
@@ -450,9 +451,8 @@ void ImageLibrary::install(PluginContext &engine)
     reg("filter", "col2im",       &image::detail::col2im_reg);
     reg("filter", "imbilatfilt",  &image::detail::imbilatfilt_reg);
 
-    // im2bw is the legacy alias of imbinarize (signatures match exactly:
-    // im2bw(I) → Otsu, im2bw(I, level) → scalar threshold).
-    reg("type",   "im2bw",        &image::detail::imbinarize_reg);
+    // im2bw(I[, level]): defaults to level=0.5 and converts RGB/indexed to grayscale.
+    reg("type",   "im2bw",        &image::detail::im2bw_reg);
 
     reg("contrast", "imhist",     &image::detail::imhist_reg);
     reg("contrast", "stretchlim", &image::detail::stretchlim_reg);

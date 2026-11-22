@@ -246,6 +246,30 @@ void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
 }
 
+void im2bw_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
+               keel::MutArrayRef<Value> outs, CallContext &ctx)
+{
+    argcheck::checkNargin(args.size(), 1, 3, "im2bw");
+    auto *mr = ctx.engine->allocator();
+    keel::f64 level = 0.5;
+    Value gray;
+    if (args.size() >= 2 && args[1].dims().ndim() == 2 && args[1].dims().cols() == 3
+        && args[1].dims().rows() >= 1 && args[1].numel() > 1) {
+        // Indexed image: im2bw(X, map[, level])
+        gray = ind2gray(args[0], args[1], mr);
+        if (args.size() >= 3 && !args[2].isEmpty())
+            level = args[2].toScalar();
+    } else {
+        if (args.size() >= 2 && !args[1].isEmpty())
+            level = args[1].toScalar();
+        if (args[0].dims().is3D() && args[0].dims().pages() == 3)
+            gray = rgb2gray(args[0], mr);
+        else
+            gray = args[0];
+    }
+    outs[0] = imbinarize(gray, level, mr);
+}
+
 void imquantize_reg(keel::ArrayRef<Value> args, keel::usize nargout,
                     keel::MutArrayRef<Value> outs, CallContext &ctx)
 {

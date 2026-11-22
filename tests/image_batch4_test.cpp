@@ -99,6 +99,15 @@ TEST_F(ImageBatch4Test, Conversion)
     EXPECT_DOUBLE_EQ(evalScalar("double(BW(1))"), 0.0);
     EXPECT_DOUBLE_EQ(evalScalar("double(BW(3))"), 1.0);
 
+    // im2bw defaults to level=0.5 (not Otsu) and converts RGB M×N×3 -> 2D M×N logical.
+    eval("BWdef = im2bw([0.0 0.4 0.4]);");
+    EXPECT_DOUBLE_EQ(evalScalar("sum(BWdef(:))"), 0.0);
+    eval("RGB = zeros(4, 5, 3, 'uint8'); RGB(1:2, :, :) = 200; BWrgb = im2bw(RGB);");
+    EXPECT_DOUBLE_EQ(evalScalar("ndims(BWrgb)"), 2.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(BWrgb, 1)"), 4.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(BWrgb, 2)"), 5.0);
+    EXPECT_DOUBLE_EQ(evalScalar("sum(BWrgb(:))"), 10.0);
+
     eval("g = im2gray(zeros(2,2,3));");
     EXPECT_DOUBLE_EQ(evalScalar("numel(g)"), 4.0);
 
