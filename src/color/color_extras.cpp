@@ -20,6 +20,8 @@
 //     equivalent to 'nodither' (no error diffusion).
 
 #include <keel/core.h>
+#include <keel/algo.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/hash_map.h>
 #include <keel/hash_set.h>
@@ -41,10 +43,7 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <cmath>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <utility>
 
 namespace numkit::image {
@@ -164,7 +163,7 @@ Value rgb2lightness(const Value &RGB, keel::Allocator *mr)
     // Page 0 of column-major H×W×3 = first H*W elements.
     keel::f32 *dst = out.singleDataMut();
     if (lab.type() == ValueType::SINGLE) {
-        std::memcpy(dst, lab.singleData(), H * W * sizeof(keel::f32));
+        keel::copy_n(dst, lab.singleData(), H * W);
     } else if (lab.type() == ValueType::DOUBLE) {
         const keel::f64 *src = lab.doubleData();
         for (keel::usize i = 0; i < H * W; ++i) dst[i] = keel::as<keel::f32>(src[i]);
@@ -237,7 +236,7 @@ rgb2ind_inmap(const Value &RGB, const Value &cmap, keel::Allocator *mr)
         const keel::f64 r = pix[0 * HW + i];
         const keel::f64 g = pix[1 * HW + i];
         const keel::f64 b = pix[2 * HW + i];
-        keel::f64 bestDist = std::numeric_limits<keel::f64>::infinity();
+        keel::f64 bestDist = keel::Limits<keel::f64>::infinity();
         keel::usize bestK = 0;
         for (keel::usize k = 0; k < K; ++k) {
             const keel::f64 dr = r - cm[0 * K + k];
@@ -392,7 +391,7 @@ cmunique_core(keel::Array<keel::f64> &c, keel::usize H, keel::usize W,
     // Quantise map.
     keel::Array<keel::f64> map(3 * M, mr);
     for (keel::usize k = 0; k < 3 * M; ++k)
-        map[k] = std::round(map_in[k] / tol) * tol;
+        map[k] = keel::round(map_in[k] / tol) * tol;
 
     // Sort indices by columns [3 2 1] ascending. map is col-major
     // M × 3: map[r, c] = map_in[c * M + r].
@@ -416,9 +415,9 @@ cmunique_core(keel::Array<keel::f64> &c, keel::usize H, keel::usize W,
     for (keel::usize k = 0; k + 1 < M; ++k) {
         const keel::usize a = ndx[k], b = ndx[k + 1];
         const bool same =
-            std::fabs(map[0 * M + a] - map[0 * M + b]) < tol &&
-            std::fabs(map[1 * M + a] - map[1 * M + b]) < tol &&
-            std::fabs(map[2 * M + a] - map[2 * M + b]) < tol;
+            keel::abs(map[0 * M + a] - map[0 * M + b]) < tol &&
+            keel::abs(map[1 * M + a] - map[1 * M + b]) < tol &&
+            keel::abs(map[2 * M + a] - map[2 * M + b]) < tol;
         d[k] = same ? 1 : 0;
     }
 
@@ -765,13 +764,13 @@ BTParams bt2100_params(keel::i32 bps)
 inline keel::f64 bt_rgb2lin(keel::f64 v, keel::f64 alpha, keel::f64 beta)
 {
     if (v < 4.5 * beta) return v / 4.5;
-    return std::pow((v + alpha - 1.0) / alpha, 1.0 / 0.45);
+    return keel::pow((v + alpha - 1.0) / alpha, 1.0 / 0.45);
 }
 // Forward transfer (linear → non-linear in [0,1]).
 inline keel::f64 bt_lin2rgb(keel::f64 v, keel::f64 alpha, keel::f64 beta)
 {
     if (v < beta) return 4.5 * v;
-    return alpha * std::pow(v, 0.45) - (alpha - 1.0);
+    return alpha * keel::pow(v, 0.45) - (alpha - 1.0);
 }
 
 // HLG transfer functions per BT.2100.
@@ -779,17 +778,17 @@ inline keel::f64 hlg_rgb2lin(keel::f64 v)
 {
     constexpr keel::f64 a = 0.17883277;
     constexpr keel::f64 b = 1.0 - 4.0 * a;
-    const keel::f64 c = 0.5 - a * std::log(4.0 * a);
+    const keel::f64 c = 0.5 - a * keel::log(4.0 * a);
     if (v <= 0.5) return (v * v) / 3.0;
-    return (std::exp((v - c) / a) + b) / 12.0;
+    return (keel::exp((v - c) / a) + b) / 12.0;
 }
 inline keel::f64 hlg_lin2rgb(keel::f64 v)
 {
     constexpr keel::f64 a = 0.17883277;
     constexpr keel::f64 b = 1.0 - 4.0 * a;
-    const keel::f64 c = 0.5 - a * std::log(4.0 * a);
-    if (v <= 1.0 / 12.0) return std::sqrt(3.0 * v);
-    return a * std::log(12.0 * v - b) + c;
+    const keel::f64 c = 0.5 - a * keel::log(4.0 * a);
+    if (v <= 1.0 / 12.0) return keel::sqrt(3.0 * v);
+    return a * keel::log(12.0 * v - b) + c;
 }
 
 void rgbwide2xyz_argcheck(const Value &RGB, keel::i32 bits_per_sample,
@@ -959,7 +958,7 @@ Value xyz2rgbwide(const Value &XYZ, keel::i32 bits_per_sample,
         return hlg_lin2rgb(v < 0.0 ? 0.0 : v);
     };
     auto clamp_to_uint16 = [](keel::f64 v) -> keel::u16 {
-        const keel::f64 r = std::round(v);
+        const keel::f64 r = keel::round(v);
         if (r < 0.0)     return 0;
         if (r > 65535.0) return 65535;
         return keel::as<keel::u16>(r);
@@ -1077,8 +1076,8 @@ Value scale_grayscale_image(const Value &I, keel::Allocator *mr) {
                         ValueType::SINGLE, mr);
     keel::f32 *od = out.singleDataMut();
     if (N == 0) return out;
-    keel::f32 mn = std::numeric_limits<keel::f32>::infinity();
-    keel::f32 mx = -std::numeric_limits<keel::f32>::infinity();
+    keel::f32 mn = keel::Limits<keel::f32>::infinity();
+    keel::f32 mx = -keel::Limits<keel::f32>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f32 v = keel::as<keel::f32>(I.elemAsDouble(i));
         od[i] = v;
@@ -1094,8 +1093,8 @@ Value scale_grayscale_image(const Value &I, keel::Allocator *mr) {
 // Joint scale.
 void scale_two_grayscale_images(Value &A, Value &B,
                                 keel::Allocator *mr) {
-    keel::f32 mn = std::numeric_limits<keel::f32>::infinity();
-    keel::f32 mx = -std::numeric_limits<keel::f32>::infinity();
+    keel::f32 mn = keel::Limits<keel::f32>::infinity();
+    keel::f32 mx = -keel::Limits<keel::f32>::infinity();
     for (keel::usize i = 0; i < A.numel(); ++i) {
         const keel::f32 v = keel::as<keel::f32>(A.elemAsDouble(i));
         if (v < mn) mn = v;
@@ -1280,7 +1279,7 @@ Value imfuse(const Value &Ain, const Value &Bin,
                                     : (ch[p] == 2) ? B.uint8Data()
                                     : nullptr;
             keel::u8 *dst = rd + p * plane;
-            if (src) std::memcpy(dst, src, plane);
+            if (src) keel::mem_copy(dst, src, plane);
         }
         return R;
     }
@@ -1322,7 +1321,7 @@ Value imfuse(const Value &Ain, const Value &Bin,
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f32 va = keel::as<keel::f32>(A.elemAsDouble(i));
             const keel::f32 vb = keel::as<keel::f32>(B.elemAsDouble(i));
-            diff.singleDataMut()[i] = std::fabs(va - vb);
+            diff.singleDataMut()[i] = keel::abs(va - vb);
         }
         diff = scale_grayscale_image(diff, mr);
         return im2uint8(diff, mr);
@@ -1442,7 +1441,7 @@ Value tonemap(const Value &HDR,
 
     // Step 1+2: read into double; find min nonzero; replace zeros with min_nz.
     keel::Array<keel::f64> data(Ntot, 0.0, mr);
-    keel::f64 min_nz = std::numeric_limits<keel::f64>::infinity();
+    keel::f64 min_nz = keel::Limits<keel::f64>::infinity();
     bool any_nz = false;
     for (keel::usize i = 0; i < Ntot; ++i) {
         const keel::f64 v = HDR.elemAsDouble(i);
@@ -1461,17 +1460,17 @@ Value tonemap(const Value &HDR,
         Value out = isRGB
             ? Value::matrix3d(H, W, 3, ValueType::UINT8, mr)
             : Value::matrix(H, W, ValueType::UINT8, mr);
-        std::memset(out.uint8DataMut(), 0, Ntot);
+        keel::mem_zero(out.uint8DataMut(), Ntot);
         return out;
     }
     for (keel::usize i = 0; i < Ntot; ++i)
         if (data[i] == 0.0) data[i] = min_nz;
 
     // Step 3: log2, then mat2gray to [0, 1].
-    keel::f64 gmin = std::numeric_limits<keel::f64>::infinity();
-    keel::f64 gmax = -std::numeric_limits<keel::f64>::infinity();
+    keel::f64 gmin = keel::Limits<keel::f64>::infinity();
+    keel::f64 gmax = -keel::Limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < Ntot; ++i) {
-        const keel::f64 v = std::log2(data[i]);
+        const keel::f64 v = keel::log2(data[i]);
         data[i] = v;
         if (v < gmin) gmin = v;
         if (v > gmax) gmax = v;
@@ -1638,7 +1637,7 @@ Value hsv_colormap(keel::i32 m, keel::Allocator *mr)
         const keel::f64 h = keel::f64(i) / keel::f64(m);     // [0,1)
         // HSV→RGB, with s=v=1.
         const keel::f64 hh = h * 6.0;
-        const keel::i32 sect = keel::as<keel::i32>(std::floor(hh));
+        const keel::i32 sect = keel::as<keel::i32>(keel::floor(hh));
         const keel::f64 f = hh - sect;
         keel::f64 r = 0, g = 0, b = 0;
         switch (sect % 6) {
@@ -1702,7 +1701,7 @@ Value parula_colormap(keel::i32 m, keel::Allocator *mr)
     for (keel::i32 i = 0; i < m; ++i) {
         const keel::f64 t = keel::f64(i) / keel::f64(m - 1);
         const keel::f64 src = t * 63.0;
-        keel::i32 lo = keel::as<keel::i32>(std::floor(src));
+        keel::i32 lo = keel::as<keel::i32>(keel::floor(src));
         keel::i32 hi = lo + 1;
         if (hi > 63) { hi = 63; lo = 62; }
         if (lo < 0)  { lo = 0;  hi = 1;  }
@@ -1943,7 +1942,7 @@ Value select_maximally_distinct(const Value &cmap, keel::i32 K,
             const keel::f64 dr = cd[0 * N + i] - cd[0 * N + last];
             const keel::f64 dg = cd[1 * N + i] - cd[1 * N + last];
             const keel::f64 db = cd[2 * N + i] - cd[2 * N + last];
-            dist_sum[i] = std::sqrt(dr * dr + dg * dg + db * db);
+            dist_sum[i] = keel::sqrt(dr * dr + dg * dg + db * db);
         }
     for (keel::i32 k = 1; k < K; ++k) {
         // Pick argmax of dist_sum among unpicked.
@@ -1965,7 +1964,7 @@ Value select_maximally_distinct(const Value &cmap, keel::i32 K,
                 const keel::f64 dr = cd[0 * N + i] - cd[0 * N + best];
                 const keel::f64 dg = cd[1 * N + i] - cd[1 * N + best];
                 const keel::f64 db = cd[2 * N + i] - cd[2 * N + best];
-                dist_sum[i] += std::sqrt(dr * dr + dg * dg + db * db);
+                dist_sum[i] += keel::sqrt(dr * dr + dg * dg + db * db);
             }
     }
     return out;
@@ -2023,12 +2022,12 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     const keel::f64 *pd = palette.doubleData();
 
     // BFS starting from min label in L.
-    keel::i32 firstNode = std::numeric_limits<keel::i32>::max();
+    keel::i32 firstNode = keel::Limits<keel::i32>::kMax;
     for (keel::usize i = 0; i < H * W; ++i) {
         keel::i32 v = keel::as<keel::i32>(L.elemAsDouble(i));
         if (v > 0 && v < firstNode) firstNode = v;
     }
-    if (firstNode == std::numeric_limits<keel::i32>::max()) return cmap_used;
+    if (firstNode == keel::Limits<keel::i32>::kMax) return cmap_used;
 
     keel::Array<keel::i32> coloredIdx(numNodes + 1, 0);
     keel::Array<char> visited(numNodes + 1, 0);
@@ -2156,7 +2155,7 @@ void labeloverlay_argcheck(const Value &A_in, const Value &L_in,
         throw Error("labeloverlay: size(L) must match size(A,1:2)",
                     0, 0, "labeloverlay", "", "numkit:labeloverlay:sizeMismatch");
 
-    if (!std::isfinite(transparency) || transparency < 0 || transparency > 1)
+    if (!keel::is_finite(transparency) || transparency < 0 || transparency > 1)
         throw Error("labeloverlay: Transparency must be in [0, 1]",
                     0, 0, "labeloverlay", "",
                     "numkit:labeloverlay:transparency");
@@ -2200,7 +2199,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
     keel::i32 maxLabel = 0;
     for (keel::usize i = 0; i < plane; ++i) {
         const keel::f64 v = L_in.elemAsDouble(i);
-        if (v < 0 || std::floor(v) != v || !std::isfinite(v))
+        if (v < 0 || keel::floor(v) != v || !keel::is_finite(v))
             throw Error("labeloverlay: L must be non-negative integer-valued",
                         0, 0, "labeloverlay", "", "numkit:labeloverlay:badL");
         const keel::i32 iv = keel::as<keel::i32>(v);
@@ -2209,7 +2208,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
     const keel::i32 totalLabels = maxLabel + 1;
 
     // ── Transparency ──────────────────────────────────────────────
-    if (!std::isfinite(transparency) || transparency < 0 || transparency > 1)
+    if (!keel::is_finite(transparency) || transparency < 0 || transparency > 1)
         throw Error("labeloverlay: Transparency must be in [0, 1]",
                     0, 0, "labeloverlay", "",
                     "numkit:labeloverlay:transparency");
@@ -2269,7 +2268,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
         included.reserve(M);
         for (keel::usize i = 0; i < M; ++i) {
             const keel::f64 v = included_labels.elemAsDouble(i);
-            if (v < 0 || std::floor(v) != v || !std::isfinite(v))
+            if (v < 0 || keel::floor(v) != v || !keel::is_finite(v))
                 throw Error("labeloverlay: IncludedLabels must be "
                             "non-negative integers",
                             0, 0, "labeloverlay", "",
@@ -2355,7 +2354,7 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
     const keel::f64 *cd = cmap.doubleData();
     const keel::usize Nc = cmap.dims().rows();
     auto sat = [](keel::f64 v) -> keel::u8 {
-        v = std::round(v * 255.0);
+        v = keel::round(v * 255.0);
         if (v < 0)   v = 0;
         if (v > 255) v = 255;
         return keel::as<keel::u8>(v);

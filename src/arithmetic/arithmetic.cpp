@@ -4,6 +4,7 @@
 // classes; pass-through for floating types. Output class = X's class.
 
 #include <keel/array.h>
+#include <keel/math.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
@@ -14,9 +15,7 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <limits>
 
 namespace numkit::image {
 
@@ -26,12 +25,12 @@ namespace {
 // T's representable range, rounding to nearest.
 template <typename T>
 inline T satCast(keel::f64 v) {
-    if (std::isnan(v)) return T{};
-    constexpr keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::lowest());
-    constexpr keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
-    if (v <= lo) return std::numeric_limits<T>::lowest();
-    if (v >= hi) return std::numeric_limits<T>::max();
-    return static_cast<T>(std::lround(v));
+    if (keel::is_nan(v)) return T{};
+    constexpr keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kLowest);
+    constexpr keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
+    if (v <= lo) return keel::Limits<T>::kLowest;
+    if (v >= hi) return keel::Limits<T>::kMax;
+    return static_cast<T>(keel::round_i64(v));
 }
 template <> inline keel::f64 satCast<keel::f64>(keel::f64 v) { return v; }
 template <> inline keel::f32  satCast<keel::f32>(keel::f64 v)  { return keel::as<keel::f32>(v); }
@@ -244,9 +243,9 @@ Value imdivide(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
     return binop(x, y, [](keel::f64 a, keel::f64 b){
         if (b == 0.0) {
-            if (a > 0.0) return std::numeric_limits<keel::f64>::infinity();
-            if (a < 0.0) return -std::numeric_limits<keel::f64>::infinity();
-            return std::numeric_limits<keel::f64>::quiet_NaN();
+            if (a > 0.0) return keel::Limits<keel::f64>::infinity();
+            if (a < 0.0) return -keel::Limits<keel::f64>::infinity();
+            return keel::Limits<keel::f64>::quiet_nan();
         }
         return a / b;
     }, mr);
@@ -254,7 +253,7 @@ Value imdivide(const Value &x, const Value &y, keel::Allocator *mr) {
 
 Value imabsdiff(const Value &x, const Value &y, keel::Allocator *mr) {
     imarith_argcheck(x);
-    return binop(x, y, [](keel::f64 a, keel::f64 b){ return std::fabs(a - b); }, mr);
+    return binop(x, y, [](keel::f64 a, keel::f64 b){ return keel::abs(a - b); }, mr);
 }
 
 Value imcomplement(const Value &x, keel::Allocator *mr) {

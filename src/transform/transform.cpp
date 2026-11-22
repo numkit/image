@@ -7,6 +7,7 @@
 // nk's Value layout.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -27,9 +28,7 @@
 #include <numkit/value/error.hpp>
 #include <keel/static_array.h>
 #include <keel/math.h>
-#include <cstring>
 #include <tuple>
-#include <cmath>
 
 
 namespace numkit::image {
@@ -91,7 +90,7 @@ Value apply_along_rows(const Value &A, Fn1D &&fn1d, keel::Allocator *mr)
 
 void dctmtx_argcheck(keel::f64 Nd)
 {
-    if (!(Nd > 0.0) || std::floor(Nd) != Nd)
+    if (!(Nd > 0.0) || keel::floor(Nd) != Nd)
         throw Error("dctmtx: N must be a positive integer",
                     0, 0, "dctmtx", "", "numkit:dctmtx:arg");
 }
@@ -129,8 +128,8 @@ Value dctmtx(keel::f64 Nd, keel::Allocator *mr)
     Value D = Value::matrix(N, N, ValueType::DOUBLE, mr);
     if (N == 0) return D;
     keel::f64 *d = D.doubleDataMut();
-    const keel::f64 w0 = std::sqrt(1.0 / keel::as<keel::f64>(N));
-    const keel::f64 wk = std::sqrt(2.0 / keel::as<keel::f64>(N));
+    const keel::f64 w0 = keel::sqrt(1.0 / keel::as<keel::f64>(N));
+    const keel::f64 wk = keel::sqrt(2.0 / keel::as<keel::f64>(N));
     const keel::f64 piOver2N = keel::kPi / (2.0 * keel::as<keel::f64>(N));
     for (keel::usize n = 0; n < N; ++n) {
         for (keel::usize k = 0; k < N; ++k) {
@@ -138,7 +137,7 @@ Value dctmtx(keel::f64 Nd, keel::Allocator *mr)
                                  * keel::as<keel::f64>(2 * n + 1);
             const keel::f64 w = (k == 0) ? w0 : wk;
             // Column-major: element (k, n) at offset n*N + k.
-            d[n * N + k] = w * std::cos(phase);
+            d[n * N + k] = w * keel::cos(phase);
         }
     }
     return D;
@@ -388,8 +387,8 @@ phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
         const keel::f64 phi = Eat(k, 5) * keel::kPi / 180.0;
         const keel::f64 a2  = a * a;
         const keel::f64 b2  = b * b;
-        const keel::f64 cos_p = std::cos(phi);
-        const keel::f64 sin_p = std::sin(phi);
+        const keel::f64 cos_p = keel::cos(phi);
+        const keel::f64 sin_p = keel::sin(phi);
 
         // xgrid[r, c] = xvals[c]; y = rot90(xgrid) → y[r, c] = xvals[n-1-r].
         for (keel::usize c = 0; c < n; ++c) {
@@ -415,13 +414,13 @@ Value bestblk(const Value &IMS, keel::f64 k, keel::Allocator *mr)
     const Value &IMSu = (IMS.type() == ValueType::CHAR) ? IMSC : IMS;
 
     const keel::usize nd = IMSu.numel();
-    const keel::i64 K = keel::as<keel::i64>(std::floor(k));
+    const keel::i64 K = keel::as<keel::i64>(keel::floor(k));
     Value out = Value::matrix(1, nd, ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
 
     for (keel::usize d = 0; d < nd; ++d) {
         const keel::i64 dim = keel::as<keel::i64>(
-            std::floor(IMSu.elemAsDouble(d)));
+            keel::floor(IMSu.elemAsDouble(d)));
         if (dim < 1)
             throw Error("bestblk: IMS entries must be positive",
                         0, 0, "bestblk", "", "numkit:bestblk:vals");
@@ -433,7 +432,7 @@ Value bestblk(const Value &IMS, keel::f64 k, keel::Allocator *mr)
         // ceil(lo_double) when the lower bound is non-integer.
         const keel::f64 lo_d = std::min(keel::as<keel::f64>(dim) / 10.0,
                                      keel::as<keel::f64>(K) / 2.0);
-        keel::i64 lo = keel::as<keel::i64>(std::ceil(lo_d));
+        keel::i64 lo = keel::as<keel::i64>(keel::ceil(lo_d));
         if (lo < 1) lo = 1;
         keel::i64 bestP   = K;
         keel::i64 bestPad = ((K - dim % K) % K + K) % K;
@@ -713,9 +712,9 @@ Value normxcorr2(const Value &templ, const Value &img, keel::Allocator *mr)
     keel::f64 *cod = c_out.doubleDataMut();
     const keel::f64 *cnd = c_num.doubleData();
     for (keel::usize i = 0; i < outH * outW; ++i) {
-        const keel::f64 denom = std::sqrt(cdd[i] * sa2);
+        const keel::f64 denom = keel::sqrt(cdd[i] * sa2);
         keel::f64 v = (denom > 0.0) ? cnd[i] / denom : 0.0;
-        if (!std::isfinite(v)) v = 0.0;
+        if (!keel::is_finite(v)) v = 0.0;
         cod[i] = v;
     }
     return c_out;
@@ -779,7 +778,7 @@ Value to_double_pmr(const Value &I, keel::Allocator *mr)
     const keel::usize N = I.numel();
     switch (I.type()) {
         case ValueType::DOUBLE:
-            std::memcpy(od, I.doubleData(), N * sizeof(keel::f64)); break;
+            keel::copy_n(od, I.doubleData(), N); break;
         case ValueType::SINGLE:
             for (keel::usize i = 0; i < N; ++i) od[i] = I.singleData()[i]; break;
         case ValueType::UINT8:
@@ -809,21 +808,21 @@ Value real_back_to_class(const Value &Jd, ValueType outT,
     auto sat_u8  = [](keel::f64 v) {
         if (v <= 0.0) return keel::u8{0};
         if (v >= 1.0) return keel::u8{255};
-        return keel::as<keel::u8>(std::lround(v * 255.0));
+        return keel::as<keel::u8>(keel::round_i64(v * 255.0));
     };
     auto sat_u16 = [](keel::f64 v) {
         if (v <= 0.0) return keel::u16{0};
         if (v >= 1.0) return keel::u16{65535};
-        return keel::as<keel::u16>(std::lround(v * 65535.0));
+        return keel::as<keel::u16>(keel::round_i64(v * 65535.0));
     };
     auto sat_i16 = [](keel::f64 v) {
         if (v <= 0.0) return keel::i16{-32768};
         if (v >= 1.0) return keel::i16{32767};
-        return keel::as<keel::i16>(std::lround(v * 65535.0 - 32768.0));
+        return keel::as<keel::i16>(keel::round_i64(v * 65535.0 - 32768.0));
     };
     switch (outT) {
         case ValueType::DOUBLE:
-            std::memcpy(out.doubleDataMut(), src, N * sizeof(keel::f64)); break;
+            keel::copy_n(out.doubleDataMut(), src, N); break;
         case ValueType::SINGLE:
             for (keel::usize i = 0; i < N; ++i)
                 out.singleDataMut()[i] = keel::as<keel::f32>(src[i]);
@@ -880,7 +879,7 @@ Value deconvwnr_core_scalar_uxsx(const Value &I, const Value &PSF,
     // denom = |H|^2 * S_x + S_u, clamped at sqrt(eps).
     Value denom = Value::matrix(H, W, ValueType::DOUBLE, mr);
     keel::f64 *denomD = denom.doubleDataMut();
-    const keel::f64 sqrt_eps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
+    const keel::f64 sqrt_eps = keel::sqrt(keel::Limits<keel::f64>::kEpsilon);
     for (keel::usize i = 0; i < plane; ++i) {
         const keel::f64 m2 = Hd[i].real() * Hd[i].real() + Hd[i].imag() * Hd[i].imag();
         keel::f64 d = m2 * S_x + S_u;
@@ -1030,7 +1029,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
             keel::Array<keel::f64> S(plane, 0.0, mr);
             const keel::c64 *fc = F.complexData();
             for (keel::usize i = 0; i < plane; ++i) {
-                const keel::f64 m = std::sqrt(fc[i].real() * fc[i].real()
+                const keel::f64 m = keel::sqrt(fc[i].real() * fc[i].real()
                                          + fc[i].imag() * fc[i].imag());
                 S[i] = m;
             }
@@ -1066,7 +1065,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
         const keel::c64 *Hd = Hcplx.data();
         Value denom = Value::matrix(H, W, ValueType::DOUBLE, mr);
         keel::f64 *denomD = denom.doubleDataMut();
-        const keel::f64 sqrt_eps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
+        const keel::f64 sqrt_eps = keel::sqrt(keel::Limits<keel::f64>::kEpsilon);
         auto get_S = [&](const keel::Array<keel::f64> &S, keel::usize i, bool scalar) {
             return scalar ? S[0] : S[i];
         };
@@ -1160,8 +1159,8 @@ Value edgetaper(const Value &I, const Value &PSF, keel::Allocator *mr)
     const keel::f64 *psfd = PSFd.doubleData();
 
     // Track input range for the final clip.
-    keel::f64 Imin =  std::numeric_limits<keel::f64>::infinity();
-    keel::f64 Imax = -std::numeric_limits<keel::f64>::infinity();
+    keel::f64 Imin =  keel::Limits<keel::f64>::infinity();
+    keel::f64 Imax = -keel::Limits<keel::f64>::infinity();
     {
         const keel::usize N = Id.numel();
         const keel::f64 *id = Id.doubleData();
@@ -1328,8 +1327,8 @@ template<typename F>
 keel::f64 fminbnd_brent(F f, keel::f64 ax, keel::f64 bx,
                      keel::f64 tol = 1e-4, keel::i32 maxiter = 500)
 {
-    const keel::f64 seps  = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
-    const keel::f64 c     = 0.5 * (3.0 - std::sqrt(5.0));   // golden ratio
+    const keel::f64 seps  = keel::sqrt(keel::Limits<keel::f64>::kEpsilon);
+    const keel::f64 c     = 0.5 * (3.0 - keel::sqrt(5.0));   // golden ratio
     keel::f64 a = ax, b = bx;
     keel::f64 v = a + c * (b - a);
     keel::f64 w = v, xf = v;
@@ -1339,23 +1338,23 @@ keel::f64 fminbnd_brent(F f, keel::f64 ax, keel::f64 bx,
     keel::f64 fv = fx, fw = fx;
     keel::i32 iter = 0;
     keel::f64 xm = 0.5 * (a + b);
-    keel::f64 tol1 = seps * std::fabs(xf) + tol / 3.0;
+    keel::f64 tol1 = seps * keel::abs(xf) + tol / 3.0;
     keel::f64 tol2 = 2.0 * tol1;
 
-    while (std::fabs(xf - xm) > tol2 - 0.5 * (b - a)) {
+    while (keel::abs(xf - xm) > tol2 - 0.5 * (b - a)) {
         if (++iter > maxiter) break;
         bool gold = true;
-        if (std::fabs(e) > tol1) {
+        if (keel::abs(e) > tol1) {
             // parabolic fit
             keel::f64 r = (xf - w) * (fx - fv);
             keel::f64 q = (xf - v) * (fx - fw);
             keel::f64 p = (xf - v) * q - (xf - w) * r;
             q = 2.0 * (q - r);
             if (q > 0.0) p = -p;
-            q = std::fabs(q);
+            q = keel::abs(q);
             keel::f64 etemp = e;
             e = d;
-            if (std::fabs(p) < std::fabs(0.5 * q * etemp)
+            if (keel::abs(p) < keel::abs(0.5 * q * etemp)
                 && p > q * (a - xf) && p < q * (b - xf)) {
                 d = p / q;
                 keel::f64 u = xf + d;
@@ -1371,7 +1370,7 @@ keel::f64 fminbnd_brent(F f, keel::f64 ax, keel::f64 bx,
             d = c * e;
         }
         keel::f64 si = (d >= 0.0) ? 1.0 : -1.0;
-        keel::f64 u  = xf + ((std::fabs(d) >= tol1) ? d : tol1 * si);
+        keel::f64 u  = xf + ((keel::abs(d) >= tol1) ? d : tol1 * si);
         keel::f64 fu = f(u);
         if (fu <= fx) {
             if (u >= xf) a = xf; else b = xf;
@@ -1388,7 +1387,7 @@ keel::f64 fminbnd_brent(F f, keel::f64 ax, keel::f64 bx,
             }
         }
         xm = 0.5 * (a + b);
-        tol1 = seps * std::fabs(xf) + tol / 3.0;
+        tol1 = seps * keel::abs(xf) + tol / 3.0;
         tol2 = 2.0 * tol1;
         x = xf;
     }
@@ -1404,10 +1403,10 @@ void deconvreg_argcheck(const Value &PSF, keel::f64 np, keel::f64 lo, keel::f64 
     if (PSF.numel() < 2)
         throw Error("deconvreg: PSF must have at least 2 elements",
                     0, 0, "deconvreg", "", "numkit:deconvreg:psfTooSmall");
-    if (!std::isfinite(np) || np < 0.0)
+    if (!keel::is_finite(np) || np < 0.0)
         throw Error("deconvreg: NP must be a finite non-negative scalar",
                     0, 0, "deconvreg", "", "numkit:deconvreg:np");
-    if (!std::isfinite(lo) || !std::isfinite(hi) || lo < 0.0 || hi < lo)
+    if (!keel::is_finite(lo) || !keel::is_finite(hi) || lo < 0.0 || hi < lo)
         throw Error("deconvreg: LRANGE must be finite, non-negative, "
                     "and lo <= hi",
                     0, 0, "deconvreg", "", "numkit:deconvreg:lrange");
@@ -1518,7 +1517,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
         keel::Array<keel::f64> R4  (plane, 0.0, mr);
         keel::Array<keel::f64> H2R22(plane, 0.0, mr);
         for (keel::usize i = 0; i < plane; ++i) {
-            const keel::f64 absFI = std::sqrt(FIcplx[i].real() * FIcplx[i].real()
+            const keel::f64 absFI = keel::sqrt(FIcplx[i].real() * FIcplx[i].real()
                                          + FIcplx[i].imag() * FIcplx[i].imag());
             const keel::f64 r4g2  = R2[i] * absFI;
             R4G2[i] = r4g2 * r4g2;
@@ -1527,7 +1526,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
             H2R22[i] = 2.0 * H2[i] * R2[i];
         }
         const keel::f64 scaled_np = np * keel::as<keel::f64>(plane);
-        const keel::f64 seps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
+        const keel::f64 seps = keel::sqrt(keel::Limits<keel::f64>::kEpsilon);
 
         auto ResOffset = [&](keel::f64 L) -> keel::f64 {
             keel::f64 s = 0.0;
@@ -1536,7 +1535,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
                                    + L * L * R4[i] + seps;
                 s += R4G2[i] / denom;
             }
-            return std::fabs(L * L * s - scaled_np);
+            return keel::abs(L * L * s - scaled_np);
         };
         lagra = fminbnd_brent(ResOffset, lo, hi);
     }
@@ -1551,7 +1550,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
         for (keel::usize i = 0; i < plane; ++i)
             FIcplx[i] = keel::c64{FI.elemAsDouble(i), 0.0};
     }
-    const keel::f64 seps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
+    const keel::f64 seps = keel::sqrt(keel::Limits<keel::f64>::kEpsilon);
 
     Value FG = Value::matrix(H, W, ValueType::COMPLEX, mr);
     keel::c64 *fg = FG.complexDataMut();

@@ -23,9 +23,6 @@
 #include <numkit/value/value_type.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <cstring>
-#include <limits>
 #include <tuple>
 
 namespace numkit::image {
@@ -61,17 +58,17 @@ inline void store_classed(Value &out, keel::usize i, keel::f64 v, ValueType t)
         case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
         case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
         case ValueType::UINT8: {
-            keel::f64 w = std::round(v * 255.0);
+            keel::f64 w = keel::round(v * 255.0);
             if (w < 0) w = 0; if (w > 255) w = 255;
             out.uint8DataMut()[i] = keel::as<keel::u8>(w); break;
         }
         case ValueType::UINT16: {
-            keel::f64 w = std::round(v * 65535.0);
+            keel::f64 w = keel::round(v * 65535.0);
             if (w < 0) w = 0; if (w > 65535) w = 65535;
             out.uint16DataMut()[i] = keel::as<keel::u16>(w); break;
         }
         case ValueType::INT16: {
-            keel::f64 w = std::round(v * 65535.0) - 32768.0;
+            keel::f64 w = keel::round(v * 65535.0) - 32768.0;
             if (w < -32768) w = -32768; if (w > 32767) w = 32767;
             out.int16DataMut()[i] = keel::as<keel::i16>(w); break;
         }
@@ -182,8 +179,8 @@ imhist(const Value &I, keel::i32 n, keel::Allocator *mr)
     const keel::usize N = I.numel();
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 u = element_to_unit(I, i);
-        if (std::isnan(u)) continue;
-        keel::i32 bin = keel::as<keel::i32>(std::round(u * (n - 1)));
+        if (keel::is_nan(u)) continue;
+        keel::i32 bin = keel::as<keel::i32>(keel::round(u * (n - 1)));
         if (bin < 0) bin = 0;
         if (bin >= n) bin = n - 1;
         ++counts[keel::as<keel::usize>(bin)];
@@ -235,10 +232,10 @@ Value imadjust(const Value &I, keel::f64 low_in, keel::f64 high_in,
                keel::Allocator *mr)
 {
     internal::requireImageClass(I, "imadjust", "I", 1, internal::ImgClasses::FloatInt);
-    if (std::isnan(low_in) || std::isnan(high_in)) {
+    if (keel::is_nan(low_in) || keel::is_nan(high_in)) {
         Value lim = stretchlim(I, 0.01, 0.99, mr);
-        if (std::isnan(low_in))  low_in  = lim.elemAsDouble(0);
-        if (std::isnan(high_in)) high_in = lim.elemAsDouble(1);
+        if (keel::is_nan(low_in))  low_in  = lim.elemAsDouble(0);
+        if (keel::is_nan(high_in)) high_in = lim.elemAsDouble(1);
     }
 
     const keel::usize N = I.numel();
@@ -304,7 +301,7 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts, keel::Allocato
     for (keel::usize i = 0; i < H * W; ++i) {
         keel::f64 stored = outImg[i];
         if (intOut) {
-            stored = (stored >= 0.0) ? std::floor(stored + 0.5) : std::ceil(stored - 0.5);
+            stored = (stored >= 0.0) ? keel::floor(stored + 0.5) : keel::ceil(stored - 0.5);
             if (stored < classLo) stored = classLo;
             if (stored > classHi) stored = classHi;
         }
@@ -588,7 +585,7 @@ Value grayslice(const Value &I, keel::i32 N, keel::Allocator *mr)
         : 1.0;
     for (keel::usize k = 1; k <= k_max; ++k) {
         const keel::f64 v_unit = keel::as<keel::f64>(k) / n_scalar;
-        keel::f64 v_class = isFloat ? v_unit : std::round(v_unit * scale);
+        keel::f64 v_class = isFloat ? v_unit : keel::round(v_unit * scale);
         if (!isFloat && isInt16) v_class -= 32768.0;
         thresh.push_back(v_class);
     }
@@ -605,8 +602,8 @@ Value grayslice(const Value &I, keel::ArrayRef<keel::f64> levels, keel::Allocato
     std::sort(thresh.begin(), thresh.end());
     const keel::usize N = I.numel();
     if (isFloat && N > 0) {
-        keel::f64 imin =  std::numeric_limits<keel::f64>::infinity();
-        keel::f64 imax = -std::numeric_limits<keel::f64>::infinity();
+        keel::f64 imin =  keel::Limits<keel::f64>::infinity();
+        keel::f64 imax = -keel::Limits<keel::f64>::infinity();
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 v = I.elemAsDouble(i);
             if (v < imin) imin = v;

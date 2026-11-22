@@ -22,12 +22,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -48,7 +45,7 @@ Value bwdistChamfer(const Value &BW, keel::f64 dOrth, keel::f64 dDiag,
     const keel::usize W = BW.dims().cols();
     Value out = Value::matrix(H, W, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0) return out;
-    const keel::f64 INF = std::numeric_limits<keel::f64>::infinity();
+    const keel::f64 INF = keel::Limits<keel::f64>::infinity();
 
     keel::Array<keel::f64> d(H * W, INF);          // row-major working buffer
     for (keel::usize r = 0; r < H; ++r)
@@ -238,10 +235,10 @@ static Value bwdist_idx(const Value &BW, keel::i32 metric, keel::Allocator *mr)
             if (BW.elemAsDouble(c * H + r) != 0.0)
                 fg.push_back({(keel::i32)r, (keel::i32)c, (keel::u32)(c * H + r + 1)});
     keel::u32 *od = out.uint32DataMut();
-    const keel::f64 q = std::sqrt(2.0) - 1.0;
+    const keel::f64 q = keel::sqrt(2.0) - 1.0;
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize r = 0; r < H; ++r) {
-            keel::f64 best = std::numeric_limits<keel::f64>::infinity();
+            keel::f64 best = keel::Limits<keel::f64>::infinity();
             keel::u32 bi = 0;
             for (const auto &p : fg) {
                 const keel::f64 dr = keel::abs((keel::f64)(keel::i64)r - p.r);
@@ -281,7 +278,7 @@ void bwdist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     } else if (method == "chessboard") {
         outs[0] = bwdistChamfer(args[0], 1.0, 1.0, true, mr);   metric = 2;
     } else if (method == "quasi-euclidean") {
-        outs[0] = bwdistChamfer(args[0], 1.0, std::sqrt(2.0), true, mr);
+        outs[0] = bwdistChamfer(args[0], 1.0, keel::sqrt(2.0), true, mr);
         metric = 3;
     } else {
         throw Error("bwdist: method must be 'euclidean', 'cityblock', "
@@ -319,7 +316,7 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, 4, "bwareafilt");
     auto *mr = ctx.engine->allocator();
-    keel::f64 lo = 0.0, hi = std::numeric_limits<keel::f64>::infinity();
+    keel::f64 lo = 0.0, hi = keel::Limits<keel::f64>::infinity();
     keel::usize n_keep = 0;
     bool keep_largest = true;
     keel::i32 conn = 8;

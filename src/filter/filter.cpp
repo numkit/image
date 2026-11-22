@@ -1,6 +1,7 @@
 // toolboxes/image/src/filter/filter.cpp
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/core.h>
@@ -20,8 +21,6 @@
 #include "filter_detail.hpp"
 
 #include <algorithm>
-#include <cmath>
-#include <cstring>
 #include <tuple>
 
 namespace numkit::image {
@@ -44,7 +43,7 @@ Value mat_double(keel::ArrayRef<keel::f64> v, keel::usize rows, keel::usize cols
 {
     Value out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     if (!v.empty())
-        std::memcpy(out.doubleDataMut(), v.data(), v.size() * sizeof(keel::f64));
+        keel::copy_n(out.doubleDataMut(), v.data(), v.size());
     return out;
 }
 
@@ -56,19 +55,19 @@ inline void store_classed(Value &out, keel::usize i, keel::f64 v, ValueType t)
         case ValueType::UINT8: {
             if (v < 0.0) v = 0.0;
             if (v > 255.0) v = 255.0;
-            out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v));
+            out.uint8DataMut()[i] = keel::as<keel::u8>(keel::round_i64(v));
             break;
         }
         case ValueType::UINT16: {
             if (v < 0.0) v = 0.0;
             if (v > 65535.0) v = 65535.0;
-            out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v));
+            out.uint16DataMut()[i] = keel::as<keel::u16>(keel::round_i64(v));
             break;
         }
         case ValueType::INT16: {
             if (v < -32768.0) v = -32768.0;
             if (v > 32767.0) v = 32767.0;
-            out.int16DataMut()[i] = keel::as<keel::i16>(std::lround(v));
+            out.int16DataMut()[i] = keel::as<keel::i16>(keel::round_i64(v));
             break;
         }
         case ValueType::LOGICAL:
@@ -83,7 +82,7 @@ inline void store_classed(Value &out, keel::usize i, keel::f64 v, ValueType t)
 inline void store_classed_wide(Value &out, keel::usize i, keel::f64 v, ValueType t)
 {
     auto sat = [](keel::f64 x, keel::f64 lo, keel::f64 hi) -> keel::f64 {
-        x = std::round(x);
+        x = keel::round(x);
         if (x < lo) x = lo;
         if (x > hi) x = hi;
         return x;
@@ -743,7 +742,7 @@ Value imfilter(const Value &I, const Value &h, PadMode boundary, keel::f64 pad_v
 Value imgaussfilt(const Value &I, keel::f64 sigma, keel::i32 filter_size, keel::Allocator *mr)
 {
     if (filter_size <= 0) {
-        filter_size = 2 * keel::as<keel::i32>(std::ceil(2.0 * sigma)) + 1;
+        filter_size = 2 * keel::as<keel::i32>(keel::ceil(2.0 * sigma)) + 1;
         if (filter_size < 3) filter_size = 3;
     }
     if (filter_size % 2 == 0) filter_size += 1;
@@ -1071,7 +1070,7 @@ Value imbilatfilt(const Value &I, keel::f64 degreeOfSmoothing, keel::f64 spatial
     Value out = Value::matrix(H, W, I.type(), mr);
     if (N == 0) return out;
 
-    const keel::i32 half = std::max(1, keel::as<keel::i32>(std::ceil(2.0 * spatialSigma)));
+    const keel::i32 half = std::max(1, keel::as<keel::i32>(keel::ceil(2.0 * spatialSigma)));
     const keel::i32 win = 2 * half + 1;
     if (keel::as<keel::usize>(win) >= std::min(H, W))
         throw Error(keel::format("imbilatfilt: NeighborhoodSize (window {}) "
@@ -1120,12 +1119,12 @@ Value col2im(const Value &B, keel::i32 m, keel::i32 n, keel::i32 mm, keel::i32 n
         Value A = Value::matrix(Hp, Wp, T, mr);
         const keel::usize N = Hp * Wp;
         switch (T) {
-            case ValueType::DOUBLE:  std::memcpy(A.doubleDataMut(), B.doubleData(), N * sizeof(keel::f64)); break;
-            case ValueType::SINGLE:  std::memcpy(A.singleDataMut(), B.singleData(), N * sizeof(keel::f32)); break;
-            case ValueType::UINT8:   std::memcpy(A.uint8DataMut(), B.uint8Data(), N); break;
-            case ValueType::UINT16:  std::memcpy(A.uint16DataMut(), B.uint16Data(), N * sizeof(keel::u16)); break;
-            case ValueType::INT16:   std::memcpy(A.int16DataMut(), B.int16Data(), N * sizeof(keel::i16)); break;
-            case ValueType::LOGICAL: std::memcpy(A.logicalDataMut(), B.logicalData(), N); break;
+            case ValueType::DOUBLE:  keel::copy_n(A.doubleDataMut(), B.doubleData(), N); break;
+            case ValueType::SINGLE:  keel::copy_n(A.singleDataMut(), B.singleData(), N); break;
+            case ValueType::UINT8:   keel::mem_copy(A.uint8DataMut(), B.uint8Data(), N); break;
+            case ValueType::UINT16:  keel::copy_n(A.uint16DataMut(), B.uint16Data(), N); break;
+            case ValueType::INT16:   keel::copy_n(A.int16DataMut(), B.int16Data(), N); break;
+            case ValueType::LOGICAL: keel::mem_copy(A.logicalDataMut(), B.logicalData(), N); break;
             default:
                 throw Error("col2im: unsupported class", 0, 0, "col2im", "", "numkit:col2im:badtype");
         }
@@ -1210,11 +1209,11 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         if (v > 1.0) v = 1.0;
         switch (T) {
             case ValueType::UINT8:
-                out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v * 255.0)); break;
+                out.uint8DataMut()[i] = keel::as<keel::u8>(keel::round_i64(v * 255.0)); break;
             case ValueType::UINT16:
-                out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v * 65535.0)); break;
+                out.uint16DataMut()[i] = keel::as<keel::u16>(keel::round_i64(v * 65535.0)); break;
             case ValueType::INT16: {
-                keel::f64 w = std::lround(v * 65535.0) - 32768.0;
+                keel::f64 w = keel::round_i64(v * 65535.0) - 32768.0;
                 if (w < -32768.0) w = -32768.0;
                 if (w >  32767.0) w =  32767.0;
                 out.int16DataMut()[i] = keel::as<keel::i16>(w); break;
@@ -1232,7 +1231,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
     if (mode == "gaussian") {
         const keel::f64 m = (p1.numel() > 0) ? p1.toScalar() : 0.0;
         const keel::f64 v = (p2.numel() > 0) ? p2.toScalar() : 0.01;
-        const keel::f64 sigma = std::sqrt(std::max(v, 0.0));
+        const keel::f64 sigma = keel::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + m + keel::random::normal_f64(rng, 0.0, sigma));
@@ -1248,7 +1247,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         }
     } else if (mode == "speckle") {
         const keel::f64 v = (p1.numel() > 0) ? p1.toScalar() : 0.04;
-        const keel::f64 sigma = std::sqrt(std::max(v, 0.0));
+        const keel::f64 sigma = keel::sqrt(std::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + x * keel::random::normal_f64(rng, 0.0, sigma));
@@ -1270,7 +1269,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 x = toUnit(I.elemAsDouble(i));
             const keel::f64 v = std::max(p1.elemAsDouble(i), 0.0);
-            fromUnit(out, i, x + keel::random::normal_f64(rng, 0.0, std::sqrt(v)));
+            fromUnit(out, i, x + keel::random::normal_f64(rng, 0.0, keel::sqrt(v)));
         }
     } else {
         throw Error(keel::format("imnoise: unknown mode '{}'", mode),
@@ -1414,7 +1413,7 @@ Value imsmooth(const Value &I, keel::StringRef name, keel::f64 sigma, keel::Allo
                         : Value::matrix(H, W, cls, mr);
     if (plane == 0) return out;
 
-    const keel::i32 ksize = 2 * keel::as<keel::i32>(std::ceil(3.0 * sigma)) + 1;
+    const keel::i32 ksize = 2 * keel::as<keel::i32>(keel::ceil(3.0 * sigma)) + 1;
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> src_f(plane, scratch.allocator());
     keel::Array<keel::f64> dst_f(plane, scratch.allocator());
@@ -1671,13 +1670,13 @@ Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,
         const keel::f64 v = (masked ? filtRes : I).elemAsDouble(i);
         switch (cls) {
             case ValueType::SINGLE:  out.singleDataMut()[i]  = keel::as<keel::f32>(v); break;
-            case ValueType::UINT8:   out.uint8DataMut()[i]   = keel::as<keel::u8>(std::lround(v)); break;
-            case ValueType::UINT16:  out.uint16DataMut()[i]  = keel::as<keel::u16>(std::lround(v)); break;
-            case ValueType::UINT32:  out.uint32DataMut()[i]  = keel::as<keel::u32>(std::lround(v)); break;
-            case ValueType::INT8:    out.int8DataMut()[i]    = keel::as<keel::i8>(std::lround(v)); break;
-            case ValueType::INT16:   out.int16DataMut()[i]   = keel::as<keel::i16>(std::lround(v)); break;
-            case ValueType::INT32:   out.int32DataMut()[i]   = keel::as<keel::i32>(std::lround(v)); break;
-            case ValueType::INT64:   out.int64DataMut()[i]   = keel::as<keel::i64>(std::lround(v)); break;
+            case ValueType::UINT8:   out.uint8DataMut()[i]   = keel::as<keel::u8>(keel::round_i64(v)); break;
+            case ValueType::UINT16:  out.uint16DataMut()[i]  = keel::as<keel::u16>(keel::round_i64(v)); break;
+            case ValueType::UINT32:  out.uint32DataMut()[i]  = keel::as<keel::u32>(keel::round_i64(v)); break;
+            case ValueType::INT8:    out.int8DataMut()[i]    = keel::as<keel::i8>(keel::round_i64(v)); break;
+            case ValueType::INT16:   out.int16DataMut()[i]   = keel::as<keel::i16>(keel::round_i64(v)); break;
+            case ValueType::INT32:   out.int32DataMut()[i]   = keel::as<keel::i32>(keel::round_i64(v)); break;
+            case ValueType::INT64:   out.int64DataMut()[i]   = keel::as<keel::i64>(keel::round_i64(v)); break;
             case ValueType::LOGICAL: out.logicalDataMut()[i] = (v != 0.0) ? 1u : 0u; break;
             default:                 out.doubleDataMut()[i]  = v; break;
         }
@@ -1779,7 +1778,7 @@ Value imdiffusefilt(const Value &I, const Value &thresh, keel::usize N_in,
         threshVec.reserve(thresh.numel());
         for (keel::usize i = 0; i < thresh.numel(); ++i) {
             const keel::f64 v = thresh.elemAsDouble(i);
-            if (!(v > 0.0) || !std::isfinite(v))
+            if (!(v > 0.0) || !keel::is_finite(v))
                 throw Error("imdiffusefilt: GradientThreshold must be a "
                             "positive finite scalar or vector",
                             0, 0, "imdiffusefilt", "",

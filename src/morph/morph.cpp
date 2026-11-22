@@ -15,7 +15,6 @@
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cmath>
 #include <utility>
 
 namespace numkit::image::internal {
@@ -72,19 +71,19 @@ inline void store_classed_morph(Value &out, keel::usize i, keel::f64 v, ValueTyp
         case ValueType::UINT8: {
             if (v < 0.0) v = 0.0;
             if (v > 255.0) v = 255.0;
-            out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v));
+            out.uint8DataMut()[i] = keel::as<keel::u8>(keel::round_i64(v));
             break;
         }
         case ValueType::UINT16: {
             if (v < 0.0) v = 0.0;
             if (v > 65535.0) v = 65535.0;
-            out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v));
+            out.uint16DataMut()[i] = keel::as<keel::u16>(keel::round_i64(v));
             break;
         }
         case ValueType::INT16: {
             if (v < -32768.0) v = -32768.0;
             if (v > 32767.0) v = 32767.0;
-            out.int16DataMut()[i] = keel::as<keel::i16>(std::lround(v));
+            out.int16DataMut()[i] = keel::as<keel::i16>(keel::round_i64(v));
             break;
         }
         case ValueType::LOGICAL:
@@ -287,7 +286,7 @@ void applylut_argcheck(const Value &BW, const Value &LUT, keel::usize &lutLen, k
     if ((keel::usize{1} << nq) != lutLen)
         throw Error("applylut: LUT length must be 2^(n*n)",
                     0, 0, "applylut", "", "numkit:applylut:lutsize");
-    n = keel::as<keel::usize>(std::round(std::sqrt(keel::as<keel::f64>(nq))));
+    n = keel::as<keel::usize>(keel::round(keel::sqrt(keel::as<keel::f64>(nq))));
     if (n * n != nq)
         throw Error("applylut: LUT length not 2^(n*n) for any integer n",
                     0, 0, "applylut", "", "numkit:applylut:lutshape");
@@ -555,13 +554,13 @@ Value imreconstruct(const Value &marker, const Value &mask, keel::i32 conn, keel
             case ValueType::UINT8: {
                 if (v < 0.0) v = 0.0;
                 if (v > 255.0) v = 255.0;
-                out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v));
+                out.uint8DataMut()[i] = keel::as<keel::u8>(keel::round_i64(v));
                 break;
             }
             case ValueType::UINT16: {
                 if (v < 0.0) v = 0.0;
                 if (v > 65535.0) v = 65535.0;
-                out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v));
+                out.uint16DataMut()[i] = keel::as<keel::u16>(keel::round_i64(v));
                 break;
             }
             case ValueType::LOGICAL:
@@ -858,9 +857,9 @@ Value applylut(const Value &BW, const Value &LUT, keel::Allocator *mr)
         switch (LUT.type()) {
             case ValueType::DOUBLE: out.doubleDataMut()[i] = v; break;
             case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
-            case ValueType::UINT8:  out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v)); break;
-            case ValueType::UINT16: out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v)); break;
-            case ValueType::INT16:  out.int16DataMut()[i] = keel::as<keel::i16>(std::lround(v)); break;
+            case ValueType::UINT8:  out.uint8DataMut()[i] = keel::as<keel::u8>(keel::round_i64(v)); break;
+            case ValueType::UINT16: out.uint16DataMut()[i] = keel::as<keel::u16>(keel::round_i64(v)); break;
+            case ValueType::INT16:  out.int16DataMut()[i] = keel::as<keel::i16>(keel::round_i64(v)); break;
             case ValueType::LOGICAL: out.logicalDataMut()[i] = (v != 0.0) ? 1u : 0u; break;
             default: out.doubleDataMut()[i] = v; break;
         }

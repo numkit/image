@@ -8,6 +8,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/ref.h>
 #include <keel/array.h>
@@ -24,7 +25,6 @@
 #include "object/object_detail.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <utility>
 
@@ -112,7 +112,7 @@ void edge_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 1, 5, "edge");
     const auto m = parse_method(args, 1, "sobel");
-    keel::f64 t_lo = std::nan(""), t_hi = std::nan("");
+    keel::f64 t_lo = keel::kNaN, t_hi = keel::kNaN;
     if (args.size() >= 3 && !args[2].isEmpty() && !(args[2].isChar() || args[2].isString())) {
         const Value &v = args[2];
         if (v.numel() == 1) t_lo = v.toScalar();
@@ -259,7 +259,7 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         } else if (nlo.starts_with("thetar")) {
             // 'ThetaResolution' (legacy): build theta = -90:tr:89.
             const keel::f64 tr = args[i + 1].toScalar();
-            const keel::i32 n = keel::as<keel::i32>(std::ceil(90.0 / tr));
+            const keel::i32 n = keel::as<keel::i32>(keel::ceil(90.0 / tr));
             const keel::f64 step = 90.0 / n;
             keel::Array<keel::f64> tv(mr);
             for (keel::i32 k = -n; k < n; ++k) tv.push_back(k * step);
@@ -326,7 +326,7 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::usize i = 1;
     if (i < args.size() && !is_string(args[i])) {
         const keel::f64 npd = args[i].toScalar();
-        if (!(npd > 0) || npd != std::floor(npd))
+        if (!(npd > 0) || npd != keel::floor(npd))
             throw Error("houghpeaks: NUMPEAKS must be a positive integer",
                         0, 0, "houghpeaks", "", "numkit:houghpeaks:numpeaks");
         numpeaks = keel::as<keel::usize>(npd);
@@ -355,7 +355,7 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             const keel::f64 a = v.elemAsDouble(0);
             const keel::f64 b = v.elemAsDouble(1);
             if (!(a > 0) || !(b > 0)
-             || a != std::floor(a) || b != std::floor(b)
+             || a != keel::floor(a) || b != keel::floor(b)
              || keel::as<keel::i32>(a) % 2 == 0
              || keel::as<keel::i32>(b) % 2 == 0)
                 throw Error("houghpeaks: NHoodSize elements must be "

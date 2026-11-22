@@ -13,11 +13,11 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -34,19 +34,19 @@ inline void writeNative(Value &out, keel::usize i, keel::f64 v, ValueType t) {
         case ValueType::UINT8: {
             if (v < 0.0) v = 0.0;
             if (v > 255.0) v = 255.0;
-            out.uint8DataMut()[i] = keel::as<keel::u8>(std::lround(v));
+            out.uint8DataMut()[i] = keel::as<keel::u8>(keel::round_i64(v));
             break;
         }
         case ValueType::UINT16: {
             if (v < 0.0) v = 0.0;
             if (v > 65535.0) v = 65535.0;
-            out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(v));
+            out.uint16DataMut()[i] = keel::as<keel::u16>(keel::round_i64(v));
             break;
         }
         case ValueType::INT16: {
             if (v < -32768.0) v = -32768.0;
             if (v > 32767.0)  v = 32767.0;
-            out.int16DataMut()[i] = keel::as<keel::i16>(std::lround(v));
+            out.int16DataMut()[i] = keel::as<keel::i16>(keel::round_i64(v));
             break;
         }
         case ValueType::LOGICAL:

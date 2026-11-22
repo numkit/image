@@ -10,6 +10,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/array.h>
+#include <keel/math.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -23,10 +24,8 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <utility>
 
 namespace numkit::image {
@@ -370,7 +369,7 @@ void bwmorph_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 n = 1;
     if (args.size() >= 3 && !args[2].isEmpty()) {
         const keel::f64 v = args[2].toScalar();
-        if (std::isinf(v)) n = -1;
+        if (keel::is_inf(v)) n = -1;
         else               n = keel::as<keel::i32>(v);
     }
     outs[0] = bwmorph(args[0], op, n, ctx.engine->allocator());
@@ -389,7 +388,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     // Upper-case fstep.
     fstep.to_ascii_upper_in_place();
     keel::i32 conn = 8;
-    keel::usize m_max = std::numeric_limits<keel::usize>::max();
+    keel::usize m_max = keel::Limits<keel::usize>::kMax;
     keel::String dir = keel::String::from("clockwise");
     if (args.size() >= 4 && !args[3].isEmpty())
         conn = argcheck::expectedOneOf(
@@ -397,7 +396,7 @@ void bwtraceboundary_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         {4, 8}, 4, "conn", "bwtraceboundary");
     if (args.size() >= 5 && !args[4].isEmpty()) {
         const keel::f64 v = args[4].toScalar();
-        if (!std::isinf(v)) {
+        if (!keel::is_inf(v)) {
             if (!(v > 0))
                 throw Error("bwtraceboundary: N must be positive or Inf",
                             0, 0, "bwtraceboundary", "",

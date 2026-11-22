@@ -9,6 +9,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/ref.h>
 #include <keel/string.h>
@@ -25,7 +26,6 @@
 #include "color/color_extras_detail.hpp"
 
 #include <keel/static_array.h>
-#include <cmath>
 #include <cstddef>
 #include <utility>
 
@@ -381,7 +381,7 @@ void label2rgb_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 maxLabel = 0;
     for (keel::usize i = 0; i < plane; ++i) {
         const keel::f64 v = L.elemAsDouble(i);
-        if (std::isfinite(v) && v > maxLabel) maxLabel = keel::as<keel::i32>(v);
+        if (keel::is_finite(v) && v > maxLabel) maxLabel = keel::as<keel::i32>(v);
     }
     const keel::i32 numregion = maxLabel < 1 ? 1 : maxLabel;
 

@@ -4,6 +4,7 @@
 // delegating numerical kernels to keel::image.
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/format.h>
@@ -15,7 +16,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cstring>
 
 namespace numkit::image {
 
@@ -97,7 +97,7 @@ Value fspecial3(keel::StringRef type, const Value &a1, const Value &a2, keel::Al
         keel::usize h = 0, w = 0, p = 0;
         (void)keel::image::fspecial3_ellipsoid(ax.sx, ax.sy, ax.sz, buf, h, w, p, scratch.allocator());
         Value out = Value::matrix3d(h, w, p, ValueType::DOUBLE, mr);
-        std::memcpy(out.doubleDataMut(), buf.data(), buf.size() * sizeof(keel::f64));
+        keel::copy_n(out.doubleDataMut(), buf.data(), buf.size());
         return out;
     }
     if (type == "laplacian") {

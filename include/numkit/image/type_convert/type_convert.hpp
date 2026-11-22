@@ -7,7 +7,6 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <limits>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -91,8 +90,8 @@ Value im2int16(const Value &x, keel::Allocator *mr = nullptr);
 /// @return    DOUBLE image in `[0, 1]`.
 /// @see im2double
 Value mat2gray(const Value &x,
-               keel::f64 lo = std::numeric_limits<keel::f64>::quiet_NaN(),
-               keel::f64 hi = std::numeric_limits<keel::f64>::quiet_NaN(),
+               keel::f64 lo = keel::Limits<keel::f64>::quiet_nan(),
+               keel::f64 hi = keel::Limits<keel::f64>::quiet_nan(),
                keel::Allocator *mr = nullptr);
 
 /// @brief RGB → grayscale dispatcher (`Y = im2gray(X)`).

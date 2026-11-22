@@ -71,11 +71,8 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <climits>
-#include <cstring>
-#include <limits>
 
 
 namespace numkit::image {
@@ -164,7 +161,7 @@ keel::f64 attr_area(const Comp &c) { return keel::as<keel::f64>(c.rs.size()); }
 keel::f64 attr_equiv_diameter(const Comp &c)
 {
     const keel::f64 a = attr_area(c);
-    return 2.0 * std::sqrt(a / keel::kPi);
+    return 2.0 * keel::sqrt(a / keel::kPi);
 }
 
 keel::f64 attr_extent(const Comp &c)
@@ -222,21 +219,21 @@ AxisInfo axis_info(const Comp &c)
     const keel::f64 b = M.m02 + 1.0 / 12.0;
     const keel::f64 cc = M.m11;
     const keel::f64 diff_sq = (a - b) * (a - b);
-    const keel::f64 sqrt_d = std::sqrt(diff_sq + 4.0 * cc * cc);
+    const keel::f64 sqrt_d = keel::sqrt(diff_sq + 4.0 * cc * cc);
     keel::f64 lam1 = 0.5 * (a + b + sqrt_d);  // larger
     keel::f64 lam2 = 0.5 * (a + b - sqrt_d);  // smaller
     if (lam2 < 0.0) lam2 = 0.0;            // float safety
     AxisInfo ai;
-    ai.major = 4.0 * std::sqrt(lam1);
-    ai.minor = 4.0 * std::sqrt(lam2);
+    ai.major = 4.0 * keel::sqrt(lam1);
+    ai.minor = 4.0 * keel::sqrt(lam2);
     if (lam1 == 0.0) ai.eccentricity = 0.0;
-    else             ai.eccentricity = std::sqrt(1.0 - lam2 / lam1);
+    else             ai.eccentricity = keel::sqrt(1.0 - lam2 / lam1);
     // MATLAB convention: orientation = -0.5 * atan2(2*μ11, μ20 - μ02)
     // in degrees. Sign flip on μ11 because image y-axis runs downward.
     keel::f64 orient_rad;
     if (cc == 0.0 && a == b) orient_rad = 0.0;
     else if (cc == 0.0)      orient_rad = (a < b) ? keel::kPi / 2.0 : 0.0;
-    else                     orient_rad = -0.5 * std::atan2(2.0 * cc, a - b);
+    else                     orient_rad = -0.5 * keel::atan2(2.0 * cc, a - b);
     // Clamp to (-π/2, π/2].
     while (orient_rad >  keel::kPi / 2.0) orient_rad -= keel::kPi;
     while (orient_rad <= -keel::kPi / 2.0) orient_rad += keel::kPi;
@@ -333,7 +330,7 @@ keel::f64 attr_perimeter_old(const Comp &c, keel::i32 H, keel::i32 W)
 keel::f64 attr_circularity(const Comp &c, keel::i32 H, keel::i32 W)
 {
     const keel::f64 per = attr_perimeter(c, H, W);
-    if (per <= 0.0) return std::nan("");
+    if (per <= 0.0) return keel::kNaN;
     return 4.0 * keel::kPi * attr_area(c) / (per * per);
 }
 
@@ -441,7 +438,7 @@ keel::f64 polygon_area(keel::ArrayRef<std::pair<keel::f64,keel::f64>> pts)
         const auto &q = pts[(i + 1) % N];
         s += p.first * q.second - q.first * p.second;
     }
-    return 0.5 * std::fabs(s);
+    return 0.5 * keel::abs(s);
 }
 
 keel::Array<std::pair<keel::f64,keel::f64>>
@@ -500,7 +497,7 @@ keel::f64 attr_convex_area(const Comp &c)
 keel::f64 attr_solidity(const Comp &c)
 {
     const keel::f64 ca = attr_convex_area(c);
-    if (ca <= 0.0) return std::nan("");
+    if (ca <= 0.0) return keel::kNaN;
     return attr_area(c) / ca;
 }
 
@@ -508,7 +505,7 @@ keel::f64 attr_solidity(const Comp &c)
 keel::f64 attr_mean_intensity(const Comp &c, const Value &marker)
 {
     const keel::usize N = c.rs.size();
-    if (N == 0) return std::nan("");
+    if (N == 0) return keel::kNaN;
     const keel::i32 H = keel::as<keel::i32>(marker.dims().rows());
     long double s = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i)
@@ -519,9 +516,9 @@ keel::f64 attr_mean_intensity(const Comp &c, const Value &marker)
 
 keel::f64 attr_min_intensity(const Comp &c, const Value &marker)
 {
-    if (c.rs.empty()) return std::nan("");
+    if (c.rs.empty()) return keel::kNaN;
     const keel::i32 H = keel::as<keel::i32>(marker.dims().rows());
-    keel::f64 m = std::numeric_limits<keel::f64>::infinity();
+    keel::f64 m = keel::Limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         const keel::f64 v = marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));
@@ -532,9 +529,9 @@ keel::f64 attr_min_intensity(const Comp &c, const Value &marker)
 
 keel::f64 attr_max_intensity(const Comp &c, const Value &marker)
 {
-    if (c.rs.empty()) return std::nan("");
+    if (c.rs.empty()) return keel::kNaN;
     const keel::i32 H = keel::as<keel::i32>(marker.dims().rows());
-    keel::f64 m = -std::numeric_limits<keel::f64>::infinity();
+    keel::f64 m = -keel::Limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < c.rs.size(); ++i) {
         const keel::f64 v = marker.elemAsDouble(keel::as<keel::usize>(
             c.cs[i] * H + c.rs[i]));

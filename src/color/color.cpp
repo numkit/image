@@ -4,6 +4,7 @@
 // optimisation deferred to a later phase.
 
 #include <keel/array.h>
+#include <keel/algo.h>
 #include <keel/core.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -20,9 +21,7 @@
 #include <algorithm>
 #include <keel/static_array.h>
 
-#include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <utility>
 
 namespace numkit::image {
@@ -137,9 +136,9 @@ Value finalize_class(const Value &res01, ValueType cls, keel::Allocator *mr) {
         const keel::f64 c = std::clamp(v, 0.0, 1.0);
         switch (cls) {
             case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
-            case ValueType::UINT8:  out.uint8DataMut()[i]  = keel::as<keel::u8>(std::lround(c * 255.0)); break;
-            case ValueType::UINT16: out.uint16DataMut()[i] = keel::as<keel::u16>(std::lround(c * 65535.0)); break;
-            case ValueType::INT16:  out.int16DataMut()[i]  = keel::as<keel::i16>(std::lround(c * 65535.0) - 32768); break;
+            case ValueType::UINT8:  out.uint8DataMut()[i]  = keel::as<keel::u8>(keel::round_i64(c * 255.0)); break;
+            case ValueType::UINT16: out.uint16DataMut()[i] = keel::as<keel::u16>(keel::round_i64(c * 65535.0)); break;
+            case ValueType::INT16:  out.int16DataMut()[i]  = keel::as<keel::i16>(keel::round_i64(c * 65535.0) - 32768); break;
             default:                 out.doubleDataMut()[i] = v; break;
         }
     }
@@ -289,27 +288,23 @@ inline void copy_plane(const Value &src, keel::usize plane,
     const ValueType T = src.type();
     switch (T) {
         case ValueType::DOUBLE:
-            std::memcpy(dst.doubleDataMut(),
-                        src.doubleData() + off, N * sizeof(keel::f64));
+            keel::copy_n(dst.doubleDataMut(), src.doubleData() + off, N);
             break;
         case ValueType::SINGLE:
-            std::memcpy(dst.singleDataMut(),
-                        src.singleData() + off, N * sizeof(keel::f32));
+            keel::copy_n(dst.singleDataMut(), src.singleData() + off, N);
             break;
         case ValueType::UINT8:
-            std::memcpy(dst.uint8DataMut(),
+            keel::mem_copy(dst.uint8DataMut(),
                         src.uint8Data() + off, N);
             break;
         case ValueType::UINT16:
-            std::memcpy(dst.uint16DataMut(),
-                        src.uint16Data() + off, N * sizeof(keel::u16));
+            keel::copy_n(dst.uint16DataMut(), src.uint16Data() + off, N);
             break;
         case ValueType::INT16:
-            std::memcpy(dst.int16DataMut(),
-                        src.int16Data() + off, N * sizeof(keel::i16));
+            keel::copy_n(dst.int16DataMut(), src.int16Data() + off, N);
             break;
         case ValueType::LOGICAL:
-            std::memcpy(dst.logicalDataMut(),
+            keel::mem_copy(dst.logicalDataMut(),
                         src.logicalData() + off, N);
             break;
         default:
@@ -497,7 +492,7 @@ Value lab2uint8(const Value &lab, keel::Allocator *mr)
             switch (lab.type()) {
                 case ValueType::SINGLE:
                 case ValueType::DOUBLE: {
-                    if (std::isnan(v)) { w = 255.0; break; }
+                    if (keel::is_nan(v)) { w = 255.0; break; }
                     // MATLAB-compat: (v * 255) / 100 (exact for integer L)
                     // vs v * (255/100) where 255/100 = 2.5499… in double
                     // — half-cases (e.g. L=50 → 127.5) round to 128 only
@@ -515,7 +510,7 @@ Value lab2uint8(const Value &lab, keel::Allocator *mr)
             }
             if (w < 0)   w = 0;
             if (w > 255) w = 255;
-            od[lab_idx(L, p, ch)] = keel::as<keel::u8>(std::lround(w));
+            od[lab_idx(L, p, ch)] = keel::as<keel::u8>(keel::round_i64(w));
         }
     }
     return out;
@@ -538,7 +533,7 @@ Value lab2uint16(const Value &lab, keel::Allocator *mr)
             switch (lab.type()) {
                 case ValueType::SINGLE:
                 case ValueType::DOUBLE: {
-                    if (std::isnan(v)) { w = 65535.0; break; }
+                    if (keel::is_nan(v)) { w = 65535.0; break; }
                     // MATLAB-compat: multiply first to keep integer L
                     // exact (v * 65280 / 100). Same fix as lab2uint8.
                     // For a/b: 65280/255 = 256 exact, so order doesn't
@@ -556,7 +551,7 @@ Value lab2uint16(const Value &lab, keel::Allocator *mr)
             }
             if (w < 0)     w = 0;
             if (w > 65535) w = 65535;
-            od[lab_idx(L, p, ch)] = keel::as<keel::u16>(std::lround(w));
+            od[lab_idx(L, p, ch)] = keel::as<keel::u16>(keel::round_i64(w));
         }
     }
     return out;
@@ -597,9 +592,9 @@ void wavelength_to_rgb(keel::f64 lambda, keel::f64 gamma,
     else if (lambda <= 780.0)
         factor = 0.3 + 0.7 * (780.0 - lambda) / 80.0;
 
-    r = std::pow(r * factor, gamma);
-    g = std::pow(g * factor, gamma);
-    b = std::pow(b * factor, gamma);
+    r = keel::pow(r * factor, gamma);
+    g = keel::pow(g * factor, gamma);
+    b = keel::pow(b * factor, gamma);
 }
 
 void colorgradient_argcheck(const Value &C, const Value &w, keel::i32 n)
@@ -803,7 +798,7 @@ Value colorgradient(const Value &C, const Value &w, keel::i32 n, keel::Allocator
     for (keel::i32 i = 0; i < K - 1; ++i) {
         acc += wv[(keel::usize)i];
         wpos[(keel::usize)(i + 1)] = keel::as<keel::i32>(
-            1 + std::lround((n - 1) * acc / total));
+            1 + keel::round_i64((n - 1) * acc / total));
     }
 
     Value map = Value::matrix(keel::as<keel::usize>(n), 3,
@@ -906,16 +901,16 @@ Value colorangle(const Value &rgb1, const Value &rgb2, keel::Allocator *mr)
         const keel::f64 *ai = &a[(Na == 1 ? 0 : i) * 3];
         const keel::f64 *bi = &b[(Nb == 1 ? 0 : i) * 3];
         const keel::f64 dot = ai[0]*bi[0] + ai[1]*bi[1] + ai[2]*bi[2];
-        const keel::f64 na  = std::sqrt(ai[0]*ai[0] + ai[1]*ai[1] + ai[2]*ai[2]);
-        const keel::f64 nb  = std::sqrt(bi[0]*bi[0] + bi[1]*bi[1] + bi[2]*bi[2]);
+        const keel::f64 na  = keel::sqrt(ai[0]*ai[0] + ai[1]*ai[1] + ai[2]*ai[2]);
+        const keel::f64 nb  = keel::sqrt(bi[0]*bi[0] + bi[1]*bi[1] + bi[2]*bi[2]);
         keel::f64 angle;
         if (na == 0.0 && nb == 0.0)      angle = 0.0;
-        else if (na == 0.0 || nb == 0.0) angle = std::nan("");
+        else if (na == 0.0 || nb == 0.0) angle = keel::kNaN;
         else {
             keel::f64 c = dot / (na * nb);
             if (c >  1.0) c =  1.0;
             if (c < -1.0) c = -1.0;
-            angle = std::acos(c) * 180.0 / keel::kPi;
+            angle = keel::acos(c) * 180.0 / keel::kPi;
         }
         od[i] = angle;
     }
@@ -960,7 +955,7 @@ Value hot_cmap(keel::i32 n, keel::Allocator *mr)
         return out;
     }
     // n > 2
-    const keel::i32 idx = keel::as<keel::i32>(std::floor(3.0 / 8.0 * n));
+    const keel::i32 idx = keel::as<keel::i32>(keel::floor(3.0 / 8.0 * n));
     const keel::i32 nel = idx;
     // R: r(1:idx) = i/nel; r(idx+1:end) = 1.
     for (keel::i32 i = 0; i < n; ++i) R(i) = 1.0;
@@ -1100,19 +1095,19 @@ Value pink_cmap(keel::i32 n, keel::Allocator *mr)
     Value out = Value::matrix(keel::as<keel::usize>(n), 3, ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
     if (n == 1) {
-        const keel::f64 v = std::sqrt(1.0 / 3.0);
+        const keel::f64 v = keel::sqrt(1.0 / 3.0);
         od[0] = v; od[1] = v; od[2] = v;
         return out;
     }
     if (n == 2) {
-        const keel::f64 s = std::sqrt(1.0 / 3.0);
-        const keel::f64 s2 = std::sqrt(1.0 / 6.0);
+        const keel::f64 s = keel::sqrt(1.0 / 3.0);
+        const keel::f64 s2 = keel::sqrt(1.0 / 6.0);
         od[0 * n + 0] = s;  od[1 * n + 0] = s;  od[2 * n + 0] = s2;
         od[0 * n + 1] = 1;  od[1 * n + 1] = 1;  od[2 * n + 1] = 1;
         return out;
     }
     // n > 2.
-    const keel::i32 IDX = keel::as<keel::i32>(std::floor(3.0 / 8.0 * n));
+    const keel::i32 IDX = keel::as<keel::i32>(keel::floor(3.0 / 8.0 * n));
     const keel::f64 base = 1.0 / (3.0 * IDX);
     const keel::f64 inv  = 1.0 / keel::as<keel::f64>(n - 1);
     keel::Array<keel::f64> r(n), g(n), b(n);
@@ -1162,9 +1157,9 @@ Value pink_cmap(keel::i32 n, keel::Allocator *mr)
     }
 
     for (keel::i32 i = 0; i < n; ++i) {
-        od[0 * n + i] = std::sqrt(r[i]);
-        od[1 * n + i] = std::sqrt(g[i]);
-        od[2 * n + i] = std::sqrt(b[i]);
+        od[0 * n + i] = keel::sqrt(r[i]);
+        od[1 * n + i] = keel::sqrt(g[i]);
+        od[2 * n + i] = keel::sqrt(b[i]);
     }
     return out;
 }
@@ -1282,7 +1277,7 @@ Value bone_cmap(keel::i32 n, keel::Allocator *mr)
     keel::Array<keel::f64> r(n), g(n), b(n);
 
     // R channel.
-    const keel::i32 IDX_R = keel::as<keel::i32>(std::floor(0.75 * n));
+    const keel::i32 IDX_R = keel::as<keel::i32>(keel::floor(0.75 * n));
     const keel::i32 nel_R = n - IDX_R + 1;
     const keel::i32 rem8  = n % 8;
     keel::f64 base_R = 0.0;
@@ -1300,7 +1295,7 @@ Value bone_cmap(keel::i32 n, keel::Allocator *mr)
     }
 
     // G channel.
-    const keel::i32 IDX_G = keel::as<keel::i32>(std::floor(0.375 * n));
+    const keel::i32 IDX_G = keel::as<keel::i32>(keel::floor(0.375 * n));
     for (keel::i32 i = 0; i < IDX_G; ++i) g[i] = (7.0 / 8.0) * x(i);
     {
         const keel::i32 len = IDX_G + 1;  // 1-based length idx..2*idx
@@ -1352,7 +1347,7 @@ Value rgb2lin(const Value &A, keel::Allocator *mr)
         const keel::f64 s = (x < 0.0) ? -1.0 : 1.0;
         const keel::f64 ax = keel::abs(x);
         if (ax < 0.04045) return s * (ax / 12.92);
-        return s * std::pow((ax + 0.055) / 1.055, 2.4);
+        return s * keel::pow((ax + 0.055) / 1.055, 2.4);
     };
 
     const auto &d = in.dims();
@@ -1435,7 +1430,7 @@ Value contrast(const Value &x, keel::i32 m, keel::Allocator *mr)
     const keel::f64 inv_range = 1.0 / range;
     for (keel::usize i = 0; i < Nx; ++i) {
         const keel::f64 v = x.elemAsDouble(i);
-        sorted.push_back(std::round((m - 1) * (v - xmin) * inv_range));
+        sorted.push_back(keel::round((m - 1) * (v - xmin) * inv_range));
     }
     for (keel::i32 k = 0; k <= m; ++k)
         sorted.push_back(keel::as<keel::f64>(k));
@@ -1478,7 +1473,7 @@ Value brighten(const Value &map, keel::f64 beta, keel::Allocator *mr)
     keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 v = map.elemAsDouble(i);
-        od[i] = std::pow(v, gamma);
+        od[i] = keel::pow(v, gamma);
     }
     return out;
 }
@@ -1509,7 +1504,7 @@ Value xyz2uint16(const Value &xyz, keel::Allocator *mr)
         const keel::f64 *id = xyz.doubleData();
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 v = id[i] * 32768.0;
-            keel::i64 r = (v <= 0.0) ? 0L : std::lround(v);
+            keel::i64 r = (v <= 0.0) ? 0L : keel::round_i64(v);
             if (r < 0L) r = 0L;
             if (r > 65535L) r = 65535L;
             od[i] = keel::as<keel::u16>(r);
@@ -1567,7 +1562,7 @@ Value deltaE(const Value &I1, const Value &I2, bool isInputLab, keel::Allocator 
         const keel::f64 a2 = B.elemAsDouble(1 * plane + i);
         const keel::f64 b2 = B.elemAsDouble(2 * plane + i);
         const keel::f64 dl = l1 - l2, da = a1 - a2, db = b1 - b2;
-        const keel::f64 v = std::sqrt(dl*dl + da*da + db*db);
+        const keel::f64 v = keel::sqrt(dl*dl + da*da + db*db);
         if (to_double) out.doubleDataMut()[i] = v;
         else           out.singleDataMut()[i] = keel::as<keel::f32>(v);
     }
@@ -1612,7 +1607,7 @@ Value lin2rgb(const Value &A, keel::Allocator *mr)
         const keel::f64 s = (x < 0.0) ? -1.0 : 1.0;
         const keel::f64 ax = keel::abs(x);
         if (ax <= 0.0031308) return s * (12.92 * ax);
-        return s * (1.055 * std::pow(ax, 1.0 / 2.4) - 0.055);
+        return s * (1.055 * keel::pow(ax, 1.0 / 2.4) - 0.055);
     };
 
     const auto &d = in.dims();
@@ -1712,7 +1707,7 @@ Value label2rgb(const Value &L, const Value &cmap, const Value &background, keel
     const keel::f64 *cd = cmap.doubleData();
 
     auto sat = [](keel::f64 v) -> keel::u8 {
-        v = std::round(v * 255.0);
+        v = keel::round(v * 255.0);
         if (v < 0)   v = 0;
         if (v > 255) v = 255;
         return keel::as<keel::u8>(v);

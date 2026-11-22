@@ -7,6 +7,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/ref.h>
 #include <keel/array.h>
@@ -21,12 +22,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -168,7 +166,7 @@ void graydiffweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
 
     // Name-value pairs.
     keel::f64 rolloff = 0.5;
-    keel::f64 cutoff  = std::numeric_limits<keel::f64>::infinity();
+    keel::f64 cutoff  = keel::Limits<keel::f64>::infinity();
     keel::usize i = nv_start;
     while (i + 1 < a.size()) {
         if (!is_string(a[i]))
@@ -323,7 +321,7 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             // (M, N, xi, yi)
             const keel::f64 Md = a[0].toScalar();
             const keel::f64 Nd = a[1].toScalar();
-            if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
+            if (Md < 0 || Nd < 0 || Md != keel::floor(Md) || Nd != keel::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
             M = keel::as<keel::usize>(Md);
@@ -347,7 +345,7 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
             // (x, y, M, N, xi, yi)
             const keel::f64 Md = a[2].toScalar();
             const keel::f64 Nd = a[3].toScalar();
-            if (Md < 0 || Nd < 0 || Md != std::floor(Md) || Nd != std::floor(Nd))
+            if (Md < 0 || Nd < 0 || Md != keel::floor(Md) || Nd != keel::floor(Nd))
                 throw Error("roipoly: M and N must be non-negative integers",
                             0, 0, "roipoly", "", "numkit:roipoly:mn");
             M = keel::as<keel::usize>(Md);
@@ -559,9 +557,9 @@ void poly2mask_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<Value
     auto *mr = c.engine->allocator();
     const keel::f64 Md = a[2].toScalar();
     const keel::f64 Nd = a[3].toScalar();
-    if (!std::isfinite(Md) || !std::isfinite(Nd)
+    if (!keel::is_finite(Md) || !keel::is_finite(Nd)
      || Md < 0.0 || Nd < 0.0
-     || Md != std::floor(Md) || Nd != std::floor(Nd))
+     || Md != keel::floor(Md) || Nd != keel::floor(Nd))
         throw Error("poly2mask: M and N must be non-negative integers",
                     0, 0, "poly2mask", "", "numkit:poly2mask:mn");
     o[0] = poly2mask(a[0], a[1],

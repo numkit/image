@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <climits>
-#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -336,7 +335,7 @@ CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, keel::Array
         } else {
             for (keel::usize i = 0; i < N; ++i) {
                 const keel::f64 v = objects_to_keep.elemAsDouble(i);
-                if (!std::isfinite(v) || v <= 0.0 || std::floor(v) != v)
+                if (!keel::is_finite(v) || v <= 0.0 || keel::floor(v) != v)
                     throw Error("cc2bw: ObjectsToKeep must be positive "
                                 "integers or a logical vector",
                                 0, 0, "cc2bw", "",
@@ -746,7 +745,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
         // Treat as label image directly; copy in row-major.
         for (keel::i32 r = 0; r < H; ++r)
             for (keel::i32 c = 0; c < W; ++c) {
-                const keel::i32 v = (keel::i32)std::round(
+                const keel::i32 v = (keel::i32)keel::round(
                     BW_or_L.elemAsDouble((keel::usize)c * (keel::usize)H + (keel::usize)r));
                 L[(keel::usize)r * (keel::usize)W + (keel::usize)c] = v;
                 if (v > K) K = v;
@@ -875,7 +874,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
         const keel::f64 N = keel::f64(area[(keel::usize)lab]);
         if (wEquivD)
             el.put(keel::String::from("EquivDiameter"),
-                   Value::scalar((N > 0.0) ? std::sqrt(4.0 * N / kPi) : 0.0, mr));
+                   Value::scalar((N > 0.0) ? keel::sqrt(4.0 * N / kPi) : 0.0, mr));
         if (wExtent) {
             const keel::f64 bw = keel::f64(maxX[(keel::usize)lab] - minX[(keel::usize)lab] + 1);
             const keel::f64 bh = keel::f64(maxY[(keel::usize)lab] - minY[(keel::usize)lab] + 1);
@@ -903,13 +902,13 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                 const keel::f64 uyy = sumYY[(keel::usize)lab] / N - ybar * ybar + 1.0 / 12.0;
                 const keel::f64 uxy = sumXY[(keel::usize)lab] / N - xbar * ybar;
                 const keel::f64 common =
-                    std::sqrt((uxx - uyy) * (uxx - uyy) + 4.0 * uxy * uxy);
-                major = 2.0 * std::sqrt(2.0) * std::sqrt(uxx + uyy + common);
-                minor = 2.0 * std::sqrt(2.0) * std::sqrt(uxx + uyy - common);
+                    keel::sqrt((uxx - uyy) * (uxx - uyy) + 4.0 * uxy * uxy);
+                major = 2.0 * keel::sqrt(2.0) * keel::sqrt(uxx + uyy + common);
+                minor = 2.0 * keel::sqrt(2.0) * keel::sqrt(uxx + uyy - common);
                 if (major > 0.0) {
                     const keel::f64 a = major / 2.0, b = minor / 2.0;
                     const keel::f64 d = a * a - b * b;
-                    ecc = 2.0 * std::sqrt(d > 0.0 ? d : 0.0) / major;
+                    ecc = 2.0 * keel::sqrt(d > 0.0 ? d : 0.0) / major;
                 }
                 // Orientation in degrees, range [-90, 90].
                 if (uxy == 0.0) {
@@ -919,14 +918,14 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                     keel::f64 num, den;
                     if (uyy > uxx) {
                         num = uyy - uxx +
-                              std::sqrt((uyy - uxx) * (uyy - uxx) + 4.0 * uxyM * uxyM);
+                              keel::sqrt((uyy - uxx) * (uyy - uxx) + 4.0 * uxyM * uxyM);
                         den = 2.0 * uxyM;
                     } else {
                         num = 2.0 * uxyM;
                         den = uxx - uyy +
-                              std::sqrt((uxx - uyy) * (uxx - uyy) + 4.0 * uxyM * uxyM);
+                              keel::sqrt((uxx - uyy) * (uxx - uyy) + 4.0 * uxyM * uxyM);
                     }
-                    orient = (180.0 / kPi) * std::atan(num / den);
+                    orient = (180.0 / kPi) * keel::atan(num / den);
                 }
             }
             if (wMajor)  el.put(keel::String::from("MajorAxisLength"), Value::scalar(major, mr));
@@ -963,8 +962,8 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             // ── Intensity measurements (grayscale image supplied) ──
             if (needIntensity) {
                 keel::f64 sumI = 0.0, sumIx = 0.0, sumIy = 0.0;
-                keel::f64 maxI = -std::numeric_limits<keel::f64>::infinity();
-                keel::f64 minI =  std::numeric_limits<keel::f64>::infinity();
+                keel::f64 maxI = -keel::Limits<keel::f64>::infinity();
+                keel::f64 minI =  keel::Limits<keel::f64>::infinity();
                 Value pvv;
                 keel::f64 *pv = nullptr;
                 if (wPixVal) {
@@ -1025,8 +1024,8 @@ void dt1D(keel::ArrayRef<keel::f64> f, keel::Array<keel::f64> &d, keel::usize n)
     keel::Array<keel::f64> z(n + 1);
     keel::i64 k = 0;
     v[0] = 0;
-    z[0] = -std::numeric_limits<keel::f64>::infinity();
-    z[1] =  std::numeric_limits<keel::f64>::infinity();
+    z[0] = -keel::Limits<keel::f64>::infinity();
+    z[1] =  keel::Limits<keel::f64>::infinity();
     for (keel::i64 q = 1; q < keel::as<keel::i64>(n); ++q) {
         // Skip background pixels in f (they contribute Inf — no parabola).
         // Keep them anyway: their +Inf value pushes any candidate boundary
@@ -1037,10 +1036,10 @@ void dt1D(keel::ArrayRef<keel::f64> f, keel::Array<keel::f64> &d, keel::usize n)
             const keel::f64 fv = f[keel::as<keel::usize>(v[k])];
             const keel::f64 dq = keel::as<keel::f64>(q);
             const keel::f64 dv = keel::as<keel::f64>(v[k]);
-            if (std::isinf(fq) && std::isinf(fv)) {
+            if (keel::is_inf(fq) && keel::is_inf(fv)) {
                 // Both background — boundary is at -Inf, parabola q
                 // dominates from k onward.
-                s = -std::numeric_limits<keel::f64>::infinity();
+                s = -keel::Limits<keel::f64>::infinity();
             } else {
                 s = ((fq + dq * dq) - (fv + dv * dv)) / (2.0 * (dq - dv));
             }
@@ -1052,7 +1051,7 @@ void dt1D(keel::ArrayRef<keel::f64> f, keel::Array<keel::f64> &d, keel::usize n)
         ++k;
         v[keel::as<keel::usize>(k)] = q;
         z[keel::as<keel::usize>(k)] = s;
-        z[keel::as<keel::usize>(k) + 1] = std::numeric_limits<keel::f64>::infinity();
+        z[keel::as<keel::usize>(k) + 1] = keel::Limits<keel::f64>::infinity();
     }
     keel::i64 kk = 0;
     for (keel::i64 q = 0; q < keel::as<keel::i64>(n); ++q) {
@@ -1105,7 +1104,7 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
     Value out = Value::matrix(H, W, ValueType::SINGLE, mr);
     if (H == 0 || W == 0) return out;
 
-    const keel::f64 INF = std::numeric_limits<keel::f64>::infinity();
+    const keel::f64 INF = keel::Limits<keel::f64>::infinity();
     // Pull BW into a flat row-major foreground/background buffer.
     keel::Array<keel::f64> f(H * W, 0.0);
     for (keel::usize r = 0; r < H; ++r)
@@ -1133,7 +1132,7 @@ Value bwdist(const Value &BW, keel::Allocator *mr)
         for (keel::usize r = 0; r < H; ++r) {
             const keel::f64 sq = colOut[r];
             // Take sqrt to get true Euclidean distance; +Inf survives.
-            const keel::f64 d = std::isinf(sq) ? INF : std::sqrt(sq);
+            const keel::f64 d = keel::is_inf(sq) ? INF : keel::sqrt(sq);
             out.singleDataMut()[c * H + r] = keel::as<keel::f32>(d);
         }
     }
@@ -1189,12 +1188,12 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
         if (dr == -1 && dc ==  0) return 2.0;
         if (dr == -1 && dc ==  1) return 1.0;
         if (dr ==  0 && dc == -1) return 4.0;
-        if (dr ==  0 && dc ==  0) return std::nan("");
+        if (dr ==  0 && dc ==  0) return keel::kNaN;
         if (dr ==  0 && dc ==  1) return 0.0;
         if (dr ==  1 && dc == -1) return 5.0;
         if (dr ==  1 && dc ==  0) return 6.0;
         if (dr ==  1 && dc ==  1) return 7.0;
-        return std::nan("");
+        return keel::kNaN;
     };
 
     // Read bound rows into vectors r, c.
@@ -1241,7 +1240,7 @@ Value fchcode(const Value &bound, keel::Allocator *mr)
         const keel::f64 b = fd[(k + 1) % nCodes];
         const keel::f64 d = b - a;
         // mod-8 (positive remainder).
-        keel::f64 m = std::fmod(d, 8.0);
+        keel::f64 m = keel::fmod(d, 8.0);
         if (m < 0.0) m += 8.0;
         dd[k] = m;
     }

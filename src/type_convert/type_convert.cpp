@@ -1,6 +1,7 @@
 // toolboxes/image/src/type_convert/type_convert.cpp
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/image.h>
 #include <keel/memory.h>
@@ -14,9 +15,7 @@
 #include <numkit/value/error.hpp>
 #include <tuple>
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <limits>
 
 namespace numkit::image {
 
@@ -24,12 +23,12 @@ namespace {
 
 template <typename T>
 inline T satCast(keel::f64 v) {
-    if (std::isnan(v)) return T{};
-    constexpr keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::lowest());
-    constexpr keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
-    if (v <= lo) return std::numeric_limits<T>::lowest();
-    if (v >= hi) return std::numeric_limits<T>::max();
-    return static_cast<T>(std::lround(v));
+    if (keel::is_nan(v)) return T{};
+    constexpr keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kLowest);
+    constexpr keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
+    if (v <= lo) return keel::Limits<T>::kLowest;
+    if (v >= hi) return keel::Limits<T>::kMax;
+    return static_cast<T>(keel::round_i64(v));
 }
 
 inline Value alloc_like(const Value &x, ValueType t, keel::Allocator *mr) {
@@ -145,14 +144,14 @@ Value to_int_impl(const Value &x, ValueType target, keel::f64 scale, keel::f64 b
     const keel::f64 sc = scale, bi = bias_after;
     auto convert = [sc, bi](keel::f64 v) -> Int {
         constexpr keel::f64 clamp_lo =
-            keel::as<keel::f64>(std::numeric_limits<Int>::lowest());
+            keel::as<keel::f64>(keel::Limits<Int>::kLowest);
         constexpr keel::f64 clamp_hi =
-            keel::as<keel::f64>(std::numeric_limits<Int>::max());
+            keel::as<keel::f64>(keel::Limits<Int>::kMax);
         const bool nan = !(v == v);
         keel::f64 u = nan ? 0.0 : v;
         if (u < 0.0) u = 0.0;
         else if (u > 1.0) u = 1.0;
-        keel::f64 t = std::trunc(u * sc + 0.5) + bi;
+        keel::f64 t = keel::trunc(u * sc + 0.5) + bi;
         if (t < clamp_lo) t = clamp_lo;
         else if (t > clamp_hi) t = clamp_hi;
         return nan ? Int{} : static_cast<Int>(t);
@@ -267,17 +266,17 @@ Value im2int16(const Value &x, keel::Allocator *mr) {
 Value mat2gray(const Value &x, keel::f64 lo, keel::f64 hi, keel::Allocator *mr)
 {
     const keel::usize n = x.numel();
-    if (std::isnan(lo) || std::isnan(hi)) {
+    if (keel::is_nan(lo) || keel::is_nan(hi)) {
         // Auto-detect range, ignoring NaNs.
-        lo =  std::numeric_limits<keel::f64>::infinity();
-        hi = -std::numeric_limits<keel::f64>::infinity();
+        lo =  keel::Limits<keel::f64>::infinity();
+        hi = -keel::Limits<keel::f64>::infinity();
         for (keel::usize i = 0; i < n; ++i) {
             const keel::f64 v = x.elemAsDouble(i);
-            if (std::isnan(v)) continue;
+            if (keel::is_nan(v)) continue;
             if (v < lo) lo = v;
             if (v > hi) hi = v;
         }
-        if (!std::isfinite(lo) || !std::isfinite(hi)) {
+        if (!keel::is_finite(lo) || !keel::is_finite(hi)) {
             lo = 0.0; hi = 0.0;
         }
     }
@@ -372,7 +371,7 @@ bool is_float_unit_image(const Value &x) {
     bool any_real = false;
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 v = x.elemAsDouble(i);
-        if (std::isnan(v)) continue;
+        if (keel::is_nan(v)) continue;
         if (v < 0.0 || v > 1.0) return false;
         any_real = true;
     }
@@ -386,8 +385,8 @@ bool is_pos_int_float(const Value &x) {
     if (N == 0) return false;
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 v = x.elemAsDouble(i);
-        if (!std::isfinite(v)) return false;
-        if (v < 1.0 || v != std::floor(v)) return false;
+        if (!keel::is_finite(v)) return false;
+        if (v < 1.0 || v != keel::floor(v)) return false;
     }
     return true;
 }
@@ -396,7 +395,7 @@ bool all_zero_or_one(const Value &x) {
     const keel::usize N = x.numel();
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 v = x.elemAsDouble(i);
-        if (std::isnan(v)) return false;
+        if (keel::is_nan(v)) return false;
         if (v != 0.0 && v != 1.0) return false;
     }
     return true;
@@ -410,7 +409,7 @@ inline Value bool_scalar(bool b, keel::Allocator *mr) {
 
 void iptnum2ordinal_argcheck(keel::f64 n)
 {
-    if (!std::isfinite(n) || n <= 0.0 || n != std::floor(n))
+    if (!keel::is_finite(n) || n <= 0.0 || n != keel::floor(n))
         throw Error("iptnum2ordinal: num must be a real positive integer",
                     0, 0, "iptnum2ordinal", "", "numkit:iptnum2ordinal:n");
 }
@@ -491,7 +490,7 @@ Value imcast(const Value &I, keel::StringRef type, keel::Allocator *mr)
         keel::u8 *od = out.logicalDataMut();
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 v = I.elemAsDouble(i);
-            od[i] = (v != 0.0 && !std::isnan(v)) ? 1u : 0u;
+            od[i] = (v != 0.0 && !keel::is_nan(v)) ? 1u : 0u;
         }
         return out;
     }
@@ -646,7 +645,7 @@ gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
     if (outT == ValueType::UINT8) {
         keel::u8 *od = out.uint8DataMut();
         for (keel::usize i = 0; i < N; ++i) {
-            keel::f64 v = std::lround((I.elemAsDouble(i) - low) * k);
+            keel::f64 v = keel::round_i64((I.elemAsDouble(i) - low) * k);
             if (v < 0)   v = 0;
             if (v > 255) v = 255;
             od[i] = keel::as<keel::u8>(v);
@@ -654,7 +653,7 @@ gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
     } else {
         keel::u16 *od = out.uint16DataMut();
         for (keel::usize i = 0; i < N; ++i) {
-            keel::f64 v = std::lround((I.elemAsDouble(i) - low) * k);
+            keel::f64 v = keel::round_i64((I.elemAsDouble(i) - low) * k);
             if (v < 0)     v = 0;
             if (v > 65535) v = 65535;
             od[i] = keel::as<keel::u16>(v);
@@ -713,7 +712,7 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
         keel::f64 scaled = graycm[k] * 255.0;
         if (scaled < 0.0)   scaled = 0.0;
         if (scaled > 255.0) scaled = 255.0;
-        return keel::as<keel::u8>(std::lround(scaled));
+        return keel::as<keel::u8>(keel::round_i64(scaled));
     };
     auto int_lookup_u16 = [&](keel::u32 v) -> keel::u16 {
         keel::usize k = v;
@@ -722,7 +721,7 @@ Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)
         keel::f64 scaled = graycm[k] * 65535.0;
         if (scaled < 0.0)     scaled = 0.0;
         if (scaled > 65535.0) scaled = 65535.0;
-        return keel::as<keel::u16>(std::lround(scaled));
+        return keel::as<keel::u16>(keel::round_i64(scaled));
     };
 
     switch (outT) {
@@ -795,7 +794,7 @@ Value ind2rgb(const Value &idx, const Value &map, keel::Allocator *mr)
     for (keel::usize i = 0; i < N; ++i) {
         keel::i64 k;
         const keel::f64 v = rgbIdxC.elemAsDouble(i);
-        if (std::isnan(v) || !std::isfinite(v)) {
+        if (keel::is_nan(v) || !keel::is_finite(v)) {
             // NaN / Inf clip to last colormap row.
             k = M - 1;
         } else {

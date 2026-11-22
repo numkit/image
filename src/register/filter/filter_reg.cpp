@@ -10,6 +10,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -27,7 +28,6 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -998,7 +998,7 @@ void wiener2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, 4, "wiener2");
     keel::usize nh = 3, nw = 3;
-    keel::f64 noise = std::nan("");
+    keel::f64 noise = keel::kNaN;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].numel() == 1) {
             // Single scalar = noise (Octave convention when no nhood).
@@ -1247,7 +1247,7 @@ void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             thresh = args[i + 1];
         } else if (nref.equals_ignore_ascii_case("numberofiterations")) {
             const keel::f64 v = args[i + 1].toScalar();
-            if (!(v > 0) || v != std::floor(v))
+            if (!(v > 0) || v != keel::floor(v))
                 throw Error("imdiffusefilt: NumberOfIterations must be a "
                             "positive integer",
                             0, 0, "imdiffusefilt", "",
@@ -1314,7 +1314,7 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             }
         } else if (nref.equals_ignore_ascii_case("degreeofsmoothing")) {
             eps = args[i + 1].toScalar();
-            if (!(eps > 0) || !std::isfinite(eps))
+            if (!(eps > 0) || !keel::is_finite(eps))
                 throw Error("imguidedfilter: DegreeOfSmoothing must be a "
                             "positive finite scalar",
                             0, 0, "imguidedfilter", "",

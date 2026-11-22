@@ -1,6 +1,8 @@
 // toolboxes/image/src/quality/quality.cpp
 
 #include <keel/array.h>
+#include <keel/algo.h>
+#include <keel/math.h>
 #include <keel/core.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -14,10 +16,7 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <cmath>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 
 namespace numkit::image {
 
@@ -117,11 +116,11 @@ Value immse(const Value &A, const Value &B, keel::Allocator *mr) {
 
 Value psnr(const Value &A, const Value &B, keel::f64 peak, keel::Allocator *mr) {
     psnr_argcheck(A, B);
-    if (std::isnan(peak)) peak = class_peak(A.type());
-    if (A.numel() == 0) return Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr);
+    if (keel::is_nan(peak)) peak = class_peak(A.type());
+    if (A.numel() == 0) return Value::scalar(keel::Limits<keel::f64>::infinity(), mr);
     const keel::f64 mse = sum_squared_error(A, B) / keel::f64(A.numel());
-    if (mse == 0.0) return Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr);
-    const keel::f64 db = 10.0 * std::log10(peak * peak / mse);
+    if (mse == 0.0) return Value::scalar(keel::Limits<keel::f64>::infinity(), mr);
+    const keel::f64 db = 10.0 * keel::log10(peak * peak / mse);
     return Value::scalar(db, mr);
 }
 
@@ -145,7 +144,7 @@ Value ssim(const Value &A, const Value &B, keel::Allocator *mr) {
 Value mean2(const Value &A, keel::Allocator *mr)
 {
     const keel::usize N = A.numel();
-    if (N == 0) return Value::scalar(std::nan(""), mr);
+    if (N == 0) return Value::scalar(keel::kNaN, mr);
     long double s = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
     return Value::scalar(keel::as<keel::f64>(s / keel::as<long double>(N)), // keel-lint: ignore
@@ -155,7 +154,7 @@ Value mean2(const Value &A, keel::Allocator *mr)
 Value std2(const Value &A, keel::Allocator *mr)
 {
     const keel::usize N = A.numel();
-    if (N == 0) return Value::scalar(std::nan(""), mr);
+    if (N == 0) return Value::scalar(keel::kNaN, mr);
     if (N == 1) return Value::scalar(0.0, mr);
     long double s = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) s += A.elemAsDouble(i);
@@ -167,7 +166,7 @@ Value std2(const Value &A, keel::Allocator *mr)
     }
     // std2 wraps std(I(:)) → sample std (normalize by N-1).
     v /= keel::as<long double>(N - 1); // keel-lint: ignore
-    return Value::scalar(keel::as<keel::f64>(std::sqrt((keel::f64)v)), mr);
+    return Value::scalar(keel::as<keel::f64>(keel::sqrt((keel::f64)v)), mr);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -222,7 +221,7 @@ keel::Array<keel::f64> default_scale_weights(keel::i32 N)
     keel::f64 s = 0.0;
     for (keel::i32 i = 0; i < N; ++i) {
         const keel::f64 x = i - half;
-        w[i] = std::exp(-0.5 * x * x);
+        w[i] = keel::exp(-0.5 * x * x);
         s += w[i];
     }
     for (keel::f64 &v : w) v /= s;
@@ -389,7 +388,7 @@ void multissim_argcheck(const Value &A, const Value &Iref, keel::i32 num_scales,
     if (num_scales < 1)
         throw Error("multissim: NumScales must be a positive integer",
                     0, 0, "multissim", "", "numkit:multissim:numScales");
-    if (!std::isfinite(sigma) || sigma <= 0.0)
+    if (!keel::is_finite(sigma) || sigma <= 0.0)
         throw Error("multissim: Sigma must be a positive scalar",
                     0, 0, "multissim", "", "numkit:multissim:sigma");
 }
@@ -453,7 +452,7 @@ Value multissim(const Value &A, const Value &Iref,
     for (keel::f64 &v : sw) v /= swsum;
 
     // ── Gaussian kernel ────────────────────────────────────────
-    const keel::i32 filtRadius = keel::as<keel::i32>(std::ceil(sigma * 3.0));
+    const keel::i32 filtRadius = keel::as<keel::i32>(keel::ceil(sigma * 3.0));
     const keel::i32 filtSize = 2 * filtRadius + 1;
     Value gK = fspecial("gaussian",
                         { keel::as<keel::f64>(filtSize),
@@ -471,8 +470,8 @@ Value multissim(const Value &A, const Value &Iref,
 
     auto apply_weight = [](keel::f64 base, keel::f64 exponent) -> keel::f64 {
         // base may be slightly negative due to float noise; clamp.
-        if (exponent != std::floor(exponent) && base < 0.0) base = 0.0;
-        return std::pow(base, exponent);
+        if (exponent != keel::floor(exponent) && base < 0.0) base = 0.0;
+        return keel::pow(base, exponent);
     };
 
     for (keel::i32 i = 0; i < num_scales; ++i) {
@@ -489,7 +488,7 @@ Value multissim(const Value &A, const Value &Iref,
         const keel::f64 per_scale = apply_weight(mean_map, sw[i]);
         total_score *= per_scale;
         if (mean_map > 0.0) {
-            total_log_score += sw[i] * std::log(mean_map);
+            total_log_score += sw[i] * keel::log(mean_map);
         } else {
             has_log = false;
         }
@@ -499,7 +498,7 @@ Value multissim(const Value &A, const Value &Iref,
             Bd = downsample_2(lowpass_2x2(Bd, mr), mr);
         }
     }
-    keel::f64 score = has_log ? std::exp(total_log_score) : total_score;
+    keel::f64 score = has_log ? keel::exp(total_log_score) : total_score;
 
     return cast_score_value(score, origClass, mr);
 }
@@ -558,8 +557,7 @@ Value vol_to_value(const Vol &V, keel::Allocator *mr)
     Value out = V.D == 1
         ? Value::matrix(V.H, V.W, ValueType::DOUBLE, mr)
         : Value::matrix3d(V.H, V.W, V.D, ValueType::DOUBLE, mr);
-    std::memcpy(out.doubleDataMut(), V.v.data(),
-                V.v.size() * sizeof(keel::f64));
+    keel::copy_n(out.doubleDataMut(), V.v.data(), V.v.size());
     return out;
 }
 
@@ -571,7 +569,7 @@ keel::Array<keel::f64> gauss1d(keel::f64 sigma, keel::i32 filtSize)
     keel::f64 s = 0.0;
     for (keel::i32 i = 0; i < filtSize; ++i) {
         const keel::f64 x = i - half;
-        k[i] = std::exp(-0.5 * (x / sigma) * (x / sigma));
+        k[i] = keel::exp(-0.5 * (x / sigma) * (x / sigma));
         s += k[i];
     }
     for (keel::f64 &v : k) v /= s;
@@ -738,7 +736,7 @@ void multissim3_argcheck(const Value &V, const Value &Vref, keel::i32 num_scales
         throw Error("multissim3: NumScales must be a positive integer",
                     0, 0, "multissim3", "",
                     "numkit:multissim3:numScales");
-    if (!std::isfinite(sigma) || sigma <= 0.0)
+    if (!keel::is_finite(sigma) || sigma <= 0.0)
         throw Error("multissim3: Sigma must be a positive scalar",
                     0, 0, "multissim3", "",
                     "numkit:multissim3:sigma");
@@ -798,7 +796,7 @@ Value multissim3(const Value &V, const Value &Vref,
                     0, 0, "multissim3", "", "numkit:multissim3:swZero");
     for (keel::f64 &v : sw) v /= swsum;
 
-    const keel::i32 filtRadius = keel::as<keel::i32>(std::ceil(sigma * 3.0));
+    const keel::i32 filtRadius = keel::as<keel::i32>(keel::ceil(sigma * 3.0));
     const keel::i32 filtSize = 2 * filtRadius + 1;
     keel::Array<keel::f64> gk = gauss1d(sigma, filtSize);
 
@@ -808,8 +806,8 @@ Value multissim3(const Value &V, const Value &Vref,
     bool has_log = true;
     keel::f64 total_score = 1.0;
     auto apply_weight = [](keel::f64 base, keel::f64 exp) -> keel::f64 {
-        if (exp != std::floor(exp) && base < 0.0) base = 0.0;
-        return std::pow(base, exp);
+        if (exp != keel::floor(exp) && base < 0.0) base = 0.0;
+        return keel::pow(base, exp);
     };
 
     for (keel::i32 i = 0; i < num_scales; ++i) {
@@ -822,7 +820,7 @@ Value multissim3(const Value &V, const Value &Vref,
         const keel::f64 mean_map = keel::as<keel::f64>(
             s / keel::as<long double>(Nm)); // keel-lint: ignore
         total_score *= apply_weight(mean_map, sw[i]);
-        if (mean_map > 0.0) total_log_score += sw[i] * std::log(mean_map);
+        if (mean_map > 0.0) total_log_score += sw[i] * keel::log(mean_map);
         else                has_log = false;
         if (quality_maps_out) quality_maps_out->push_back(vol_to_value(ssimmap, mr));
         if (!last) {
@@ -832,7 +830,7 @@ Value multissim3(const Value &V, const Value &Vref,
             Bd = downsample_2x2x2(Bl);
         }
     }
-    keel::f64 score = has_log ? std::exp(total_log_score) : total_score;
+    keel::f64 score = has_log ? keel::exp(total_log_score) : total_score;
     return cast_score_value(score, origClass, mr);
 }
 
@@ -840,7 +838,7 @@ Value corr2(const Value &A, const Value &B, keel::Allocator *mr)
 {
     corr2_argcheck(A, B);
     const keel::usize N = A.numel();
-    if (N == 0) return Value::scalar(std::nan(""), mr);
+    if (N == 0) return Value::scalar(keel::kNaN, mr);
     long double sa = 0.0L, sb = 0.0L; // keel-lint: ignore
     for (keel::usize i = 0; i < N; ++i) {
         sa += A.elemAsDouble(i);
@@ -856,8 +854,8 @@ Value corr2(const Value &A, const Value &B, keel::Allocator *mr)
         va  += da * da;
         vb  += db * db;
     }
-    const long double denom = std::sqrt((keel::f64)(va * vb)); // keel-lint: ignore
-    if (denom == 0.0L) return Value::scalar(std::nan(""), mr);
+    const long double denom = keel::sqrt((keel::f64)(va * vb)); // keel-lint: ignore
+    if (denom == 0.0L) return Value::scalar(keel::kNaN, mr);
     return Value::scalar(keel::as<keel::f64>(cov / denom), mr);
 }
 

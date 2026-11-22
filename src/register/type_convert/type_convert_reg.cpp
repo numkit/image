@@ -17,12 +17,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -61,8 +58,8 @@ void mat2gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 2, "mat2gray");
-    keel::f64 lo = std::numeric_limits<keel::f64>::quiet_NaN();
-    keel::f64 hi = std::numeric_limits<keel::f64>::quiet_NaN();
+    keel::f64 lo = keel::Limits<keel::f64>::quiet_nan();
+    keel::f64 hi = keel::Limits<keel::f64>::quiet_nan();
     if (args.size() >= 2 && !args[1].isEmpty()) {
         if (args[1].numel() != 2)
             throw Error("mat2gray: range must be a 2-element vector",

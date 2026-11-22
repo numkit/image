@@ -4,6 +4,7 @@
 // delegating numerical kernels to keel::image.
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/core.h>
@@ -17,9 +18,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cmath>
-#include <cstring>
-#include <limits>
 
 namespace numkit::image {
 namespace {
@@ -154,9 +152,9 @@ Value ftrans2(const Value &b_in, const Value &t_in, keel::Allocator *mr)
         throw Error("ftrans2: b must have at least one nonzero element",
                     0, 0, "ftrans2", "", "numkit:ftrans2:bZero");
 
-    const keel::f64 sqrt_eps = std::sqrt(std::numeric_limits<keel::f64>::epsilon());
+    const keel::f64 sqrt_eps = keel::sqrt(keel::Limits<keel::f64>::kEpsilon);
     for (keel::usize i = 0; i < L; ++i) {
-        if (std::fabs(b[i] - b[L - 1 - i]) > sqrt_eps)
+        if (keel::abs(b[i] - b[L - 1 - i]) > sqrt_eps)
             throw Error("ftrans2: b must be symmetric",
                         0, 0, "ftrans2", "", "numkit:ftrans2:bSym");
     }
@@ -180,7 +178,7 @@ Value ftrans2(const Value &b_in, const Value &t_in, keel::Allocator *mr)
     (void)keel::image::ftrans2(b.as_ref(), t.as_ref(), mt, nt,
                                h_buf, oh, ow, scratch.allocator());
     Value out = Value::matrix(oh, ow, ValueType::DOUBLE, mr);
-    std::memcpy(out.doubleDataMut(), h_buf.data(), oh * ow * sizeof(keel::f64));
+    keel::copy_n(out.doubleDataMut(), h_buf.data(), oh * ow);
     return out;
 }
 

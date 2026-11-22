@@ -19,10 +19,7 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <cmath>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <utility>
 
 namespace numkit::image {
@@ -114,7 +111,7 @@ Value boundarymask(const Value &L, keel::i32 conn, keel::Allocator *mr)
 
     // Read L as int (round); column-major access via elemAsDouble.
     auto labAt = [&](keel::i32 r, keel::i32 c) -> keel::i64 {
-        return keel::as<keel::i64>(std::round(
+        return keel::as<keel::i64>(keel::round(
             L.elemAsDouble(keel::as<keel::usize>(c) * keel::as<keel::usize>(H) +
                             keel::as<keel::usize>(r))));
     };
@@ -159,7 +156,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     keel::i64 maxLab = 0;
     for (keel::usize i = 0; i < N; ++i) {
         const keel::i64 v = keel::as<keel::i64>(
-            std::round(L.elemAsDouble(i)));
+            keel::round(L.elemAsDouble(i)));
         if (v > maxLab) maxLab = v;
     }
     Value cell = Value::cell(keel::as<keel::usize>(maxLab), 1, mr);
@@ -169,7 +166,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     keel::Array<keel::usize> counts(keel::as<keel::usize>(maxLab) + 1, 0);
     for (keel::usize i = 0; i < N; ++i) {
         const keel::i64 v = keel::as<keel::i64>(
-            std::round(L.elemAsDouble(i)));
+            keel::round(L.elemAsDouble(i)));
         if (v > 0) ++counts[keel::as<keel::usize>(v)];
     }
     // Allocate per-label column vectors (1-based indices).
@@ -187,7 +184,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     // Second pass: fill.
     for (keel::usize i = 0; i < N; ++i) {
         const keel::i64 v = keel::as<keel::i64>(
-            std::round(L.elemAsDouble(i)));
+            keel::round(L.elemAsDouble(i)));
         if (v > 0) {
             wptr[keel::as<keel::usize>(v)][cur[keel::as<keel::usize>(v)]] =
                 keel::as<keel::f64>(i + 1); // MATLAB 1-based
@@ -304,10 +301,10 @@ Value graydiffweight(const Value &I, keel::f64 ref_gray_val,
 
     // Pass 1 — compute |I − ref| in DOUBLE temporary; track min/max.
     keel::Array<keel::f64> diff(N, mr);
-    keel::f64 dmin = std::numeric_limits<keel::f64>::infinity();
-    keel::f64 dmax = -std::numeric_limits<keel::f64>::infinity();
+    keel::f64 dmin = keel::Limits<keel::f64>::infinity();
+    keel::f64 dmax = -keel::Limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
-        const keel::f64 v = std::fabs(I.elemAsDouble(i) - ref_gray_val);
+        const keel::f64 v = keel::abs(I.elemAsDouble(i) - ref_gray_val);
         diff[i] = v;
         if (v < dmin) dmin = v;
         if (v > dmax) dmax = v;
@@ -319,7 +316,7 @@ Value graydiffweight(const Value &I, keel::f64 ref_gray_val,
     const keel::f64 slope = (range > 0.0) ? (hi - lo) / range : 0.0;
 
     const keel::f64 inv_rolloff = 1.0 / rolloff_factor;
-    const bool finite_cutoff = std::isfinite(cutoff);
+    const bool finite_cutoff = keel::is_finite(cutoff);
 
     auto store = [&](keel::usize i, keel::f64 v) {
         if (outT == ValueType::DOUBLE) W.doubleDataMut()[i] = v;
@@ -331,7 +328,7 @@ Value graydiffweight(const Value &I, keel::f64 ref_gray_val,
         if (range > 0.0) s = lo + slope * (diff[i] - dmin);
         else             s = lo;     // constant-image edge case
         if (finite_cutoff && diff[i] > cutoff) s = hi;
-        const keel::f64 w = 1.0 / std::pow(s, inv_rolloff);
+        const keel::f64 w = 1.0 / keel::pow(s, inv_rolloff);
         store(i, w);
     }
     return W;
@@ -362,11 +359,11 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
 {
     internal::requireImageClass(I, "gradientweight", "I", 1,
                                 internal::ImgClasses::FloatIntNoLog);
-    if (!(sigma_x > 0.0) || !std::isfinite(sigma_x)
-     || !(sigma_y > 0.0) || !std::isfinite(sigma_y))
+    if (!(sigma_x > 0.0) || !keel::is_finite(sigma_x)
+     || !(sigma_y > 0.0) || !keel::is_finite(sigma_y))
         throw Error("gradientweight: sigma must be positive and finite",
                     0, 0, "gradientweight", "", "numkit:gradientweight:sigma");
-    if (!(rolloff_factor > 0.0) || !std::isfinite(rolloff_factor))
+    if (!(rolloff_factor > 0.0) || !keel::is_finite(rolloff_factor))
         throw Error("gradientweight: RolloffFactor must be positive "
                     "and finite",
                     0, 0, "gradientweight", "", "numkit:gradientweight:rolloff");
@@ -388,16 +385,16 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
     if (N == 0) return Value::matrix(H, W_, outT, mr);
 
     // Constant-image fast-path: |max - min| <= eps(maxabs)*1000 → W = 1.
-    keel::f64 minI = std::numeric_limits<keel::f64>::infinity();
-    keel::f64 maxI = -std::numeric_limits<keel::f64>::infinity();
+    keel::f64 minI = keel::Limits<keel::f64>::infinity();
+    keel::f64 maxI = -keel::Limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 v = I.elemAsDouble(i);
         if (v < minI) minI = v;
         if (v > maxI) maxI = v;
     }
-    const keel::f64 absMax = std::max(std::fabs(minI), std::fabs(maxI));
-    const keel::f64 e = std::nextafter(absMax,
-                          std::numeric_limits<keel::f64>::infinity()) - absMax;
+    const keel::f64 absMax = std::max(keel::abs(minI), keel::abs(maxI));
+    const keel::f64 e = keel::nextafter(absMax,
+                          keel::Limits<keel::f64>::infinity()) - absMax;
     if (maxI - e * 1000.0 <= minI) {
         Value Wones = Value::matrix(H, W_, outT, mr);
         if (outT == ValueType::DOUBLE) {
@@ -416,14 +413,14 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
     // anisotropic σ, this is the x-axis radius, not the y-axis radius.
     // We replicate the MATLAB R2025b behaviour exactly).
     auto build_dog = [&](keel::f64 sigma, keel::i32 norm_count, keel::usize &len) {
-        const keel::i32 r = keel::as<keel::i32>(std::ceil(2.0 * sigma));
+        const keel::i32 r = keel::as<keel::i32>(keel::ceil(2.0 * sigma));
         len = 2 * keel::as<keel::usize>(r) + 1;
         keel::Array<keel::f64> h(len, 0.0, mr);
         keel::f64 norm = 0.0;
         for (keel::i32 k = 0; k < keel::as<keel::i32>(len); ++k) {
             const keel::i32 x = k - r;
             h[k] = -keel::as<keel::f64>(x)
-                 * std::exp(-keel::as<keel::f64>(x * x)
+                 * keel::exp(-keel::as<keel::f64>(x * x)
                             / (2.0 * sigma * sigma));
             // MATLAB: norm = sum(h(1..norm_count)) -- 1-indexed
             // (k = 0..norm_count-1 in 0-indexed, the left half).
@@ -434,7 +431,7 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
         return h;
     };
 
-    const keel::i32 rx = keel::as<keel::i32>(std::ceil(2.0 * sigma_x));
+    const keel::i32 rx = keel::as<keel::i32>(keel::ceil(2.0 * sigma_x));
     keel::usize hxLen = 0, hyLen = 0;
     auto hxBuf = build_dog(sigma_x, rx, hxLen);
     auto hyBuf = build_dog(sigma_y, rx, hyLen);     // MATLAB-bug-compatible
@@ -465,20 +462,20 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
 
     // Gmag = hypot(Gx, Gy); track min/max for imlinscale.
     keel::Array<keel::f64> Gmag(N, 0.0, mr);
-    keel::f64 gmin = std::numeric_limits<keel::f64>::infinity();
-    keel::f64 gmax = -std::numeric_limits<keel::f64>::infinity();
+    keel::f64 gmin = keel::Limits<keel::f64>::infinity();
+    keel::f64 gmax = -keel::Limits<keel::f64>::infinity();
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 gx = Gx.elemAsDouble(i);
         const keel::f64 gy = Gy.elemAsDouble(i);
-        const keel::f64 g = std::hypot(gx, gy);
+        const keel::f64 g = keel::hypot(gx, gy);
         Gmag[i] = g;
         if (g < gmin) gmin = g;
         if (g > gmax) gmax = g;
     }
     // imlinscale to [0, 1].
-    const keel::f64 gabsMin = std::min(std::fabs(gmin), std::fabs(gmax));
-    const keel::f64 e2 = std::nextafter(gabsMin,
-                          std::numeric_limits<keel::f64>::infinity()) - gabsMin;
+    const keel::f64 gabsMin = std::min(keel::abs(gmin), keel::abs(gmax));
+    const keel::f64 e2 = keel::nextafter(gabsMin,
+                          keel::Limits<keel::f64>::infinity()) - gabsMin;
     const bool spread_ok = (gmax - gmin) > e2;
     const keel::f64 slope = spread_ok ? 1.0 / (gmax - gmin) : 0.0;
 
@@ -493,7 +490,7 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
     for (keel::usize i = 0; i < N; ++i) {
         keel::f64 w = spread_ok ? slope * (Gmag[i] - gmin) : 0.0;
         // W = W^(1/rolloff); W = (1-W)/(1+W); cutoff
-        w = std::pow(w, inv_rolloff);
+        w = keel::pow(w, inv_rolloff);
         w = (1.0 - w) / (1.0 + w);
         if (w < weight_cutoff) w = floorOfW;
         store(i, w);
@@ -552,7 +549,7 @@ Value regionfill(const Value &I, const Value &mask,
     } else {
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 v = mask.elemAsDouble(i);
-            if (std::isnan(v))
+            if (keel::is_nan(v))
                 throw Error("regionfill: MASK cannot contain NaN",
                             0, 0, "regionfill", "",
                             "numkit:regionfill:maskNaN");
@@ -681,7 +678,7 @@ Value regionfill(const Value &I, const Value &mask,
         rdotr += r[i] * r[i];
         bnorm += rhs[i] * rhs[i];
     }
-    const keel::f64 bn = std::sqrt(bnorm);
+    const keel::f64 bn = keel::sqrt(bnorm);
     const keel::f64 tol = (bn > 0.0)
                          ? (1e-12 * bn) * (1e-12 * bn)
                          : 1e-24;
@@ -720,7 +717,7 @@ Value regionfill(const Value &I, const Value &mask,
     } else {
         // Integer classes: round + saturate.
         auto saturate = [&](keel::f64 v, keel::f64 lo, keel::f64 hi) {
-            v = std::round(v);
+            v = keel::round(v);
             if (v < lo) v = lo;
             if (v > hi) v = hi;
             return v;
@@ -921,16 +918,16 @@ Value graydist(const Value &I, const Value &seeds,
     if (outT == ValueType::DOUBLE) {
         keel::f64 *p = T.doubleDataMut();
         for (keel::usize i = 0; i < N; ++i)
-            p[i] = std::numeric_limits<keel::f64>::infinity();
+            p[i] = keel::Limits<keel::f64>::infinity();
     } else {
         keel::f32 *p = T.singleDataMut();
         for (keel::usize i = 0; i < N; ++i)
-            p[i] = std::numeric_limits<keel::f32>::infinity();
+            p[i] = keel::Limits<keel::f32>::infinity();
     }
     if (N == 0 || seeds.numel() == 0) return T;
 
     // Working DOUBLE distance buffer (precision; cast back at end).
-    keel::Array<keel::f64> dist(N, std::numeric_limits<keel::f64>::infinity(), mr);
+    keel::Array<keel::f64> dist(N, keel::Limits<keel::f64>::infinity(), mr);
     // Read image into a double array (uniform access).
     keel::Array<keel::f64> Idata(N, 0.0, mr);
     for (keel::usize i = 0; i < N; ++i) Idata[i] = I.elemAsDouble(i);
@@ -943,7 +940,7 @@ Value graydist(const Value &I, const Value &seeds,
     // Seed pixels: T = 0, push.
     for (keel::usize k = 0; k < seeds.numel(); ++k) {
         const keel::f64 sv = seeds.elemAsDouble(k);
-        if (!(sv >= 1) || sv != std::floor(sv))
+        if (!(sv >= 1) || sv != keel::floor(sv))
             throw Error("graydist: seed indices must be positive integers",
                         0, 0, "graydist", "", "numkit:graydist:seed");
         const keel::usize idx = keel::as<keel::usize>(sv) - 1;
@@ -970,7 +967,7 @@ Value graydist(const Value &I, const Value &seeds,
                   Step{1, -1, 1.0},  Step{1, 1, 1.0}};
         nSteps = 8;
     } else {
-        const keel::f64 s2 = std::sqrt(2.0);
+        const keel::f64 s2 = keel::sqrt(2.0);
         steps8 = {Step{-1, 0, 1.0}, Step{1, 0, 1.0},
                   Step{0, -1, 1.0}, Step{0, 1, 1.0},
                   Step{-1, -1, s2}, Step{-1, 1, s2},
@@ -1064,15 +1061,15 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
 
     // Initialise: NaN for false, +Inf for true.
     keel::f32 *dp = D.singleDataMut();
-    const keel::f32 nan = std::numeric_limits<keel::f32>::quiet_NaN();
-    const keel::f32 inf = std::numeric_limits<keel::f32>::infinity();
+    const keel::f32 nan = keel::Limits<keel::f32>::quiet_nan();
+    const keel::f32 inf = keel::Limits<keel::f32>::infinity();
     for (keel::usize i = 0; i < N; ++i)
         dp[i] = mask[i] ? inf : nan;
 
     if (seeds.numel() == 0) return D;
 
     // Working DOUBLE buffer for Dijkstra precision.
-    keel::Array<keel::f64> dist(N, std::numeric_limits<keel::f64>::infinity(), mr);
+    keel::Array<keel::f64> dist(N, keel::Limits<keel::f64>::infinity(), mr);
 
     using PQNode = std::pair<keel::f64, keel::usize>;
     auto cmp = [](const PQNode &a, const PQNode &b) { return a.first > b.first; };
@@ -1081,7 +1078,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
     // Seeds: validate, then set dist=0.
     for (keel::usize k = 0; k < seeds.numel(); ++k) {
         const keel::f64 sv = seeds.elemAsDouble(k);
-        if (!(sv >= 1) || sv != std::floor(sv))
+        if (!(sv >= 1) || sv != keel::floor(sv))
             throw Error("bwdistgeodesic: seed indices must be positive "
                         "integers",
                         0, 0, "bwdistgeodesic", "",
@@ -1094,7 +1091,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
         if (!mask[idx]) {
             // Probed R2025b: a seed off the mask is NOT an error — the
             // seed pixel comes back NaN and everything else stays Inf.
-            dist[idx] = std::numeric_limits<keel::f64>::quiet_NaN();
+            dist[idx] = keel::Limits<keel::f64>::quiet_nan();
             continue;
         }
         dist[idx] = 0.0;
@@ -1116,7 +1113,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
                   Step{1, -1, 1.0},  Step{1, 1, 1.0}};
         nSteps = 8;
     } else {
-        const keel::f64 s2 = std::sqrt(2.0);
+        const keel::f64 s2 = keel::sqrt(2.0);
         steps8 = {Step{-1, 0, 1.0}, Step{1, 0, 1.0},
                   Step{0, -1, 1.0}, Step{0, 1, 1.0},
                   Step{-1, -1, s2}, Step{-1, 1, s2},
@@ -1151,7 +1148,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
     // Inf at unreachable true pixels.
     for (keel::usize i = 0; i < N; ++i) {
         if (!mask[i]) continue;          // NaN preserved
-        if (!std::isinf(dist[i]))
+        if (!keel::is_inf(dist[i]))
             dp[i] = keel::as<keel::f32>(dist[i]);
         // else: already Inf from initialisation
     }
@@ -1196,7 +1193,7 @@ Value imoverlay(const Value &I, const Value &BW, const Value &color, keel::Alloc
         keel::f64 v = floatColour ? cIn[k] * 255.0 : cIn[k];
         if (v < 0.0) v = 0.0;
         if (v > 255.0) v = 255.0;
-        cByte[k] = keel::as<keel::i32>(std::lround(v));
+        cByte[k] = keel::as<keel::i32>(keel::round_i64(v));
     }
 
     // Helper: read I element as 0..255 byte.
@@ -1220,7 +1217,7 @@ Value imoverlay(const Value &I, const Value &BW, const Value &color, keel::Alloc
         }
         if (w < 0.0) w = 0.0;
         if (w > 255.0) w = 255.0;
-        return keel::as<keel::u8>(std::lround(w));
+        return keel::as<keel::u8>(keel::round_i64(w));
     };
 
     Value out = Value::matrix3d(H, W, 3, ValueType::UINT8, mr);
@@ -1266,7 +1263,7 @@ keel::Array<keel::i32> rdpKeep(const T *xs, const T *ys, keel::i32 lo, keel::i32
     }
     const T x1 = xs[lo], y1 = ys[lo], x2 = xs[hi], y2 = ys[hi];
     const T dx = x2 - x1, dy = y2 - y1;
-    const T dNode = std::sqrt(dx * dx + dy * dy);
+    const T dNode = keel::sqrt(dx * dx + dy * dy);
     const keel::f64 EPS = 2.220446049250313e-16;  // MATLAB eps(1)
 
     T maxd = -1;
@@ -1280,7 +1277,7 @@ keel::Array<keel::i32> rdpKeep(const T *xs, const T *ys, keel::i32 lo, keel::i32
             d = keel::abs(det) / dNode;
         } else {
             const T ex = xk - x1, ey = yk - y1;
-            d = std::sqrt(ex * ex + ey * ey);
+            d = keel::sqrt(ex * ex + ey * ey);
         }
         if (d > maxd) { maxd = d; far = g; }  // strict > keeps FIRST farthest
     }
@@ -1308,7 +1305,7 @@ keel::Array<keel::i32> rdpRun(const Value &P, keel::i32 n, keel::f64 tol)
         miny = std::min(miny, ys[keel::usize(i)]); maxy = std::max(maxy, ys[keel::usize(i)]);
     }
     const T sdx = maxx - minx, sdy = maxy - miny;
-    const T scaling = std::sqrt(sdx * sdx + sdy * sdy);
+    const T scaling = keel::sqrt(sdx * sdx + sdy * sdy);
     const keel::f64 EPS = 2.220446049250313e-16;
     const T tolEff = static_cast<T>(tol == 0.0 ? EPS : tol) * scaling;
     return rdpKeep<T>(xs.data(), ys.data(), 0, n - 1, tolEff);
@@ -1332,13 +1329,13 @@ Value reducepoly(const Value &P, keel::f64 tolerance, keel::Allocator *mr)
     auto storeAt = [&](Value &out, keel::usize oidx, keel::f64 v) {
         switch (cls) {
             case ValueType::SINGLE: out.singleDataMut()[oidx] = keel::as<keel::f32>(v); break;
-            case ValueType::UINT8:  out.uint8DataMut()[oidx]  = keel::as<keel::u8>(std::lround(v)); break;
-            case ValueType::UINT16: out.uint16DataMut()[oidx] = keel::as<keel::u16>(std::lround(v)); break;
-            case ValueType::UINT32: out.uint32DataMut()[oidx] = keel::as<keel::u32>(std::lround(v)); break;
-            case ValueType::INT8:   out.int8DataMut()[oidx]   = keel::as<keel::i8>(std::lround(v)); break;
-            case ValueType::INT16:  out.int16DataMut()[oidx]  = keel::as<keel::i16>(std::lround(v)); break;
-            case ValueType::INT32:  out.int32DataMut()[oidx]  = keel::as<keel::i32>(std::lround(v)); break;
-            case ValueType::INT64:  out.int64DataMut()[oidx]  = keel::as<keel::i64>(std::llround(v)); break;
+            case ValueType::UINT8:  out.uint8DataMut()[oidx]  = keel::as<keel::u8>(keel::round_i64(v)); break;
+            case ValueType::UINT16: out.uint16DataMut()[oidx] = keel::as<keel::u16>(keel::round_i64(v)); break;
+            case ValueType::UINT32: out.uint32DataMut()[oidx] = keel::as<keel::u32>(keel::round_i64(v)); break;
+            case ValueType::INT8:   out.int8DataMut()[oidx]   = keel::as<keel::i8>(keel::round_i64(v)); break;
+            case ValueType::INT16:  out.int16DataMut()[oidx]  = keel::as<keel::i16>(keel::round_i64(v)); break;
+            case ValueType::INT32:  out.int32DataMut()[oidx]  = keel::as<keel::i32>(keel::round_i64(v)); break;
+            case ValueType::INT64:  out.int64DataMut()[oidx]  = keel::as<keel::i64>(keel::round_i64(v)); break;
             default:                out.doubleDataMut()[oidx] = v; break;
         }
     };
@@ -1382,7 +1379,7 @@ void watershed_argcheck(const Value &A, keel::i32 conn)
     }
     const keel::usize n = A.numel();
     for (keel::usize i = 0; i < n; ++i) {
-        if (std::isnan(A.elemAsDouble(i))) {
+        if (keel::is_nan(A.elemAsDouble(i))) {
             throw Error("watershed: input 1 (A) must be non-NaN (got NaN).",
                         0, 0, "watershed", "", "numkit:watershed:expectedNonNaN");
         }

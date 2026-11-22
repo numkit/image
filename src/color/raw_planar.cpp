@@ -22,7 +22,6 @@
 
 #include <keel/static_array.h>
 #include <cstdint>
-#include <cstring>
 
 namespace numkit::image {
 

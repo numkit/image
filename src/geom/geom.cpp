@@ -4,6 +4,7 @@
 // imtranslate, axes2pix, impyramid), delegating numerical kernels to keel::image.
 
 #include <keel/arena.h>
+#include <keel/math.h>
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/core.h>
@@ -19,7 +20,6 @@
 #include "geom_detail.hpp"
 
 #include <algorithm>
-#include <cmath>
 
 namespace numkit::image {
 
@@ -173,8 +173,8 @@ Value imresize(const Value &A, keel::f64 scale, keel::StringRef method, keel::Al
 {
     const Shape s = shapeOf(A);
     imresize_scale_argcheck(scale);
-    const keel::usize outH = keel::as<keel::usize>(std::round(scale * keel::as<keel::f64>(s.H)));
-    const keel::usize outW = keel::as<keel::usize>(std::round(scale * keel::as<keel::f64>(s.W)));
+    const keel::usize outH = keel::as<keel::usize>(keel::round(scale * keel::as<keel::f64>(s.H)));
+    const keel::usize outW = keel::as<keel::usize>(keel::round(scale * keel::as<keel::f64>(s.W)));
     const ValueType t = A.type();
     if (outH == 0 || outW == 0) return makeOut(outH, outW, s.C, t, mr);
 
@@ -195,10 +195,10 @@ Value imcrop(const Value &A, keel::f64 xmin, keel::f64 ymin, keel::f64 width, ke
 {
     const Shape s = shapeOf(A);
     const ValueType t = A.type();
-    keel::i32 x0 = std::max(keel::as<keel::i32>(std::round(xmin)) - 1, 0);
-    keel::i32 y0 = std::max(keel::as<keel::i32>(std::round(ymin)) - 1, 0);
-    keel::i32 w  = std::max(keel::as<keel::i32>(std::round(width))  + 1, 1);
-    keel::i32 h  = std::max(keel::as<keel::i32>(std::round(height)) + 1, 1);
+    keel::i32 x0 = std::max(keel::as<keel::i32>(keel::round(xmin)) - 1, 0);
+    keel::i32 y0 = std::max(keel::as<keel::i32>(keel::round(ymin)) - 1, 0);
+    keel::i32 w  = std::max(keel::as<keel::i32>(keel::round(width))  + 1, 1);
+    keel::i32 h  = std::max(keel::as<keel::i32>(keel::round(height)) + 1, 1);
     if (x0 + w > keel::as<keel::i32>(s.W)) w = keel::as<keel::i32>(s.W) - x0;
     if (y0 + h > keel::as<keel::i32>(s.H)) h = keel::as<keel::i32>(s.H) - y0;
     if (w <= 0 || h <= 0)
@@ -228,16 +228,16 @@ Value imcrop3(const Value &V, const Value &cuboid, keel::Allocator *mr)
     const keel::usize T = (nd >= 4) ? dV.dim(3) : 1;
 
     auto rd = [&](keel::usize k) {
-        return keel::as<keel::i64>(std::lround(cuboid.elemAsDouble(k)));
+        return keel::as<keel::i64>(keel::round_i64(cuboid.elemAsDouble(k)));
     };
     const keel::i64 xmin = rd(0);
     const keel::i64 ymin = rd(1);
     const keel::i64 zmin = rd(2);
-    const keel::i64 xmax = keel::as<keel::i64>(std::lround(
+    const keel::i64 xmax = keel::as<keel::i64>(keel::round_i64(
         cuboid.elemAsDouble(0) + cuboid.elemAsDouble(3)));
-    const keel::i64 ymax = keel::as<keel::i64>(std::lround(
+    const keel::i64 ymax = keel::as<keel::i64>(keel::round_i64(
         cuboid.elemAsDouble(1) + cuboid.elemAsDouble(4)));
-    const keel::i64 zmax = keel::as<keel::i64>(std::lround(
+    const keel::i64 zmax = keel::as<keel::i64>(keel::round_i64(
         cuboid.elemAsDouble(2) + cuboid.elemAsDouble(5)));
 
     auto in_range = [](keel::i64 lo, keel::i64 hi, keel::usize N) {
@@ -485,9 +485,9 @@ Value imresize3(const Value &V, keel::f64 scale,
     const keel::usize inC = (dims.ndims() >= 2) ? dims.dim(1) : 1;
     const keel::usize inD = (dims.ndims() >= 3) ? dims.dim(2) : 1;
     return imresize3_core(V,
-        keel::as<keel::usize>(std::round(scale * keel::as<keel::f64>(inR))),
-        keel::as<keel::usize>(std::round(scale * keel::as<keel::f64>(inC))),
-        keel::as<keel::usize>(std::round(scale * keel::as<keel::f64>(inD))),
+        keel::as<keel::usize>(keel::round(scale * keel::as<keel::f64>(inR))),
+        keel::as<keel::usize>(keel::round(scale * keel::as<keel::f64>(inC))),
+        keel::as<keel::usize>(keel::round(scale * keel::as<keel::f64>(inD))),
         scale, scale, scale, method, antialias, mr);
 }
 

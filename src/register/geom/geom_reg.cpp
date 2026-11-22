@@ -13,7 +13,6 @@
 #include <keel/ref.h>
 #include <keel/string.h>
 #include <keel/math.h>
-#include <cmath>
 
 #include <numkit/image/geom/geom.hpp>
 
@@ -24,12 +23,9 @@
 #include "geom/geom_detail.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -157,12 +153,12 @@ struct Rot3 { keel::f64 r[9]; };          // row-major 3 × 3
 
 Rot3 rodrigues(keel::f64 Wx, keel::f64 Wy, keel::f64 Wz, keel::f64 theta)
 {
-    const keel::f64 n = std::sqrt(Wx*Wx + Wy*Wy + Wz*Wz);
+    const keel::f64 n = keel::sqrt(Wx*Wx + Wy*Wy + Wz*Wz);
     if (n < 1e-15)
         throw Error("imrotate3: rotation axis must be non-zero",
                     0, 0, "imrotate3", "", "numkit:imrotate3:axis");
     const keel::f64 ux = Wx / n, uy = Wy / n, uz = Wz / n;
-    const keel::f64 c = std::cos(theta), s = std::sin(theta), t = 1.0 - c;
+    const keel::f64 c = keel::cos(theta), s = keel::sin(theta), t = 1.0 - c;
     Rot3 R;
     R.r[0] = t*ux*ux + c;    R.r[1] = t*ux*uy - s*uz; R.r[2] = t*ux*uz + s*uy;
     R.r[3] = t*uy*ux + s*uz; R.r[4] = t*uy*uy + c;    R.r[5] = t*uy*uz - s*ux;
@@ -172,7 +168,7 @@ Rot3 rodrigues(keel::f64 Wx, keel::f64 Wy, keel::f64 Wz, keel::f64 theta)
 
 inline keel::f64 cubic_keys(keel::f64 x)
 {
-    const keel::f64 a = std::fabs(x);
+    const keel::f64 a = keel::abs(x);
     if (a < 1.0) return ((1.5 * a - 2.5) * a * a + 1.0);
     if (a < 2.0) return (((-0.5 * a + 2.5) * a - 4.0) * a + 2.0);
     return 0.0;
@@ -193,18 +189,18 @@ inline keel::f64 getV3(const Value &V, keel::usize H, keel::usize W, keel::usize
 keel::f64 samp_nearest3(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      keel::f64 xs, keel::f64 ys, keel::f64 zs, keel::f64 fill)
 {
-    const keel::i32 xi = keel::as<keel::i32>(std::floor(xs + 0.5));
-    const keel::i32 yi = keel::as<keel::i32>(std::floor(ys + 0.5));
-    const keel::i32 zi = keel::as<keel::i32>(std::floor(zs + 0.5));
+    const keel::i32 xi = keel::as<keel::i32>(keel::floor(xs + 0.5));
+    const keel::i32 yi = keel::as<keel::i32>(keel::floor(ys + 0.5));
+    const keel::i32 zi = keel::as<keel::i32>(keel::floor(zs + 0.5));
     return getV3(V, H, W, D, xi, yi, zi, fill);
 }
 
 keel::f64 samp_trilinear(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                       keel::f64 xs, keel::f64 ys, keel::f64 zs, keel::f64 fill)
 {
-    const keel::i32 x0 = keel::as<keel::i32>(std::floor(xs));
-    const keel::i32 y0 = keel::as<keel::i32>(std::floor(ys));
-    const keel::i32 z0 = keel::as<keel::i32>(std::floor(zs));
+    const keel::i32 x0 = keel::as<keel::i32>(keel::floor(xs));
+    const keel::i32 y0 = keel::as<keel::i32>(keel::floor(ys));
+    const keel::i32 z0 = keel::as<keel::i32>(keel::floor(zs));
     const keel::f64 fx = xs - keel::f64(x0);
     const keel::f64 fy = ys - keel::f64(y0);
     const keel::f64 fz = zs - keel::f64(z0);
@@ -228,9 +224,9 @@ keel::f64 samp_trilinear(const Value &V, keel::usize H, keel::usize W, keel::usi
 keel::f64 samp_tricubic(const Value &V, keel::usize H, keel::usize W, keel::usize D,
                      keel::f64 xs, keel::f64 ys, keel::f64 zs, keel::f64 fill)
 {
-    const keel::i32 x0 = keel::as<keel::i32>(std::floor(xs));
-    const keel::i32 y0 = keel::as<keel::i32>(std::floor(ys));
-    const keel::i32 z0 = keel::as<keel::i32>(std::floor(zs));
+    const keel::i32 x0 = keel::as<keel::i32>(keel::floor(xs));
+    const keel::i32 y0 = keel::as<keel::i32>(keel::floor(ys));
+    const keel::i32 z0 = keel::as<keel::i32>(keel::floor(zs));
     const keel::f64 fx = xs - keel::f64(x0);
     const keel::f64 fy = ys - keel::f64(y0);
     const keel::f64 fz = zs - keel::f64(z0);
@@ -275,8 +271,8 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
     const Rot3 R = rodrigues(Wx, Wy, Wz, theta);
 
     auto snap = [](keel::f64 v) {
-        const keel::f64 r = std::round(v);
-        return (std::fabs(v - r) < 1e-9) ? r : v;
+        const keel::f64 r = keel::round(v);
+        return (keel::abs(v - r) < 1e-9) ? r : v;
     };
 
     keel::usize outH, outW, outD;
@@ -285,12 +281,12 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
     } else if (bbox.empty() || bbox.equals_ignore_ascii_case("loose")) {
         const keel::f64 Wd = keel::f64(W), Hd = keel::f64(H), Dd = keel::f64(D);
         // outDim[axis] = sum_k inDim[k] * |R[axis][k]|
-        const keel::f64 xe = Wd*std::fabs(R.r[0]) + Hd*std::fabs(R.r[1]) + Dd*std::fabs(R.r[2]);
-        const keel::f64 ye = Wd*std::fabs(R.r[3]) + Hd*std::fabs(R.r[4]) + Dd*std::fabs(R.r[5]);
-        const keel::f64 ze = Wd*std::fabs(R.r[6]) + Hd*std::fabs(R.r[7]) + Dd*std::fabs(R.r[8]);
-        outW = std::max(keel::usize(1), keel::usize(std::ceil(snap(xe))));
-        outH = std::max(keel::usize(1), keel::usize(std::ceil(snap(ye))));
-        outD = std::max(keel::usize(1), keel::usize(std::ceil(snap(ze))));
+        const keel::f64 xe = Wd*keel::abs(R.r[0]) + Hd*keel::abs(R.r[1]) + Dd*keel::abs(R.r[2]);
+        const keel::f64 ye = Wd*keel::abs(R.r[3]) + Hd*keel::abs(R.r[4]) + Dd*keel::abs(R.r[5]);
+        const keel::f64 ze = Wd*keel::abs(R.r[6]) + Hd*keel::abs(R.r[7]) + Dd*keel::abs(R.r[8]);
+        outW = std::max(keel::usize(1), keel::usize(keel::ceil(snap(xe))));
+        outH = std::max(keel::usize(1), keel::usize(keel::ceil(snap(ye))));
+        outD = std::max(keel::usize(1), keel::usize(keel::ceil(snap(ze))));
     } else {
         throw Error("imrotate3: bbox must be 'loose' or 'crop'",
                     0, 0, "imrotate3", "", "numkit:imrotate3:bbox");
@@ -448,9 +444,9 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
         if (!(sR > 0 && sC > 0 && sD > 0))
             throw Error("imresize3: scale factors must be > 0",
                         0, 0, "imresize3", "", "numkit:imresize3:scale");
-        outRows = keel::as<keel::usize>(std::round(sR * keel::f64(inR)));
-        outCols = keel::as<keel::usize>(std::round(sC * keel::f64(inC)));
-        outDeps = keel::as<keel::usize>(std::round(sD * keel::f64(inD)));
+        outRows = keel::as<keel::usize>(keel::round(sR * keel::f64(inR)));
+        outCols = keel::as<keel::usize>(keel::round(sC * keel::f64(inC)));
+        outDeps = keel::as<keel::usize>(keel::round(sD * keel::f64(inD)));
     }
 
     // Per-axis scale that drives the u formula. MATLAB uses the

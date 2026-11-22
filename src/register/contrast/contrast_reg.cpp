@@ -24,8 +24,6 @@
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
 #include <cstddef>
-#include <cstring>
-#include <limits>
 #include <utility>
 
 namespace numkit::image {
@@ -78,8 +76,8 @@ void imadjust_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                   keel::MutArrayRef<Value> outs, CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 1, 4, "imadjust");
-    keel::f64 low_in  = std::numeric_limits<keel::f64>::quiet_NaN();
-    keel::f64 high_in = std::numeric_limits<keel::f64>::quiet_NaN();
+    keel::f64 low_in  = keel::Limits<keel::f64>::quiet_nan();
+    keel::f64 high_in = keel::Limits<keel::f64>::quiet_nan();
     keel::f64 low_out = 0.0;
     keel::f64 high_out = 1.0;
     keel::f64 gamma = 1.0;

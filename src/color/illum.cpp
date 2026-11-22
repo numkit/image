@@ -4,6 +4,7 @@
 // color difference (imcolordiff), delegating numerical kernels to keel::image.
 
 #include <keel/arena.h>
+#include <keel/math.h>
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/format.h>
@@ -19,7 +20,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cmath>
 
 namespace numkit::image {
 
@@ -143,8 +143,8 @@ Value illumgray_impl(const Value &A, keel::ArrayRef<keel::f64> P,
     if (nsel == 0)
         throw Error("illumgray: no pixels selected by Mask",
                     0, 0, "illumgray", "", "numkit:illumgray:emptyMask");
-    const keel::usize k_lo = keel::as<keel::usize>(std::floor(p_lo * 0.01 * keel::as<keel::f64>(nsel)));
-    const keel::usize k_hi = keel::as<keel::usize>(std::floor(p_hi * 0.01 * keel::as<keel::f64>(nsel)));
+    const keel::usize k_lo = keel::as<keel::usize>(keel::floor(p_lo * 0.01 * keel::as<keel::f64>(nsel)));
+    const keel::usize k_hi = keel::as<keel::usize>(keel::floor(p_hi * 0.01 * keel::as<keel::f64>(nsel)));
     if (k_lo + k_hi >= nsel)
         throw Error("illumgray: percentiles trim all pixels",
                     0, 0, "illumgray", "", "numkit:illumgray:emptyTrim");

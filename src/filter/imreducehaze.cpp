@@ -4,6 +4,8 @@
 // to keel::image::dehaze.
 
 #include <keel/arena.h>
+#include <keel/algo.h>
+#include <keel/math.h>
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/image.h>
@@ -17,8 +19,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cmath>
-#include <cstring>
 
 namespace numkit::image {
 namespace {
@@ -95,7 +95,7 @@ Value cast_back_f32(keel::ArrayRef<keel::f32> buf, keel::usize H, keel::usize W,
     }
     Value tmp = is3D ? Value::matrix3d(H, W, P, ValueType::SINGLE, mr)
                      : Value::matrix(H, W, ValueType::SINGLE, mr);
-    std::memcpy(tmp.singleDataMut(), buf.data(), N * sizeof(keel::f32));
+    keel::copy_n(tmp.singleDataMut(), buf.data(), N);
     if (origClass == ValueType::UINT16) return im2uint16(tmp, mr);
     return im2uint8(tmp, mr);
 }
@@ -107,7 +107,7 @@ void imreducehaze_argcheck(const Value &I, keel::f64 amount,
                            keel::String &m_out, keel::String &ce_out,
                            bool &isRGB_out)
 {
-    if (!std::isfinite(amount) || amount < 0.0 || amount > 1.0)
+    if (!keel::is_finite(amount) || amount < 0.0 || amount > 1.0)
         throw Error("imreducehaze: amount must be in [0, 1]",
                     0, 0, "imreducehaze", "", "numkit:imreducehaze:amount");
     const auto &d = I.dims();
@@ -136,7 +136,7 @@ void imreducehaze_argcheck(const Value &I, keel::f64 amount,
                     0, 0, "imreducehaze", "",
                     "numkit:imreducehaze:contrastEnhancement");
     if (ce == "boost" && (boost_amount < 0.0 || boost_amount > 1.0
-                          || !std::isfinite(boost_amount)))
+                          || !keel::is_finite(boost_amount)))
         throw Error("imreducehaze: BoostAmount must be in [0, 1]",
                     0, 0, "imreducehaze", "",
                     "numkit:imreducehaze:boostAmount");

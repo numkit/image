@@ -4,6 +4,7 @@
 // numerical kernel to keel::image.
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/image.h>
@@ -14,7 +15,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cstring>
 
 namespace numkit::image {
 
@@ -88,7 +88,7 @@ void writeSinglePlaneTo(Value &out, keel::usize page, keel::ArrayRef<keel::f32> 
             break;
         }
         case ValueType::SINGLE: {
-            std::memcpy(out.singleDataMut() + off, plane.data(), N * sizeof(keel::f32));
+            keel::copy_n(out.singleDataMut() + off, plane.data(), N);
             break;
         }
         default: {

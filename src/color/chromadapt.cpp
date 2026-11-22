@@ -4,6 +4,7 @@
 // delegating per-pixel Bradford / Von Kries / Simple math to keel::image.
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/image.h>
@@ -15,7 +16,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cstring>
 
 namespace numkit::image {
 
@@ -76,7 +76,7 @@ Value packRgbValue(keel::ArrayRef<keel::f64> r, keel::ArrayRef<keel::f64> g,
                 break;
             }
             default: {
-                std::memcpy(out.doubleDataMut() + off, chs[ch].data(), npix * sizeof(keel::f64));
+                keel::copy_n(out.doubleDataMut() + off, chs[ch].data(), npix);
                 break;
             }
         }

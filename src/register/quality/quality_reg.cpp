@@ -7,6 +7,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/array.h>
+#include <keel/math.h>
 #include <keel/core.h>
 #include <keel/format.h>
 #include <keel/ref.h>
@@ -20,12 +21,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -45,7 +43,7 @@ void psnr_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
 {
     argcheck::checkNargin(args.size(), 2, 3, "psnr");
     const keel::f64 peak = (args.size() >= 3 && !args[2].isEmpty())
-                        ? args[2].toScalar() : std::nan("");
+                        ? args[2].toScalar() : keel::kNaN;
     outs[0] = psnr(args[0], args[1], peak, ctx.engine->allocator());
 }
 

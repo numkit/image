@@ -7,6 +7,7 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -19,12 +20,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -235,7 +233,7 @@ void checkerboard_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::usize side = 10, M = 4, N = 4;
     if (args.size() >= 1 && !args[0].isEmpty()) {
         const keel::f64 s = args[0].toScalar();
-        if (s < 0.0 || s != std::floor(s))
+        if (s < 0.0 || s != keel::floor(s))
             throw Error("checkerboard: SIDE must be a non-negative integer",
                         0, 0, "checkerboard", "", "numkit:checkerboard:side");
         side = keel::as<keel::usize>(s);

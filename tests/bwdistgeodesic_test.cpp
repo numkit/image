@@ -5,6 +5,7 @@
 // MATLAB R2025b (SINGLE precision, 1e-6 tolerance).
 
 #include <numkit/core/standard_engine.hpp>
+#include <keel/math.h>
 #include <gtest/gtest.h>
 #include <cmath>
 
@@ -57,7 +58,7 @@ TEST_F(BwdistgeodesicTest, Cityblock)
 TEST_F(BwdistgeodesicTest, QuasiEuclidean)
 {
     eval("D = bwdistgeodesic(BW, [1 1], 'quasi-euclidean');");
-    EXPECT_NEAR(evalScalar("double(D(2,2))"), std::sqrt(2.0), 1e-6);
+    EXPECT_NEAR(evalScalar("double(D(2,2))"), keel::sqrt(2.0), 1e-6);
     EXPECT_NEAR(evalScalar("double(D(5,1))"), 7.656854, 1e-5);
 }
 
@@ -136,5 +137,5 @@ TEST_F(BwdistgeodesicTest, SeedOnFalseIsNaN)
     // on a true pixel" error; the reference computes).
     // BW(3,1) is false; column-major 1-based linear index = 3.
     eval("D = bwdistgeodesic(BW, 3);");
-    EXPECT_TRUE(std::isnan(evalScalar("double(D(3))")));
+    EXPECT_TRUE(keel::is_nan(evalScalar("double(D(3))")));
 }
