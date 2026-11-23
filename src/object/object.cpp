@@ -27,7 +27,6 @@
 #include <tuple>
 #include <keel/static_array.h>
 #include <keel/math.h>
-#include <cstdint>
 
 
 namespace numkit::image {

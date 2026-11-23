@@ -71,8 +71,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <algorithm>
-#include <cstdint>
-#include <climits>
 
 
 namespace numkit::image {
@@ -134,7 +132,7 @@ CCInfoBPF parse_cc(const Value &CC, const char *fn)
         Comp &c = info.comps[k];
         c.rs.resize(N);
         c.cs.resize(N);
-        keel::i32 rmin = INT_MAX, rmax = -1, cmin = INT_MAX, cmax = -1;
+        keel::i32 rmin = keel::Limits<keel::i32>::kMax, rmax = -1, cmin = keel::Limits<keel::i32>::kMax, cmax = -1;
         for (keel::usize i = 0; i < N; ++i) {
             const keel::usize idx1 = keel::as<keel::usize>(
                 cell.elemAsDouble(i));

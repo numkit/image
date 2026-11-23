@@ -20,8 +20,6 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <cstdlib>
 #include <tuple>
 #include <utility>

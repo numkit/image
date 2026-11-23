@@ -25,7 +25,6 @@
 #include "object/object_detail.hpp"
 
 #include <algorithm>
-#include <cstddef>
 #include <utility>
 
 namespace numkit::image {

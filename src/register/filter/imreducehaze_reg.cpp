@@ -18,8 +18,6 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <utility>
 
 namespace numkit::image {

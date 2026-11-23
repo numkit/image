@@ -15,7 +15,6 @@
 #include <numkit/value/error.hpp>
 #include <tuple>
 #include <algorithm>
-#include <cstdint>
 
 namespace numkit::image {
 
@@ -65,7 +64,7 @@ Value to_float_impl(const Value &x, ValueType target, keel::Allocator *mr) {
     if (n == 0) return out;
 
     Float *od = nullptr;
-    if constexpr (std::is_same_v<Float, keel::f64>) od = out.doubleDataMut();
+    if constexpr (keel::IsSame<Float, keel::f64>) od = out.doubleDataMut();
     else                                          od = out.singleDataMut();
 
     // Typed raw-pointer paths (no per-element element_to_unit/elemAsDouble
@@ -127,9 +126,9 @@ Value to_int_impl(const Value &x, ValueType target, keel::f64 scale, keel::f64 b
     if (n == 0) return out;
 
     Int *od = nullptr;
-    if      constexpr (std::is_same_v<Int, keel::u8>)  od = out.uint8DataMut();
-    else if constexpr (std::is_same_v<Int, keel::u16>) od = out.uint16DataMut();
-    else if constexpr (std::is_same_v<Int, keel::i16>)  od = out.int16DataMut();
+    if      constexpr (keel::IsSame<Int, keel::u8>)  od = out.uint8DataMut();
+    else if constexpr (keel::IsSame<Int, keel::u16>) od = out.uint16DataMut();
+    else if constexpr (keel::IsSame<Int, keel::i16>)  od = out.int16DataMut();
     else                                              od = nullptr;
 
     // Float → int: scale unit value by `scale` then round, plus optional bias.
@@ -178,9 +177,9 @@ Value to_int_impl(const Value &x, ValueType target, keel::f64 scale, keel::f64 b
         }
         case ValueType::UINT8: {
             const keel::u8 *src = x.uint8Data();
-            if constexpr (std::is_same_v<Int, keel::u8>) {
+            if constexpr (keel::IsSame<Int, keel::u8>) {
                 for (keel::usize i = 0; i < n; ++i) od[i] = src[i];
-            } else if constexpr (std::is_same_v<Int, keel::u16>) {
+            } else if constexpr (keel::IsSame<Int, keel::u16>) {
                 // 0xAB → 0xABAB (bit-replication).
                 for (keel::usize i = 0; i < n; ++i) od[i] = (keel::u16)((src[i] << 8) | src[i]);
             } else { // int16
@@ -193,9 +192,9 @@ Value to_int_impl(const Value &x, ValueType target, keel::f64 scale, keel::f64 b
         }
         case ValueType::UINT16: {
             const keel::u16 *src = x.uint16Data();
-            if constexpr (std::is_same_v<Int, keel::u16>) {
+            if constexpr (keel::IsSame<Int, keel::u16>) {
                 for (keel::usize i = 0; i < n; ++i) od[i] = src[i];
-            } else if constexpr (std::is_same_v<Int, keel::u8>) {
+            } else if constexpr (keel::IsSame<Int, keel::u8>) {
                 // Round high byte: round(src/257).
                 for (keel::usize i = 0; i < n; ++i)
                     od[i] = satCast<keel::u8>((keel::f64)src[i] / 257.0);
@@ -207,9 +206,9 @@ Value to_int_impl(const Value &x, ValueType target, keel::f64 scale, keel::f64 b
         }
         case ValueType::INT16: {
             const keel::i16 *src = x.int16Data();
-            if constexpr (std::is_same_v<Int, keel::i16>) {
+            if constexpr (keel::IsSame<Int, keel::i16>) {
                 for (keel::usize i = 0; i < n; ++i) od[i] = src[i];
-            } else if constexpr (std::is_same_v<Int, keel::u16>) {
+            } else if constexpr (keel::IsSame<Int, keel::u16>) {
                 for (keel::usize i = 0; i < n; ++i)
                     od[i] = satCast<keel::u16>((keel::f64)src[i] + 32768.0);
             } else { // uint8

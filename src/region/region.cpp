@@ -15,8 +15,6 @@
 #include <tuple>
 
 #include <algorithm>
-#include <climits>
-#include <cstdint>
 #include <cstring>
 
 namespace numkit::image {
@@ -815,8 +813,8 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
     // boundary-trace start for Perimeter.
     keel::Array<keel::i32> firstR(K + 1, -1), firstC(keel::as<keel::usize>(K + 1), -1);
     keel::Array<keel::f64> sumXX(K + 1, 0.0), sumYY(keel::as<keel::usize>(K + 1), 0.0), sumXY(keel::as<keel::usize>(K + 1), 0.0);
-    keel::Array<keel::i32> minX(K + 1, INT_MAX), minY(keel::as<keel::usize>(K + 1), INT_MAX);
-    keel::Array<keel::i32> maxX(K + 1, INT_MIN), maxY(keel::as<keel::usize>(K + 1), INT_MIN);
+    keel::Array<keel::i32> minX(K + 1, keel::Limits<keel::i32>::kMax), minY(keel::as<keel::usize>(K + 1), keel::Limits<keel::i32>::kMax);
+    keel::Array<keel::i32> maxX(K + 1, keel::Limits<keel::i32>::kMin), maxY(keel::as<keel::usize>(K + 1), keel::Limits<keel::i32>::kMin);
     // Column-major 1-based linear indices per label (for PixelIdxList /
     // PixelList). Collected in row-major visit order then sorted ascending
     // to match MATLAB's column-major ordering.

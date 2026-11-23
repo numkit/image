@@ -26,7 +26,6 @@
 #include "color/color_extras_detail.hpp"
 
 #include <keel/static_array.h>
-#include <cstddef>
 #include <utility>
 
 namespace numkit::image {

@@ -23,7 +23,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
-#include <cstddef>
 #include <utility>
 
 namespace numkit::image {

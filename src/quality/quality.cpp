@@ -16,7 +16,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <cstdint>
 
 namespace numkit::image {
 

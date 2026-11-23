@@ -21,7 +21,6 @@
 #include <numkit/value/error.hpp>
 
 #include <keel/static_array.h>
-#include <cstdint>
 
 namespace numkit::image {
 

@@ -28,8 +28,6 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <cstddef>
-#include <cstdint>
 #include <utility>
 
 namespace numkit::image {

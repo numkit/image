@@ -18,8 +18,6 @@
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
-#include <cstddef>
-#include <cstdint>
 
 namespace numkit::image {
 
