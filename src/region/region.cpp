@@ -1,6 +1,7 @@
 // toolboxes/image/src/region/region.cpp
 
 #include <keel/array.h>
+#include <keel/algo.h>
 #include <keel/core.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -14,7 +15,6 @@
 #include <numkit/value/error.hpp>
 #include <keel/tuple.h>
 
-#include <algorithm>
 #include <cstring>
 
 namespace numkit::image {
@@ -146,7 +146,7 @@ bwlabeln(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     const keel::i32 H = (keel::i32)BW.dims().dim(0);
     const keel::i32 W = (keel::i32)BW.dims().dim(1);
-    const keel::i32 D = (keel::i32)(BW.numel() / std::max<keel::usize>(1, (keel::usize)H * (keel::usize)W));
+    const keel::i32 D = (keel::i32)(BW.numel() / keel::max<keel::usize>(1, (keel::usize)H * (keel::usize)W));
     if (conn == 0) conn = (D > 1) ? 26 : 8;
     const keel::i32 maxDist = (D > 1)
         ? ((conn == 6) ? 1 : (conn == 18 ? 2 : 3))
@@ -319,7 +319,7 @@ CCInfo cc2bw_argcheck(const Value &CC, const Value &objects_to_keep, keel::Array
     const keel::usize K = info.K;
     keep.assign(K, 0);
     if (objects_to_keep.isEmpty()) {
-        std::fill(keep.begin(), keep.end(), keel::as<char>(1));
+        keel::fill(keep.begin(), keep.end(), keel::as<char>(1));
     } else {
         const keel::usize N = objects_to_keep.numel();
         if (objects_to_keep.type() == ValueType::LOGICAL) {
@@ -406,7 +406,7 @@ Value cc2bw(const Value &CC, const Value &objects_to_keep,
 
     Value BW = Value::matrix(H, W, ValueType::LOGICAL, mr);
     keel::u8 *bd = BW.logicalDataMut();
-    std::fill(bd, bd + H * W, keel::as<keel::u8>(0));
+    keel::fill(bd, bd + H * W, keel::as<keel::u8>(0));
     for (keel::usize k = 0; k < K; ++k) {
         if (!keep[k]) continue;
         const Value &cell = info.pixList->cellAt(k);
@@ -543,7 +543,7 @@ Value bwboundaries(const Value &BW, keel::i32 conn, Value *Lout, keel::i32 *Nout
     // order is its leftmost-topmost pixel. Cache that lookup.
     keel::Array<keel::i32> startRow(K + 1, -1);
     keel::Array<keel::i32> startCol(K + 1, -1);
-    for (keel::i32 r = 0; r < H && std::count(startRow.begin(),
+    for (keel::i32 r = 0; r < H && keel::count(startRow.begin(),
                                          startRow.end(), -1) > 1; ++r)
         for (keel::i32 c = 0; c < W; ++c) {
             const keel::i32 lab = L[(keel::usize)r * (keel::usize)W + (keel::usize)c];
@@ -935,7 +935,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
         // ── Per-pixel list fields ──
         if (needPixels) {
             auto &idxList = pixIdx[(keel::usize)lab];
-            std::sort(idxList.begin(), idxList.end());   // MATLAB col-major order
+            keel::sort(idxList.begin(), idxList.end());   // MATLAB col-major order
             const keel::usize P = idxList.size();
             if (wPixIdx) {
                 Value pil = Value::matrix(P, 1, ValueType::DOUBLE, mr);
@@ -1277,19 +1277,19 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep
         idx.reserve(K);
         for (keel::i32 k = 1; k <= K; ++k) idx.push_back(k);
         if (keep_largest) {
-            std::sort(idx.begin(), idx.end(), [&](keel::i32 a, keel::i32 b) {
+            keel::sort(idx.begin(), idx.end(), [&](keel::i32 a, keel::i32 b) {
                 if (area[(keel::usize)a] != area[(keel::usize)b])
                     return area[(keel::usize)a] > area[(keel::usize)b];
                 return a < b;
             });
         } else {
-            std::sort(idx.begin(), idx.end(), [&](keel::i32 a, keel::i32 b) {
+            keel::sort(idx.begin(), idx.end(), [&](keel::i32 a, keel::i32 b) {
                 if (area[(keel::usize)a] != area[(keel::usize)b])
                     return area[(keel::usize)a] < area[(keel::usize)b];
                 return a < b;
             });
         }
-        const keel::usize take = std::min(n_keep, idx.size());
+        const keel::usize take = keel::min(n_keep, idx.size());
         for (keel::usize i = 0; i < take; ++i)
             keep[keel::as<keel::usize>(idx[i])] = 1;
     } else {
@@ -1328,7 +1328,7 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn, 
     auto [L, K] = label_components(read_bw(BW), H, W, conn);
     if (K == 0) return keel::make_tuple(keel::move(out), keel::move(idx_out));
 
-    const keel::usize Nseed = std::min(cols.numel(), rows.numel());
+    const keel::usize Nseed = keel::min(cols.numel(), rows.numel());
     keel::Array<keel::u8> keep(keel::as<keel::usize>(K) + 1, 0);
     for (keel::usize s = 0; s < Nseed; ++s) {
         const keel::i32 c = keel::as<keel::i32>(cols.elemAsDouble(s)) - 1;
@@ -1348,7 +1348,7 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn, 
             if (sel) idx_v.push_back(keel::f64((keel::usize)c * (keel::usize)H + (keel::usize)r + 1));
         }
     idx_out = Value::matrix(idx_v.size(), 1, ValueType::DOUBLE, mr);
-    if (!idx_v.empty()) std::copy(idx_v.begin(), idx_v.end(),
+    if (!idx_v.empty()) keel::copy(idx_v.begin(), idx_v.end(),
                                   idx_out.doubleDataMut());
     return keel::make_tuple(keel::move(out), keel::move(idx_out));
 }

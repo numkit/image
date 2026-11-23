@@ -14,7 +14,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <keel/tuple.h>
-#include <algorithm>
 
 namespace numkit::image {
 

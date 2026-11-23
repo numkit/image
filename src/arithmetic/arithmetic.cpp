@@ -4,6 +4,7 @@
 // classes; pass-through for floating types. Output class = X's class.
 
 #include <keel/array.h>
+#include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/core.h>
 #include <keel/memory.h>
@@ -14,7 +15,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::image {
 
@@ -45,7 +45,7 @@ inline Value makeOutLike(const Value &x, keel::Allocator *mr) {
 // Dispatch a binary op on element pairs (xi, yi) producing xi.class.
 template <typename Op>
 Value binop(const Value &x, const Value &y, Op op, keel::Allocator *mr) {
-    const keel::usize n = std::max(x.numel(), y.numel());
+    const keel::usize n = keel::max(x.numel(), y.numel());
     if (n == 0) return makeOutLike(x, mr);
     Value out;
     if (x.isScalar() && !y.isScalar()) {
@@ -293,7 +293,7 @@ Value imlincomb(keel::ArrayRef<keel::f64> coefs, keel::ArrayRef<Value> images, V
     // Cast acc into output_class with saturation.
     switch (output_class) {
         case ValueType::DOUBLE:
-            std::copy(acc.begin(), acc.end(), out.doubleDataMut()); break;
+            keel::copy(acc.begin(), acc.end(), out.doubleDataMut()); break;
         case ValueType::SINGLE: {
             keel::f32 *od = out.singleDataMut();
             for (keel::usize i = 0; i < n; ++i) od[i] = satCast<keel::f32>(acc[i]);

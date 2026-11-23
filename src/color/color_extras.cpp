@@ -41,7 +41,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <keel/static_array.h>
 
 namespace numkit::image {
@@ -395,7 +394,7 @@ cmunique_core(keel::Array<keel::f64> &c, keel::usize H, keel::usize W,
     // M × 3: map[r, c] = map_in[c * M + r].
     keel::Array<keel::usize> ndx(M, mr);
     for (keel::usize k = 0; k < M; ++k) ndx[k] = k;
-    std::sort(ndx.begin(), ndx.end(),
+    keel::sort(ndx.begin(), ndx.end(),
         [&](keel::usize a, keel::usize b) {
             const keel::f64 a3 = map[2 * M + a], b3 = map[2 * M + b];
             if (a3 != b3) return a3 < b3;
@@ -1237,12 +1236,12 @@ Value imfuse(const Value &Ain, const Value &Bin,
 
     Value A, B;
     if (method == "montage") {
-        const keel::usize H = std::max(Ha, Hb);
+        const keel::usize H = keel::max(Ha, Hb);
         A = pad_zeros(Ain, H, Wa, mr);
         B = pad_zeros(Bin, H, Wb, mr);
     } else {
-        const keel::usize H = std::max(Ha, Hb);
-        const keel::usize W = std::max(Wa, Wb);
+        const keel::usize H = keel::max(Ha, Hb);
+        const keel::usize W = keel::max(Wa, Wb);
         A = pad_zeros(Ain, H, W, mr);
         B = pad_zeros(Bin, H, W, mr);
     }
@@ -1479,7 +1478,7 @@ Value tonemap(const Value &HDR,
         for (keel::usize i = 0; i < Ntot; ++i) data[i] = (data[i] - gmin) * inv;
     } else {
         // Constant log image → all zeros after mat2gray.
-        std::fill(data.begin(), data.end(), 0.0);
+        keel::fill(data.begin(), data.end(), 0.0);
     }
 
     // Wrap into a Value for downstream helpers.
@@ -1583,7 +1582,7 @@ Value jet_colormap(keel::i32 m, keel::Allocator *mr)
     Value out = Value::matrix(keel::as<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
-    std::fill(od, od + 3 * keel::as<keel::usize>(m), 0.0);
+    keel::fill(od, od + 3 * keel::as<keel::usize>(m), 0.0);
     const keel::i32 n = (m + 3) / 4;            // ceil(m/4)
     const keel::i32 ulen = n + (n - 1) + n;      // length(u)
     auto u_at = [&](keel::i32 i) -> keel::f64 {     // 1-based
@@ -1740,7 +1739,7 @@ Value hot_colormap(keel::i32 m, keel::Allocator *mr)
     Value out = Value::matrix(keel::as<keel::usize>(m), 3,
                               ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
-    std::fill(od, od + 3 * m, 0.0);
+    keel::fill(od, od + 3 * m, 0.0);
     const keel::i32 n = (3 * m) / 8;
     for (keel::i32 i = 0; i < m; ++i) {
         keel::f64 r, g, b;
@@ -1832,7 +1831,7 @@ keel::Array<keel::i32> matlab_default_randperm(keel::i32 N)
     for (keel::i32 i = 0; i < N; ++i) u[i] = rng.genRes53();
     keel::Array<keel::i32> p(N);
     for (keel::i32 i = 0; i < N; ++i) p[i] = i;          // 0-based for sort
-    std::stable_sort(p.begin(), p.end(),
+    keel::stable_sort(p.begin(), p.end(),
                      [&](keel::i32 a, keel::i32 b) { return u[a] < u[b]; });
     for (keel::i32 &x : p) x += 1;                       // → 1-based result
     return p;
@@ -1894,8 +1893,8 @@ EdgeSet build_8conn_edges(const Value &L)
                 s.edges.push_back({x, y});
             }
         }
-    std::sort(s.edges.begin(), s.edges.end());
-    auto *end_it = std::unique(s.edges.begin(), s.edges.end());
+    keel::sort(s.edges.begin(), s.edges.end());
+    auto *end_it = keel::unique(s.edges.begin(), s.edges.end());
     s.edges.resize(end_it - s.edges.begin());
     return s;
 }
@@ -2010,8 +2009,8 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     adj.resize(numNodes + 1);
     for (auto [a, b] : g.edges) { adj[a].push_back(b); adj[b].push_back(a); }
     for (keel::usize i = 0; i < adj.size(); ++i) {
-        std::sort(adj[i].begin(), adj[i].end());
-        auto *uend = std::unique(adj[i].begin(), adj[i].end());
+        keel::sort(adj[i].begin(), adj[i].end());
+        auto *uend = keel::unique(adj[i].begin(), adj[i].end());
         adj[i].resize(uend - adj[i].begin());
     }
 
@@ -2038,7 +2037,7 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
     Value out = Value::matrix(cmap_used.dims().rows(), 3,
                               ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
-    std::fill(od, od + 3 * cmap_used.dims().rows(), 0.0);
+    keel::fill(od, od + 3 * cmap_used.dims().rows(), 0.0);
 
     while (head < queue.size()) {
         keel::i32 cur = queue[head++];

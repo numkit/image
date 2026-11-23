@@ -19,7 +19,6 @@
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <cstdlib>
 
 namespace numkit::image {
@@ -123,7 +122,7 @@ void bestblk_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     if (nargout <= 1) { outs[0] = keel::move(v); return; }
     // Multi-output form: split row vector into scalars.
     const keel::usize nd = v.numel();
-    const keel::usize M = std::min<keel::usize>(nargout, nd);
+    const keel::usize M = keel::min<keel::usize>(nargout, nd);
     for (keel::usize i = 0; i < M; ++i) {
         outs[i] = Value::scalar(v.elemAsDouble(i), mr);
     }

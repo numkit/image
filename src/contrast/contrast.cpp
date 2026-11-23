@@ -5,6 +5,7 @@
 // kernels to keel::image.
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/image.h>
@@ -22,7 +23,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>
 
-#include <algorithm>
 #include <keel/tuple.h>
 
 namespace numkit::image {
@@ -391,7 +391,7 @@ Value imquantize(const Value &I, const Value &levels, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> lv(Lcount, 0.0, scratch.allocator());
     for (keel::usize i = 0; i < Lcount; ++i) lv[i] = levels.elemAsDouble(i);
-    std::sort(lv.begin(), lv.end());
+    keel::sort(lv.begin(), lv.end());
 
     const keel::usize N = I.numel();
     Value out = allocSameShape(I, ValueType::DOUBLE, mr);
@@ -599,7 +599,7 @@ Value grayslice(const Value &I, keel::ArrayRef<keel::f64> levels, keel::Allocato
     const keel::usize M = levels.size();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> thresh(levels, scratch.allocator());
-    std::sort(thresh.begin(), thresh.end());
+    keel::sort(thresh.begin(), thresh.end());
     const keel::usize N = I.numel();
     if (isFloat && N > 0) {
         keel::f64 imin =  keel::Limits<keel::f64>::infinity();

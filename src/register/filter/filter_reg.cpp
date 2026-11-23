@@ -26,7 +26,6 @@
 #include <numkit/value/error.hpp>
 #include "filter/filter_detail.hpp"
 
-#include <algorithm>
 #include <keel/static_array.h>
 
 namespace numkit::image {

@@ -20,7 +20,6 @@
 #include <numkit/value/value.hpp>
 #include "filter_detail.hpp"
 
-#include <algorithm>
 #include <keel/tuple.h>
 
 namespace numkit::image {
@@ -542,7 +541,7 @@ void imnlmfilt_argcheck(const Value &I, keel::i32 swsize, keel::i32 cwsize)
         throw Error("imnlmfilt: ComparisonWindowSize must be <= "
                     "SearchWindowSize",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:cwsTooLarge");
-    if (keel::as<keel::usize>(swsize) > std::min(H, W))
+    if (keel::as<keel::usize>(swsize) > keel::min(H, W))
         throw Error("imnlmfilt: SearchWindowSize must be <= min(H, W)",
                     0, 0, "imnlmfilt", "", "numkit:imnlmfilt:swsTooLarge");
 }
@@ -1070,12 +1069,12 @@ Value imbilatfilt(const Value &I, keel::f64 degreeOfSmoothing, keel::f64 spatial
     Value out = Value::matrix(H, W, I.type(), mr);
     if (N == 0) return out;
 
-    const keel::i32 half = std::max(1, keel::as<keel::i32>(keel::ceil(2.0 * spatialSigma)));
+    const keel::i32 half = keel::max(1, keel::as<keel::i32>(keel::ceil(2.0 * spatialSigma)));
     const keel::i32 win = 2 * half + 1;
-    if (keel::as<keel::usize>(win) >= std::min(H, W))
+    if (keel::as<keel::usize>(win) >= keel::min(H, W))
         throw Error(keel::format("imbilatfilt: NeighborhoodSize (window {}) "
                                  "must be smaller than the image (min dimension {}).",
-                                 win, std::min(H, W)),
+                                 win, keel::min(H, W)),
                     0, 0, "imbilatfilt", "",
                     "numkit:imbilatfilt:nhoodTooBig");
 
@@ -1231,7 +1230,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
     if (mode == "gaussian") {
         const keel::f64 m = (p1.numel() > 0) ? p1.toScalar() : 0.0;
         const keel::f64 v = (p2.numel() > 0) ? p2.toScalar() : 0.01;
-        const keel::f64 sigma = keel::sqrt(std::max(v, 0.0));
+        const keel::f64 sigma = keel::sqrt(keel::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + m + keel::random::normal_f64(rng, 0.0, sigma));
@@ -1247,7 +1246,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         }
     } else if (mode == "speckle") {
         const keel::f64 v = (p1.numel() > 0) ? p1.toScalar() : 0.04;
-        const keel::f64 sigma = keel::sqrt(std::max(v, 0.0));
+        const keel::f64 sigma = keel::sqrt(keel::max(v, 0.0));
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 x = toUnit(I.elemAsDouble(i));
             fromUnit(out, i, x + x * keel::random::normal_f64(rng, 0.0, sigma));
@@ -1258,7 +1257,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
         else if (T == ValueType::UINT16) scale = 65535.0;
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 x = toUnit(I.elemAsDouble(i));
-            const keel::f64 mean = std::max(x * scale, 0.0);
+            const keel::f64 mean = keel::max(x * scale, 0.0);
             const keel::u64 k = keel::random::poisson_u64(rng, mean);
             fromUnit(out, i, keel::as<keel::f64>(k) / scale);
         }
@@ -1268,7 +1267,7 @@ Value imnoise(::numkit::ops::RngContext &rng, const Value &I, keel::StringRef mo
                         0, 0, "imnoise", "", "numkit:imnoise:localvar");
         for (keel::usize i = 0; i < N; ++i) {
             const keel::f64 x = toUnit(I.elemAsDouble(i));
-            const keel::f64 v = std::max(p1.elemAsDouble(i), 0.0);
+            const keel::f64 v = keel::max(p1.elemAsDouble(i), 0.0);
             fromUnit(out, i, x + keel::random::normal_f64(rng, 0.0, keel::sqrt(v)));
         }
     } else {

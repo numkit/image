@@ -22,7 +22,6 @@
 #include <numkit/value/argcheck.hpp>
 #include "geom/geom_detail.hpp"
 
-#include <algorithm>
 #include <cstdlib>
 
 namespace numkit::image {
@@ -280,9 +279,9 @@ Value imrotate3(const Value &V, keel::f64 angle_deg,
         const keel::f64 xe = Wd*keel::abs(R.r[0]) + Hd*keel::abs(R.r[1]) + Dd*keel::abs(R.r[2]);
         const keel::f64 ye = Wd*keel::abs(R.r[3]) + Hd*keel::abs(R.r[4]) + Dd*keel::abs(R.r[5]);
         const keel::f64 ze = Wd*keel::abs(R.r[6]) + Hd*keel::abs(R.r[7]) + Dd*keel::abs(R.r[8]);
-        outW = std::max(keel::usize(1), keel::usize(keel::ceil(snap(xe))));
-        outH = std::max(keel::usize(1), keel::usize(keel::ceil(snap(ye))));
-        outD = std::max(keel::usize(1), keel::usize(keel::ceil(snap(ze))));
+        outW = keel::max(keel::usize(1), keel::usize(keel::ceil(snap(xe))));
+        outH = keel::max(keel::usize(1), keel::usize(keel::ceil(snap(ye))));
+        outD = keel::max(keel::usize(1), keel::usize(keel::ceil(snap(ze))));
     } else {
         throw Error("imrotate3: bbox must be 'loose' or 'crop'",
                     0, 0, "imrotate3", "", "numkit:imrotate3:bbox");

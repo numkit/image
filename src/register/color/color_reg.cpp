@@ -19,7 +19,6 @@
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::image {
 
@@ -49,8 +48,8 @@ void imsplit_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     // no max: name-value tail in the reference
     keel::Array<Value> planes;
     imsplit(args[0], planes, ctx.engine->allocator());
-    const keel::usize M = std::min((keel::usize)outs.size(),
-                               std::max(nargout, (keel::usize)1));
+    const keel::usize M = keel::min((keel::usize)outs.size(),
+                               keel::max(nargout, (keel::usize)1));
     for (keel::usize i = 0; i < M && i < planes.size(); ++i)
         outs[i] = keel::move(planes[i]);
 }

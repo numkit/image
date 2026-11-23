@@ -58,6 +58,7 @@
 // PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <numkit/image/region/region.hpp>
 #include <numkit/image/internal/type_gates.hpp>
@@ -70,7 +71,6 @@
 #include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <algorithm>
 
 
 namespace numkit::image {
@@ -444,7 +444,7 @@ convex_hull(keel::Array<keel::Pair<keel::f64,keel::f64>> pts)
 {
     const keel::usize N = pts.size();
     if (N < 3) return pts;
-    std::sort(pts.begin(), pts.end());
+    keel::sort(pts.begin(), pts.end());
     keel::Array<keel::Pair<keel::f64,keel::f64>> H;
     H.reserve(2 * N);
     auto cross = [](const keel::Pair<keel::f64,keel::f64> &O,
@@ -681,17 +681,17 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
         keel::Array<keel::usize> idx(K);
         for (keel::usize i = 0; i < K; ++i) idx[i] = i;
         if (keep_largest) {
-            std::stable_sort(idx.begin(), idx.end(),
+            keel::stable_sort(idx.begin(), idx.end(),
                 [&](keel::usize a, keel::usize b) {
                     return vals[a] > vals[b];
                 });
         } else {
-            std::stable_sort(idx.begin(), idx.end(),
+            keel::stable_sort(idx.begin(), idx.end(),
                 [&](keel::usize a, keel::usize b) {
                     return vals[a] < vals[b];
                 });
         }
-        const keel::usize p = std::min(keep_n, idx.size());
+        const keel::usize p = keel::min(keep_n, idx.size());
         // Tie-handling: include all values ≥ (or ≤) the N-th's value.
         const keel::f64 cutoff = vals[idx[p - 1]];
         for (keel::usize i = 0; i < K; ++i) {
@@ -735,7 +735,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
                                  keel::as<keel::usize>(info.W),
                                  ValueType::LOGICAL, mr);
     keel::u8 *od = outBW.logicalDataMut();
-    std::fill(od, od + keel::as<keel::usize>(info.H * info.W), keel::as<keel::u8>(0));
+    keel::fill(od, od + keel::as<keel::usize>(info.H * info.W), keel::as<keel::u8>(0));
     for (keel::usize k = 0; k < K; ++k) {
         if (!keep[k]) continue;
         const Comp &c = info.comps[k];

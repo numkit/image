@@ -20,7 +20,6 @@
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <cstdlib>
 
 namespace numkit::image {

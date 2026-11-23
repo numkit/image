@@ -24,7 +24,6 @@
 #include <numkit/value/error.hpp>
 #include "object/object_detail.hpp"
 
-#include <algorithm>
 
 namespace numkit::image {
 

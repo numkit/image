@@ -18,7 +18,6 @@
 #include <numkit/value/error.hpp>
 #include "texture/texture_detail.hpp"
 
-#include <algorithm>
 #include <cstdlib>
 
 namespace numkit::image {

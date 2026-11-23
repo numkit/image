@@ -5,6 +5,7 @@
 // thresholding; full Canny non-max suppression deferred.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -23,7 +24,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <keel/tuple.h>
 #include <keel/static_array.h>
 #include <keel/math.h>
@@ -480,7 +480,7 @@ Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
 
     Value out = Value::matrix(H, W, ValueType::LOGICAL, mr);
     keel::u8 *od = out.logicalDataMut();
-    std::fill(od, od + N, keel::u8{0});
+    keel::fill(od, od + N, keel::u8{0});
     if (N == 0) return out;
 
     // 1–2. Derivative-of-Gaussian gradient (MATLAB Canny approach, σ = √2):
@@ -489,7 +489,7 @@ Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
     // This avoids the extra smoothing that a Gaussian-blur-then-Sobel chain
     // would add (which weakens weak edges below threshold).
     const keel::f64 sigma = keel::sqrt(2.0);
-    const keel::i32 hw = std::max(1, keel::as<keel::i32>(keel::ceil(3.0 * sigma)));
+    const keel::i32 hw = keel::max(1, keel::as<keel::i32>(keel::ceil(3.0 * sigma)));
     const keel::i32 L = 2 * hw + 1;
     keel::Array<keel::f64> g(L), dg(keel::as<keel::usize>(L));
     keel::f64 gsum = 0.0;
@@ -542,7 +542,7 @@ Value canny_edge(const Value &Iin, keel::f64 userHigh, keel::Allocator *mr)
     // ridges than 4-way quantisation, which matters for closed-contour use
     // (imfill). Border pixels can't be interpolated → left as non-edges.
     keel::Array<keel::f64> nms(N, arena.allocator());
-    std::fill(nms.begin(), nms.end(), 0.0);
+    keel::fill(nms.begin(), nms.end(), 0.0);
     for (keel::i32 c = 1; c < W - 1; ++c)
         for (keel::i32 r = 1; r < H - 1; ++r) {
             const keel::usize i = keel::as<keel::usize>(c) * keel::as<keel::usize>(H) + keel::as<keel::usize>(r);
@@ -934,7 +934,7 @@ Value corner(const Value &I, keel::StringRef method, keel::i32 maxN,
 
     // Stable sort by quantised strength descending (ties keep column-major
     // order — MATLAB's find() order over equal-strength corners).
-    std::stable_sort(peaks.begin(), peaks.end(),
+    keel::stable_sort(peaks.begin(), peaks.end(),
                      [](const Peak &a, const Peak &b) { return a.key > b.key; });
 
     keel::usize K = peaks.size();
@@ -1319,13 +1319,13 @@ Value houghlines(const Value &BW, const Value &theta_deg,
         order.reserve(rseg.size());
         for (keel::usize i = 0; i < rseg.size(); ++i) order.push_back(i);
         if (r_range > c_range) {
-            std::sort(order.begin(), order.end(),
+            keel::sort(order.begin(), order.end(),
                       [&](keel::usize a, keel::usize b) {
                           if (rseg[a] != rseg[b]) return rseg[a] < rseg[b];
                           return cseg[a] < cseg[b];
                       });
         } else {
-            std::sort(order.begin(), order.end(),
+            keel::sort(order.begin(), order.end(),
                       [&](keel::usize a, keel::usize b) {
                           if (cseg[a] != cseg[b]) return cseg[a] < cseg[b];
                           return rseg[a] < rseg[b];
@@ -1674,7 +1674,7 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
     // 5x5 zero-padded median filter on accumAbs if min(M, N) > 5.
     Value HdVal = Value::matrix(M, N, ValueType::DOUBLE, mr);
     keel::f64 *hdPtr = HdVal.doubleDataMut();
-    if (std::min(M, N) > 5) {
+    if (keel::min(M, N) > 5) {
         keel::StaticArray<keel::f64, 25> win{};
         for (keel::usize c = 0; c < N; ++c) {
             for (keel::usize r = 0; r < M; ++r) {
@@ -1691,7 +1691,7 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
                         }
                     }
                 }
-                std::nth_element(win.begin(), win.begin() + 12, win.end());
+                keel::nth_element(win.begin(), win.begin() + 12, win.end());
                 hdPtr[c * M + r] = win[12];
             }
         }
@@ -1705,7 +1705,7 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
     const keel::f64 epsT = (accumThresh > 0.0)
         ? (keel::nextafter(accumThresh, keel::Limits<keel::f64>::infinity()) - accumThresh)
         : 0.0;
-    const keel::f64 suppThreshold = std::max(accumThresh - epsT, 0.0);
+    const keel::f64 suppThreshold = keel::max(accumThresh - epsT, 0.0);
     HdVal = imhmax(HdVal, suppThreshold, 8, mr);
     const keel::f64 *hd = HdVal.doubleData();
 
@@ -1766,8 +1766,8 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
             if (wsum > 0.0) {
                 const keel::f64 xc = xsum / wsum;
                 const keel::f64 yc = ysum / wsum;
-                const keel::i64 r_idx = std::clamp<keel::i64>(keel::round_i64(yc) - 1, 0, Ml - 1);
-                const keel::i64 c_idx = std::clamp<keel::i64>(keel::round_i64(xc) - 1, 0, Nl - 1);
+                const keel::i64 r_idx = keel::clamp<keel::i64>(keel::round_i64(yc) - 1, 0, Ml - 1);
+                const keel::i64 c_idx = keel::clamp<keel::i64>(keel::round_i64(xc) - 1, 0, Nl - 1);
                 const keel::f64 met = hd[keel::as<keel::usize>(c_idx) * M
                                     + keel::as<keel::usize>(r_idx)];
                 if (met >= accumThresh) {
@@ -1779,7 +1779,7 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
 
     if (cands.empty()) return emptyResult();
 
-    std::stable_sort(cands.begin(), cands.end(),
+    keel::stable_sort(cands.begin(), cands.end(),
                      [](const Candidate &a, const Candidate &b) {
                          return a.metric > b.metric;
                      });
@@ -1800,18 +1800,18 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
         if (rmin == rmax) {
             rp[k] = rmin;
         } else if (methodLower == "phasecode") {
-            const keel::i64 r_idx = std::clamp<keel::i64>(keel::round_i64(cands[k].yc) - 1, 0, Ml - 1);
-            const keel::i64 c_idx = std::clamp<keel::i64>(keel::round_i64(cands[k].xc) - 1, 0, Nl - 1);
+            const keel::i64 r_idx = keel::clamp<keel::i64>(keel::round_i64(cands[k].yc) - 1, 0, Ml - 1);
+            const keel::i64 c_idx = keel::clamp<keel::i64>(keel::round_i64(cands[k].xc) - 1, 0, Nl - 1);
             const keel::usize aidx = keel::as<keel::usize>(c_idx) * M
                                    + keel::as<keel::usize>(r_idx);
             const keel::f64 cenPhase = keel::atan2(accumIm[aidx], accumRe[aidx]);
             rp[k] = keel::exp(((cenPhase + keel::kPi) / (2.0 * keel::kPi) * (lnRend - lnR1)) + lnR1);
         } else {
             // Two-stage radial histogram around (xc, yc).
-            const keel::i64 left   = std::max<keel::i64>(keel::as<keel::i64>(keel::floor(cands[k].xc - rmax)), 1);
-            const keel::i64 right  = std::min<keel::i64>(keel::as<keel::i64>(keel::ceil(cands[k].xc + rmax)), Nl);
-            const keel::i64 top    = std::max<keel::i64>(keel::as<keel::i64>(keel::floor(cands[k].yc - rmax)), 1);
-            const keel::i64 bottom = std::min<keel::i64>(keel::as<keel::i64>(keel::ceil(cands[k].yc + rmax)), Ml);
+            const keel::i64 left   = keel::max<keel::i64>(keel::as<keel::i64>(keel::floor(cands[k].xc - rmax)), 1);
+            const keel::i64 right  = keel::min<keel::i64>(keel::as<keel::i64>(keel::ceil(cands[k].xc + rmax)), Nl);
+            const keel::i64 top    = keel::max<keel::i64>(keel::as<keel::i64>(keel::floor(cands[k].yc - rmax)), 1);
+            const keel::i64 bottom = keel::min<keel::i64>(keel::as<keel::i64>(keel::ceil(cands[k].yc + rmax)), Ml);
             const keel::i64 r1_int = keel::as<keel::i64>(keel::round_i64(rmin));
             const keel::i64 r2_int = keel::as<keel::i64>(keel::round_i64(rmax));
             const keel::usize nBins = keel::as<keel::usize>(r2_int - r1_int + 1);

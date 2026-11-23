@@ -5,6 +5,7 @@
 // bwlabel / regionprops infrastructure.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/array.h>
@@ -17,7 +18,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <keel/static_array.h>
 
 namespace numkit::image {
@@ -34,14 +34,14 @@ public:
     template <typename... Args>
     void emplace(Args &&...args) {
         m_data.emplace_back(keel::forward<Args>(args)...);
-        std::push_heap(m_data.begin(), m_data.end(), m_cmp);
+        keel::push_heap(m_data.begin(), m_data.end(), m_cmp);
     }
     void push(const T &v) {
         m_data.push_back(v);
-        std::push_heap(m_data.begin(), m_data.end(), m_cmp);
+        keel::push_heap(m_data.begin(), m_data.end(), m_cmp);
     }
     void pop() {
-        std::pop_heap(m_data.begin(), m_data.end(), m_cmp);
+        keel::pop_heap(m_data.begin(), m_data.end(), m_cmp);
         m_data.pop_back();
     }
 private:
@@ -390,7 +390,7 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
         if (v < minI) minI = v;
         if (v > maxI) maxI = v;
     }
-    const keel::f64 absMax = std::max(keel::abs(minI), keel::abs(maxI));
+    const keel::f64 absMax = keel::max(keel::abs(minI), keel::abs(maxI));
     const keel::f64 e = keel::nextafter(absMax,
                           keel::Limits<keel::f64>::infinity()) - absMax;
     if (maxI - e * 1000.0 <= minI) {
@@ -471,7 +471,7 @@ Value gradientweight(const Value &I, keel::f64 sigma_x, keel::f64 sigma_y,
         if (g > gmax) gmax = g;
     }
     // imlinscale to [0, 1].
-    const keel::f64 gabsMin = std::min(keel::abs(gmin), keel::abs(gmax));
+    const keel::f64 gabsMin = keel::min(keel::abs(gmin), keel::abs(gmax));
     const keel::f64 e2 = keel::nextafter(gabsMin,
                           keel::Limits<keel::f64>::infinity()) - gabsMin;
     const bool spread_ok = (gmax - gmin) > e2;
@@ -604,10 +604,10 @@ Value regionfill(const Value &I, const Value &mask,
             const keel::f64 v = Jout[i];
             switch (inT) {
                 case ValueType::SINGLE: Jc.singleDataMut()[i] = keel::as<keel::f32>(v); break;
-                case ValueType::UINT8:  Jc.uint8DataMut()[i]  = keel::as<keel::u8>(std::clamp(v, 0.0, 255.0)); break;
-                case ValueType::UINT16: Jc.uint16DataMut()[i] = keel::as<keel::u16>(std::clamp(v, 0.0, 65535.0)); break;
-                case ValueType::INT8:   Jc.int8DataMut()[i]   = keel::as<keel::i8>(std::clamp(v, -128.0, 127.0)); break;
-                case ValueType::INT16:  Jc.int16DataMut()[i]  = keel::as<keel::i16>(std::clamp(v, -32768.0, 32767.0)); break;
+                case ValueType::UINT8:  Jc.uint8DataMut()[i]  = keel::as<keel::u8>(keel::clamp(v, 0.0, 255.0)); break;
+                case ValueType::UINT16: Jc.uint16DataMut()[i] = keel::as<keel::u16>(keel::clamp(v, 0.0, 65535.0)); break;
+                case ValueType::INT8:   Jc.int8DataMut()[i]   = keel::as<keel::i8>(keel::clamp(v, -128.0, 127.0)); break;
+                case ValueType::INT16:  Jc.int16DataMut()[i]  = keel::as<keel::i16>(keel::clamp(v, -32768.0, 32767.0)); break;
                 case ValueType::INT32:  Jc.int32DataMut()[i]  = keel::as<keel::i32>(v); break;
                 default: Jc.doubleDataMut()[i] = v; break;
             }
@@ -800,8 +800,8 @@ Value poly2mask(const Value &X, const Value &Y,
             for (keel::usize i = 0; i + 1 < nv; ++i) {
                 const keel::f64 y1 = vy[i], y2 = vy[i + 1];
                 if (y1 == y2) continue;             // horizontal, skip
-                const keel::f64 ylo = std::min(y1, y2);
-                const keel::f64 yhi = std::max(y1, y2);
+                const keel::f64 ylo = keel::min(y1, y2);
+                const keel::f64 yhi = keel::max(y1, y2);
                 if (cy <= ylo || cy > yhi) continue;
                 const keel::f64 x1 = vx[i], x2 = vx[i + 1];
                 const keel::f64 xi = x1 + (cy - y1) * (x2 - x1) / (y2 - y1);
@@ -1299,8 +1299,8 @@ keel::Array<keel::i32> rdpRun(const Value &P, keel::i32 n, keel::f64 tol)
     // scaling = norm(max(P) - min(P)) over each column (bbox diagonal).
     T minx = xs[0], maxx = xs[0], miny = ys[0], maxy = ys[0];
     for (keel::i32 i = 1; i < n; ++i) {
-        minx = std::min(minx, xs[keel::usize(i)]); maxx = std::max(maxx, xs[keel::usize(i)]);
-        miny = std::min(miny, ys[keel::usize(i)]); maxy = std::max(maxy, ys[keel::usize(i)]);
+        minx = keel::min(minx, xs[keel::usize(i)]); maxx = keel::max(maxx, xs[keel::usize(i)]);
+        miny = keel::min(miny, ys[keel::usize(i)]); maxy = keel::max(maxy, ys[keel::usize(i)]);
     }
     const T sdx = maxx - minx, sdy = maxy - miny;
     const T scaling = keel::sqrt(sdx * sdx + sdy * sdy);

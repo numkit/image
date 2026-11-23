@@ -18,7 +18,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <keel/static_array.h>
 
 
@@ -131,7 +130,7 @@ Value finalize_class(const Value &res01, ValueType cls, keel::Allocator *mr) {
     const keel::f64 *rd = res01.doubleData();
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 v = rd[i];
-        const keel::f64 c = std::clamp(v, 0.0, 1.0);
+        const keel::f64 c = keel::clamp(v, 0.0, 1.0);
         switch (cls) {
             case ValueType::SINGLE: out.singleDataMut()[i] = keel::as<keel::f32>(v); break;
             case ValueType::UINT8:  out.uint8DataMut()[i]  = keel::as<keel::u8>(keel::round_i64(c * 255.0)); break;
@@ -889,7 +888,7 @@ Value colorangle(const Value &rgb1, const Value &rgb2, keel::Allocator *mr)
     if (Na != Nb && Na != 1 && Nb != 1)
         throw Error("colorangle: RGB1 and RGB2 must broadcast (N or 1)",
                     0, 0, "colorangle", "", "numkit:colorangle:size");
-    const keel::usize N = std::max(Na, Nb);
+    const keel::usize N = keel::max(Na, Nb);
 
     Value out = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     if (N == 0) return out;
@@ -1138,7 +1137,7 @@ Value pink_cmap(keel::i32 n, keel::Allocator *mr)
         g[i] = (2.0 / 3.0) * i * inv + 1.0 / 3.0;
 
     // B channel: linear up to 2*IDX-1, then linspace to 1.
-    const keel::i32 upto = std::min(2 * IDX, n);
+    const keel::i32 upto = keel::min(2 * IDX, n);
     for (keel::i32 i = 0; i < upto; ++i)
         b[i] = (2.0 / 3.0) * i * inv;
     {
@@ -1432,7 +1431,7 @@ Value contrast(const Value &x, keel::i32 m, keel::Allocator *mr)
     }
     for (keel::i32 k = 0; k <= m; ++k)
         sorted.push_back(keel::as<keel::f64>(k));
-    std::sort(sorted.begin(), sorted.end());
+    keel::sort(sorted.begin(), sorted.end());
 
     // f = 1-based positions where sorted[i+1] != sorted[i].
     keel::Array<keel::f64> f;

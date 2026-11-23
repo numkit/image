@@ -19,7 +19,6 @@
 #include <numkit/value/value.hpp>
 #include "geom_detail.hpp"
 
-#include <algorithm>
 
 namespace numkit::image {
 
@@ -195,10 +194,10 @@ Value imcrop(const Value &A, keel::f64 xmin, keel::f64 ymin, keel::f64 width, ke
 {
     const Shape s = shapeOf(A);
     const ValueType t = A.type();
-    keel::i32 x0 = std::max(keel::as<keel::i32>(keel::round(xmin)) - 1, 0);
-    keel::i32 y0 = std::max(keel::as<keel::i32>(keel::round(ymin)) - 1, 0);
-    keel::i32 w  = std::max(keel::as<keel::i32>(keel::round(width))  + 1, 1);
-    keel::i32 h  = std::max(keel::as<keel::i32>(keel::round(height)) + 1, 1);
+    keel::i32 x0 = keel::max(keel::as<keel::i32>(keel::round(xmin)) - 1, 0);
+    keel::i32 y0 = keel::max(keel::as<keel::i32>(keel::round(ymin)) - 1, 0);
+    keel::i32 w  = keel::max(keel::as<keel::i32>(keel::round(width))  + 1, 1);
+    keel::i32 h  = keel::max(keel::as<keel::i32>(keel::round(height)) + 1, 1);
     if (x0 + w > keel::as<keel::i32>(s.W)) w = keel::as<keel::i32>(s.W) - x0;
     if (y0 + h > keel::as<keel::i32>(s.H)) h = keel::as<keel::i32>(s.H) - y0;
     if (w <= 0 || h <= 0)

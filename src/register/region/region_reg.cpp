@@ -21,7 +21,6 @@
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <cstdlib>
 
 namespace numkit::image {
@@ -53,19 +52,19 @@ Value bwdistChamfer(const Value &BW, keel::f64 dOrth, keel::f64 dDiag,
     for (keel::usize r = 0; r < H; ++r)              // forward raster scan
         for (keel::usize c = 0; c < W; ++c) {
             keel::f64 v = at(r, c);
-            if (r > 0)                            v = std::min(v, at(r - 1, c) + dOrth);
-            if (c > 0)                            v = std::min(v, at(r, c - 1) + dOrth);
-            if (allowDiag && r > 0 && c > 0)      v = std::min(v, at(r - 1, c - 1) + dDiag);
-            if (allowDiag && r > 0 && c + 1 < W)  v = std::min(v, at(r - 1, c + 1) + dDiag);
+            if (r > 0)                            v = keel::min(v, at(r - 1, c) + dOrth);
+            if (c > 0)                            v = keel::min(v, at(r, c - 1) + dOrth);
+            if (allowDiag && r > 0 && c > 0)      v = keel::min(v, at(r - 1, c - 1) + dDiag);
+            if (allowDiag && r > 0 && c + 1 < W)  v = keel::min(v, at(r - 1, c + 1) + dDiag);
             at(r, c) = v;
         }
     for (keel::usize r = H; r-- > 0; )                // backward raster scan
         for (keel::usize c = W; c-- > 0; ) {
             keel::f64 v = at(r, c);
-            if (r + 1 < H)                            v = std::min(v, at(r + 1, c) + dOrth);
-            if (c + 1 < W)                            v = std::min(v, at(r, c + 1) + dOrth);
-            if (allowDiag && r + 1 < H && c + 1 < W)  v = std::min(v, at(r + 1, c + 1) + dDiag);
-            if (allowDiag && r + 1 < H && c > 0)      v = std::min(v, at(r + 1, c - 1) + dDiag);
+            if (r + 1 < H)                            v = keel::min(v, at(r + 1, c) + dOrth);
+            if (c + 1 < W)                            v = keel::min(v, at(r, c + 1) + dOrth);
+            if (allowDiag && r + 1 < H && c + 1 < W)  v = keel::min(v, at(r + 1, c + 1) + dDiag);
+            if (allowDiag && r + 1 < H && c > 0)      v = keel::min(v, at(r + 1, c - 1) + dDiag);
             at(r, c) = v;
         }
 
@@ -242,8 +241,8 @@ static Value bwdist_idx(const Value &BW, keel::i32 metric, keel::Allocator *mr)
                 keel::f64 dd;
                 switch (metric) {
                     case 1:  dd = dr + dc; break;
-                    case 2:  dd = std::max(dr, dc); break;
-                    case 3:  dd = std::max(dr, dc) + q * std::min(dr, dc); break;
+                    case 2:  dd = keel::max(dr, dc); break;
+                    case 3:  dd = keel::max(dr, dc) + q * keel::min(dr, dc); break;
                     default: dd = dr * dr + dc * dc; break;   // euclidean (sq)
                 }
                 if (dd < best - 1e-12) { best = dd; bi = p.lin; }
