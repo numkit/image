@@ -20,8 +20,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <tuple>
-#include <utility>
 
 namespace numkit::image {
 

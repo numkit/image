@@ -11,7 +11,7 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::image {
 
@@ -277,7 +277,7 @@ Value otf2psf(const Value &OTF, keel::ArrayRef<keel::usize> outsize = {},
 /// @param n           Output size (`n × n`).
 /// @param mr          Memory resource (nullptr → process default).
 /// @return            `(P, E)` — image and ellipse matrix actually used.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 phantom(const Value &model_or_E, keel::usize n,
         keel::Allocator *mr = nullptr);
 

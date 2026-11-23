@@ -11,7 +11,7 @@
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::image {
 
@@ -39,7 +39,7 @@ namespace numkit::image {
 /// @return        `(Gx, Gy)`.
 ///
 /// @see imgradient, edge
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 imgradientxy(const Value &I, keel::StringRef method,
              keel::Allocator *mr = nullptr);
 
@@ -52,7 +52,7 @@ imgradientxy(const Value &I, keel::StringRef method,
 ///   angle increase counter-clockwise in screen coordinates).
 ///
 /// @see imgradientxy, edge
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 imgradient(const Value &I, keel::StringRef method,
            keel::Allocator *mr = nullptr);
 
@@ -74,7 +74,7 @@ imgradient(const Value &I, keel::StringRef method,
 ///                `"intermediate"`.
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Tuple `(Gx, Gy, Gz)` (same shape as `V`).
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 imgradientxyz(const Value &V, keel::StringRef method,
               keel::Allocator *mr = nullptr);
 
@@ -91,10 +91,10 @@ imgradientxyz(const Value &V, keel::StringRef method,
 /// caller already has the directional gradients).
 ///
 /// @see imgradientxyz
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 imgradient3(const Value &V, keel::StringRef method,
             keel::Allocator *mr = nullptr);
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
                        keel::Allocator *mr = nullptr);
 

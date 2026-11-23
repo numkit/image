@@ -18,7 +18,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::image {
 

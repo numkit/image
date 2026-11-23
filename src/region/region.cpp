@@ -12,7 +12,7 @@
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <tuple>
+#include <keel/tuple.h>
 
 #include <algorithm>
 #include <cstring>
@@ -23,7 +23,7 @@ namespace {
 
 // Two-pass union-find labelling. Returns labels image (row-major) and
 // the maximum label value (= number of components).
-std::pair<keel::Array<keel::i32>, keel::i32>
+keel::Pair<keel::Array<keel::i32>, keel::i32>
 label_components(keel::ArrayRef<keel::u8> fg, keel::i32 H, keel::i32 W, keel::i32 conn)
 {
     keel::Array<keel::i32> L((keel::usize)H * (keel::usize)W, 0);
@@ -125,7 +125,7 @@ void bwboundaries_argcheck(const Value &BW) {
 
 } // anonymous
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 bwlabel(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     if (conn != 4) conn = 8;
@@ -138,10 +138,10 @@ bwlabel(const Value &BW, keel::i32 conn, keel::Allocator *mr)
         for (keel::i32 r = 0; r < H; ++r)
             od[(keel::usize)c * (keel::usize)H + (keel::usize)r]
                 = keel::f64(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
-    return std::make_tuple(std::move(out), Value::scalar(keel::f64(K), mr));
+    return keel::make_tuple(keel::move(out), Value::scalar(keel::f64(K), mr));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 bwlabeln(const Value &BW, keel::i32 conn, keel::Allocator *mr)
 {
     const keel::i32 H = (keel::i32)BW.dims().dim(0);
@@ -209,7 +209,7 @@ bwlabeln(const Value &BW, keel::i32 conn, keel::Allocator *mr)
         if (L[i] == 0) continue;
         od[i] = keel::f64(remap[(keel::usize)find(L[i])]);
     }
-    return std::make_tuple(std::move(out), Value::scalar(keel::f64(K), mr));
+    return keel::make_tuple(keel::move(out), Value::scalar(keel::f64(K), mr));
 }
 
 Value bwconncomp(const Value &BW, keel::i32 conn, keel::Allocator *mr)
@@ -234,7 +234,7 @@ Value bwconncomp(const Value &BW, keel::i32 conn, keel::Allocator *mr)
     Value sz = Value::matrix(1, 2, ValueType::DOUBLE, mr);
     sz.doubleDataMut()[0] = keel::f64(H);
     sz.doubleDataMut()[1] = keel::f64(W);
-    el.put(keel::String::from("ImageSize"), std::move(sz));
+    el.put(keel::String::from("ImageSize"), keel::move(sz));
 
     el.put(keel::String::from("NumObjects"), Value::scalar(keel::f64(K), mr));
 
@@ -253,10 +253,10 @@ Value bwconncomp(const Value &BW, keel::i32 conn, keel::Allocator *mr)
             Value col = Value::matrix(v.size(), 1, ValueType::DOUBLE, mr);
             keel::f64 *cd = col.doubleDataMut();
             for (keel::usize i = 0; i < v.size(); ++i) cd[i] = keel::f64(v[i]);
-            pixList.cellAt(k) = std::move(col);
+            pixList.cellAt(k) = keel::move(col);
         }
     }
-    el.put(keel::String::from("PixelIdxList"), std::move(pixList));
+    el.put(keel::String::from("PixelIdxList"), keel::move(pixList));
 
     return cc;
 }
@@ -519,7 +519,7 @@ Value bwboundaries(const Value &BW, keel::i32 conn, Value *Lout, keel::i32 *Nout
             for (keel::i32 c = 0; c < W; ++c)
                 ld[(keel::usize)c * (keel::usize)H + (keel::usize)r] =
                     keel::as<keel::f64>(L[(keel::usize)r * (keel::usize)W + (keel::usize)c]);
-        *Lout = std::move(lab);
+        *Lout = keel::move(lab);
     }
 
     Value cellCol = Value::cell(keel::as<keel::usize>(K), 1, mr);
@@ -750,7 +750,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
             }
     } else {
         auto [labels, kk] = label_components(read_bw(BW_or_L), H, W, 8);
-        L = std::move(labels);
+        L = keel::move(labels);
         K = kk;
     }
 
@@ -942,7 +942,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                 keel::f64 *pd = pil.doubleDataMut();
                 for (keel::usize i = 0; i < P; ++i)
                     pd[i] = keel::as<keel::f64>(idxList[i]);
-                el.put(keel::String::from("PixelIdxList"), std::move(pil));
+                el.put(keel::String::from("PixelIdxList"), keel::move(pil));
             }
             if (wPixList) {
                 // [x y] = [col row], 1-based, derived from the sorted index.
@@ -955,7 +955,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                     pl[i]     = keel::as<keel::f64>(col0 + 1);   // x = col
                     pl[P + i] = keel::as<keel::f64>(row0 + 1);   // y = row
                 }
-                el.put(keel::String::from("PixelList"), std::move(plv));
+                el.put(keel::String::from("PixelList"), keel::move(plv));
             }
             // ── Intensity measurements (grayscale image supplied) ──
             if (needIntensity) {
@@ -989,9 +989,9 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
                     Value wc = Value::matrix(1, 2, ValueType::DOUBLE, mr);
                     wc.doubleDataMut()[0] = (sumI != 0.0) ? sumIx / sumI : 0.0;
                     wc.doubleDataMut()[1] = (sumI != 0.0) ? sumIy / sumI : 0.0;
-                    el.put(keel::String::from("WeightedCentroid"), std::move(wc));
+                    el.put(keel::String::from("WeightedCentroid"), keel::move(wc));
                 }
-                if (wPixVal) el.put(keel::String::from("PixelValues"), std::move(pvv));
+                if (wPixVal) el.put(keel::String::from("PixelValues"), keel::move(pvv));
             }
         }
     }
@@ -1311,7 +1311,7 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi, keel::usize n_keep
     return out;
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn, keel::Allocator *mr)
 {
     if (conn != 4) conn = 8;
@@ -1323,10 +1323,10 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn, 
                               ValueType::LOGICAL, mr);
     Value idx_out = Value::matrix(0, 1, ValueType::DOUBLE, mr);
     if (H == 0 || W == 0)
-        return std::make_tuple(std::move(out), std::move(idx_out));
+        return keel::make_tuple(keel::move(out), keel::move(idx_out));
 
     auto [L, K] = label_components(read_bw(BW), H, W, conn);
-    if (K == 0) return std::make_tuple(std::move(out), std::move(idx_out));
+    if (K == 0) return keel::make_tuple(keel::move(out), keel::move(idx_out));
 
     const keel::usize Nseed = std::min(cols.numel(), rows.numel());
     keel::Array<keel::u8> keep(keel::as<keel::usize>(K) + 1, 0);
@@ -1350,7 +1350,7 @@ bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn, 
     idx_out = Value::matrix(idx_v.size(), 1, ValueType::DOUBLE, mr);
     if (!idx_v.empty()) std::copy(idx_v.begin(), idx_v.end(),
                                   idx_out.doubleDataMut());
-    return std::make_tuple(std::move(out), std::move(idx_out));
+    return keel::make_tuple(keel::move(out), keel::move(idx_out));
 }
 
 Value bweuler(const Value &BW, keel::i32 conn, keel::Allocator *mr)

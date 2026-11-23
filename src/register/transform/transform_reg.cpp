@@ -21,8 +21,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <tuple>
-#include <utility>
 
 namespace numkit::image {
 
@@ -87,8 +85,8 @@ void phantom_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         if (!args[1].isEmpty()) n = argcheck::arrayDim(args[1], "phantom");
     }
     auto [head, E] = phantom(model_or_E, n, mr);
-    outs[0] = std::move(head);
-    if (nargout > 1) outs[1] = std::move(E);
+    outs[0] = keel::move(head);
+    if (nargout > 1) outs[1] = keel::move(E);
 }
 
 void normxcorr2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -122,7 +120,7 @@ void bestblk_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     const keel::f64 k = (args.size() >= 2 && !args[1].isEmpty())
                        ? args[1].toScalar() : 100.0;
     Value v = bestblk(args[0], k, mr);
-    if (nargout <= 1) { outs[0] = std::move(v); return; }
+    if (nargout <= 1) { outs[0] = keel::move(v); return; }
     // Multi-output form: split row vector into scalars.
     const keel::usize nd = v.numel();
     const keel::usize M = std::min<keel::usize>(nargout, nd);
@@ -185,7 +183,7 @@ void deconvreg_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     if (args.size() >= 5 && !args[4].isEmpty())
         regop = args[4];
     auto r = deconvreg(args[0], args[1], np, lo, hi, regop, mr);
-    outs[0] = std::move(r.J);
+    outs[0] = keel::move(r.J);
     if (nargout > 1) outs[1] = Value::scalar(r.lagra, mr);
 }
 

@@ -11,7 +11,6 @@
 #include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <utility>
 
 namespace numkit::image {
 
@@ -155,13 +154,13 @@ Value rgb2lightness(const Value &RGB, keel::Allocator *mr = nullptr);
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Pair `(Y, newmap)` with the smallest equivalent
 ///             colormap.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 cmunique_xm(const Value &X, const Value &MAP,
             keel::Allocator *mr = nullptr);
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 cmunique_rgb(const Value &RGB,
              keel::Allocator *mr = nullptr);
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 cmunique_i(const Value &I,
            keel::Allocator *mr = nullptr);
 
@@ -177,7 +176,7 @@ cmunique_i(const Value &I,
 /// @param cmap  `K × 3` colormap.
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `(ind, cmap)` pair.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 rgb2ind_inmap(const Value &RGB, const Value &cmap, keel::Allocator *mr = nullptr);
 
 /// @brief CIE XYZ → CIE L\*a\*b\* (D50 ICC reference white).

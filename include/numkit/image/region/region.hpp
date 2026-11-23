@@ -12,7 +12,7 @@
 #include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::image {
 
@@ -31,11 +31,11 @@ namespace numkit::image {
 /// @return      `(L, num)`; bind via `auto [L, num] = bwlabel(BW, 8);`.
 ///
 /// @see bwconncomp, bwareaopen, bwselect
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 bwlabel(const Value &BW, keel::i32 conn,
         keel::Allocator *mr = nullptr);
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 bwlabeln(const Value &BW, keel::i32 conn = 0,
          keel::Allocator *mr = nullptr);
 
@@ -333,7 +333,7 @@ Value bwareafilt(const Value &BW, keel::f64 lo, keel::f64 hi,
 /// @param mr    Memory resource (nullptr → process default).
 /// @return      `(BW2, idx)` — selected mask + column of surviving
 ///              1-based linear pixel indices.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 bwselect(const Value &BW, const Value &cols, const Value &rows, keel::i32 conn,
          keel::Allocator *mr = nullptr);
 

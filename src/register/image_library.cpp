@@ -308,7 +308,7 @@ namespace numkit {
 void ImageLibrary::install(PluginContext &engine)
 {
     auto reg = [&](const char *sub, const char *name, ExternalFunc fn) {
-        engine.registerFunction(keel::format("image.{}", sub), name, std::move(fn));
+        engine.registerFunction(keel::format("image.{}", sub), name, keel::move(fn));
         // compat.* registration removed — bare-name resolver replaces it
     };
 

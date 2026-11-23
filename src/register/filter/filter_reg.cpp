@@ -28,7 +28,6 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <utility>
 
 namespace numkit::image {
 
@@ -75,7 +74,7 @@ Value nlfilter(const Value &A,
     auto callFun = [&](const Value &arg) -> Value {
         keel::StaticArray<Value, 1> o;
         fun(keel::ArrayRef<Value>(&arg, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
-        return std::move(o[0]);
+        return keel::move(o[0]);
     };
 
     // Padding: 'indexed' uses 1.0 for single/double, else 0.
@@ -210,7 +209,7 @@ Value colfilt(const Value &A,
     auto callFun = [&](const Value &arg) -> Value {
         keel::StaticArray<Value, 1> o;
         fun(keel::ArrayRef<Value>(&arg, 1), keel::MutArrayRef<Value>(o.data(), 1), mr);
-        return std::move(o[0]);
+        return keel::move(o[0]);
     };
 
     if (block_type.empty())
@@ -411,7 +410,7 @@ void padarray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (a.isChar() || a.isString()) {
             keel::String s = a.toString();
             if (s == "pre" || s == "post" || s == "both") {
-                direction = std::move(s);
+                direction = keel::move(s);
             } else {
                 bool dummy;
                 mode = parse_pad_mode(a, pad_value, dummy);
@@ -743,9 +742,9 @@ void freqz2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         N = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[2], 3, "n", "freqz2"), 3, "n", "freqz2"));
     auto [H, f1, f2] = freqz2(args[0], M, N, ctx.engine->allocator());
-    outs[0] = std::move(H);
-    if (nargout > 1) outs[1] = std::move(f1);
-    if (nargout > 2) outs[2] = std::move(f2);
+    outs[0] = keel::move(H);
+    if (nargout > 1) outs[1] = keel::move(f1);
+    if (nargout > 2) outs[2] = keel::move(f2);
 }
 
 void medfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -1010,8 +1009,8 @@ void wiener2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         noise = args[2].toScalar();
     auto [denoised, n] =
         wiener2(args[0], nh, nw, noise, ctx.engine->allocator());
-    outs[0] = std::move(denoised);
-    if (nargout > 1) outs[1] = std::move(n);
+    outs[0] = keel::move(denoised);
+    if (nargout > 1) outs[1] = keel::move(n);
 }
 
 } // namespace detail
@@ -1075,7 +1074,7 @@ void nlfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                           keel::Allocator * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(fn, a, o.size());
         for (keel::usize i = 0; i < o.size() && i < r.size(); ++i)
-            o[i] = std::move(r[i]);
+            o[i] = keel::move(r[i]);
     };
     outs[0] = nlfilter(args[0], m, n, cb, indexed, mr);
 }
@@ -1134,7 +1133,7 @@ void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                           keel::Allocator * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(fn, a, o.size());
         for (keel::usize i = 0; i < o.size() && i < r.size(); ++i)
-            o[i] = std::move(r[i]);
+            o[i] = keel::move(r[i]);
     };
     outs[0] = colfilt(args[0], m, n, kind, cb, indexed, mr);
 }
@@ -1179,7 +1178,7 @@ void imnlmfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     Value J;
     keel::f64 est;
     imnlmfilt(args[0], dos, swsize, cwsize, J, est, mr);
-    outs[0] = std::move(J);
+    outs[0] = keel::move(J);
     if (nargout >= 2) outs[1] = Value::scalar(est, mr);
 }
 
@@ -1216,8 +1215,8 @@ void imgaborfilt_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     }
     Value mag, phase;
     imgaborfilt(A, wavelength, orientation, sfb, aspect, mag, phase, mr);
-    outs[0] = std::move(mag);
-    if (nargout >= 2) outs[1] = std::move(phase);
+    outs[0] = keel::move(mag);
+    if (nargout >= 2) outs[1] = keel::move(phase);
 }
 
 void imdiffusefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,

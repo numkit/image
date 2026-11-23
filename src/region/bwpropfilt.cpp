@@ -426,7 +426,7 @@ keel::f64 attr_filled_area(const Comp &c)
 // the 4 corners of every foreground pixel (i.e. each pixel
 // contributes 4 corners offset by ±0.5). The polygon area via
 // shoelace gives the exact convex area in pixels.
-keel::f64 polygon_area(keel::ArrayRef<std::pair<keel::f64,keel::f64>> pts)
+keel::f64 polygon_area(keel::ArrayRef<keel::Pair<keel::f64,keel::f64>> pts)
 {
     const keel::usize N = pts.size();
     if (N < 3) return 0.0;
@@ -439,17 +439,17 @@ keel::f64 polygon_area(keel::ArrayRef<std::pair<keel::f64,keel::f64>> pts)
     return 0.5 * keel::abs(s);
 }
 
-keel::Array<std::pair<keel::f64,keel::f64>>
-convex_hull(keel::Array<std::pair<keel::f64,keel::f64>> pts)
+keel::Array<keel::Pair<keel::f64,keel::f64>>
+convex_hull(keel::Array<keel::Pair<keel::f64,keel::f64>> pts)
 {
     const keel::usize N = pts.size();
     if (N < 3) return pts;
     std::sort(pts.begin(), pts.end());
-    keel::Array<std::pair<keel::f64,keel::f64>> H;
+    keel::Array<keel::Pair<keel::f64,keel::f64>> H;
     H.reserve(2 * N);
-    auto cross = [](const std::pair<keel::f64,keel::f64> &O,
-                    const std::pair<keel::f64,keel::f64> &A,
-                    const std::pair<keel::f64,keel::f64> &B) -> keel::f64 {
+    auto cross = [](const keel::Pair<keel::f64,keel::f64> &O,
+                    const keel::Pair<keel::f64,keel::f64> &A,
+                    const keel::Pair<keel::f64,keel::f64> &B) -> keel::f64 {
         return (A.first - O.first) * (B.second - O.second)
              - (A.second - O.second) * (B.first - O.first);
     };
@@ -478,7 +478,7 @@ keel::f64 attr_convex_area(const Comp &c)
     // Build pixel-corner point list. Each pixel (r, c) contributes
     // 4 corners at (c±0.5, r±0.5). For convex-hull purposes we just
     // dump all 4N points and rely on the hull to keep extremes.
-    keel::Array<std::pair<keel::f64,keel::f64>> pts;
+    keel::Array<keel::Pair<keel::f64,keel::f64>> pts;
     pts.reserve(4 * N);
     for (keel::usize i = 0; i < N; ++i) {
         const keel::f64 r = c.rs[i];
@@ -488,7 +488,7 @@ keel::f64 attr_convex_area(const Comp &c)
         pts.emplace_back(cc_ - 0.5, r + 0.5);
         pts.emplace_back(cc_ + 0.5, r + 0.5);
     }
-    auto H = convex_hull(std::move(pts));
+    auto H = convex_hull(keel::move(pts));
     return polygon_area(H);
 }
 
@@ -727,7 +727,7 @@ Value bwpropfilt(const Value &BW, const Value &CC, const Value &marker,
         keel::usize w = 0;
         for (keel::usize k = 0; k < K; ++k)
             if (keep[k]) cell.cellAt(w++) = orig.cellAt(k);
-        el.put(keel::String::from("PixelIdxList"), std::move(cell));
+        el.put(keel::String::from("PixelIdxList"), keel::move(cell));
         return out;
     }
     // BW input → return logical mask.

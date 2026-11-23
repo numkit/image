@@ -14,7 +14,7 @@
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit {
 
@@ -714,7 +714,7 @@ Value ordfilt2(const Value &A, keel::i32 nth, const Value &domain, const Value &
 /// @param N   Number of frequency samples along cols.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Tuple `(H, f1, f2)`.
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 freqz2(const Value &h, keel::usize M, keel::usize N,
        keel::Allocator *mr = nullptr);
 
@@ -733,7 +733,7 @@ freqz2(const Value &h, keel::usize M, keel::usize N,
 /// @param noise  Noise power estimate (NaN → measure from `I`).
 /// @param mr     Memory resource (nullptr → process default).
 /// @return       Tuple `(denoised, noise)`.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 wiener2(const Value &I, keel::usize nh, keel::usize nw, keel::f64 noise,
         keel::Allocator *mr = nullptr);
 

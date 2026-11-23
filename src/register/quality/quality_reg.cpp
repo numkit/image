@@ -22,8 +22,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <tuple>
-#include <utility>
 
 namespace numkit::image {
 
@@ -124,8 +122,8 @@ void multissim3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     if (nargout >= 2 && outs.size() >= 2) {
         Value cell = Value::cell(1, qmaps.size(), mr);
         for (keel::usize k = 0; k < qmaps.size(); ++k)
-            cell.cellAt(k) = std::move(qmaps[k]);
-        outs[1] = std::move(cell);
+            cell.cellAt(k) = keel::move(qmaps[k]);
+        outs[1] = keel::move(cell);
     }
 }
 
@@ -180,8 +178,8 @@ void multissim_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         // Return cell array of per-scale maps.
         Value cell = Value::cell(1, qmaps.size(), mr);
         for (keel::usize k = 0; k < qmaps.size(); ++k)
-            cell.cellAt(k) = std::move(qmaps[k]);
-        outs[1] = std::move(cell);
+            cell.cellAt(k) = keel::move(qmaps[k]);
+        outs[1] = keel::move(cell);
     }
 }
 

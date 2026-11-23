@@ -24,7 +24,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::image {
 
@@ -303,7 +302,7 @@ void makelut_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                               keel::Allocator * /*mr*/) {
         auto r = ctx.engine->callFunctionHandleMulti(handle, a, o.size());
         for (keel::usize i = 0; i < o.size() && i < r.size(); ++i)
-            o[i] = std::move(r[i]);
+            o[i] = keel::move(r[i]);
     };
     outs[0] = makelut(cb, n, ctx.engine->allocator());
 }

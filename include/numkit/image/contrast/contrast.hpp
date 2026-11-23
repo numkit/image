@@ -11,7 +11,7 @@
 #include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::image {
 
@@ -28,7 +28,7 @@ namespace numkit::image {
 /// @param n   Bin count.
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `(counts, centers)`.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 imhist(const Value &I, keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Stretch limits from saturation tolerances
@@ -180,7 +180,7 @@ Value adapthisteq(const Value &                I,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Tuple `(level, em)`.
 /// @see otsuthresh, multithresh, imbinarize
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 graythresh(const Value &I, keel::Allocator *mr = nullptr);
 
 /// @brief Otsu's threshold from a precomputed histogram
@@ -190,7 +190,7 @@ graythresh(const Value &I, keel::Allocator *mr = nullptr);
 /// @param mr      Memory resource (nullptr → process default).
 /// @return        Tuple `(level, em)` both in [0, 1].
 /// @see graythresh
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 otsuthresh(const Value &counts,
            keel::Allocator *mr = nullptr);
 
@@ -203,7 +203,7 @@ otsuthresh(const Value &counts,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Tuple `(thresh, em)`.
 /// @see graythresh
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 multithresh(const Value &I, keel::i32 N,
             keel::Allocator *mr = nullptr);
 

@@ -7,7 +7,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::image {
@@ -139,7 +139,7 @@ Value getrangefromclass(const Value &I, keel::Allocator *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `(ind, map)` pair.
 /// @see ind2gray, ind2rgb
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Indexed → grayscale (`I = ind2gray(idx, map)`).

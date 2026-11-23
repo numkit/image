@@ -15,7 +15,6 @@
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
-#include <utility>
 
 namespace numkit::image::internal {
 // Value-preserving class output for the morphology wrappers: multiply
@@ -495,7 +494,7 @@ Value strel(keel::StringRef shape, keel::ArrayRef<keel::f64> params, const Value
 
     auto se = Value::structArray(1, 1, mr);
     auto &el = se.structArrayElem(0);
-    el.put(keel::String::from("Neighborhood"), std::move(nhood));
+    el.put(keel::String::from("Neighborhood"), keel::move(nhood));
     el.put(keel::String::from("Dimensionality"), Value::scalar(2.0, mr));
     return se;
 }

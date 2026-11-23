@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <utility>
 
 namespace numkit::image {
 
@@ -34,7 +33,7 @@ public:
     const T &top() const noexcept { return m_data.front(); }
     template <typename... Args>
     void emplace(Args &&...args) {
-        m_data.emplace_back(std::forward<Args>(args)...);
+        m_data.emplace_back(keel::forward<Args>(args)...);
         std::push_heap(m_data.begin(), m_data.end(), m_cmp);
     }
     void push(const T &v) {
@@ -178,7 +177,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
                                 ValueType::DOUBLE, mr);
         wptr[keel::as<keel::usize>(k)] = (counts[keel::as<keel::usize>(k)] > 0)
                                        ? v.doubleDataMut() : nullptr;
-        bufs.push_back(std::move(v));
+        bufs.push_back(keel::move(v));
     }
     // Second pass: fill.
     for (keel::usize i = 0; i < N; ++i) {
@@ -192,7 +191,7 @@ Value label2idx(const Value &L, keel::Allocator *mr)
     }
     for (keel::i64 k = 1; k <= maxLab; ++k)
         cell.cellAt(keel::as<keel::usize>(k - 1)) =
-            std::move(bufs[keel::as<keel::usize>(k - 1)]);
+            keel::move(bufs[keel::as<keel::usize>(k - 1)]);
     return cell;
 }
 
@@ -235,7 +234,7 @@ Value grayconnected(const Value &I, keel::i32 row, keel::i32 col, keel::f64 tol,
                                        keel::as<keel::usize>(W), 0);
 
     // BFS with an explicit deque (vector + read head).
-    keel::Array<std::pair<keel::i32, keel::i32>> q;
+    keel::Array<keel::Pair<keel::i32, keel::i32>> q;
     q.reserve(keel::as<keel::usize>(H) * keel::as<keel::usize>(W) / 4 + 4);
     q.emplace_back(r0, c0);
     visited[keel::as<keel::usize>(r0) * keel::as<keel::usize>(W) +
@@ -932,7 +931,7 @@ Value graydist(const Value &I, const Value &seeds,
     for (keel::usize i = 0; i < N; ++i) Idata[i] = I.elemAsDouble(i);
 
     // Min-heap as (dist, index) pairs.
-    using PQNode = std::pair<keel::f64, keel::usize>;
+    using PQNode = keel::Pair<keel::f64, keel::usize>;
     auto cmp = [](const PQNode &a, const PQNode &b) { return a.first > b.first; };
     ArrayPriorityQueue<PQNode, decltype(cmp)> pq(cmp, mr);
 
@@ -1070,7 +1069,7 @@ Value bwdistgeodesic(const Value &BW, const Value &seeds,
     // Working DOUBLE buffer for Dijkstra precision.
     keel::Array<keel::f64> dist(N, keel::Limits<keel::f64>::infinity(), mr);
 
-    using PQNode = std::pair<keel::f64, keel::usize>;
+    using PQNode = keel::Pair<keel::f64, keel::usize>;
     auto cmp = [](const PQNode &a, const PQNode &b) { return a.first > b.first; };
     ArrayPriorityQueue<PQNode, decltype(cmp)> pq(cmp, mr);
 

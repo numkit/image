@@ -20,7 +20,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::image {
 
@@ -53,7 +52,7 @@ void imsplit_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     const keel::usize M = std::min((keel::usize)outs.size(),
                                std::max(nargout, (keel::usize)1));
     for (keel::usize i = 0; i < M && i < planes.size(); ++i)
-        outs[i] = std::move(planes[i]);
+        outs[i] = keel::move(planes[i]);
 }
 
 NUMKIT_COLOR_NV_REG(rgb2hsv)

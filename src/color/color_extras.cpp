@@ -43,7 +43,6 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <utility>
 
 namespace numkit::image {
 
@@ -185,7 +184,7 @@ Value rgb2lightness(const Value &RGB, keel::Allocator *mr)
 // returns 0-based indices for integer output classes (1-based only when
 // the output is double, which our v1 doesn't produce). Tie-breaking
 // picks the lowest cmap index (matches MATLAB's nodither path).
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 rgb2ind_inmap(const Value &RGB, const Value &cmap, keel::Allocator *mr)
 {
     rgb2ind_inmap_argcheck(RGB, cmap);
@@ -380,7 +379,7 @@ inline keel::f64 im2double_scalar(const Value &v, keel::usize i)
 // Core compression pass. `c` is a 1-based double index vector of
 // length N referencing `map_in` (M × 3 colormap). Outputs `(Y,
 // newmap)` per MATLAB rules — Y is uint8 if newmap has ≤ 256 rows.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 cmunique_core(keel::Array<keel::f64> &c, keel::usize H, keel::usize W,
               const keel::Array<keel::f64> &map_in, keel::usize M,
               keel::Allocator *mr)
@@ -510,12 +509,12 @@ cmunique_core(keel::Array<keel::f64> &c, keel::usize H, keel::usize W,
         np[1 * nmap2 + k] = map2_G[k];
         np[2 * nmap2 + k] = map2_B[k];
     }
-    return {std::move(Y), std::move(newmap)};
+    return {keel::move(Y), keel::move(newmap)};
 }
 
 } // anonymous
 
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 cmunique_xm(const Value &X, const Value &MAP, keel::Allocator *mr)
 {
     cmunique_xm_argcheck(MAP);
@@ -543,7 +542,7 @@ cmunique_xm(const Value &X, const Value &MAP, keel::Allocator *mr)
     return cmunique_core(c, H, W, map_in, M, mr);
 }
 
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 cmunique_rgb(const Value &RGB, keel::Allocator *mr)
 {
     cmunique_rgb_argcheck(RGB);
@@ -565,7 +564,7 @@ cmunique_rgb(const Value &RGB, keel::Allocator *mr)
     return cmunique_core(idx, H, W, map_in, M, mr);
 }
 
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 cmunique_i(const Value &I, keel::Allocator *mr)
 {
     cmunique_i_argcheck(I);
@@ -1863,7 +1862,7 @@ Value permute_cmap_rows(const Value &cmap, keel::ArrayRef<keel::i32> perm,
 //
 // Reference: `images.internal.greedyGraphColoring.m` (R2025b).
 struct EdgeSet {
-    keel::Array<std::pair<keel::i32, keel::i32>> edges;  // unordered (a < b)
+    keel::Array<keel::Pair<keel::i32, keel::i32>> edges;  // unordered (a < b)
     keel::i32 maxLabel = 0;
 };
 
@@ -1880,7 +1879,7 @@ EdgeSet build_8conn_edges(const Value &L)
             const keel::i32 a = lab(r, c);
             if (a > s.maxLabel) s.maxLabel = a;
             // 8-conn forward neighbours: (r+1,c), (r,c+1), (r+1,c+1), (r+1,c-1)
-            const keel::StaticArray<std::pair<keel::i32, keel::i32>, 4> off{{
+            const keel::StaticArray<keel::Pair<keel::i32, keel::i32>, 4> off{{
                 {1, 0}, {0, 1}, {1, 1}, {1, -1}
             }};
             for (auto [dr, dc] : off) {
@@ -1891,7 +1890,7 @@ EdgeSet build_8conn_edges(const Value &L)
                 const keel::i32 b = lab(rr, keel::as<keel::usize>(cc));
                 if (a == b) continue;
                 keel::i32 x = a, y = b;
-                if (x > y) std::swap(x, y);
+                if (x > y) keel::swap(x, y);
                 s.edges.push_back({x, y});
             }
         }
@@ -1986,7 +1985,7 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
         Value Lshift = Value::matrix(H, W, ValueType::DOUBLE, mr);
         for (keel::usize i = 0; i < H * W; ++i)
             Lshift.doubleDataMut()[i] = L_in.elemAsDouble(i) + 1.0;
-        L = std::move(Lshift);
+        L = keel::move(Lshift);
         // cmap = [cmap(1,:); cmap]   (use cmap row 1 as the zero
         // colour, since labeloverlay doesn't pass an explicit zero).
         const keel::usize N = cmap.dims().rows();
@@ -1998,7 +1997,7 @@ Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
             for (keel::usize i = 0; i < N; ++i)
                 cd2[ch * (N + 1) + (i + 1)] = cd[ch * N + i];
         }
-        cmap_used = std::move(c2);
+        cmap_used = keel::move(c2);
     }
 
     EdgeSet g = build_8conn_edges(L);
@@ -2317,11 +2316,11 @@ Value labeloverlay(const Value &A_in, const Value &L_in,
             for (keel::usize i = 0; i < N; ++i)
                 cd2[ch * (N + 1) + (i + 1)] = cd[ch * N + i];
         }
-        cmap = std::move(c2);
+        cmap = keel::move(c2);
         keel::Array<keel::f64> shifted(alphamap.size() + 1, 0.0);
         for (keel::usize i = 0; i < alphamap.size(); ++i)
             shifted[i + 1] = alphamap[i];
-        alphamap = std::move(shifted);
+        alphamap = keel::move(shifted);
     }
 
     // ── Convert A to single in [0, 1] via im2single equivalent ────

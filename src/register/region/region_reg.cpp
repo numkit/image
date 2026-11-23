@@ -23,8 +23,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <tuple>
-#include <utility>
 
 namespace numkit::image {
 
@@ -87,8 +85,8 @@ void bwlabel_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? (keel::i32)args[1].toScalar() : 8;
     auto [L, n] = bwlabel(args[0], conn, ctx.engine->allocator());
-    outs[0] = std::move(L);
-    if (nargout > 1) outs[1] = std::move(n);
+    outs[0] = keel::move(L);
+    if (nargout > 1) outs[1] = keel::move(n);
 }
 
 void bwlabeln_reg(keel::ArrayRef<Value> args, keel::usize nargout,
@@ -98,8 +96,8 @@ void bwlabeln_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     const keel::i32 conn = (args.size() >= 2 && !args[1].isEmpty())
                      ? (keel::i32)args[1].toScalar() : 0;
     auto [L, n] = bwlabeln(args[0], conn, ctx.engine->allocator());
-    outs[0] = std::move(L);
-    if (nargout > 1) outs[1] = std::move(n);
+    outs[0] = keel::move(L);
+    if (nargout > 1) outs[1] = keel::move(n);
 }
 
 void bwconncomp_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -189,7 +187,7 @@ void bwboundaries_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     outs[0] = bwboundaries(args[0], conn,
                            nargout > 1 ? &L : nullptr,
                            nargout > 2 ? &N : nullptr, mr);
-    if (nargout > 1) outs[1] = std::move(L);
+    if (nargout > 1) outs[1] = keel::move(L);
     if (nargout > 2) outs[2] = Value::scalar(keel::as<keel::f64>(N), mr);
 }
 
@@ -363,8 +361,8 @@ void bwselect_reg(keel::ArrayRef<Value> args, keel::usize nargout,
             argcheck::expectedReal(args[3], 4, "conn", "bwselect"),
             {4, 8}, 4, "conn", "bwselect");
     auto [m, idx] = bwselect(args[0], args[1], args[2], conn, ctx.engine->allocator());
-    outs[0] = std::move(m);
-    if (nargout > 1) outs[1] = std::move(idx);
+    outs[0] = keel::move(m);
+    if (nargout > 1) outs[1] = keel::move(idx);
 }
 
 void bweuler_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,

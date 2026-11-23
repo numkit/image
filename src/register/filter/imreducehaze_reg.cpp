@@ -18,7 +18,6 @@
 #include <numkit/value/argcheck.hpp>
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::image {
 
@@ -80,8 +79,8 @@ void imreducehaze_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     outs[0] = imreducehaze(I, amount, method, atmLight, ce,
                            boostAmount > 0.0 ? boostAmount : 0.1,
                            T, L, mr);
-    if (nargout >= 2 && outs.size() >= 2) outs[1] = std::move(T);
-    if (nargout >= 3 && outs.size() >= 3) outs[2] = std::move(L);
+    if (nargout >= 2 && outs.size() >= 2) outs[1] = keel::move(T);
+    if (nargout >= 3 && outs.size() >= 3) outs[2] = keel::move(L);
 }
 
 }  // namespace detail

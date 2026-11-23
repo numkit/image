@@ -21,7 +21,7 @@
 #include "filter_detail.hpp"
 
 #include <algorithm>
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::image {
 
@@ -1361,7 +1361,7 @@ Value ordfilt2(const Value &A, keel::i32 nth, const Value &domain, const Value &
     return out;
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 wiener2(const Value &I, keel::usize nh, keel::usize nw, keel::f64 noise, keel::Allocator *mr)
 {
     const ValueType cls = I.type();
@@ -1370,7 +1370,7 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, keel::f64 noise, keel::A
     const keel::usize N = H * W;
     if (N == 0) {
         Value out = Value::matrix(H, W, cls, mr);
-        return {std::move(out), Value::scalar(0.0, mr)};
+        return {keel::move(out), Value::scalar(0.0, mr)};
     }
 
     Value Id = (cls == ValueType::DOUBLE) ? I : im2double(I, mr);
@@ -1386,7 +1386,7 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, keel::f64 noise, keel::A
 
     Value out;
     if (cls == ValueType::DOUBLE) {
-        out = std::move(out_d);
+        out = keel::move(out_d);
     } else if (cls == ValueType::SINGLE) {
         out = Value::matrix(H, W, ValueType::SINGLE, mr);
         const keel::f64 *o = out_d.doubleData();
@@ -1395,9 +1395,9 @@ wiener2(const Value &I, keel::usize nh, keel::usize nw, keel::f64 noise, keel::A
     } else if (cls == ValueType::UINT8)  out = im2uint8(out_d, mr);
     else if (cls == ValueType::UINT16)   out = im2uint16(out_d, mr);
     else if (cls == ValueType::INT16)    out = im2int16(out_d, mr);
-    else                                 out = std::move(out_d);
+    else                                 out = keel::move(out_d);
 
-    return {std::move(out), Value::scalar(noise_out, mr)};
+    return {keel::move(out), Value::scalar(noise_out, mr)};
 }
 
 Value imsmooth(const Value &I, keel::StringRef name, keel::f64 sigma, keel::Allocator *mr)
@@ -1616,7 +1616,7 @@ Value rangefilt(const Value &I, const Value &domain, keel::Allocator *mr)
     return out;
 }
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
 {
     freqz2_argcheck(h);
@@ -1640,7 +1640,7 @@ freqz2(const Value &h, keel::usize M, keel::usize N, keel::Allocator *mr)
         keel::MutArrayRef<keel::f64>(f1V.doubleDataMut(), M),
         keel::MutArrayRef<keel::f64>(f2V.doubleDataMut(), N),
         scratch.allocator());
-    return {std::move(HV), std::move(f1V), std::move(f2V)};
+    return {keel::move(HV), keel::move(f1V), keel::move(f2V)};
 }
 
 Value roifilt2_combine(const Value &I, const Value &filtRes, const Value &BW,

@@ -13,7 +13,7 @@
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <tuple>
+#include <keel/tuple.h>
 #include <algorithm>
 
 namespace numkit::image {
@@ -599,7 +599,7 @@ void intlut_argcheck(const Value &A, const Value &LUT, keel::usize &expectedLen)
 
 } // anonymous
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
 {
     gray2ind_argcheck(n);
@@ -615,7 +615,7 @@ gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
         ? Value::matrix3d(H, W, d.pages(), outT, mr)
         : Value::matrix(H, W, outT, mr);
     Value map = gray_colormap(n, mr);
-    if (N == 0) return {std::move(out), std::move(map)};
+    if (N == 0) return {keel::move(out), keel::move(map)};
 
     keel::f64 low = 0.0, scale = 1.0;
     const bool isFloat = (cls == ValueType::DOUBLE || cls == ValueType::SINGLE);
@@ -658,7 +658,7 @@ gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
             od[i] = keel::as<keel::u16>(v);
         }
     }
-    return {std::move(out), std::move(map)};
+    return {keel::move(out), keel::move(map)};
 }
 
 Value ind2gray(const Value &idx, const Value &map, keel::Allocator *mr)

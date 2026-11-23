@@ -23,7 +23,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/argcheck.hpp>
 #include <numkit/value/error.hpp>
-#include <utility>
 
 namespace numkit::image {
 
@@ -39,7 +38,7 @@ void imhistmatch_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     Value hgram;
     Value *hgp = (nargout >= 2) ? &hgram : nullptr;
     outs[0] = imhistmatch(args[0], args[1], n, hgp, ctx.engine->allocator());
-    if (nargout >= 2) outs[1] = std::move(hgram);
+    if (nargout >= 2) outs[1] = keel::move(hgram);
 }
 
 void imhist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
@@ -49,8 +48,8 @@ void imhist_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     keel::i32 n = (args.size() >= 2 && !args[1].isEmpty()) ? (keel::i32)args[1].toScalar() : 0;
     auto [c, x] = imhist(args[0], n, ctx.engine->allocator());
 
-    if (!outs.empty()) outs[0] = std::move(c);
-    if (nargout > 1 && outs.size() > 1) outs[1] = std::move(x);
+    if (!outs.empty()) outs[0] = keel::move(c);
+    if (nargout > 1 && outs.size() > 1) outs[1] = keel::move(x);
 }
 
 void stretchlim_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -158,8 +157,8 @@ void graythresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, 1, "graythresh");
     auto [t, em] = graythresh(args[0], ctx.engine->allocator());
-    outs[0] = std::move(t);
-    if (nargout > 1) outs[1] = std::move(em);
+    outs[0] = keel::move(t);
+    if (nargout > 1) outs[1] = keel::move(em);
 }
 
 void otsuthresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
@@ -167,8 +166,8 @@ void otsuthresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, 1, "otsuthresh");
     auto [t, em] = otsuthresh(args[0], ctx.engine->allocator());
-    outs[0] = std::move(t);
-    if (nargout > 1) outs[1] = std::move(em);
+    outs[0] = keel::move(t);
+    if (nargout > 1) outs[1] = keel::move(em);
 }
 
 void multithresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
@@ -177,8 +176,8 @@ void multithresh_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     argcheck::checkNargin(args.size(), 1, 2, "multithresh");
     keel::i32 N = (args.size() >= 2 && !args[1].isEmpty()) ? (keel::i32)args[1].toScalar() : 1;
     auto [t, em] = multithresh(args[0], N, ctx.engine->allocator());
-    outs[0] = std::move(t);
-    if (nargout > 1) outs[1] = std::move(em);
+    outs[0] = keel::move(t);
+    if (nargout > 1) outs[1] = keel::move(em);
 }
 
 void imbinarize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -287,11 +286,11 @@ void imquantize_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         const keel::usize N = idx.numel();
         for (keel::usize i = 0; i < N; ++i)
             qd[i] = args[2].elemAsDouble(keel::as<keel::usize>(id[i]) - 1);
-        outs[0] = std::move(quant);
-        if (nargout >= 2) outs[1] = std::move(idx);
+        outs[0] = keel::move(quant);
+        if (nargout >= 2) outs[1] = keel::move(idx);
     } else {
-        if (nargout >= 2) { outs[0] = idx; outs[1] = std::move(idx); }
-        else              outs[0] = std::move(idx);
+        if (nargout >= 2) { outs[0] = idx; outs[1] = keel::move(idx); }
+        else              outs[0] = keel::move(idx);
     }
 }
 

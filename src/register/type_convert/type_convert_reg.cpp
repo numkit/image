@@ -18,8 +18,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <tuple>
-#include <utility>
 
 namespace numkit::image {
 
@@ -100,8 +98,8 @@ void gray2ind_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         n = keel::as<keel::i32>(nv);
     }
     auto [ind, map] = gray2ind(args[0], n, ctx.engine->allocator());
-    outs[0] = std::move(ind);
-    if (nargout > 1) outs[1] = std::move(map);
+    outs[0] = keel::move(ind);
+    if (nargout > 1) outs[1] = keel::move(map);
 }
 
 void ind2gray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,

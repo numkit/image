@@ -23,8 +23,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <tuple>
-#include <utility>
 
 namespace numkit::image {
 
@@ -386,15 +384,15 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
     yDataOut.doubleDataMut()[0] = ylo; yDataOut.doubleDataMut()[1] = yhi;
 
     switch (nargout) {
-        case 0: case 1: o[0] = std::move(BW); break;
-        case 2: o[0] = std::move(BW); o[1] = std::move(xiOut); break;
-        case 3: o[0] = std::move(BW); o[1] = std::move(xiOut);
-                o[2] = std::move(yiOut); break;
-        case 4: o[0] = std::move(xDataOut); o[1] = std::move(yDataOut);
-                o[2] = std::move(BW); o[3] = std::move(xiOut); break;
-        case 5: o[0] = std::move(xDataOut); o[1] = std::move(yDataOut);
-                o[2] = std::move(BW); o[3] = std::move(xiOut);
-                o[4] = std::move(yiOut); break;
+        case 0: case 1: o[0] = keel::move(BW); break;
+        case 2: o[0] = keel::move(BW); o[1] = keel::move(xiOut); break;
+        case 3: o[0] = keel::move(BW); o[1] = keel::move(xiOut);
+                o[2] = keel::move(yiOut); break;
+        case 4: o[0] = keel::move(xDataOut); o[1] = keel::move(yDataOut);
+                o[2] = keel::move(BW); o[3] = keel::move(xiOut); break;
+        case 5: o[0] = keel::move(xDataOut); o[1] = keel::move(yDataOut);
+                o[2] = keel::move(BW); o[3] = keel::move(xiOut);
+                o[4] = keel::move(yiOut); break;
         default:
             throw Error("roipoly: too many output arguments (max 5)",
                         0, 0, "roipoly", "", "numkit:roipoly:tooManyOutputs");

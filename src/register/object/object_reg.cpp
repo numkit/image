@@ -25,7 +25,6 @@
 #include "object/object_detail.hpp"
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::image {
 
@@ -50,8 +49,8 @@ void imgradientxy_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     argcheck::checkNargin(args.size(), 1, 2, "imgradientxy");
     const auto m = parse_method(args, 1, "sobel");
     auto [Gx, Gy] = imgradientxy(args[0], m, ctx.engine->allocator());
-    outs[0] = std::move(Gx);
-    if (nargout > 1) outs[1] = std::move(Gy);
+    outs[0] = keel::move(Gx);
+    if (nargout > 1) outs[1] = keel::move(Gy);
 }
 
 void imgradient_reg(keel::ArrayRef<Value> args, keel::usize nargout,
@@ -61,8 +60,8 @@ void imgradient_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     const auto m = parse_method(args, 1, "sobel");
     if (nargout > 1) {
         auto [Gmag, Gdir] = imgradient(args[0], m, ctx.engine->allocator());
-        outs[0] = std::move(Gmag);
-        outs[1] = std::move(Gdir);
+        outs[0] = keel::move(Gmag);
+        outs[1] = keel::move(Gdir);
     } else {
         // Magnitude only — skip the per-pixel atan2 direction.
         outs[0] = imgradient_mag(args[0], m, ctx.engine->allocator());
@@ -76,9 +75,9 @@ void imgradientxyz_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     // no max: name-value tail in the reference
     const auto m = parse_method(args, 1, "sobel");
     auto [Gx, Gy, Gz] = imgradientxyz(args[0], m, ctx.engine->allocator());
-    outs[0] = std::move(Gx);
-    if (nargout > 1) outs[1] = std::move(Gy);
-    if (nargout > 2) outs[2] = std::move(Gz);
+    outs[0] = keel::move(Gx);
+    if (nargout > 1) outs[1] = keel::move(Gy);
+    if (nargout > 2) outs[2] = keel::move(Gz);
 }
 
 void imgradient3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
@@ -94,16 +93,16 @@ void imgradient3_reg(keel::ArrayRef<Value> args, keel::usize nargout,
         && args[0].dims().is3D() && args[1].dims().is3D() && args[2].dims().is3D()) {
         auto [Gmag, Gaz, Gelev] =
             imgradient3_from_grads(args[0], args[1], args[2], mr);
-        outs[0] = std::move(Gmag);
-        if (nargout > 1) outs[1] = std::move(Gaz);
-        if (nargout > 2) outs[2] = std::move(Gelev);
+        outs[0] = keel::move(Gmag);
+        if (nargout > 1) outs[1] = keel::move(Gaz);
+        if (nargout > 2) outs[2] = keel::move(Gelev);
         return;
     }
     const auto m = parse_method(args, 1, "sobel");
     auto [Gmag, Gaz, Gelev] = imgradient3(args[0], m, mr);
-    outs[0] = std::move(Gmag);
-    if (nargout > 1) outs[1] = std::move(Gaz);
-    if (nargout > 2) outs[2] = std::move(Gelev);
+    outs[0] = keel::move(Gmag);
+    if (nargout > 1) outs[1] = keel::move(Gaz);
+    if (nargout > 2) outs[2] = keel::move(Gelev);
 }
 
 void edge_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -273,9 +272,9 @@ void hough_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     }
     Value H, T, R;
     hough(args[0], rho_res, theta_deg, H, T, R, mr);
-    outs[0] = std::move(H);
-    if (nargout >= 2) outs[1] = std::move(T);
-    if (nargout >= 3) outs[2] = std::move(R);
+    outs[0] = keel::move(H);
+    if (nargout >= 2) outs[1] = keel::move(T);
+    if (nargout >= 3) outs[2] = keel::move(R);
 }
 
 void houghlines_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
@@ -450,9 +449,9 @@ void imfindcircles_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 
     auto res = imfindcircles(args[0], rmin, rmax, object_polarity, method,
                              sensitivity, edge_threshold, mr);
-    outs[0] = std::move(res.centers);
-    if (nargout >= 2) outs[1] = std::move(res.radii);
-    if (nargout >= 3) outs[2] = std::move(res.metric);
+    outs[0] = keel::move(res.centers);
+    if (nargout >= 2) outs[1] = keel::move(res.radii);
+    if (nargout >= 3) outs[2] = keel::move(res.metric);
 }
 
 } // namespace detail

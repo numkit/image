@@ -23,7 +23,7 @@
 #include <numkit/value/value_type.hpp>
 
 #include <algorithm>
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::image {
 
@@ -170,7 +170,7 @@ Value graysliceQuantize(const Value &I, keel::ArrayRef<keel::f64> thresh,
 
 } // anonymous
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 imhist(const Value &I, keel::i32 n, keel::Allocator *mr)
 {
     if (n <= 0) n = default_nbins(I);
@@ -201,7 +201,7 @@ imhist(const Value &I, keel::i32 n, keel::Allocator *mr)
         cd[i] = keel::as<keel::f64>(counts[keel::as<keel::usize>(i)]);
         xd[i] = lo + i * step;
     }
-    return std::make_tuple(std::move(c), std::move(x));
+    return keel::make_tuple(keel::move(c), keel::move(x));
 }
 
 Value stretchlim(const Value &I, keel::f64 low_tol, keel::f64 high_tol, keel::Allocator *mr)
@@ -310,7 +310,7 @@ Value adapthisteq(const Value &I, const AdaptHistEqOptions &opts, keel::Allocato
     return result;
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 otsuthresh(const Value &counts_v, keel::Allocator *mr)
 {
     const keel::usize L = counts_v.numel();
@@ -319,10 +319,10 @@ otsuthresh(const Value &counts_v, keel::Allocator *mr)
     for (keel::usize i = 0; i < L; ++i) c[i] = counts_v.elemAsDouble(i);
     const auto r = keel::image::otsu_threshold(c.as_ref(), scratch.allocator());
     const keel::f64 thresh = (L > 1) ? (r.bin_level / keel::as<keel::f64>(L - 1)) : 0.0;
-    return std::make_tuple(Value::scalar(thresh, mr), Value::scalar(r.effectiveness, mr));
+    return keel::make_tuple(Value::scalar(thresh, mr), Value::scalar(r.effectiveness, mr));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 graythresh(const Value &I, keel::Allocator *mr)
 {
     internal::requireImageClass(I, "graythresh", "I", 1, internal::ImgClasses::FloatInt);
@@ -330,7 +330,7 @@ graythresh(const Value &I, keel::Allocator *mr)
     return otsuthresh(counts, mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 multithresh(const Value &I, keel::i32 N, keel::Allocator *mr)
 {
     if (N > 5)
@@ -354,7 +354,7 @@ multithresh(const Value &I, keel::i32 N, keel::Allocator *mr)
         raw.as_ref(), N, isInt,
         keel::MutArrayRef<keel::f64>(t_out.doubleDataMut(), keel::as<keel::usize>(N)),
         em, scratch.allocator());
-    return std::make_tuple(std::move(t_out), Value::scalar(em, mr));
+    return keel::make_tuple(keel::move(t_out), Value::scalar(em, mr));
 }
 
 Value imbinarize(const Value &I, keel::f64 thresh, keel::Allocator *mr)
@@ -450,7 +450,7 @@ Value imhistmatch(const Value &I, const Value &ref, keel::i32 nbins,
     Value out = d.is3D() ? Value::matrix3d(d.rows(), d.cols(), d.pages(), I.type(), mr)
                          : Value::matrix(d.rows(), d.cols(), I.type(), mr);
     for (keel::usize i = 0; i < Ni; ++i) store_classed(out, i, out_u[i], I.type());
-    if (hgramOut) *hgramOut = std::move(hg);
+    if (hgramOut) *hgramOut = keel::move(hg);
     return out;
 }
 

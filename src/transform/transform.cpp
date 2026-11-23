@@ -28,7 +28,7 @@
 #include <numkit/value/error.hpp>
 #include <keel/static_array.h>
 #include <keel/math.h>
-#include <tuple>
+#include <keel/tuple.h>
 
 
 namespace numkit::image {
@@ -354,14 +354,14 @@ void normxcorr2_argcheck(const Value &templ, const Value &img)
 
 } // anonymous
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
 {
     Value E = phantom_argcheck(model_or_E, mr);
     if (n == 0) n = 256;
 
     Value head = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    if (n == 0) return {std::move(head), std::move(E)};
+    if (n == 0) return {keel::move(head), keel::move(E)};
     keel::f64 *hd = head.doubleDataMut();
 
     // Build x grid: xvals[i] = -1 + 2i/(n-1) for n > 1; -1 for n == 1.
@@ -404,7 +404,7 @@ phantom(const Value &model_or_E, keel::usize n, keel::Allocator *mr)
             }
         }
     }
-    return {std::move(head), std::move(E)};
+    return {keel::move(head), keel::move(E)};
 }
 
 Value bestblk(const Value &IMS, keel::f64 k, keel::Allocator *mr)
@@ -1015,12 +1015,12 @@ Value deconvwnr(const Value &I, const Value &PSF,
     const keel::usize W = dI.cols();
     const keel::usize plane = H * W;
 
-    auto build_S = [&](const Value &acf, const char *name) -> std::pair<bool, keel::Array<keel::f64>> {
+    auto build_S = [&](const Value &acf, const char *name) -> keel::Pair<bool, keel::Array<keel::f64>> {
         if (acf.numel() == 1) {
             // Scalar: uniform spectrum equal to that value.
             keel::Array<keel::f64> v(mr);
             v.push_back(acf.toScalar());
-            return {true, std::move(v)};
+            return {true, keel::move(v)};
         }
         if (acf.dims().rows() == H && acf.dims().cols() == W
             && !acf.dims().is3D()) {
@@ -1033,7 +1033,7 @@ Value deconvwnr(const Value &I, const Value &PSF,
                                          + fc[i].imag() * fc[i].imag());
                 S[i] = m;
             }
-            return {false, std::move(S)};
+            return {false, keel::move(S)};
         }
         throw Error(keel::format("deconvwnr: {} must be a scalar or same size as I "
                                  "(1-D extrapolation form not supported)", name),
@@ -1576,7 +1576,7 @@ DeconvregResult deconvreg(const Value &I, const Value &PSF,
     Value Jout = (inT == ValueType::DOUBLE)
                    ? Jd
                    : real_back_to_class(Jd, inT, mr);
-    return DeconvregResult{std::move(Jout), lagra};
+    return DeconvregResult{keel::move(Jout), lagra};
 }
 
 } // namespace numkit::image

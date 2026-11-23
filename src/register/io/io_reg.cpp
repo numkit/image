@@ -21,8 +21,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <tuple>
-#include <utility>
 
 namespace numkit::image {
 
@@ -36,7 +34,7 @@ inline keel::String lowerExt(keel::StringRef path) {
 
 bool isTiffBytes(keel::StringRef b);
 Value imreadFromBytes(keel::StringRef bytes, keel::Allocator *mr);
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 readPngWithMap(const keel::u8 *data, keel::usize len,
                keel::Allocator *mr = nullptr);
 
@@ -68,7 +66,7 @@ void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayR
         for (const keel::String &dir : demoDirs) {
             auto cand = ctx.engine->resolvePath(keel::format("{}{}", dir, path));
             if (cand.fs && cand.fs->exists(cand.path)) {
-                rp = std::move(cand);
+                rp = keel::move(cand);
                 break;
             }
         }
@@ -95,8 +93,8 @@ void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayR
         // Two-output form `[A, map] = imread(file)` — palette TIFFs.
         if (nargout >= 2) {
             auto pair = readTiffWithMap(buf, page, ctx.engine->allocator());
-            outs[0] = std::move(pair.first);
-            outs[1] = std::move(pair.second);
+            outs[0] = keel::move(pair.first);
+            outs[1] = keel::move(pair.second);
         } else {
             outs[0] = readTiff(buf, page, ctx.engine->allocator());
         }
@@ -108,8 +106,8 @@ void imread_reg(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayR
     if (len >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G') {
         if (nargout >= 2) {
             auto pair = readPngWithMap(data, len, ctx.engine->allocator());
-            outs[0] = std::move(pair.first);
-            outs[1] = std::move(pair.second);
+            outs[0] = keel::move(pair.first);
+            outs[1] = keel::move(pair.second);
             return;
         }
     }

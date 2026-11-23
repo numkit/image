@@ -24,7 +24,7 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <tuple>
+#include <keel/tuple.h>
 #include <keel/static_array.h>
 #include <keel/math.h>
 
@@ -55,7 +55,7 @@ Value apply_kernel(const Value &I, const Value &k, keel::Allocator *mr)
 
 } // anonymous
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 imgradientxy(const Value &I, keel::StringRef method, keel::Allocator *mr)
 {
     // Choose kernels (Gx for horizontal, Gy for vertical).
@@ -99,7 +99,7 @@ imgradientxy(const Value &I, keel::StringRef method, keel::Allocator *mr)
 
     Value Gx = apply_kernel(I, Kx, mr);
     Value Gy = apply_kernel(I, Ky, mr);
-    return std::make_tuple(std::move(Gx), std::move(Gy));
+    return keel::make_tuple(keel::move(Gx), keel::move(Gy));
 }
 
 // ── 3-D imgradientxyz / imgradient3 ────────────────────────────────
@@ -190,7 +190,7 @@ Value zeros_like(const Value &V, ValueType t,
 
 } // anonymous
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 imgradientxyz(const Value &V, keel::StringRef method, keel::Allocator *mr)
 {
     if (!V.dims().is3D())
@@ -351,14 +351,14 @@ imgradientxyz(const Value &V, keel::StringRef method, keel::Allocator *mr)
             Value gs = zeros_like(G, ValueType::SINGLE, mr);
             for (keel::usize i = 0; i < N; ++i)
                 gs.singleDataMut()[i] = keel::as<keel::f32>(G.doubleData()[i]);
-            G = std::move(gs);
+            G = keel::move(gs);
         };
         cast_single(Gx); cast_single(Gy); cast_single(Gz);
     }
-    return std::make_tuple(std::move(Gx), std::move(Gy), std::move(Gz));
+    return keel::make_tuple(keel::move(Gx), keel::move(Gy), keel::move(Gz));
 }
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
                        keel::Allocator *mr)
 {
@@ -397,17 +397,17 @@ imgradient3_from_grads(const Value &Gx, const Value &Gy, const Value &Gz,
             Gelev.singleDataMut()[i] = keel::as<keel::f32>(el);
         }
     }
-    return std::make_tuple(std::move(Gmag), std::move(Gaz), std::move(Gelev));
+    return keel::make_tuple(keel::move(Gmag), keel::move(Gaz), keel::move(Gelev));
 }
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 imgradient3(const Value &V, keel::StringRef method, keel::Allocator *mr)
 {
     auto [Gx, Gy, Gz] = imgradientxyz(V, method, mr);
     return imgradient3_from_grads(Gx, Gy, Gz, mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 imgradient(const Value &I, keel::StringRef method, keel::Allocator *mr)
 {
     auto [Gx, Gy] = imgradientxy(I, method, mr);
@@ -424,7 +424,7 @@ imgradient(const Value &I, keel::StringRef method, keel::Allocator *mr)
         gm[i] = keel::sqrt(gxv * gxv + gyv * gyv);
         gd[i] = keel::atan2(-gyv, gxv) * 180.0 / keel::kPi;
     }
-    return std::make_tuple(std::move(Gmag), std::move(Gdir));
+    return keel::make_tuple(keel::move(Gmag), keel::move(Gdir));
 }
 
 // Magnitude-only variant — skips the per-pixel atan2 direction, which costs
@@ -1059,9 +1059,9 @@ void hough(const Value &BW, keel::f64 rho_res,
         }
     }
 
-    H_out = std::move(H);
-    T_out = std::move(T);
-    R_out = std::move(R);
+    H_out = keel::move(H);
+    T_out = keel::move(T);
+    R_out = keel::move(R);
 }
 
 // ── houghpeaks (peak extraction from Hough accumulator) ───────────
@@ -1842,7 +1842,7 @@ imfindcircles(const Value &A, keel::f64 rmin, keel::f64 rmax,
         }
     }
 
-    return {std::move(centersOut), std::move(radiiOut), std::move(metricOut)};
+    return {keel::move(centersOut), keel::move(radiiOut), keel::move(metricOut)};
 }
 
 } // namespace numkit::image

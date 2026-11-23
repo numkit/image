@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <keel/static_array.h>
 
-#include <utility>
 
 namespace numkit::image {
 
@@ -328,7 +327,7 @@ void imsplit(const Value &I, keel::Array<Value> &planes, keel::Allocator *mr)
     for (keel::usize p = 0; p < P; ++p) {
         Value plane = Value::matrix(H, W, I.type(), mr);
         copy_plane(I, p, H, W, plane);
-        planes.push_back(std::move(plane));
+        planes.push_back(keel::move(plane));
     }
 }
 

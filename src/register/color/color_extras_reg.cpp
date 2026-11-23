@@ -26,7 +26,6 @@
 #include "color/color_extras_detail.hpp"
 
 #include <keel/static_array.h>
-#include <utility>
 
 namespace numkit::image {
 
@@ -168,7 +167,7 @@ void cmunique_reg(keel::ArrayRef<Value> args, keel::usize nargout,
 {
     argcheck::checkNargin(args.size(), 1, 2, "cmunique");
     auto *mr = ctx.engine->allocator();
-    std::pair<Value, Value> result;
+    keel::Pair<Value, Value> result;
     if (args.size() == 1) {
         const auto &d = args[0].dims();
         if (d.is3D() && d.pages() == 3)
@@ -178,8 +177,8 @@ void cmunique_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     } else {
         result = cmunique_xm(args[0], args[1], mr);
     }
-    outs[0] = std::move(result.first);
-    if (nargout >= 2 && outs.size() >= 2) outs[1] = std::move(result.second);
+    outs[0] = keel::move(result.first);
+    if (nargout >= 2 && outs.size() >= 2) outs[1] = keel::move(result.second);
 }
 
 } // namespace detail (cmunique adapter)
@@ -209,7 +208,7 @@ void imfuse_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         for (auto mm : mset) if (m == mm) { is_method = true; break; }
         bool is_nv = m.as_ref().equals_ignore_ascii_case("scaling") ||
                      m.as_ref().equals_ignore_ascii_case("colorchannels");
-        if (is_method) { method = std::move(m); ++i; }
+        if (is_method) { method = keel::move(m); ++i; }
         else if (!is_nv)
             throw Error(keel::format("imfuse: unknown METHOD '{}' (allowed: "
                                      "falsecolor / blend / diff / checkerboard / "
