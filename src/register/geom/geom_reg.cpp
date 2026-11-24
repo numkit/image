@@ -22,7 +22,6 @@
 #include <numkit/value/argcheck.hpp>
 #include "geom/geom_detail.hpp"
 
-#include <cstdlib>
 
 namespace numkit::image {
 
