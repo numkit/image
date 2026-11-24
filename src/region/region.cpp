@@ -15,7 +15,6 @@
 #include <numkit/value/error.hpp>
 #include <keel/tuple.h>
 
-#include <cstring>
 
 namespace numkit::image {
 
@@ -759,7 +758,7 @@ Value regionprops(const Value &BW_or_L, keel::ArrayRef<keel::String> propsIn, co
         for (const auto &q : propsIn) {
             if (q == p) return true;
             // Case-insensitive ASCII compare.
-            if (q.size() != std::strlen(p)) continue;
+            if (q.size() != keel::StringRef(p).size()) continue;
             bool eq = true;
             for (keel::usize i = 0; i < q.size(); ++i) {
                 char a = q[i], b = p[i];
