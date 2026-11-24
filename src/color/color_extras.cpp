@@ -23,8 +23,7 @@
 #include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/format.h>
-#include <keel/hash_map.h>
-#include <keel/hash_set.h>
+#include <keel/image.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -187,146 +186,69 @@ keel::Pair<Value, Value>
 rgb2ind_inmap(const Value &RGB, const Value &cmap, keel::Allocator *mr)
 {
     rgb2ind_inmap_argcheck(RGB, cmap);
-    if (!RGB.dims().is3D() || RGB.dims().pages() != 3)
-        throw Error("rgb2ind: input must be H×W×3",
-                    0, 0, "rgb2ind", "", "numkit:rgb2ind:Shape");
-    if (cmap.dims().is3D() || cmap.dims().cols() != 3)
-        throw Error("rgb2ind: colormap must be K×3",
-                    0, 0, "rgb2ind", "", "numkit:rgb2ind:CmapShape");
-
     const keel::usize H = RGB.dims().rows();
     const keel::usize W = RGB.dims().cols();
     const keel::usize K = cmap.dims().rows();
     const keel::usize HW = H * W;
 
-    // Convert RGB pixels to double in [0, 1].
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::f64> pix(HW * 3, scratch.allocator());
-    {
-        const keel::f64 scale = (RGB.type() == ValueType::UINT8)  ? 1.0 / 255.0
-                            : (RGB.type() == ValueType::UINT16) ? 1.0 / 65535.0
-                            : 1.0;  // double/single already in [0,1]
-        for (keel::usize p = 0; p < 3; ++p)
-            for (keel::usize i = 0; i < HW; ++i)
-                pix[p * HW + i] = RGB.elemAsDouble(p * HW + i) * scale;
-    }
-
-    // Decide output index class.
     const ValueType idxT = (K <= 256) ? ValueType::UINT8 : ValueType::UINT16;
     Value X = Value::matrix(H, W, idxT, mr);
     if (HW == 0) return {X, cmap};
 
-    // Read cmap as K×3.
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::f64> pix(HW * 3, scratch.allocator());
+    const keel::f64 scale = (RGB.type() == ValueType::UINT8)  ? 1.0 / 255.0
+                          : (RGB.type() == ValueType::UINT16) ? 1.0 / 65535.0
+                          : 1.0;
+    for (keel::usize p = 0; p < 3; ++p)
+        for (keel::usize i = 0; i < HW; ++i)
+            pix[p * HW + i] = RGB.elemAsDouble(p * HW + i) * scale;
+
     keel::Array<keel::f64> cm(K * 3, scratch.allocator());
     for (keel::usize c = 0; c < 3; ++c)
         for (keel::usize k = 0; k < K; ++k)
             cm[c * K + k] = cmap.elemAsDouble(k + c * K);
 
-    auto write_idx = [&](keel::usize i, keel::usize k1based) {
-        if (idxT == ValueType::UINT8)
-            X.uint8DataMut()[i] = keel::as<keel::u8>(k1based);
-        else
-            X.uint16DataMut()[i] = keel::as<keel::u16>(k1based);
-    };
+    keel::Array<keel::u32> out_idx(HW, scratch.allocator());
+    (void)keel::image::rgb_to_ind_nearest_planar(
+        keel::ArrayRef<keel::f64>(pix.data(), HW),
+        keel::ArrayRef<keel::f64>(pix.data() + HW, HW),
+        keel::ArrayRef<keel::f64>(pix.data() + 2 * HW, HW),
+        keel::ArrayRef<keel::f64>(cm.data(), K),
+        keel::ArrayRef<keel::f64>(cm.data() + K, K),
+        keel::ArrayRef<keel::f64>(cm.data() + 2 * K, K),
+        out_idx.as_mut_ref());
 
-    for (keel::usize i = 0; i < HW; ++i) {
-        const keel::f64 r = pix[0 * HW + i];
-        const keel::f64 g = pix[1 * HW + i];
-        const keel::f64 b = pix[2 * HW + i];
-        keel::f64 bestDist = keel::Limits<keel::f64>::infinity();
-        keel::usize bestK = 0;
-        for (keel::usize k = 0; k < K; ++k) {
-            const keel::f64 dr = r - cm[0 * K + k];
-            const keel::f64 dg = g - cm[1 * K + k];
-            const keel::f64 db = b - cm[2 * K + k];
-            const keel::f64 d2 = dr * dr + dg * dg + db * db;
-            if (d2 < bestDist) { bestDist = d2; bestK = k; }
-        }
-        write_idx(i, bestK);  // 0-based (matches MATLAB uint8/uint16 output)
+    if (idxT == ValueType::UINT8) {
+        for (keel::usize i = 0; i < HW; ++i) X.uint8DataMut()[i] = keel::as<keel::u8>(out_idx[i]);
+    } else {
+        for (keel::usize i = 0; i < HW; ++i) X.uint16DataMut()[i] = keel::as<keel::u16>(out_idx[i]);
     }
     return {X, cmap};
 }
 
-// ── rgbwide2ycbcr (BT.2020 / BT.2100 narrow-range) ─────────────────
-//
-// Reference: ITU-R Rec. BT.2020-2 (10/2015) and BT.2100-2 (07/2018)
-// — non-constant-luminance YCbCr encoding for wide-gamut UHDTV /
-// HDR-TV. Algorithm transliterated verbatim from MATLAB R2025b
-// `images/colorspaces/+images/+color/+internal/rgbwide2ycbcrImpl.m`
-// (column-major / non-codegen path).
-//
-// Pipeline (per pixel):
-//   1. blackLevel    = 64 (bps = 10) or 256 (bps = 12)
-//      nominalPeak   = 940       or 3760
-//      nominalRange  = peak − black
-//   2. R_n = (R − black)/range, G_n same, B_n same.
-//   3. Y'  = 0.2627·R_n + 0.6780·G_n + 0.0593·B_n   (BT.2020 luma).
-//   4. Cb  = (B_n − Y')/1.8814,  Cr = (R_n − Y')/1.4746.
-//   5. Quantise (uint16):
-//        Y_out  = round((219·Y'  + 16 )·2^(bps − 8))
-//        Cb_out = round((224·Cb + 128)·2^(bps − 8))
-//        Cr_out = round((224·Cr + 128)·2^(bps − 8))
-Value rgbwide2ycbcr(const Value &RGB, keel::i32 bits_per_sample,
-                    keel::Allocator *mr)
+Value rgbwide2ycbcr(const Value &RGB, keel::i32 bits_per_sample, keel::Allocator *mr)
 {
     rgbwide2ycbcr_argcheck(RGB, bits_per_sample);
-    if (bits_per_sample != 10 && bits_per_sample != 12)
-        throw Error("rgbwide2ycbcr: BPS must be 10 or 12",
-                    0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:bps");
-    if (RGB.type() != ValueType::UINT16)
-        throw Error("rgbwide2ycbcr: RGB must be UINT16",
-                    0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:class");
-
     const auto &d = RGB.dims();
-    // Two shapes: p × 3 colour list, or H × W × 3 image.
     const bool is_image = d.is3D();
-    if (is_image) {
-        if (d.pages() != 3)
-            throw Error("rgbwide2ycbcr: H×W×3 image expected",
-                        0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:shape");
-    } else {
-        if (d.cols() != 3)
-            throw Error("rgbwide2ycbcr: p×3 colour list expected",
-                        0, 0, "rgbwide2ycbcr", "", "numkit:rgbwide2ycbcr:shape");
-    }
-
-    const keel::f64 blackLevel  = (bits_per_sample == 10) ?  64.0 : 256.0;
-    const keel::f64 nominalPeak = (bits_per_sample == 10) ? 940.0 : 3760.0;
-    const keel::f64 nominalRange = nominalPeak - blackLevel;
-    const keel::f64 scale        = (bits_per_sample == 10) ?  4.0 :  16.0; // 2^(bps-8)
-
-    const keel::usize H = is_image ? d.rows() : d.rows();
+    const keel::usize H = d.rows();
     const keel::usize W = is_image ? d.cols() : 1;
     const keel::usize N = H * W;
 
-    Value out;
-    if (is_image) out = Value::matrix3d(H, W, 3, ValueType::UINT16, mr);
-    else          out = Value::matrix(H, 3, ValueType::UINT16, mr);
-
+    Value out = is_image ? Value::matrix3d(H, W, 3, ValueType::UINT16, mr)
+                         : Value::matrix(H, 3, ValueType::UINT16, mr);
     const keel::u16 *src = RGB.uint16Data();
     keel::u16 *dst = out.uint16DataMut();
-
-    // For the p × 3 list, channels are columns (stride = H = p).
-    // For the H × W × 3 image, channels are pages (stride = H · W = N).
-    const keel::usize ch_stride = is_image ? N : H;
-
-    auto clamp_round = [](keel::f64 v) -> keel::u16 {
-        if (v < 0.0)        return 0;
-        if (v > 65535.0)    return 65535;
-        return keel::as<keel::u16>(v + 0.5);   // round-half-up
-    };
-
-    for (keel::usize k = 0; k < (is_image ? N : H); ++k) {
-        const keel::f64 R = (keel::as<keel::f64>(src[0 * ch_stride + k]) - blackLevel) / nominalRange;
-        const keel::f64 G = (keel::as<keel::f64>(src[1 * ch_stride + k]) - blackLevel) / nominalRange;
-        const keel::f64 B = (keel::as<keel::f64>(src[2 * ch_stride + k]) - blackLevel) / nominalRange;
-        const keel::f64 Y  = 0.2627 * R + 0.6780 * G + 0.0593 * B;
-        const keel::f64 Cb = (B - Y) / 1.8814;
-        const keel::f64 Cr = (R - Y) / 1.4746;
-        dst[0 * ch_stride + k] = clamp_round((219.0 * Y  +  16.0) * scale);
-        dst[1 * ch_stride + k] = clamp_round((224.0 * Cb + 128.0) * scale);
-        dst[2 * ch_stride + k] = clamp_round((224.0 * Cr + 128.0) * scale);
-    }
+    const keel::usize n = is_image ? N : H;
+    (void)keel::image::rgbwide_to_ycbcr_planar(
+        keel::ArrayRef<keel::u16>(src, n),
+        keel::ArrayRef<keel::u16>(src + n, n),
+        keel::ArrayRef<keel::u16>(src + 2 * n, n),
+        bits_per_sample,
+        keel::MutArrayRef<keel::u16>(dst, n),
+        keel::MutArrayRef<keel::u16>(dst + n, n),
+        keel::MutArrayRef<keel::u16>(dst + 2 * n, n));
     return out;
 }
 
@@ -383,130 +305,38 @@ cmunique_core(keel::Array<keel::f64> &c, keel::usize H, keel::usize W,
               const keel::Array<keel::f64> &map_in, keel::usize M,
               keel::Allocator *mr)
 {
-    constexpr keel::f64 tol = 1.0 / 1024.0;
-
-    // Quantise map.
-    keel::Array<keel::f64> map(3 * M, mr);
-    for (keel::usize k = 0; k < 3 * M; ++k)
-        map[k] = keel::round(map_in[k] / tol) * tol;
-
-    // Sort indices by columns [3 2 1] ascending. map is col-major
-    // M × 3: map[r, c] = map_in[c * M + r].
-    keel::Array<keel::usize> ndx(M, mr);
-    for (keel::usize k = 0; k < M; ++k) ndx[k] = k;
-    keel::sort(ndx.begin(), ndx.end(),
-        [&](keel::usize a, keel::usize b) {
-            const keel::f64 a3 = map[2 * M + a], b3 = map[2 * M + b];
-            if (a3 != b3) return a3 < b3;
-            const keel::f64 a2 = map[1 * M + a], b2 = map[1 * M + b];
-            if (a2 != b2) return a2 < b2;
-            return map[0 * M + a] < map[0 * M + b];
-        });
-
-    // pos[ndx[k]] = k+1 (1-based).
-    keel::Array<keel::usize> pos(M, mr);
-    for (keel::usize k = 0; k < M; ++k) pos[ndx[k]] = k + 1;
-
-    // d[k] = (consecutive sorted rows k and k+1 match within tol).
-    keel::Array<keel::u8> d(M > 0 ? M - 1 : 0, 0, mr);
-    for (keel::usize k = 0; k + 1 < M; ++k) {
-        const keel::usize a = ndx[k], b = ndx[k + 1];
-        const bool same =
-            keel::abs(map[0 * M + a] - map[0 * M + b]) < tol &&
-            keel::abs(map[1 * M + a] - map[1 * M + b]) < tol &&
-            keel::abs(map[2 * M + a] - map[2 * M + b]) < tol;
-        d[k] = same ? 1 : 0;
-    }
-
-    // loc[k] = (k+1) - cumsum(d)[k]  with prefix [0; cumsum(d)].
-    keel::Array<keel::usize> loc(M, mr);
-    keel::usize csum = 0;
-    for (keel::usize k = 0; k < M; ++k) {
-        loc[k] = (k + 1) - csum;
-        if (k < d.size()) csum += d[k];
-    }
-
-    // Remap c: c[i] = loc[pos[c[i] - 1] - 1].  (Both pos and loc
-    // are 1-based on output; we convert input c to 0-based then
-    // back.)
     const keel::usize N = c.size();
-    for (keel::usize i = 0; i < N; ++i) {
-        const keel::usize orig = keel::as<keel::usize>(c[i]) - 1;
-        const keel::usize sorted_pos = pos[orig] - 1;
-        c[i] = keel::as<keel::f64>(loc[sorted_pos]);
-    }
+    keel::Array<keel::usize> idx_in(N, mr), idx_out(N, mr);
+    for (keel::usize i = 0; i < N; ++i) idx_in[i] = keel::as<keel::usize>(c[i]) - 1;
+    keel::Array<keel::f64> out_r(mr), out_g(mr), out_b(mr);
+    (void)keel::image::colormap_unique(
+        idx_in.as_ref(),
+        keel::ArrayRef<keel::f64>(map_in.data(), M),
+        keel::ArrayRef<keel::f64>(map_in.data() + M, M),
+        keel::ArrayRef<keel::f64>(map_in.data() + 2 * M, M),
+        idx_out.as_mut_ref(), out_r, out_g, out_b, mr);
 
-    // Drop duplicate rows from ndx (positions where d is true).
-    keel::Array<keel::usize> kept_ndx(mr);
-    kept_ndx.reserve(M);
-    for (keel::usize k = 0; k < M; ++k) {
-        const bool drop = (k < d.size()) && d[k];
-        if (!drop) kept_ndx.push_back(ndx[k]);
-    }
-    const keel::usize nmap1 = kept_ndx.size();
+    const keel::usize nmap2 = out_r.size();
+    keel::usize max_c = 0;
+    for (keel::usize i = 0; i < N; ++i) if (idx_out[i] + 1 > max_c) max_c = idx_out[i] + 1;
+    const bool to_uint8 = (max_c <= 256);
 
-    // Build compressed map.
-    keel::Array<keel::f64> map1(3 * nmap1, mr);
-    for (keel::usize k = 0; k < nmap1; ++k) {
-        map1[0 * nmap1 + k] = map[0 * M + kept_ndx[k]];
-        map1[1 * nmap1 + k] = map[1 * M + kept_ndx[k]];
-        map1[2 * nmap1 + k] = map[2 * M + kept_ndx[k]];
-    }
-
-    // Count usage of each compressed colour.
-    keel::Array<keel::usize> nuse(nmap1, 0, mr);
-    for (keel::usize i = 0; i < N; ++i) {
-        const keel::usize k = keel::as<keel::usize>(c[i]);
-        if (k >= 1 && k <= nmap1) ++nuse[k - 1];
-    }
-    // d2[k] = (nuse[k] == 0). Remap unused → drop.
-    keel::Array<keel::u8> d2(nmap1, 0, mr);
-    for (keel::usize k = 0; k < nmap1; ++k) d2[k] = (nuse[k] == 0) ? 1 : 0;
-    // loc2[k] = (k+1) - cumsum(d2)[k+1].
-    keel::Array<keel::usize> loc2(nmap1, mr);
-    keel::usize cs = 0;
-    for (keel::usize k = 0; k < nmap1; ++k) {
-        cs += d2[k];
-        loc2[k] = (k + 1) - cs;
-    }
-    for (keel::usize i = 0; i < N; ++i) {
-        const keel::usize k = keel::as<keel::usize>(c[i]) - 1;
-        c[i] = keel::as<keel::f64>(loc2[k]);
-    }
-    // Remove unused rows from map1.
-    keel::Array<keel::f64> map2_R(mr), map2_G(mr), map2_B(mr);
-    for (keel::usize k = 0; k < nmap1; ++k) {
-        if (!d2[k]) {
-            map2_R.push_back(map1[0 * nmap1 + k]);
-            map2_G.push_back(map1[1 * nmap1 + k]);
-            map2_B.push_back(map1[2 * nmap1 + k]);
-        }
-    }
-    const keel::usize nmap2 = map2_R.size();
-
-    // Determine final output class for Y.
-    keel::f64 max_c = 0.0;
-    for (keel::usize i = 0; i < N; ++i) if (c[i] > max_c) max_c = c[i];
-    const bool to_uint8 = (max_c <= 256.0);
-
-    Value Y = to_uint8
-        ? Value::matrix(H, W, ValueType::UINT8, mr)
-        : Value::matrix(H, W, ValueType::DOUBLE, mr);
+    Value Y = to_uint8 ? Value::matrix(H, W, ValueType::UINT8, mr)
+                       : Value::matrix(H, W, ValueType::DOUBLE, mr);
     if (to_uint8) {
         keel::u8 *yp = Y.uint8DataMut();
-        for (keel::usize i = 0; i < N; ++i)
-            yp[i] = keel::as<keel::u8>(c[i] - 1.0);   // 0-based
+        for (keel::usize i = 0; i < N; ++i) yp[i] = keel::as<keel::u8>(idx_out[i]);
     } else {
         keel::f64 *yp = Y.doubleDataMut();
-        for (keel::usize i = 0; i < N; ++i) yp[i] = c[i];     // 1-based
+        for (keel::usize i = 0; i < N; ++i) yp[i] = keel::as<keel::f64>(idx_out[i] + 1);
     }
 
     Value newmap = Value::matrix(nmap2, 3, ValueType::DOUBLE, mr);
     keel::f64 *np = newmap.doubleDataMut();
-    for (keel::usize k = 0; k < nmap2; ++k) {
-        np[0 * nmap2 + k] = map2_R[k];
-        np[1 * nmap2 + k] = map2_G[k];
-        np[2 * nmap2 + k] = map2_B[k];
+    if (nmap2 > 0) {
+        keel::copy_n(np,             out_r.data(), nmap2);
+        keel::copy_n(np + nmap2,     out_g.data(), nmap2);
+        keel::copy_n(np + 2 * nmap2, out_b.data(), nmap2);
     }
     return {keel::move(Y), keel::move(newmap)};
 }
@@ -616,378 +446,110 @@ cmunique_i(const Value &I, keel::Allocator *mr)
 // at [0, 65535]; we mirror that with `+ 0.5` floor (round-half-up).
 // Bit-equal on every probed test vector (round-trip with
 // rgbwide2ycbcr).
-Value ycbcr2rgbwide(const Value &YCBCR, keel::i32 bits_per_sample,
-                    keel::Allocator *mr)
+Value ycbcr2rgbwide(const Value &YCBCR, keel::i32 bits_per_sample, keel::Allocator *mr)
 {
     ycbcr2rgbwide_argcheck(YCBCR, bits_per_sample);
-    if (bits_per_sample != 10 && bits_per_sample != 12)
-        throw Error("ycbcr2rgbwide: BPS must be 10 or 12",
-                    0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:bps");
-    if (YCBCR.type() != ValueType::UINT16)
-        throw Error("ycbcr2rgbwide: YCBCR must be UINT16",
-                    0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:class");
-
     const auto &d = YCBCR.dims();
     const bool is_image = d.is3D();
-    if (is_image) {
-        if (d.pages() != 3)
-            throw Error("ycbcr2rgbwide: H×W×3 image expected",
-                        0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:shape");
-    } else {
-        if (d.cols() != 3)
-            throw Error("ycbcr2rgbwide: p×3 colour list expected",
-                        0, 0, "ycbcr2rgbwide", "", "numkit:ycbcr2rgbwide:shape");
-    }
-
-    keel::f64 yzero, yrange, chromazero, chromarange;
-    keel::f64 blackLevel, nominalRange;
-    if (bits_per_sample == 10) {
-        yzero = 64.0;          yrange      = 876.0;       // 940 - 64
-        chromazero = 512.0;    chromarange = 896.0;       // 960 - 64
-        blackLevel = 64.0;     nominalRange = 876.0;      // 940 - 64
-    } else {
-        yzero = 256.0;         yrange      = 3504.0;      // 3760 - 256
-        chromazero = 2048.0;   chromarange = 3584.0;      // 3840 - 256
-        blackLevel = 256.0;    nominalRange = 3504.0;     // 3760 - 256
-    }
-
     const keel::usize H = d.rows();
     const keel::usize W = is_image ? d.cols() : 1;
-    const keel::usize N = H * W;
+    const keel::usize n = is_image ? (H * W) : H;
 
-    Value out;
-    if (is_image) out = Value::matrix3d(H, W, 3, ValueType::UINT16, mr);
-    else          out = Value::matrix(H, 3, ValueType::UINT16, mr);
-
+    Value out = is_image ? Value::matrix3d(H, W, 3, ValueType::UINT16, mr)
+                         : Value::matrix(H, 3, ValueType::UINT16, mr);
     const keel::u16 *src = YCBCR.uint16Data();
     keel::u16 *dst = out.uint16DataMut();
-
-    const keel::usize ch_stride = is_image ? N : H;
-
-    auto clamp_round = [](keel::f64 v) -> keel::u16 {
-        if (v < 0.0)        return 0;
-        if (v > 65535.0)    return 65535;
-        return keel::as<keel::u16>(v + 0.5);
-    };
-
-    for (keel::usize k = 0; k < (is_image ? N : H); ++k) {
-        const keel::f64 Yn  = (keel::as<keel::f64>(src[0 * ch_stride + k]) - yzero)
-                            / yrange;
-        const keel::f64 Cbn = (keel::as<keel::f64>(src[1 * ch_stride + k]) - chromazero)
-                            / chromarange;
-        const keel::f64 Crn = (keel::as<keel::f64>(src[2 * ch_stride + k]) - chromazero)
-                            / chromarange;
-        const keel::f64 R = 1.4746 * Crn + Yn;
-        const keel::f64 B = 1.8814 * Cbn + Yn;
-        const keel::f64 G = (Yn - 0.2627 * R - 0.0593 * B) / 0.6780;
-        dst[0 * ch_stride + k] = clamp_round(R * nominalRange + blackLevel);
-        dst[1 * ch_stride + k] = clamp_round(G * nominalRange + blackLevel);
-        dst[2 * ch_stride + k] = clamp_round(B * nominalRange + blackLevel);
-    }
+    (void)keel::image::ycbcr_to_rgbwide_planar(
+        keel::ArrayRef<keel::u16>(src, n),
+        keel::ArrayRef<keel::u16>(src + n, n),
+        keel::ArrayRef<keel::u16>(src + 2 * n, n),
+        bits_per_sample,
+        keel::MutArrayRef<keel::u16>(dst, n),
+        keel::MutArrayRef<keel::u16>(dst + n, n),
+        keel::MutArrayRef<keel::u16>(dst + 2 * n, n));
     return out;
 }
 
-// ════════════════════════════════════════════════════════════════════
-// rgbwide2xyz / xyz2rgbwide — BT.2020/BT.2100 RGB ↔ CIE 1931 XYZ
-// ════════════════════════════════════════════════════════════════════
-//
-// Decodes narrow-range wide-gamut RGB (10- or 12-bit uint16) to CIE
-// 1931 XYZ tristimulus values, and the inverse.
-//
-// Algorithm transliterated verbatim from MATLAB R2025b
-//   colorspaces/rgbwide2xyz.m + xyz2rgbwide.m,
-//   colorspaces/+images/+color/BT2020RGBEncoder.m,
-//   colorspaces/+images/+color/BT2100RGBEncoder.m,
-//   colorspaces/+images/+color/+internal/bt2020RGBToXYZTransform.m.
-//
-// Note: MATLAB's BT.2100 "PQ" path implements the BT.2020-style
-// power-curve transfer with fixed α=1.099, β=0.018 (NOT the SMPTE
-// ST 2084 perceptual quantizer — the naming in MATLAB is
-// counter-intuitive). HLG is the genuine Hybrid Log-Gamma curve.
-// PMR HARD RULE: every fn takes std::pmr::memory_resource *mr.
-
 namespace {
 
-// BT.2020 R→XYZ matrix (D65), exact values as computed by MATLAB
-// R2025b images.color.internal.bt2020RGBToXYZTransform(). The
-// standard primaries (xr=0.708/yr=0.292, xg=0.170/yg=0.797,
-// xb=0.131/yb=0.046 with D65=[0.95047, 1, 1.08883]) get solved via
-// images.color.internal.computeM; using MATLAB's exact last-digit
-// values keeps parity bit-exact.
-constexpr keel::f64 kMBT2020_D65[9] = {
-    0.637010191411101,    0.144615027396969,    0.168844781191930,
-    0.262721717361640,    0.677989275502262,    0.059289007136098,
-    4.994515405547190e-17, 0.028072328847647,    1.060757671152350
-};
-
-inline void mat3_mv(const keel::f64 M[9], const keel::f64 v[3], keel::f64 o[3])
+keel::image::WideColorSpace parse_wide_cs(keel::i32 bits_per_sample, keel::StringRef color_space,
+                                          keel::StringRef linearization, const char *fn)
 {
-    o[0] = M[0]*v[0] + M[1]*v[1] + M[2]*v[2];
-    o[1] = M[3]*v[0] + M[4]*v[1] + M[5]*v[2];
-    o[2] = M[6]*v[0] + M[7]*v[1] + M[8]*v[2];
-}
-
-inline void mat3_inv9(const keel::f64 M[9], keel::f64 Inv[9])
-{
-    const keel::f64 a=M[0],b=M[1],c=M[2],d=M[3],e=M[4],f=M[5],g=M[6],h=M[7],i=M[8];
-    const keel::f64 A = e*i - f*h, B = -(d*i - f*g), C = d*h - e*g;
-    const keel::f64 det = a*A + b*B + c*C;
-    const keel::f64 inv = 1.0/det;
-    Inv[0]=A*inv; Inv[1]=-(b*i-c*h)*inv; Inv[2]=(b*f-c*e)*inv;
-    Inv[3]=B*inv; Inv[4]=(a*i-c*g)*inv; Inv[5]=-(a*f-c*d)*inv;
-    Inv[6]=C*inv; Inv[7]=-(a*h-b*g)*inv; Inv[8]=(a*e-b*d)*inv;
-}
-
-// BT.2020 / BT.2100 transfer-function constants per bit depth.
-struct BTParams { keel::f64 alpha, beta; keel::i32 blackLevel, nominalPeak; };
-BTParams bt2020_params(keel::i32 bps)
-{
-    if (bps == 10) return {1.099, 0.018, 64, 940};
-    if (bps == 12) return {1.0993, 0.0181, 256, 3760};
-    throw Error("rgbwide2xyz: bits_per_sample must be 10 or 12",
-                0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:bps");
-}
-BTParams bt2100_params(keel::i32 bps)
-{
-    // BT.2100 hardcodes alpha=1.099, beta=0.018 regardless of bit depth
-    // for the "PQ" path. For HLG, alpha/beta are not used directly.
-    if (bps == 10) return {1.099, 0.018, 64, 940};
-    if (bps == 12) return {1.099, 0.018, 256, 3760};
-    throw Error("rgbwide2xyz: bits_per_sample must be 10 or 12",
-                0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:bps");
-}
-
-// Inverse transfer (normalized [0,1] non-linear → linear).
-inline keel::f64 bt_rgb2lin(keel::f64 v, keel::f64 alpha, keel::f64 beta)
-{
-    if (v < 4.5 * beta) return v / 4.5;
-    return keel::pow((v + alpha - 1.0) / alpha, 1.0 / 0.45);
-}
-// Forward transfer (linear → non-linear in [0,1]).
-inline keel::f64 bt_lin2rgb(keel::f64 v, keel::f64 alpha, keel::f64 beta)
-{
-    if (v < beta) return 4.5 * v;
-    return alpha * keel::pow(v, 0.45) - (alpha - 1.0);
-}
-
-// HLG transfer functions per BT.2100.
-inline keel::f64 hlg_rgb2lin(keel::f64 v)
-{
-    constexpr keel::f64 a = 0.17883277;
-    constexpr keel::f64 b = 1.0 - 4.0 * a;
-    const keel::f64 c = 0.5 - a * keel::log(4.0 * a);
-    if (v <= 0.5) return (v * v) / 3.0;
-    return (keel::exp((v - c) / a) + b) / 12.0;
-}
-inline keel::f64 hlg_lin2rgb(keel::f64 v)
-{
-    constexpr keel::f64 a = 0.17883277;
-    constexpr keel::f64 b = 1.0 - 4.0 * a;
-    const keel::f64 c = 0.5 - a * keel::log(4.0 * a);
-    if (v <= 1.0 / 12.0) return keel::sqrt(3.0 * v);
-    return a * keel::log(12.0 * v - b) + c;
-}
-
-void rgbwide2xyz_argcheck(const Value &RGB, keel::i32 bits_per_sample,
-                          keel::StringRef color_space)
-{
-    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
-                      color_space.equals_ignore_ascii_case("bt2020"));
-    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
-                      color_space.equals_ignore_ascii_case("bt2100"));
+    const bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020")
+                            || color_space.equals_ignore_ascii_case("bt2020"));
+    const bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100")
+                            || color_space.equals_ignore_ascii_case("bt2100"));
     if (!is_bt2020 && !is_bt2100)
-        throw Error("rgbwide2xyz: ColorSpace must be 'BT.2020' or 'BT.2100'",
-                    0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:cs");
-    (void)(is_bt2020 ? bt2020_params(bits_per_sample)
-                     : bt2100_params(bits_per_sample));
-    const auto &d = RGB.dims();
-    if (d.is3D() && d.pages() != 3)
-        throw Error("rgbwide2xyz: RGB must be Nx3 or HxWx3",
-                    0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:shape");
+        throw Error(keel::format("{}: ColorSpace must be 'BT.2020' or 'BT.2100'", fn),
+                    0, 0, fn, "", keel::format("numkit:{}:cs", fn));
+    if (bits_per_sample != 10 && bits_per_sample != 12)
+        throw Error(keel::format("{}: bits_per_sample must be 10 or 12", fn),
+                    0, 0, fn, "", "numkit:rgbwide2xyz:bps");
+    if (is_bt2020) return keel::image::WideColorSpace::kBt2020;
+    return linearization.equals_ignore_ascii_case("hlg")
+               ? keel::image::WideColorSpace::kBt2100Hlg
+               : keel::image::WideColorSpace::kBt2100Pq;
 }
 
-void xyz2rgbwide_argcheck(const Value &XYZ, keel::i32 bits_per_sample,
-                          keel::StringRef color_space)
-{
-    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
-                      color_space.equals_ignore_ascii_case("bt2020"));
-    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
-                      color_space.equals_ignore_ascii_case("bt2100"));
-    if (!is_bt2020 && !is_bt2100)
-        throw Error("xyz2rgbwide: ColorSpace must be 'BT.2020' or 'BT.2100'",
-                    0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:cs");
-    (void)(is_bt2020 ? bt2020_params(bits_per_sample)
-                     : bt2100_params(bits_per_sample));
-    const auto &d = XYZ.dims();
-    if (d.is3D() && d.pages() != 3)
-        throw Error("xyz2rgbwide: XYZ must be Nx3 or HxWx3",
-                    0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:shape");
-}
-
-}  // namespace
+} // namespace
 
 Value rgbwide2xyz(const Value &RGB, keel::i32 bits_per_sample,
-                  keel::StringRef color_space,
-                  keel::StringRef linearization,
+                  keel::StringRef color_space, keel::StringRef linearization,
                   keel::Allocator *mr)
 {
-    rgbwide2xyz_argcheck(RGB, bits_per_sample, color_space);
-    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
-                      color_space.equals_ignore_ascii_case("bt2020"));
-    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
-                      color_space.equals_ignore_ascii_case("bt2100"));
-    if (!is_bt2020 && !is_bt2100)
-        throw Error("rgbwide2xyz: ColorSpace must be 'BT.2020' or 'BT.2100'",
-                    0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:cs");
-    bool use_hlg = (is_bt2100 && linearization.equals_ignore_ascii_case("hlg"));
-
-    BTParams P = is_bt2020 ? bt2020_params(bits_per_sample)
-                            : bt2100_params(bits_per_sample);
-    const keel::f64 nominalRange = keel::as<keel::f64>(P.nominalPeak - P.blackLevel);
-
+    const auto cs = parse_wide_cs(bits_per_sample, color_space, linearization, "rgbwide2xyz");
     const auto &d = RGB.dims();
     if (d.is3D() && d.pages() != 3)
         throw Error("rgbwide2xyz: RGB must be Nx3 or HxWx3",
                     0, 0, "rgbwide2xyz", "", "numkit:rgbwide2xyz:shape");
-    const keel::usize H = d.rows();
-    const keel::usize W = d.cols();
+    const keel::usize H = d.rows(), W = d.cols();
     const bool is_image = d.is3D();
     const keel::usize Np = is_image ? (H * W) : H;
 
-    Value out;
-    if (is_image)
-        out = Value::matrix3d(H, W, 3, ValueType::DOUBLE, mr);
-    else
-        out = Value::matrix(H, 3, ValueType::DOUBLE, mr);
+    keel::Array<keel::f64> in(3 * Np, mr);
+    for (keel::usize i = 0; i < 3 * Np; ++i) in[i] = RGB.elemAsDouble(i);
 
+    Value out = is_image ? Value::matrix3d(H, W, 3, ValueType::DOUBLE, mr)
+                         : Value::matrix(H, 3, ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
-
-    auto rgb_to_lin = [&](keel::f64 v) -> keel::f64 {
-        if (is_bt2020 || !use_hlg) {
-            return bt_rgb2lin(v, P.alpha, P.beta);
-        }
-        return hlg_rgb2lin(v);
-    };
-
-    for (keel::usize i = 0; i < Np; ++i) {
-        // Read raw R, G, B values.
-        keel::usize i_r, i_g, i_b;
-        if (is_image) {
-            i_r = i;
-            i_g = H * W + i;
-            i_b = 2 * H * W + i;
-        } else {
-            i_r = i;
-            i_g = H + i;
-            i_b = 2 * H + i;
-        }
-        const keel::f64 rawR = RGB.elemAsDouble(i_r);
-        const keel::f64 rawG = RGB.elemAsDouble(i_g);
-        const keel::f64 rawB = RGB.elemAsDouble(i_b);
-        // Normalize.
-        const keel::f64 nR = (rawR - P.blackLevel) / nominalRange;
-        const keel::f64 nG = (rawG - P.blackLevel) / nominalRange;
-        const keel::f64 nB = (rawB - P.blackLevel) / nominalRange;
-        // Inverse transfer (linear).
-        const keel::f64 lR = rgb_to_lin(nR);
-        const keel::f64 lG = rgb_to_lin(nG);
-        const keel::f64 lB = rgb_to_lin(nB);
-        // RGB → XYZ.
-        const keel::f64 lin[3] = {lR, lG, lB};
-        keel::f64 xyz[3];
-        mat3_mv(kMBT2020_D65, lin, xyz);
-        // Write to output.
-        if (is_image) {
-            od[i_r] = xyz[0];
-            od[i_g] = xyz[1];
-            od[i_b] = xyz[2];
-        } else {
-            od[i_r] = xyz[0];
-            od[i_g] = xyz[1];
-            od[i_b] = xyz[2];
-        }
-    }
+    (void)keel::image::rgbwide_to_xyz_planar(
+        keel::ArrayRef<keel::f64>(in.data(), Np),
+        keel::ArrayRef<keel::f64>(in.data() + Np, Np),
+        keel::ArrayRef<keel::f64>(in.data() + 2 * Np, Np),
+        bits_per_sample, cs,
+        keel::MutArrayRef<keel::f64>(od, Np),
+        keel::MutArrayRef<keel::f64>(od + Np, Np),
+        keel::MutArrayRef<keel::f64>(od + 2 * Np, Np));
     return out;
 }
 
 Value xyz2rgbwide(const Value &XYZ, keel::i32 bits_per_sample,
-                  keel::StringRef color_space,
-                  keel::StringRef linearization,
+                  keel::StringRef color_space, keel::StringRef linearization,
                   keel::Allocator *mr)
 {
-    xyz2rgbwide_argcheck(XYZ, bits_per_sample, color_space);
-    bool is_bt2020 = (color_space.equals_ignore_ascii_case("bt.2020") ||
-                      color_space.equals_ignore_ascii_case("bt2020"));
-    bool is_bt2100 = (color_space.equals_ignore_ascii_case("bt.2100") ||
-                      color_space.equals_ignore_ascii_case("bt2100"));
-    if (!is_bt2020 && !is_bt2100)
-        throw Error("xyz2rgbwide: ColorSpace must be 'BT.2020' or 'BT.2100'",
-                    0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:cs");
-    bool use_hlg = (is_bt2100 && linearization.equals_ignore_ascii_case("hlg"));
-
-    BTParams P = is_bt2020 ? bt2020_params(bits_per_sample)
-                            : bt2100_params(bits_per_sample);
-    const keel::f64 nominalRange = keel::as<keel::f64>(P.nominalPeak - P.blackLevel);
-
-    keel::f64 Minv[9];
-    mat3_inv9(kMBT2020_D65, Minv);
-
+    const auto cs = parse_wide_cs(bits_per_sample, color_space, linearization, "xyz2rgbwide");
     const auto &d = XYZ.dims();
     if (d.is3D() && d.pages() != 3)
         throw Error("xyz2rgbwide: XYZ must be Nx3 or HxWx3",
                     0, 0, "xyz2rgbwide", "", "numkit:xyz2rgbwide:shape");
-    const keel::usize H = d.rows();
-    const keel::usize W = d.cols();
+    const keel::usize H = d.rows(), W = d.cols();
     const bool is_image = d.is3D();
     const keel::usize Np = is_image ? (H * W) : H;
 
-    Value out;
-    if (is_image)
-        out = Value::matrix3d(H, W, 3, ValueType::UINT16, mr);
-    else
-        out = Value::matrix(H, 3, ValueType::UINT16, mr);
+    keel::Array<keel::f64> in(3 * Np, mr);
+    for (keel::usize i = 0; i < 3 * Np; ++i) in[i] = XYZ.elemAsDouble(i);
 
+    Value out = is_image ? Value::matrix3d(H, W, 3, ValueType::UINT16, mr)
+                         : Value::matrix(H, 3, ValueType::UINT16, mr);
     keel::u16 *od = out.uint16DataMut();
-    auto lin_to_rgb = [&](keel::f64 v) -> keel::f64 {
-        if (is_bt2020 || !use_hlg) {
-            return bt_lin2rgb(v < 0.0 ? 0.0 : v, P.alpha, P.beta);
-        }
-        return hlg_lin2rgb(v < 0.0 ? 0.0 : v);
-    };
-    auto clamp_to_uint16 = [](keel::f64 v) -> keel::u16 {
-        const keel::f64 r = keel::round(v);
-        if (r < 0.0)     return 0;
-        if (r > 65535.0) return 65535;
-        return keel::as<keel::u16>(r);
-    };
-
-    for (keel::usize i = 0; i < Np; ++i) {
-        keel::usize i_r, i_g, i_b;
-        if (is_image) {
-            i_r = i;
-            i_g = H * W + i;
-            i_b = 2 * H * W + i;
-        } else {
-            i_r = i;
-            i_g = H + i;
-            i_b = 2 * H + i;
-        }
-        const keel::f64 xyz[3] = {
-            XYZ.elemAsDouble(i_r),
-            XYZ.elemAsDouble(i_g),
-            XYZ.elemAsDouble(i_b)
-        };
-        keel::f64 lin[3];
-        mat3_mv(Minv, xyz, lin);
-        // Forward transfer.
-        const keel::f64 nR = lin_to_rgb(lin[0]);
-        const keel::f64 nG = lin_to_rgb(lin[1]);
-        const keel::f64 nB = lin_to_rgb(lin[2]);
-        // Un-normalize + clamp.
-        od[i_r] = clamp_to_uint16(nR * nominalRange + P.blackLevel);
-        od[i_g] = clamp_to_uint16(nG * nominalRange + P.blackLevel);
-        od[i_b] = clamp_to_uint16(nB * nominalRange + P.blackLevel);
-    }
+    (void)keel::image::xyz_to_rgbwide_planar(
+        keel::ArrayRef<keel::f64>(in.data(), Np),
+        keel::ArrayRef<keel::f64>(in.data() + Np, Np),
+        keel::ArrayRef<keel::f64>(in.data() + 2 * Np, Np),
+        bits_per_sample, cs,
+        keel::MutArrayRef<keel::u16>(od, Np),
+        keel::MutArrayRef<keel::u16>(od + Np, Np),
+        keel::MutArrayRef<keel::u16>(od + 2 * Np, Np));
     return out;
 }
 
@@ -1853,244 +1415,29 @@ Value permute_cmap_rows(const Value &cmap, keel::ArrayRef<keel::i32> perm,
     return out;
 }
 
-// ── Greedy graph colouring (BFS) for contrasting-neighbors ────────
-// Builds 8-conn adjacency between distinct non-zero labels, then
-// BFS-assigns colours from a "maximally distinct" palette built by
-// `select_maximally_distinct`. Bit-identical with MATLAB's
-// `images.internal.greedyGraphColoring` when L is integer-typed.
-//
-// Reference: `images.internal.greedyGraphColoring.m` (R2025b).
-struct EdgeSet {
-    keel::Array<keel::Pair<keel::i32, keel::i32>> edges;  // unordered (a < b)
-    keel::i32 maxLabel = 0;
-};
-
-EdgeSet build_8conn_edges(const Value &L)
+Value greedy_graph_coloring(const Value &L_in, const Value &cmap, keel::Allocator *mr)
 {
-    EdgeSet s;
-    const keel::usize H = L.dims().rows();
-    const keel::usize W = L.dims().cols();
-    auto lab = [&](keel::usize r, keel::usize c) -> keel::i32 {
-        return keel::as<keel::i32>(L.elemAsDouble(c * H + r));
-    };
-    for (keel::usize r = 0; r < H; ++r)
-        for (keel::usize c = 0; c < W; ++c) {
-            const keel::i32 a = lab(r, c);
-            if (a > s.maxLabel) s.maxLabel = a;
-            // 8-conn forward neighbours: (r+1,c), (r,c+1), (r+1,c+1), (r+1,c-1)
-            const keel::StaticArray<keel::Pair<keel::i32, keel::i32>, 4> off{{
-                {1, 0}, {0, 1}, {1, 1}, {1, -1}
-            }};
-            for (auto [dr, dc] : off) {
-                const keel::usize rr = r + dr;
-                const keel::i64 cc = keel::as<keel::i64>(c) + dc;
-                if (rr >= H || cc < 0 || keel::as<keel::usize>(cc) >= W)
-                    continue;
-                const keel::i32 b = lab(rr, keel::as<keel::usize>(cc));
-                if (a == b) continue;
-                keel::i32 x = a, y = b;
-                if (x > y) keel::swap(x, y);
-                s.edges.push_back({x, y});
-            }
-        }
-    keel::sort(s.edges.begin(), s.edges.end());
-    auto *end_it = keel::unique(s.edges.begin(), s.edges.end());
-    s.edges.resize(end_it - s.edges.begin());
-    return s;
-}
-
-keel::i32 chromatic_upper_bound(const EdgeSet &s)
-{
-    // Brooke's theorem: ub = max degree + 1.
-    keel::HashMap<keel::i32, keel::i32> deg;
-    for (auto [a, b] : s.edges) {
-        if (auto *p = deg.get(a)) ++(*p); else deg.put(a, 1);
-        if (auto *p = deg.get(b)) ++(*p); else deg.put(b, 1);
-    }
-    keel::i32 md = 0;
-    for (auto [_, d] : deg) if (d > md) md = d;
-    return md + 1;
-}
-
-// Select up to K maximally distinct colours from cmap (by RGB distance,
-// greedy "farthest from previously selected"). MATLAB's algorithm
-// (`images.internal.selectMaximallyDistinctColors`) starts with the
-// last colour and at each step picks the unselected colour with the
-// maximum sum of distances to already-selected. Distance is plain L2
-// in RGB. Returns K colours as the first K rows of cmap_out.
-Value select_maximally_distinct(const Value &cmap, keel::i32 K,
-                                keel::Allocator *mr)
-{
-    const keel::usize N = cmap.dims().rows();
-    if (K > keel::as<keel::i32>(N)) K = keel::as<keel::i32>(N);
-    Value out = Value::matrix(K, 3, ValueType::DOUBLE, mr);
-    keel::f64 *od = out.doubleDataMut();
-    const keel::f64 *cd = cmap.doubleData();
-    keel::Array<char> picked(N, 0);
-    keel::Array<keel::f64> dist_sum(N, 0.0);
-    // First pick: last row of cmap (matches MATLAB).
-    keel::i32 last = keel::as<keel::i32>(N - 1);
-    picked[last] = 1;
-    od[0 * K + 0] = cd[0 * N + last];
-    od[1 * K + 0] = cd[1 * N + last];
-    od[2 * K + 0] = cd[2 * N + last];
-    for (keel::usize i = 0; i < N; ++i)
-        if (!picked[i]) {
-            const keel::f64 dr = cd[0 * N + i] - cd[0 * N + last];
-            const keel::f64 dg = cd[1 * N + i] - cd[1 * N + last];
-            const keel::f64 db = cd[2 * N + i] - cd[2 * N + last];
-            dist_sum[i] = keel::sqrt(dr * dr + dg * dg + db * db);
-        }
-    for (keel::i32 k = 1; k < K; ++k) {
-        // Pick argmax of dist_sum among unpicked.
-        keel::i32 best = -1;
-        keel::f64 bv = -1.0;
-        for (keel::usize i = 0; i < N; ++i)
-            if (!picked[i] && dist_sum[i] > bv) {
-                bv = dist_sum[i];
-                best = keel::as<keel::i32>(i);
-            }
-        if (best < 0) break;
-        picked[best] = 1;
-        od[0 * K + k] = cd[0 * N + best];
-        od[1 * K + k] = cd[1 * N + best];
-        od[2 * K + k] = cd[2 * N + best];
-        // Update dist_sum.
-        for (keel::usize i = 0; i < N; ++i)
-            if (!picked[i]) {
-                const keel::f64 dr = cd[0 * N + i] - cd[0 * N + best];
-                const keel::f64 dg = cd[1 * N + i] - cd[1 * N + best];
-                const keel::f64 db = cd[2 * N + i] - cd[2 * N + best];
-                dist_sum[i] += keel::sqrt(dr * dr + dg * dg + db * db);
-            }
-    }
-    return out;
-}
-
-Value greedy_graph_coloring(const Value &L_in, const Value &cmap,
-                            keel::Allocator *mr)
-{
-    // Replicate MATLAB: add zero-color row if 0 present in L.
-    bool tf_zero = false;
     const keel::usize H = L_in.dims().rows();
     const keel::usize W = L_in.dims().cols();
+    const keel::usize N = cmap.dims().rows();
+    keel::Array<keel::i32> labs(H * W, mr);
     for (keel::usize i = 0; i < H * W; ++i)
-        if (L_in.elemAsDouble(i) == 0.0) { tf_zero = true; break; }
+        labs[i] = keel::as<keel::i32>(L_in.elemAsDouble(i));
+    const keel::f64 *cd = cmap.doubleData();
+    keel::Array<keel::f64> out_r(mr), out_g(mr), out_b(mr);
+    (void)keel::image::greedy_graph_coloring_2d(
+        labs.as_ref(), H, W,
+        keel::ArrayRef<keel::f64>(cd, N),
+        keel::ArrayRef<keel::f64>(cd + N, N),
+        keel::ArrayRef<keel::f64>(cd + 2 * N, N),
+        out_r, out_g, out_b, mr);
 
-    Value L = L_in;
-    Value cmap_used = cmap;
-    if (tf_zero) {
-        // L = L + 1
-        Value Lshift = Value::matrix(H, W, ValueType::DOUBLE, mr);
-        for (keel::usize i = 0; i < H * W; ++i)
-            Lshift.doubleDataMut()[i] = L_in.elemAsDouble(i) + 1.0;
-        L = keel::move(Lshift);
-        // cmap = [cmap(1,:); cmap]   (use cmap row 1 as the zero
-        // colour, since labeloverlay doesn't pass an explicit zero).
-        const keel::usize N = cmap.dims().rows();
-        Value c2 = Value::matrix(N + 1, 3, ValueType::DOUBLE, mr);
-        const keel::f64 *cd = cmap.doubleData();
-        keel::f64 *cd2 = c2.doubleDataMut();
-        for (keel::i32 ch = 0; ch < 3; ++ch) {
-            cd2[ch * (N + 1) + 0] = cd[ch * N + 0];
-            for (keel::usize i = 0; i < N; ++i)
-                cd2[ch * (N + 1) + (i + 1)] = cd[ch * N + i];
-        }
-        cmap_used = keel::move(c2);
-    }
-
-    EdgeSet g = build_8conn_edges(L);
-    if (g.edges.empty()) return cmap_used;
-    const keel::i32 ub = chromatic_upper_bound(g);
-
-    // Build adjacency lists (sorted ascending to match std::set iteration order).
-    const keel::i32 numNodes = g.maxLabel;
-    keel::Array<keel::Array<keel::i32>> adj;
-    adj.resize(numNodes + 1);
-    for (auto [a, b] : g.edges) { adj[a].push_back(b); adj[b].push_back(a); }
-    for (keel::usize i = 0; i < adj.size(); ++i) {
-        keel::sort(adj[i].begin(), adj[i].end());
-        auto *uend = keel::unique(adj[i].begin(), adj[i].end());
-        adj[i].resize(uend - adj[i].begin());
-    }
-
-    Value palette = select_maximally_distinct(cmap_used, ub, mr);
-    const keel::usize paletteN = palette.dims().rows();
-    const keel::f64 *pd = palette.doubleData();
-
-    // BFS starting from min label in L.
-    keel::i32 firstNode = keel::Limits<keel::i32>::kMax;
-    for (keel::usize i = 0; i < H * W; ++i) {
-        keel::i32 v = keel::as<keel::i32>(L.elemAsDouble(i));
-        if (v > 0 && v < firstNode) firstNode = v;
-    }
-    if (firstNode == keel::Limits<keel::i32>::kMax) return cmap_used;
-
-    keel::Array<keel::i32> coloredIdx(numNodes + 1, 0);
-    keel::Array<char> visited(numNodes + 1, 0);
-    keel::Array<keel::i32> queue;
-    queue.reserve(numNodes);
-    queue.push_back(firstNode);
-    visited[firstNode] = 1;
-    keel::usize head = 0;
-
-    Value out = Value::matrix(cmap_used.dims().rows(), 3,
-                              ValueType::DOUBLE, mr);
+    Value out = Value::matrix(N, 3, ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();
-    keel::fill(od, od + 3 * cmap_used.dims().rows(), 0.0);
-
-    while (head < queue.size()) {
-        keel::i32 cur = queue[head++];
-        // Enqueue unvisited neighbours.
-        keel::Array<keel::i32> visitedNeighbors;
-        for (keel::i32 n : adj[cur]) {
-            if (!visited[n]) {
-                visited[n] = 1;
-                queue.push_back(n);
-            } else {
-                visitedNeighbors.push_back(n);
-            }
-        }
-        keel::i32 newIdx;
-        if (head == 1) {           // first node → first palette colour
-            newIdx = 1;
-        } else {
-            // Find lowest palette index not used by coloured neighbours.
-            keel::HashSet<keel::i32> usedColors;
-            for (keel::i32 n : visitedNeighbors)
-                if (coloredIdx[n] != 0) usedColors.insert(coloredIdx[n]);
-            newIdx = 1;
-            while (usedColors.contains(newIdx)) ++newIdx;
-            if (newIdx > keel::as<keel::i32>(paletteN))
-                newIdx = keel::as<keel::i32>(paletteN);
-        }
-        coloredIdx[cur] = newIdx;
-        const keel::usize N = cmap_used.dims().rows();
-        od[0 * N + (cur - 1)] = pd[0 * paletteN + (newIdx - 1)];
-        od[1 * N + (cur - 1)] = pd[1 * paletteN + (newIdx - 1)];
-        od[2 * N + (cur - 1)] = pd[2 * paletteN + (newIdx - 1)];
-    }
-    // Labels that didn't appear in any edge keep cmap_used's row as fallback.
-    const keel::usize N = cmap_used.dims().rows();
-    const keel::f64 *cd = cmap_used.doubleData();
-    for (keel::usize i = 0; i < N; ++i) {
-        // If the i-th label (i is row → label = i+1 wrt 1-based) was
-        // never visited *and* it appears in L, leave the original colour.
-        const keel::i32 lab = keel::as<keel::i32>(i + 1);
-        if (lab > numNodes) continue;
-        if (!visited[lab]) {
-            for (keel::i32 ch = 0; ch < 3; ++ch)
-                od[ch * N + i] = cd[ch * N + i];
-        }
-    }
-    if (tf_zero) {
-        // Remove the prepended zero-row (we put cmap(1,:) there).
-        Value strip = Value::matrix(N - 1, 3, ValueType::DOUBLE, mr);
-        keel::f64 *sd = strip.doubleDataMut();
-        for (keel::i32 ch = 0; ch < 3; ++ch)
-            for (keel::usize i = 1; i < N; ++i)
-                sd[ch * (N - 1) + (i - 1)] = od[ch * N + i];
-        return strip;
+    if (N > 0) {
+        keel::copy_n(od,         out_r.data(), N);
+        keel::copy_n(od + N,     out_g.data(), N);
+        keel::copy_n(od + 2 * N, out_b.data(), N);
     }
     return out;
 }
