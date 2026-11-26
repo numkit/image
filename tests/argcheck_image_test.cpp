@@ -80,3 +80,23 @@ TEST_F(ArgcheckImageTest, CountContracts)
     EXPECT_EQ(static_cast<int>(evalScalar("numel(phantom(64))")), 4096);
     EXPECT_NO_THROW(engine.eval("wcodemat(magic(5), 20.4);")); // tolerant: rounds
 }
+
+TEST_F(ArgcheckImageTest, ShortVectorAndNonNumericGuards)
+{
+    expectError("imcrop(ones(4), [1 1]);", "numkit:imcrop:rect");
+    expectError("imcrop(ones(4), 'abcd');", "numkit:imcrop:rect");
+    expectError("imtranslate(ones(4), 1);", "numkit:imtranslate:vec");
+    expectError("imtranslate(ones(4), 'ab');", "numkit:imtranslate:vec");
+    expectError("imresize(ones(4), [2 2 2]);", "numkit:imresize:size");
+    expectError("imresize(ones(4), 'ab');", "numkit:imresize:size");
+    expectError("imrotate3(ones(3,3,3), 45, [1 0]);", "numkit:imrotate3:axis");
+    expectError("imrotate3(ones(3,3,3), 45, 'xyz');", "numkit:imrotate3:axis");
+    expectError("imadjust(ones(4), 0.5);", "numkit:imadjust:inRange");
+    expectError("imadjust(ones(4), [0 1], 0.5);", "numkit:imadjust:outRange");
+    expectError("adapthisteq(ones(8), 'NumTiles', 'ab');", "numkit:adapthisteq:badNumTiles");
+    expectError("mat2gray(ones(4), 'ab');", "numkit:mat2gray:size");
+    expectError("convmtx2(ones(2), 'ab');", "numkit:convmtx2:size");
+    expectError("medfilt3(ones(3,3,3), [3 3]);", "numkit:medfilt3:badSize");
+    expectError("col2im(ones(4,4), [], [4 4]);", "numkit:col2im:size");
+    expectError("graycomatrix(ones(4), 'Offset', 'ab');", "numkit:graycomatrix:badOffset");
+}

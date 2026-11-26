@@ -316,6 +316,9 @@ void bwareafilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 conn = 8;
 
     const Value &v = args[1];
+    if (!v.isNumeric())
+        throw Error("bwareafilt: range or N must be numeric",
+                    0, 0, "bwareafilt", "", "numkit:bwareafilt:range");
     if (v.numel() >= 2) {
         // Range form.
         lo = v.elemAsDouble(0);

@@ -643,7 +643,7 @@ gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
     if (outT == ValueType::UINT8) {
         keel::u8 *od = out.uint8DataMut();
         for (keel::usize i = 0; i < N; ++i) {
-            keel::f64 v = keel::round_i64((I.elemAsDouble(i) - low) * k);
+            keel::f64 v = keel::as<keel::f64>(keel::round_i64((I.elemAsDouble(i) - low) * k));
             if (v < 0)   v = 0;
             if (v > 255) v = 255;
             od[i] = keel::as<keel::u8>(v);
@@ -651,7 +651,7 @@ gray2ind(const Value &I, keel::i32 n, keel::Allocator *mr)
     } else {
         keel::u16 *od = out.uint16DataMut();
         for (keel::usize i = 0; i < N; ++i) {
-            keel::f64 v = keel::round_i64((I.elemAsDouble(i) - low) * k);
+            keel::f64 v = keel::as<keel::f64>(keel::round_i64((I.elemAsDouble(i) - low) * k));
             if (v < 0)     v = 0;
             if (v > 65535) v = 65535;
             od[i] = keel::as<keel::u16>(v);

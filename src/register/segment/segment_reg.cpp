@@ -209,6 +209,11 @@ void gradientweight_reg(keel::ArrayRef<Value> a, keel::usize, keel::MutArrayRef<
     // Optional sigma argument.
     if (a.size() >= 2 && !is_string(a[1])) {
         const Value &s = a[1];
+        if (!s.isNumeric())
+            throw Error("gradientweight: sigma must be a numeric scalar or "
+                        "2-element vector",
+                        0, 0, "gradientweight", "",
+                        "numkit:gradientweight:sigmaSize");
         const keel::usize ns = s.numel();
         if (ns == 1) {
             sigma_x = sigma_y = s.toScalar();

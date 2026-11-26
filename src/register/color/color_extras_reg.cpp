@@ -274,8 +274,8 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::StringRef nref = name.as_ref();
         if (nref.equals_ignore_ascii_case("adjustlightness")) {
             const Value &v = args[i + 1];
-            if (v.numel() != 2)
-                throw Error("tonemap: AdjustLightness must be [lo hi]",
+            if (!v.isNumeric() || v.numel() != 2)
+                throw Error("tonemap: AdjustLightness must be a 2-element numeric vector [lo hi]",
                             0, 0, "tonemap", "", "numkit:tonemap:adjustLen");
             lo = v.elemAsDouble(0);
             hi = v.elemAsDouble(1);
@@ -283,6 +283,10 @@ void tonemap_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             saturation = args[i + 1].toScalar();
         } else if (nref.equals_ignore_ascii_case("numberoftiles")) {
             const Value &v = args[i + 1];
+            if (!v.isNumeric())
+                throw Error("tonemap: NumberOfTiles must be a numeric scalar or "
+                            "2-element vector",
+                            0, 0, "tonemap", "", "numkit:tonemap:tilesLen");
             if (v.numel() == 1) {
                 ntilesR = ntilesC = argcheck::expectedPositiveInteger(
                     argcheck::expectedReal(v, keel::i32(i) + 2, "NumberOfTiles", "tonemap"),

@@ -436,25 +436,38 @@ void fspecial_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (type == "motion") {
         // 'motion' takes two INDEPENDENT scalars [len, theta]; do NOT
         // size-double the 2nd arg the way the size-based filters do.
-        if (args.size() >= 2 && args[1].numel() >= 1)
+        if (args.size() >= 2 && !args[1].isEmpty()) {
+            if (!args[1].isNumeric())
+                throw Error("fspecial: motion length must be numeric",
+                            0, 0, "fspecial", "", "numkit:fspecial:type");
             params.push_back(args[1].elemAsDouble(0));
-        if (args.size() >= 3 && args[2].numel() >= 1)
+        }
+        if (args.size() >= 3 && !args[2].isEmpty()) {
+            if (!args[2].isNumeric())
+                throw Error("fspecial: motion angle must be numeric",
+                            0, 0, "fspecial", "", "numkit:fspecial:type");
             params.push_back(args[2].elemAsDouble(0));
+        }
     } else {
         // Second positional arg can be a scalar (square size) or a 2-vector
         // [rows cols]; a scalar size is doubled so a following scalar (sigma /
         // alpha) lands in slot 3.
         if (args.size() >= 2) {
             const Value &v = args[1];
-            if (v.numel() == 1) {
-                params.push_back(v.toScalar());
-                params.push_back(v.toScalar());
-            } else if (v.numel() == 2) {
-                params.push_back(v.elemAsDouble(0));
-                params.push_back(v.elemAsDouble(1));
-            } else if (v.numel() > 0) {
-                for (keel::usize i = 0; i < v.numel(); ++i)
-                    params.push_back(v.elemAsDouble(i));
+            if (!v.isEmpty()) {
+                if (!v.isNumeric())
+                    throw Error("fspecial: filter parameter must be numeric",
+                                0, 0, "fspecial", "", "numkit:fspecial:type");
+                if (v.numel() == 1) {
+                    params.push_back(v.toScalar());
+                    params.push_back(v.toScalar());
+                } else if (v.numel() == 2) {
+                    params.push_back(v.elemAsDouble(0));
+                    params.push_back(v.elemAsDouble(1));
+                } else {
+                    for (keel::usize i = 0; i < v.numel(); ++i)
+                        params.push_back(v.elemAsDouble(i));
+                }
             }
         }
         // Third positional arg = sigma / alpha / radius (scalar).
@@ -531,6 +544,9 @@ void modefilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (args[1].isChar() || args[1].isString()) {
             padopt = args[1].toString();
         } else {
+            if (!args[1].isNumeric())
+                throw Error("modefilt: filter size must be numeric",
+                            0, 0, "modefilt", "", "numkit:modefilt:badSize");
             if (args[1].numel() == 1) {
                 fH = fW = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(args[1], 2, "window", "modefilt"), 2, "window", "modefilt");
@@ -569,6 +585,9 @@ void integralBoxFilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
         const Value &fsArg = args[1];
+        if (!fsArg.isNumeric())
+            throw Error("integralBoxFilter: filterSize must be a numeric scalar or 2-element vector",
+                        0, 0, "integralBoxFilter", "", "numkit:integralBoxFilter:badSize");
         if (fsArg.numel() == 1) {
             fH = fW = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(fsArg, 2, "window", "integralBoxFilter"), 2, "window", "integralBoxFilter");
@@ -611,6 +630,9 @@ void integralBoxFilter3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
         const Value &fsArg = args[1];
+        if (!fsArg.isNumeric())
+            throw Error("integralBoxFilter3: filterSize must be a numeric scalar or 3-element vector",
+                        0, 0, "integralBoxFilter3", "", "numkit:integralBoxFilter3:badSize");
         if (fsArg.numel() == 1) {
             fH = fW = fP = argcheck::expectedPositiveInteger(
             argcheck::expectedReal(fsArg, 2, "window", "integralBoxFilter3"), 2, "window", "integralBoxFilter3");
@@ -651,6 +673,9 @@ void medfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 M = 3, N = 3, P = 3;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
+        if (!v.isNumeric())
+            throw Error("medfilt3: filter size must be a numeric scalar or 3-element vector",
+                        0, 0, "medfilt3", "", "numkit:medfilt3:badSize");
         if (v.numel() == 1) {
             M = N = P = argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(v, 2, "window", "medfilt3"), 2, "window", "medfilt3");
@@ -658,6 +683,9 @@ void medfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             M = keel::as<keel::i32>(v.elemAsDouble(0));
             N = keel::as<keel::i32>(v.elemAsDouble(1));
             P = keel::as<keel::i32>(v.elemAsDouble(2));
+        } else {
+            throw Error("medfilt3: filter size must be a numeric scalar or 3-element vector",
+                        0, 0, "medfilt3", "", "numkit:medfilt3:badSize");
         }
     }
     outs[0] = medfilt3(args[0], M, N, P, ctx.engine->allocator());
@@ -671,12 +699,18 @@ void imgaussfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::f64 sigH = 0.5, sigW = 0.5, sigP = 0.5;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
+        if (!v.isNumeric())
+            throw Error("imgaussfilt3: sigma must be a numeric scalar or 3-element vector",
+                        0, 0, "imgaussfilt3", "", "numkit:imgaussfilt3:badSigma");
         if (v.numel() == 1) {
             sigH = sigW = sigP = v.toScalar();
         } else if (v.numel() >= 3) {
             sigH = v.elemAsDouble(0);
             sigW = v.elemAsDouble(1);
             sigP = v.elemAsDouble(2);
+        } else {
+            throw Error("imgaussfilt3: sigma must be a numeric scalar or 3-element vector",
+                        0, 0, "imgaussfilt3", "", "numkit:imgaussfilt3:badSigma");
         }
     }
     outs[0] = imgaussfilt3(args[0], sigH, sigW, sigP, ctx.engine->allocator());
@@ -694,8 +728,8 @@ void convmtx2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
             argcheck::expectedReal(args[2], 3, "n", "convmtx2"), 3, "n", "convmtx2");
     } else {
         const Value &v = args[1];
-        if (v.numel() != 2)
-            throw Error("convmtx2: 2nd arg must be a 2-element vector or pair (m, n)",
+        if (!v.isNumeric() || v.numel() != 2)
+            throw Error("convmtx2: 2nd arg must be a 2-element numeric vector or pair (m, n)",
                         0, 0, "convmtx2", "", "numkit:convmtx2:size");
         m = keel::as<keel::i32>(v.elemAsDouble(0));
         n = keel::as<keel::i32>(v.elemAsDouble(1));
@@ -711,12 +745,18 @@ void imboxfilt3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 fH = 3, fW = 3, fP = 3;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
+        if (!v.isNumeric())
+            throw Error("imboxfilt3: filter size must be a numeric scalar or 3-element vector",
+                        0, 0, "imboxfilt3", "", "numkit:imboxfilt3:badSize");
         if (v.numel() == 1) {
-            fH = fW = fP = (keel::i32)v.toScalar();
+            fH = fW = fP = keel::as<keel::i32>(v.toScalar());
         } else if (v.numel() >= 3) {
-            fH = (keel::i32)v.elemAsDouble(0);
-            fW = (keel::i32)v.elemAsDouble(1);
-            fP = (keel::i32)v.elemAsDouble(2);
+            fH = keel::as<keel::i32>(v.elemAsDouble(0));
+            fW = keel::as<keel::i32>(v.elemAsDouble(1));
+            fP = keel::as<keel::i32>(v.elemAsDouble(2));
+        } else {
+            throw Error("imboxfilt3: filter size must be a numeric scalar or 3-element vector",
+                        0, 0, "imboxfilt3", "", "numkit:imboxfilt3:badSize");
         }
     }
     outs[0] = imboxfilt3(args[0], fH, fW, fP, ctx.engine->allocator());
@@ -729,6 +769,9 @@ void freqz2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     keel::usize M = 64, N = 64;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
+        if (!v.isNumeric())
+            throw Error("freqz2: size argument must be numeric",
+                        0, 0, "freqz2", "", "numkit:freqz2:badSize");
         if (v.numel() == 1) {
             M = N = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(v, 2, "n", "freqz2"), 2, "n", "freqz2"));
@@ -753,11 +796,14 @@ void medfilt2_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 rows = 3, cols = 3;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
+        if (!v.isNumeric())
+            throw Error("medfilt2: neighborhood size must be numeric",
+                        0, 0, "medfilt2", "", "numkit:medfilt2:badSize");
         if (v.numel() == 1) {
-            rows = cols = (keel::i32)v.toScalar();
+            rows = cols = keel::as<keel::i32>(v.toScalar());
         } else if (v.numel() >= 2) {
-            rows = (keel::i32)v.elemAsDouble(0);
-            cols = (keel::i32)v.elemAsDouble(1);
+            rows = keel::as<keel::i32>(v.elemAsDouble(0));
+            cols = keel::as<keel::i32>(v.elemAsDouble(1));
         }
     }
     outs[0] = medfilt2(args[0], rows, cols, ctx.engine->allocator());
@@ -769,11 +815,14 @@ void im2col_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 2, 4, "im2col");
     keel::i32 m = 0, n = 0;
     const Value &sz = args[1];
+    if (!sz.isNumeric())
+        throw Error("im2col: block size must be a numeric scalar or 2-vector",
+                    0, 0, "im2col", "", "numkit:im2col:size");
     if (sz.numel() == 1) {
-        m = n = (keel::i32)sz.toScalar();
+        m = n = keel::as<keel::i32>(sz.toScalar());
     } else if (sz.numel() >= 2) {
-        m = (keel::i32)sz.elemAsDouble(0);
-        n = (keel::i32)sz.elemAsDouble(1);
+        m = keel::as<keel::i32>(sz.elemAsDouble(0));
+        n = keel::as<keel::i32>(sz.elemAsDouble(1));
     } else {
         throw Error("im2col: block size must be scalar or 2-vector",
                     0, 0, "im2col", "", "numkit:im2col:size");
@@ -824,19 +873,19 @@ void col2im_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::i32 m, n, mm, nn;
     {
         const Value &b = args[1];
-        if (b.numel() < 1)
-            throw Error("col2im: empty block size",
+        if (!b.isNumeric() || b.numel() < 1)
+            throw Error("col2im: block size must be a non-empty numeric vector",
                         0, 0, "col2im", "", "numkit:col2im:size");
-        m = (keel::i32)b.elemAsDouble(0);
-        n = (b.numel() >= 2) ? (keel::i32)b.elemAsDouble(1) : m;
+        m = keel::as<keel::i32>(b.elemAsDouble(0));
+        n = (b.numel() >= 2) ? keel::as<keel::i32>(b.elemAsDouble(1)) : m;
     }
     {
         const Value &s = args[2];
-        if (s.numel() < 1)
-            throw Error("col2im: empty image size",
+        if (!s.isNumeric() || s.numel() < 1)
+            throw Error("col2im: image size must be a non-empty numeric vector",
                         0, 0, "col2im", "", "numkit:col2im:size");
-        mm = (keel::i32)s.elemAsDouble(0);
-        nn = (s.numel() >= 2) ? (keel::i32)s.elemAsDouble(1) : mm;
+        mm = keel::as<keel::i32>(s.elemAsDouble(0));
+        nn = (s.numel() >= 2) ? keel::as<keel::i32>(s.elemAsDouble(1)) : mm;
     }
     keel::String mode = keel::String::from("sliding");
     if (args.size() >= 4 && (args[3].isChar() || args[3].isString()))
@@ -996,6 +1045,9 @@ void wiener2_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     keel::usize nh = 3, nw = 3;
     keel::f64 noise = keel::kNaN;
     if (args.size() >= 2 && !args[1].isEmpty()) {
+        if (!args[1].isNumeric())
+            throw Error("wiener2: neighborhood size or noise must be numeric",
+                        0, 0, "wiener2", "", "numkit:wiener2:badArg");
         if (args[1].numel() == 1) {
             // Single scalar = noise (Octave convention when no nhood).
             noise = args[1].toScalar();
@@ -1061,8 +1113,8 @@ void nlfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                     0, 0, "nlfilter", "", "numkit:nlfilter:nargin");
     const Value &nh = args[k];
     const Value &fn = args[k + 1];
-    if (nh.numel() != 2)
-        throw Error("nlfilter: neighbourhood must be a 2-element vector",
+    if (!nh.isNumeric() || nh.numel() != 2)
+        throw Error("nlfilter: neighbourhood must be a 2-element numeric vector",
                     0, 0, "nlfilter", "", "numkit:nlfilter:nhood");
     const keel::usize m = keel::as<keel::usize>(nh.elemAsDouble(0));
     const keel::usize n = keel::as<keel::usize>(nh.elemAsDouble(1));
@@ -1099,8 +1151,8 @@ void colfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         throw Error("colfilt: requires (A, [m n], block_type, fun)",
                     0, 0, "colfilt", "", "numkit:colfilt:nargin");
     const Value &nh = args[k];
-    if (nh.numel() != 2)
-        throw Error("colfilt: neighbourhood must be a 2-element vector",
+    if (!nh.isNumeric() || nh.numel() != 2)
+        throw Error("colfilt: neighbourhood must be a 2-element numeric vector",
                     0, 0, "colfilt", "", "numkit:colfilt:nhood");
     const keel::usize m = keel::as<keel::usize>(nh.elemAsDouble(0));
     const keel::usize n = keel::as<keel::usize>(nh.elemAsDouble(1));
@@ -1289,6 +1341,11 @@ void imguidedfilter_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         keel::StringRef nref = name.as_ref();
         if (nref.equals_ignore_ascii_case("neighborhoodsize")) {
             const Value &v = args[i + 1];
+            if (!v.isNumeric())
+                throw Error("imguidedfilter: NeighborhoodSize must be a "
+                            "numeric scalar or 2-element vector",
+                            0, 0, "imguidedfilter", "",
+                            "numkit:imguidedfilter:nhoodSize");
             if (v.numel() == 1) {
                 nhood = argcheck::expectedPositiveInteger(
                     argcheck::expectedReal(v, keel::i32(i) + 2, "Neighborhood", "imguidedfilter"),

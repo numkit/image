@@ -55,8 +55,8 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 argcheck::expectedReal(v, keel::i32(i) + 2, "NumLevels", "graycomatrix"),
                 keel::i32(i) + 2, "NumLevels", "graycomatrix");
         else if (eqIgnoreCase(key, "Offset")) {
-            if (v.numel() < 2)
-                throw Error("graycomatrix: Offset must be 2-element",
+            if (!v.isNumeric() || v.numel() < 2)
+                throw Error("graycomatrix: Offset must be a 2-element numeric vector",
                              0, 0, "graycomatrix", "",
                              "numkit:graycomatrix:badOffset");
             offR = keel::as<keel::i32>(v.elemAsDouble(0));
@@ -69,8 +69,8 @@ void graycomatrix_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                 data_gray_limits(I, gLow, gHigh);
                 limitsSet = true;
             }
-            else if (v.numel() < 2)
-                throw Error("graycomatrix: GrayLimits must be 2-element",
+            else if (!v.isNumeric() || v.numel() < 2)
+                throw Error("graycomatrix: GrayLimits must be a 2-element numeric vector",
                              0, 0, "graycomatrix", "",
                              "numkit:graycomatrix:badLimits");
             else {

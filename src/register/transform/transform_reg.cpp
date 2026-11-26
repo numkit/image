@@ -165,6 +165,9 @@ void deconvreg_reg(keel::ArrayRef<Value> args, keel::usize nargout,
     }
     if (args.size() >= 4 && !args[3].isEmpty()) {
         const Value &lr = args[3];
+        if (!lr.isNumeric())
+            throw Error("deconvreg: LRANGE must be a numeric scalar or 2-element vector",
+                        0, 0, "deconvreg", "", "numkit:deconvreg:lrange");
         if (lr.numel() == 1) {
             lo = hi = lr.toScalar();
         } else if (lr.numel() == 2) {
@@ -234,6 +237,9 @@ void checkerboard_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     }
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &v = args[1];
+        if (!v.isNumeric())
+            throw Error("checkerboard: M must be numeric",
+                        0, 0, "checkerboard", "", "numkit:checkerboard:MType");
         if (v.numel() == 1)
             M = N = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
                 argcheck::expectedReal(v, 2, "M", "checkerboard"), 2, "M", "checkerboard"));

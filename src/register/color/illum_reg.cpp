@@ -129,6 +129,9 @@ void illumgray_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::Array<keel::f64> P;
     keel::usize i = 1;
     if (args.size() >= 2 && !args[1].isChar() && !args[1].isString()) {
+        if (!args[1].isNumeric())
+            throw Error("illumgray: percentile must be a numeric scalar or 2-vector",
+                        0, 0, "illumgray", "", "numkit:illumgray:percentile");
         const keel::usize n = args[1].numel();
         if (n == 1) P.push_back(args[1].toScalar());
         else if (n == 2) {

@@ -59,6 +59,9 @@ void stretchlim_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::f64 lo = 0.01, hi = 0.99;
     if (args.size() >= 2 && !args[1].isEmpty()) {
         const Value &t = args[1];
+        if (!t.isNumeric())
+            throw Error("stretchlim: TOL must be a numeric scalar or 2-element vector",
+                        0, 0, "stretchlim", "", "numkit:stretchlim:tolType");
         if (t.numel() == 1) {
             lo = t.toScalar();
             hi = 1.0 - lo;
@@ -91,18 +94,21 @@ void imadjust_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         if (v.isEmpty()) {
             low_in  = 0.0;
             high_in = 1.0;
-        }
-        else if (v.numel() >= 2) {
+        } else if (!v.isNumeric() || v.numel() < 2) {
+            throw Error("imadjust: low_high_in must be empty or a 2-element numeric vector",
+                        0, 0, "imadjust", "", "numkit:imadjust:inRange");
+        } else {
             low_in  = v.elemAsDouble(0);
             high_in = v.elemAsDouble(1);
         }
     }
     if (args.size() >= 3 && !args[2].isEmpty()) {
         const Value &v = args[2];
-        if (v.numel() >= 2) {
-            low_out  = v.elemAsDouble(0);
-            high_out = v.elemAsDouble(1);
-        }
+        if (!v.isNumeric() || v.numel() < 2)
+            throw Error("imadjust: low_high_out must be empty or a 2-element numeric vector",
+                        0, 0, "imadjust", "", "numkit:imadjust:outRange");
+        low_out  = v.elemAsDouble(0);
+        high_out = v.elemAsDouble(1);
     }
     if (args.size() >= 4 && !args[3].isEmpty()) gamma = args[3].toScalar();
 
@@ -134,11 +140,11 @@ void adapthisteq_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
         const keel::String key = args[i].toString();
         const Value &v        = args[i + 1];
         if (eqIgnoreCase(key, "NumTiles")) {
-            if (v.numel() < 2)
-                throw Error("adapthisteq: NumTiles must be 2-element",
+            if (!v.isNumeric() || v.numel() < 2)
+                throw Error("adapthisteq: NumTiles must be a 2-element numeric vector",
                              0, 0, "adapthisteq", "", "numkit:adapthisteq:badNumTiles");
-            opts.numTilesR = (keel::i32)v.elemAsDouble(0);
-            opts.numTilesC = (keel::i32)v.elemAsDouble(1);
+            opts.numTilesR = keel::as<keel::i32>(v.elemAsDouble(0));
+            opts.numTilesC = keel::as<keel::i32>(v.elemAsDouble(1));
         } else if (eqIgnoreCase(key, "ClipLimit"))    opts.clipLimit    = v.toScalar();
         else if (eqIgnoreCase(key, "NBins"))          opts.nBins        = (keel::i32)v.toScalar();
         else if (eqIgnoreCase(key, "Distribution"))   opts.distribution = v.toString();

@@ -62,6 +62,9 @@ void bwpropfilt_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::f64 p_min = 0, p_max = 0;
     keel::usize keep_n = 0;
     bool keep_largest = true;
+    if (!p.isNumeric())
+        throw Error("bwpropfilt: p must be a numeric scalar n or 2-element range",
+                    0, 0, "bwpropfilt", "", "numkit:bwpropfilt:pShape");
     if (p.numel() == 1) {
         keep_n = keel::as<keel::usize>(argcheck::expectedPositiveInteger(
             argcheck::expectedReal(p, 2, "n", "bwpropfilt"), 2, "n", "bwpropfilt"));

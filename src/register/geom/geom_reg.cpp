@@ -42,11 +42,15 @@ void imresize_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mut
     auto *mr = ctx.engine->allocator();
     keel::String method = keel::String::from("bicubic");   // MATLAB default
     if (args.size() >= 3 && !args[2].isEmpty()) method = argString(args[2]);
+    if (!args[1].isNumeric())
+        throw Error("imresize: 2nd arg must be a numeric scalar scale "
+                    "or a 2-element [outH outW]",
+                    0, 0, "imresize", "", "numkit:imresize:size");
     if (args[1].numel() == 1) {
         outs[0] = imresize(args[0], args[1].toScalar(), method, mr);
     } else if (args[1].numel() == 2) {
-        const keel::usize outH = keel::usize(args[1].elemAsDouble(0));
-        const keel::usize outW = keel::usize(args[1].elemAsDouble(1));
+        const keel::usize outH = keel::as<keel::usize>(args[1].elemAsDouble(0));
+        const keel::usize outW = keel::as<keel::usize>(args[1].elemAsDouble(1));
         outs[0] = imresize(args[0], outH, outW, method, mr);
     } else {
         throw Error("imresize: 2nd arg must be a scalar scale "
@@ -59,8 +63,8 @@ void imcrop_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::MutAr
                 CallContext &ctx)
 {
     argcheck::checkNargin(args.size(), 2, 5, "imcrop");
-    if (args[1].numel() < 4)
-        throw Error("imcrop: rect must have 4 elements",
+    if (!args[1].isNumeric() || args[1].numel() < 4)
+        throw Error("imcrop: rect must be a numeric vector with 4 elements",
                     0, 0, "imcrop", "", "numkit:imcrop:rect");
     outs[0] = imcrop(args[0], args[1].elemAsDouble(0), args[1].elemAsDouble(1), args[1].elemAsDouble(2), args[1].elemAsDouble(3), ctx.engine->allocator());
 }
@@ -98,8 +102,8 @@ void imtranslate_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::
 {
     argcheck::checkNargin(args.size(), 2, "imtranslate");
     // no max: name-value tail in the reference
-    if (args[1].numel() < 2)
-        throw Error("imtranslate: vector must have 2 elements",
+    if (!args[1].isNumeric() || args[1].numel() < 2)
+        throw Error("imtranslate: vector must be a numeric vector with 2 elements",
                     0, 0, "imtranslate", "", "numkit:imtranslate:vec");
     outs[0] = imtranslate(args[0], args[1].elemAsDouble(0), args[1].elemAsDouble(1), ctx.engine->allocator());
 }
@@ -357,6 +361,10 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
     if (args.size() >= 2 && !args[1].isEmpty()
         && !args[1].isChar() && !args[1].isString()) {
         const Value &s = args[1];
+        if (!s.isNumeric())
+            throw Error("imresize3: 2nd arg must be a numeric scalar scale or "
+                        "[numrows numcols numplanes]",
+                        0, 0, "imresize3", "", "numkit:imresize3:size");
         if (s.numel() == 1) {
             haveScaleNum = true; scaleScalar = s.toScalar();
         } else if (s.numel() == 3) {
@@ -392,14 +400,18 @@ void imresize3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/, keel::Mu
         } else if (name.equals_ignore_ascii_case("method")) {
             method = argString(val);
         } else if (name.equals_ignore_ascii_case("outputsize")) {
-            if (val.numel() != 3)
-                throw Error("imresize3: OutputSize must be a 3-element vector",
+            if (!val.isNumeric() || val.numel() != 3)
+                throw Error("imresize3: OutputSize must be a 3-element numeric vector",
                             0, 0, "imresize3", "", "numkit:imresize3:size");
             haveSize3 = true;
             outRows = keel::as<keel::usize>(val.elemAsDouble(0));
             outCols = keel::as<keel::usize>(val.elemAsDouble(1));
             outDeps = keel::as<keel::usize>(val.elemAsDouble(2));
         } else if (name.equals_ignore_ascii_case("scale")) {
+            if (!val.isNumeric())
+                throw Error("imresize3: Scale must be a positive numeric scalar "
+                            "or a 3-element vector",
+                            0, 0, "imresize3", "", "numkit:imresize3:scaleNV");
             if (val.numel() == 1) {
                 haveScaleNum = true; scaleScalar = val.toScalar();
             } else if (val.numel() == 3) {
@@ -478,8 +490,8 @@ void imrotate3_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     argcheck::checkNargin(args.size(), 3, 7, "imrotate3");
     auto *mr = ctx.engine->allocator();
     const keel::f64 angle = args[1].toScalar();
-    if (args[2].numel() != 3)
-        throw Error("imrotate3: axis W must be a 3-element vector",
+    if (!args[2].isNumeric() || args[2].numel() != 3)
+        throw Error("imrotate3: axis W must be a 3-element numeric vector",
                     0, 0, "imrotate3", "", "numkit:imrotate3:axis");
     const keel::f64 Wx = args[2].elemAsDouble(0);
     const keel::f64 Wy = args[2].elemAsDouble(1);

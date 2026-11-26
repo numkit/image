@@ -112,6 +112,9 @@ void edge_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
     keel::f64 t_lo = keel::kNaN, t_hi = keel::kNaN;
     if (args.size() >= 3 && !args[2].isEmpty() && !(args[2].isChar() || args[2].isString())) {
         const Value &v = args[2];
+        if (!v.isNumeric())
+            throw Error("edge: threshold must be numeric",
+                        0, 0, "edge", "", "numkit:edge:thresh");
         if (v.numel() == 1) t_lo = v.toScalar();
         else if (v.numel() >= 2) {
             t_lo = v.elemAsDouble(0);
@@ -345,8 +348,8 @@ void houghpeaks_reg(keel::ArrayRef<Value> args, keel::usize /*nargout*/,
                             "numkit:houghpeaks:threshold");
         } else if (nlo == "nhoodsize") {
             const Value &v = args[i + 1];
-            if (v.numel() != 2)
-                throw Error("houghpeaks: NHoodSize must be a 2-elem vector",
+            if (!v.isNumeric() || v.numel() != 2)
+                throw Error("houghpeaks: NHoodSize must be a 2-elem numeric vector",
                             0, 0, "houghpeaks", "",
                             "numkit:houghpeaks:nhoodSize");
             const keel::f64 a = v.elemAsDouble(0);
