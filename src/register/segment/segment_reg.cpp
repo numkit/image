@@ -351,8 +351,16 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
         }
     }
 
+    // Validate and compute mask first (roipoly checks xi.numel() == yi.numel()).
+    Value BW = roipoly(xlo, xhi, ylo, yhi, M, N, xi, yi, mr);
+
+    if (nargout <= 1) {
+        o[0] = keel::move(BW);
+        return;
+    }
+
     // Build the auto-closed xi/yi for the multi-output forms (matches
-    // MATLAB's behaviour: outputs the closed polygon as a column vector).
+    // reference behaviour: outputs the closed polygon as a column vector).
     const keel::usize n0 = xi.numel();
     keel::Array<keel::f64> xc(mr), yc(mr);
     xc.reserve(n0 + 1);
@@ -373,8 +381,6 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
         yiOut.doubleDataMut()[i] = yc[i];
     }
 
-    Value BW = roipoly(xlo, xhi, ylo, yhi, M, N, xi, yi, mr);
-
     // Output dispatch.
     Value xDataOut = Value::matrix(1, 2, ValueType::DOUBLE, mr);
     xDataOut.doubleDataMut()[0] = xlo; xDataOut.doubleDataMut()[1] = xhi;
@@ -382,7 +388,6 @@ void roipoly_reg(keel::ArrayRef<Value> a, keel::usize nargout, keel::MutArrayRef
     yDataOut.doubleDataMut()[0] = ylo; yDataOut.doubleDataMut()[1] = yhi;
 
     switch (nargout) {
-        case 0: case 1: o[0] = keel::move(BW); break;
         case 2: o[0] = keel::move(BW); o[1] = keel::move(xiOut); break;
         case 3: o[0] = keel::move(BW); o[1] = keel::move(xiOut);
                 o[2] = keel::move(yiOut); break;
