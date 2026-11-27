@@ -150,6 +150,9 @@ void imresize3_scale_argcheck(keel::f64 scale)
 
 Value imresize(const Value &A, keel::usize outH, keel::usize outW, keel::StringRef method, keel::Allocator *mr)
 {
+    if (A.isEmpty())
+        throw Error("imresize: input image A must be nonempty",
+                    0, 0, "imresize", "", "numkit:imresize:emptyInput");
     const Shape s = shapeOf(A);
     const ValueType t = A.type();
     if (outH == 0 || outW == 0) return makeOut(outH, outW, s.C, t, mr);
@@ -170,8 +173,14 @@ Value imresize(const Value &A, keel::usize outH, keel::usize outW, keel::StringR
 
 Value imresize(const Value &A, keel::f64 scale, keel::StringRef method, keel::Allocator *mr)
 {
+    if (A.isEmpty())
+        throw Error("imresize: input image A must be nonempty",
+                    0, 0, "imresize", "", "numkit:imresize:emptyInput");
     const Shape s = shapeOf(A);
     imresize_scale_argcheck(scale);
+    if (!keel::is_finite(scale))
+        throw Error("imresize: scale must be finite and positive",
+                    0, 0, "imresize", "", "numkit:imresize:scale");
     const keel::usize outH = keel::as<keel::usize>(keel::round(scale * keel::as<keel::f64>(s.H)));
     const keel::usize outW = keel::as<keel::usize>(keel::round(scale * keel::as<keel::f64>(s.W)));
     const ValueType t = A.type();
