@@ -147,6 +147,18 @@ TEST_F(ImageBatch2Test, FilterGeom)
     EXPECT_DOUBLE_EQ(evalScalar("size(B,1)"), 4.0);
     EXPECT_DOUBLE_EQ(evalScalar("size(B,2)"), 4.0);
 
+    // 'box' upsampling replicates pixel blocks without bicubic overshoot; 'lanczos2'/'lanczos3' route cleanly.
+    eval("U = uint8([20 200; 80 140]); Ub = imresize(U, 4, 'box');");
+    EXPECT_DOUBLE_EQ(evalScalar("double(min(Ub(:)))"), 20.0);
+    EXPECT_DOUBLE_EQ(evalScalar("double(max(Ub(:)))"), 200.0);
+    EXPECT_DOUBLE_EQ(evalScalar("double(Ub(1,1))"), 20.0);
+    EXPECT_DOUBLE_EQ(evalScalar("double(Ub(4,4))"), 20.0);
+    EXPECT_DOUBLE_EQ(evalScalar("double(Ub(1,5))"), 200.0);
+    EXPECT_DOUBLE_EQ(evalScalar("double(Ub(8,8))"), 140.0);
+    eval("Ul2 = imresize(double(U), 2, 'lanczos2'); Ul3 = imresize(double(U), 2, 'lanczos3');");
+    EXPECT_DOUBLE_EQ(evalScalar("size(Ul2,1)"), 4.0);
+    EXPECT_DOUBLE_EQ(evalScalar("size(Ul3,2)"), 4.0);
+
     eval("B = imrotate([1 2; 3 4], 90);");
     EXPECT_DOUBLE_EQ(evalScalar("numel(B)"), 4.0);
 

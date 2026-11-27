@@ -73,8 +73,14 @@ bool methodIsNearest(keel::StringRef m)
 keel::image::ResizeKernel parseResize2Kernel(keel::StringRef m)
 {
     if (methodIsNearest(m)) return keel::image::ResizeKernel::kNearest;
+    if (m.equals_ignore_ascii_case("box"))
+        return keel::image::ResizeKernel::kBox;
     if (m.is_one_of_ignore_ascii_case({"bilinear", "linear", "triangle"}))
         return keel::image::ResizeKernel::kTriangle;
+    if (m.equals_ignore_ascii_case("lanczos2"))
+        return keel::image::ResizeKernel::kLanczos2;
+    if (m.equals_ignore_ascii_case("lanczos3"))
+        return keel::image::ResizeKernel::kLanczos3;
     return keel::image::ResizeKernel::kCubic;
 }
 
